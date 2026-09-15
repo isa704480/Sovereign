@@ -1,0 +1,11 @@
+import { Ban, Globe, Lock } from "lucide-react";
+
+export function TrustBadges() {
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-text-muted">
+      <span className="inline-flex items-center gap-1.5"><Lock className="size-3.5 text-success" /> 256-bit shifrlash</span>
+      <span className="inline-flex items-center gap-1.5"><Ban className="size-3.5 text-warning" /> Reklamasiz</span>
+      <span className="inline-flex items-center gap-1.5"><Globe className="size-3.5 text-research" /> GDPR</span>
+    </div>
+  );
+}
