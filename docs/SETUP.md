@@ -27,7 +27,8 @@ Production'da domeningizni ham qo'shing: `https://your-domain.com/auth/callback`
 
 **Authentication → Providers**
 
-- **Email**: yoqilgan. Tez test uchun *Confirm email* ni vaqtincha o'chirib qo'ysangiz, ro'yxatdan o'tgan zahoti onboarding ochiladi.
+- **Email**: yoqilgan. **Muhim:** *Confirm email* ni **o'chiring** (Authentication → Providers → Email → "Confirm email" off). Shunda sign up qilingan zahoti sessiya ochiladi va foydalanuvchi to'g'ridan-to'g'ri onboarding'ga tushadi. Yoqilgan holda avval pochtadagi havolani bosish kerak bo'ladi.
+- Mavjud email bilan sign up qilinsa, tizim o'sha parol bilan avtomatik login qiladi; parol mos kelmasa xato ko'rsatadi.
 - **Google**:
   1. https://console.cloud.google.com → APIs & Services → Credentials → *OAuth client ID* (Web application).
   2. Authorized redirect URI: `https://<project-ref>.supabase.co/auth/v1/callback` (Supabase provider sahifasida ko'rsatiladi).

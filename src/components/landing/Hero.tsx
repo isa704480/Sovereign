@@ -13,6 +13,13 @@ import { EASE_OUT_EXPO } from "@/lib/motion";
 
 const CYCLE_MS = 3600;
 
+const STATS = [
+  { value: "7+", label: "AI model, bitta interfeys", color: "#7C6FF7" },
+  { value: "256-bit", label: "AES-GCM shifrlash", color: "#10D4A0" },
+  { value: "0", label: "Ma'lumot uchinchi tomonga", color: "#20D4E8" },
+  { value: "< 50ms", label: "Blind Prompting kechikish", color: "#FF9500" },
+];
+
 export function Hero() {
   const [active, setActive] = useState(0);
 
@@ -37,7 +44,7 @@ export function Hero() {
       <StarFieldScene className="absolute inset-0 -z-10" />
       <div className="grid-fade absolute inset-0 -z-10" />
 
-      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-5 pb-20 pt-32 md:px-8 lg:grid-cols-[1.15fr_1fr] lg:pb-28 lg:pt-40">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-5 pb-8 pt-32 md:px-8 lg:grid-cols-[1.15fr_1fr] lg:pb-10 lg:pt-40">
         {/* left */}
         <Stagger stagger={0.09} delay={0.15} className="relative">
           <StaggerItem>
@@ -113,6 +120,25 @@ export function Hero() {
           <ModelSwitcherDemo model={model} />
         </motion.div>
       </div>
+
+      {/* stats strip */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.7, ease: EASE_OUT_EXPO, delay: 0.9 }}
+        className="mx-auto max-w-6xl px-5 pb-16 md:px-8"
+      >
+        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-4">
+          {STATS.map((s) => (
+            <div key={s.label} className="bg-bg-base/80 px-5 py-4 backdrop-blur-sm">
+              <div className="font-display text-2xl font-extrabold text-text-primary">
+                <span style={{ color: s.color }}>{s.value}</span>
+              </div>
+              <div className="mt-0.5 text-xs text-text-muted">{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </motion.div>
     </section>
   );
 }

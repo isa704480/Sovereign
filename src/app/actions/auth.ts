@@ -54,19 +54,34 @@ export async function signUpWithEmail(input: RegisterInput): Promise<AuthResult>
 
   const supabase = await getSupabase();
   if (!supabase) return { ok: false, error: SUPABASE_MISSING_MESSAGE };
+  const { email, password } = parsed.data;
   const { data, error } = await supabase.auth.signUp({
-    email: parsed.data.email,
-    password: parsed.data.password,
+    email,
+    password,
     options: { emailRedirectTo: `${await siteUrl()}/auth/callback?next=/onboarding` },
   });
 
-  if (error) return { ok: false, error: translate(error.message) };
+  // Account already exists (explicit error, or Supabase's obfuscated user with no
+  // identities when email confirmation is on): try to log the user in instead.
+  const alreadyExists =
+    (error && /already( been)? registered/i.test(error.message)) ||
+    (!error && data.user?.identities?.length === 0);
 
-  // Supabase returns an obfuscated user with no identities when the email exists.
-  if (data.user && data.user.identities && data.user.identities.length === 0) {
-    return { ok: false, error: "Bu email allaqachon ro'yxatdan o'tgan. Kirishga harakat qiling." };
+  if (alreadyExists) {
+    const signIn = await supabase.auth.signInWithPassword({ email, password });
+    if (signIn.error) {
+      return {
+        ok: false,
+        error: "Bu email allaqachon ro'yxatdan o'tgan, lekin parol mos kelmadi. Kirish sahifasidan urinib ko'ring.",
+      };
+    }
+    const profile = await getProfile(supabase, signIn.data.user.id);
+    redirect(postAuthPath(profile));
   }
 
+  if (error) return { ok: false, error: translate(error.message) };
+
+  // "Confirm email" off in Supabase → session is returned immediately → straight in.
   if (data.session) redirect("/onboarding");
   return { ok: true, status: "confirm-email" };
 }

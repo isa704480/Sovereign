@@ -30,7 +30,7 @@ const FEATURES = [
 
 export function Features() {
   return (
-    <section id="features" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-32">
+    <section id="features" className="relative mx-auto max-w-6xl px-5 pb-24 pt-12 md:px-8 md:pb-32 md:pt-16">
       <FadeIn inView>
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-soft">Nima uchun SOVEREIGN</p>
         <h2 className="font-display mt-3 max-w-2xl text-3xl font-extrabold text-text-primary md:text-4xl">
