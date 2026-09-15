@@ -27,7 +27,7 @@ npm run dev
 | Bosqich | Qamrov | Holat |
 |---|---|---|
 | 1 | Landing, Auth (email / Google / GitHub), Onboarding, dizayn tizimi, 3D/motion | ✅ |
-| 2 | Chat dashboard, model switcher, 7 model temasi, OpenRouter streaming | ⏳ |
+| 2 | Chat dashboard, model switcher, 7 model temasi, OpenRouter/Perplexity streaming | ✅ |
 | 3 | Perplexity Research, Blind Prompting SDK, Memory Graph, Verification | ⏳ |
 | 4 | Sozlamalar, Knowledge Base, billing, light mode, mobil polish | ⏳ |
 

@@ -10,9 +10,21 @@
 
 ## 2. Ma'lumotlar bazasi
 
-**SQL Editor** → yangi so'rov → `supabase/migrations/0001_profiles.sql` faylini to'liq joylashtiring → **Run**.
+**SQL Editor** → yangi so'rov → quyidagi fayllarni tartib bilan joylashtirib **Run** qiling:
 
-Bu `profiles` jadvalini, RLS siyosatlarini va `auth.users` ga trigger'ni yaratadi (har yangi foydalanuvchi uchun profil avtomatik ochiladi).
+1. `supabase/migrations/0001_profiles.sql` — `profiles` jadvali, RLS, `auth.users` trigger (har yangi foydalanuvchi uchun profil avtomatik ochiladi)
+2. `supabase/migrations/0002_chat.sql` — `conversations` va `messages` jadvallari (chat tarixi, RLS bilan)
+
+## 2.1 AI kalitlar (Phase 2)
+
+`.env.local` ga qo'shing:
+
+```
+OPENROUTER_API_KEY=sk-or-...     # https://openrouter.ai/keys
+PERPLEXITY_API_KEY=pplx-...      # https://www.perplexity.ai/settings/api
+```
+
+Kalit bo'lmasa dashboard **namunaviy (mock) javob** bilan ishlayveradi — dizaynni ko'rish uchun yetarli. Model id'lari `src/config/models.ts` dagi `providerModel` maydonida; OpenRouter'da nom o'zgarsa shu yerdan tuzating.
 
 ## 3. Auth sozlamalari
 
