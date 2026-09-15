@@ -254,6 +254,137 @@
   }
 }
 
+/* ------------------------------------------------------------------
+   Dashboard model themes: every value comes from --t-* set inline by
+   <Dashboard/> (see config/model-themes.ts). 400ms cross-fade on switch.
+------------------------------------------------------------------- */
+.theme-root {
+  font-family: var(--t-font-body);
+  color: var(--t-text);
+  background: var(--t-bg);
+}
+.theme-root .tt,
+.theme-root .tt::before,
+.theme-root .tt::after {
+  transition:
+    background-color 400ms var(--ease-sovereign),
+    color 400ms var(--ease-sovereign),
+    border-color 400ms var(--ease-sovereign),
+    box-shadow 400ms var(--ease-sovereign),
+    border-radius 400ms var(--ease-sovereign);
+}
+.t-display {
+  font-family: var(--t-font-display);
+  letter-spacing: -0.01em;
+}
+.t-gradient-text {
+  background: var(--t-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Markdown inside chat messages */
+.prose-chat {
+  font-size: 15px;
+  line-height: 1.7;
+  word-break: break-word;
+}
+.prose-chat > :first-child { margin-top: 0; }
+.prose-chat > :last-child { margin-bottom: 0; }
+.prose-chat p { margin: 0.6em 0; }
+.prose-chat h1, .prose-chat h2, .prose-chat h3, .prose-chat h4 {
+  font-family: var(--t-font-display);
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 1.1em 0 0.45em;
+  color: var(--t-text);
+}
+.prose-chat h1 { font-size: 1.5em; }
+.prose-chat h2 { font-size: 1.3em; }
+.prose-chat h3 { font-size: 1.12em; }
+.prose-chat ul, .prose-chat ol { margin: 0.5em 0; padding-left: 1.4em; }
+.prose-chat ul { list-style: none; }
+.prose-chat ul > li { position: relative; }
+.prose-chat ul > li::before {
+  content: "";
+  position: absolute;
+  left: -1.05em;
+  top: 0.72em;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--t-primary);
+}
+.prose-chat ol { list-style: decimal; }
+.prose-chat li { margin: 0.25em 0; }
+.prose-chat li > p { margin: 0.2em 0; }
+.prose-chat a { color: var(--t-accent); text-decoration: underline; text-underline-offset: 3px; }
+.prose-chat strong { color: var(--t-text); font-weight: 600; }
+.prose-chat blockquote {
+  margin: 0.8em 0;
+  padding: 0.3em 1em;
+  border-left: 3px solid var(--t-primary);
+  background: color-mix(in srgb, var(--t-primary) 8%, transparent);
+  border-radius: 0 8px 8px 0;
+  color: var(--t-text-muted);
+}
+.prose-chat code {
+  font-family: var(--font-dm-mono), ui-monospace, monospace;
+  font-size: 0.88em;
+  background: color-mix(in srgb, var(--t-text) 10%, transparent);
+  padding: 0.12em 0.4em;
+  border-radius: 5px;
+}
+.prose-chat pre {
+  margin: 0.9em 0;
+  padding: 0;
+  background: transparent;
+}
+.prose-chat pre code {
+  display: block;
+  background: transparent;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.prose-chat hr { border: 0; border-top: 1px solid var(--t-border); margin: 1.2em 0; }
+.prose-chat table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+  margin: 0.9em 0;
+}
+.prose-chat th, .prose-chat td {
+  padding: 0.5em 0.75em;
+  border-bottom: 1px solid var(--t-border);
+  text-align: left;
+}
+.prose-chat th { color: var(--t-text-muted); font-weight: 500; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.04em; }
+.prose-chat tbody tr:nth-child(even) { background: color-mix(in srgb, var(--t-text) 4%, transparent); }
+.prose-chat .cite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35em;
+  height: 1.35em;
+  padding: 0 0.35em;
+  margin: 0 0.1em;
+  border-radius: 6px;
+  font-size: 0.72em;
+  font-weight: 600;
+  text-decoration: none;
+  vertical-align: 0.15em;
+  background: color-mix(in srgb, var(--t-primary) 18%, transparent);
+  color: var(--t-accent);
+}
+.prose-chat .cite:hover { background: color-mix(in srgb, var(--t-primary) 32%, transparent); }
+
+.chat-textarea {
+  field-sizing: content;
+  max-height: 220px;
+}
+
 @layer utilities {
   .font-display {
     font-family: var(--font-display);

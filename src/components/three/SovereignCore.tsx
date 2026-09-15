@@ -4,7 +4,7 @@ import { Float } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import { MODELS } from "@/config/models";
+import { SHOWCASE_MODELS } from "@/config/models";
 
 interface OrbitProps {
   color: string;
@@ -47,7 +47,7 @@ export function SovereignCore({ active = 0 }: { active?: number }) {
   const shell = useRef<THREE.Mesh>(null);
   const core = useRef<THREE.Mesh>(null);
   const glow = useRef<THREE.Mesh>(null);
-  const activeColor = useMemo(() => new THREE.Color(MODELS[active % MODELS.length]?.primary ?? "#5B50F0"), [active]);
+  const activeColor = useMemo(() => new THREE.Color(SHOWCASE_MODELS[active % SHOWCASE_MODELS.length]?.primary ?? "#5B50F0"), [active]);
   const currentColor = useRef(new THREE.Color("#5B50F0"));
 
   useFrame(({ clock }, delta) => {
@@ -73,11 +73,11 @@ export function SovereignCore({ active = 0 }: { active?: number }) {
 
   const orbits = useMemo(
     () =>
-      MODELS.map((m, i) => ({
+      SHOWCASE_MODELS.map((m, i) => ({
         color: m.primary,
         radius: 1.7 + (i % 3) * 0.38,
         speed: 0.35 + i * 0.07,
-        tilt: (i / MODELS.length) * Math.PI,
+        tilt: (i / SHOWCASE_MODELS.length) * Math.PI,
         phase: i * 1.1,
       })),
     [],

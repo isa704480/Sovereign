@@ -2,7 +2,7 @@
 
 import { motion, useMotionTemplate, useMotionValue, useSpring } from "motion/react";
 import type { MouseEvent } from "react";
-import { MODELS, type SovereignModel } from "@/config/models";
+import { SHOWCASE_MODELS, type SovereignModel } from "@/config/models";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 
@@ -98,7 +98,7 @@ export function ModelShowcase() {
       </FadeIn>
 
       <Stagger inView stagger={0.08} className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {MODELS.map((m) => (
+        {SHOWCASE_MODELS.map((m) => (
           <StaggerItem key={m.id} className="h-full">
             <ModelCard model={m} />
           </StaggerItem>
