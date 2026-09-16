@@ -180,7 +180,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           <div
             className="tt pointer-events-none absolute inset-0 -z-10"
             style={{
-              background: `radial-gradient(60% 40% at 50% 0%, color-mix(in srgb, ${model.primary} 14%, transparent) 0%, transparent 70%)`,
+              background: `radial-gradient(70% 30% at 50% -5%, color-mix(in srgb, ${model.primary} 7%, transparent) 0%, transparent 60%)`,
             }}
           />
 

@@ -89,9 +89,9 @@ export const MODEL_THEMES: Record<ModelTheme, ModelThemeSpec> = {
       text: "#F0F2FF",
       textMuted: "#9BA3CC",
       userBubble: "#1C1F42",
-      aiBubble: "#0D1033",
+      aiBubble: "transparent",
     },
-    layout: { aiBubble: true, userBubble: true, avatar: "glyph", input: "box", centeredEmptyInput: false, showCitations: false },
+    layout: { aiBubble: false, userBubble: true, avatar: "glyph", input: "box", centeredEmptyInput: false, showCitations: false },
   },
 
   claude: {
@@ -268,9 +268,9 @@ export const MODEL_THEMES: Record<ModelTheme, ModelThemeSpec> = {
       text: "#F4EEE6",
       textMuted: "#B5A491",
       userBubble: "#241609",
-      aiBubble: "#1A1008",
+      aiBubble: "transparent",
     },
-    layout: { aiBubble: true, userBubble: true, avatar: "glyph", input: "box", centeredEmptyInput: false, showCitations: false },
+    layout: { aiBubble: false, userBubble: true, avatar: "glyph", input: "box", centeredEmptyInput: false, showCitations: false },
   },
 
   llama: {
@@ -305,9 +305,9 @@ export const MODEL_THEMES: Record<ModelTheme, ModelThemeSpec> = {
       text: "#F1ECFF",
       textMuted: "#A99CCF",
       userBubble: "#1A1038",
-      aiBubble: "#120A2A",
+      aiBubble: "transparent",
     },
-    layout: { aiBubble: true, userBubble: true, avatar: "glyph", input: "box", centeredEmptyInput: false, showCitations: false },
+    layout: { aiBubble: false, userBubble: true, avatar: "glyph", input: "box", centeredEmptyInput: false, showCitations: false },
   },
 };
 
