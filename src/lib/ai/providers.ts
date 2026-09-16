@@ -1,5 +1,8 @@
 import "server-only";
-import { MODEL_BY_ID, type SovereignModel } from "@/config/models";
+import { MODELS, MODEL_BY_ID, type SovereignModel } from "@/config/models";
+
+/** Free provider models used as automatic fallbacks when one is rate-limited. */
+const FREE_FALLBACKS = MODELS.filter((m) => m.category === "free").map((m) => m.providerModel);
 
 export interface ChatMessageInput {
   role: "user" | "assistant" | "system";
@@ -101,7 +104,7 @@ async function errorMessage(res: Response): Promise<string> {
     /* ignore */
   }
   if (code === 429 || /rate-limited|rate limit/i.test(message)) {
-    return `Model hozir band (rate limit). Bir necha soniyadan keyin qayta urinib ko'ring yoki boshqa modelni tanlang. (${message})`;
+    return "Tekin modellar hozir band (juda ko'p so'rov). Bir necha soniyadan keyin qayta urinib ko'ring yoki boshqa (masalan Pro) modelni tanlang.";
   }
   if (code === 402 || /credits/i.test(message)) {
     return `Provayder balansi yetarli emas: ${message}`;
@@ -135,6 +138,11 @@ async function* streamOpenRouter(
     },
     body: JSON.stringify({
       model: model.providerModel,
+      // Free models share an upstream pool and get rate-limited; let OpenRouter
+      // auto-fall-back to the other free models before failing.
+      ...(model.category === "free"
+        ? { models: [model.providerModel, ...FREE_FALLBACKS.filter((m) => m !== model.providerModel)] }
+        : {}),
       messages,
       temperature: opts.temperature ?? 0.7,
       max_tokens: maxTokens,
