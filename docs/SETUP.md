@@ -10,7 +10,15 @@
 
 ## 2. Ma'lumotlar bazasi
 
-**SQL Editor** → yangi so'rov → `supabase/schema.sql` faylining to'liq matnini joylashtiring → **Run**.
+**Variant A (avtomatik):** Project Settings → Database → *Connection string (URI)* ni `.env.local` ga `DATABASE_URL=...` sifatida qo'shing, so'ng:
+
+```bash
+npm run db:migrate
+```
+
+Skript `supabase/migrations/*.sql` ni tartib bilan qo'llaydi va `_migrations` jadvalida belgilaydi (qayta ishga tushirish xavfsiz).
+
+**Variant B (qo'lda):** **SQL Editor** → yangi so'rov → `supabase/schema.sql` faylining to'liq matnini joylashtiring → **Run**.
 
 Bu bitta fayl ikkala migratsiyani o'z ichiga oladi:
 
