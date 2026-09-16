@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, FolderOpen, Globe, LogOut, MessageSquarePlus, PanelLeftClose, Search, Trash2 } from "lucide-react";
+import { Brain, FolderOpen, Globe, LogOut, MessageSquarePlus, PanelLeftClose, Search, Settings, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { signOut } from "@/app/actions/auth";
@@ -27,6 +27,7 @@ interface SidebarProps {
   plan: Plan;
   onUpgrade: () => void;
   onOpenMemory: () => void;
+  onOpenSettings: () => void;
 }
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -64,6 +65,7 @@ export function Sidebar({
   plan,
   onUpgrade,
   onOpenMemory,
+  onOpenSettings,
 }: SidebarProps) {
   const { theme, model } = useTheme();
   const [q, setQ] = useState("");
@@ -182,8 +184,11 @@ export function Sidebar({
         <button type="button" onClick={onOpenMemory} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/5" style={{ color: "var(--t-text-muted)" }}>
           <Brain className="size-4" /> Xotira
         </button>
-        <button type="button" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm opacity-60" style={{ color: "var(--t-text-muted)" }} title="Phase 4" disabled>
+        <button type="button" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm opacity-60" style={{ color: "var(--t-text-muted)" }} title="Tez orada" disabled>
           <FolderOpen className="size-4" /> Knowledge Base <span className="ml-auto text-[10px]">tez orada</span>
+        </button>
+        <button type="button" onClick={onOpenSettings} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/5" style={{ color: "var(--t-text-muted)" }}>
+          <Settings className="size-4" /> Sozlamalar
         </button>
         <div className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm" style={{ color: "var(--t-text-muted)" }}>
           <Globe className="size-4" /> Research rejim

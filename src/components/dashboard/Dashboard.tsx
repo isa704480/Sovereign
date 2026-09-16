@@ -15,6 +15,7 @@ import { ArtifactProvider, type ArtifactPayload } from "./artifact-context";
 import { ChatHeader } from "./ChatHeader";
 import { InputArea, type InputAreaHandle } from "./InputArea";
 import { MemoryPanel } from "./MemoryPanel";
+import { SettingsPanel } from "./SettingsPanel";
 import { MessageList } from "./MessageList";
 import { Sidebar } from "./Sidebar";
 import { SourcesPanel } from "./SourcesPanel";
@@ -67,6 +68,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const [artifact, setArtifact] = useState<ArtifactPayload | null>(null);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [memoryEnabled, setMemoryEnabled] = useState(memoryInit);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const artifactCtx = useMemo(
     () => ({ open: (a: ArtifactPayload) => setArtifact(a) }),
     [],
@@ -209,6 +211,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           plan={plan}
           onUpgrade={() => openPricing()}
           onOpenMemory={() => setMemoryOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -285,6 +288,18 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           suggestedPlan={pricing.suggested}
         />
         <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
+        <SettingsPanel
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          user={user}
+          plan={plan.id}
+          dynamicTheme={dynamicTheme}
+          onToggleDynamicTheme={setDynamicTheme}
+          onUpgrade={() => {
+            setSettingsOpen(false);
+            openPricing();
+          }}
+        />
       </div>
       </ArtifactProvider>
     </ThemeProvider>
