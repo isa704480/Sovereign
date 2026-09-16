@@ -1,4 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { isPlanId, PLAN_BY_ID, type Plan, type PlanId } from "@/config/plans";
 
 export interface Profile {
   id: string;
@@ -8,15 +9,28 @@ export interface Profile {
   onboarding: Record<string, unknown> | null;
   onboarding_completed: boolean;
   default_model: string;
+  plan: PlanId;
+  plan_expires_at: string | null;
 }
 
 export async function getProfile(supabase: SupabaseClient, userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from("profiles")
-    .select("id, email, full_name, avatar_url, onboarding, onboarding_completed, default_model")
+    .select("id, email, full_name, avatar_url, onboarding, onboarding_completed, default_model, plan, plan_expires_at")
     .eq("id", userId)
     .maybeSingle();
-  return (data as Profile | null) ?? null;
+  if (!data) return null;
+  const p = data as Profile;
+  return { ...p, plan: isPlanId(p.plan) ? p.plan : "free" };
+}
+
+/** Effective plan: expired paid plans fall back to free. */
+export function effectivePlan(profile: Pick<Profile, "plan" | "plan_expires_at"> | null): Plan {
+  if (!profile) return PLAN_BY_ID.free;
+  if (profile.plan !== "free" && profile.plan_expires_at && new Date(profile.plan_expires_at) < new Date()) {
+    return PLAN_BY_ID.free;
+  }
+  return PLAN_BY_ID[profile.plan] ?? PLAN_BY_ID.free;
 }
 
 /** Where a signed-in user should land. */

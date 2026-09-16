@@ -73,6 +73,16 @@ npm run dev
 
 http://localhost:3000 — landing. `/register` → onboarding → `/app`.
 
+## Tariflar (Free / Starter $5 / Pro $15 / Ultra $29)
+
+Konfiguratsiya: `src/config/plans.ts` (limitlar, model darajalari) va `src/config/models.ts` (`tier` maydoni).
+Server `/api/chat` da tekshiradi: model darajasi, Research ruxsati, kunlik xabar limiti (`messages_today` RPC), javob uzunligi; Free/Starter'da kod yozish cheklangan (qisqa misollar).
+
+- Tarif `profiles.plan` ustunida (`0003_plans.sql`). Foydalanuvchi uni Data API orqali o'zgartira olmaydi (trigger).
+- To'lov ulanguncha tarifni sinash uchun `.env.local` ga `ALLOW_PLAN_SWITCH=true` va `SUPABASE_SERVICE_ROLE_KEY=...` qo'shing; Narxlar oynasidagi "Tanlash" tugmasi tarifni yozadi (30 kunga).
+- Qo'lda o'zgartirish: Supabase Table Editor → `profiles` → `plan`.
+- UI preview: `http://localhost:3000/dev/chat?plan=free` (yoki starter/pro/ultra).
+
 ## Dizayn preview (Supabase'siz)
 
 `http://localhost:3000/dev/onboarding` — faqat `development` rejimida ochiladi, sessiya talab qilmaydi, javoblar saqlanmaydi. Onboarding UI'ni tez ko'rib chiqish uchun.

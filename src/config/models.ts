@@ -21,6 +21,8 @@ export interface ModelCapability {
   score: number;
 }
 
+import type { ModelTier } from "./plans";
+
 export type ModelCategory = "premium" | "free" | "research";
 
 export interface SovereignModel {
@@ -32,6 +34,8 @@ export interface SovereignModel {
   cost: ModelCost;
   /** Dropdown grouping. */
   category: ModelCategory;
+  /** Minimum subscription tier that unlocks the model. */
+  tier: ModelTier;
   /** Upstream id sent to OpenRouter (or Perplexity for research models). */
   providerModel: string;
   /** Short price hint shown in the switcher. */
@@ -58,6 +62,7 @@ export const MODELS: SovereignModel[] = [
     theme: "claude",
     cost: "$$",
     category: "premium",
+    tier: "pro",
     providerModel: "anthropic/claude-sonnet-4.5",
     price: "$0.003/1K",
     glyph: "✦",
@@ -83,6 +88,7 @@ export const MODELS: SovereignModel[] = [
     theme: "chatgpt",
     cost: "$$",
     category: "premium",
+    tier: "pro",
     providerModel: "openai/gpt-4o",
     price: "$0.0025/1K",
     glyph: "⬡",
@@ -108,6 +114,7 @@ export const MODELS: SovereignModel[] = [
     theme: "gemini",
     cost: "$$",
     category: "premium",
+    tier: "pro",
     providerModel: "google/gemini-2.5-pro",
     price: "$0.00125/1K",
     glyph: "✦",
@@ -131,10 +138,11 @@ export const MODELS: SovereignModel[] = [
     shortName: "Perplexity",
     provider: "Perplexity AI",
     theme: "perplexity",
-    cost: "free",
+    cost: "$$",
     category: "research",
+    tier: "pro",
     providerModel: "sonar",
-    price: "Tekin",
+    price: "Pro",
     glyph: "⊕",
     tagline: "Real-vaqt internet tadqiqot",
     description: "Har bir javob manbalar bilan. Yangiliklar, faktlar, ilmiy maqolalar.",
@@ -158,6 +166,7 @@ export const MODELS: SovereignModel[] = [
     theme: "mistral",
     cost: "$$",
     category: "premium",
+    tier: "pro",
     providerModel: "mistralai/mistral-large",
     price: "$0.002/1K",
     glyph: "⬌",
@@ -183,6 +192,7 @@ export const MODELS: SovereignModel[] = [
     theme: "llama",
     cost: "$",
     category: "premium",
+    tier: "starter",
     providerModel: "meta-llama/llama-3.1-8b-instruct",
     price: "$0.00002/1K",
     glyph: "🦙",
@@ -201,6 +211,52 @@ export const MODELS: SovereignModel[] = [
     },
   },
   {
+    id: "claude-haiku-4-5",
+    name: "Claude Haiku 4.5",
+    shortName: "Haiku",
+    provider: "Anthropic",
+    theme: "claude",
+    cost: "$",
+    category: "premium",
+    tier: "starter",
+    providerModel: "anthropic/claude-haiku-4.5",
+    price: "$0.001/1K",
+    glyph: "✦",
+    tagline: "Tez va arzon Claude",
+    description: "Kundalik savollar, qisqa matnlar va tahrir uchun yengil Claude.",
+    primary: "#CC785C",
+    accent: "#D4956A",
+    bg: "#1A0F0A",
+    capabilities: [
+      { label: "Tez", score: 5 },
+      { label: "Aqlli", score: 3 },
+    ],
+    demo: { user: "", ai: "" },
+  },
+  {
+    id: "gpt-4o-mini",
+    name: "GPT-4o mini",
+    shortName: "GPT mini",
+    provider: "OpenAI",
+    theme: "chatgpt",
+    cost: "$",
+    category: "premium",
+    tier: "starter",
+    providerModel: "openai/gpt-4o-mini",
+    price: "$0.00015/1K",
+    glyph: "⬡",
+    tagline: "Yengil, tez GPT",
+    description: "Oddiy suhbat va qisqa vazifalar uchun arzon GPT.",
+    primary: "#10A37F",
+    accent: "#19C37D",
+    bg: "#212121",
+    capabilities: [
+      { label: "Tez", score: 5 },
+      { label: "Kod", score: 3 },
+    ],
+    demo: { user: "", ai: "" },
+  },
+  {
     id: "sonar-pro-online",
     name: "Perplexity Sonar Pro",
     shortName: "Sonar Pro",
@@ -208,6 +264,7 @@ export const MODELS: SovereignModel[] = [
     theme: "perplexity",
     cost: "$",
     category: "research",
+    tier: "ultra",
     providerModel: "sonar-pro",
     price: "$0.001/qidiruv",
     glyph: "⊕",
@@ -230,6 +287,7 @@ export const MODELS: SovereignModel[] = [
     theme: "gemini",
     cost: "free",
     category: "free",
+    tier: "free",
     providerModel: "google/gemma-4-31b-it:free",
     price: "Tekin",
     glyph: "✦",
@@ -252,6 +310,7 @@ export const MODELS: SovereignModel[] = [
     theme: "sovereign",
     cost: "free",
     category: "free",
+    tier: "free",
     providerModel: "z-ai/glm-5.2:free",
     price: "Tekin",
     glyph: "◎",
@@ -274,6 +333,7 @@ export const MODELS: SovereignModel[] = [
     theme: "sovereign",
     cost: "free",
     category: "free",
+    tier: "free",
     providerModel: "nvidia/nemotron-3-super-120b-a12b:free",
     price: "Tekin",
     glyph: "◈",
@@ -297,10 +357,12 @@ export const MODEL_BY_ID: Record<string, SovereignModel> = Object.fromEntries(
 /** Models shown on the landing showcase (the six flagship ones). */
 export const SHOWCASE_MODELS = MODELS.filter((m) => m.demo.user.length > 0);
 
-export const MODEL_GROUPS: { category: ModelCategory; label: string; badge?: string }[] = [
-  { category: "premium", label: "Premium modellar" },
-  { category: "free", label: "Tekin modellar", badge: "🆓" },
-  { category: "research", label: "Internet tadqiqot", badge: "🌐" },
+/** Switcher groups, ordered by subscription tier. */
+export const MODEL_GROUPS: { tier: ModelTier; label: string; badge?: string }[] = [
+  { tier: "free", label: "Tekin modellar", badge: "🆓" },
+  { tier: "starter", label: "Starter · $5", badge: "⚡" },
+  { tier: "pro", label: "Pro · $15", badge: "✦" },
+  { tier: "ultra", label: "Ultra · $29", badge: "🚀" },
 ];
 
 export const DEFAULT_MODEL_ID = "claude-sonnet-4-5";

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { MODEL_BY_ID } from "@/config/models";
+import type { Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { groupByDate, type Conversation } from "@/store/chat";
@@ -23,6 +24,8 @@ interface SidebarProps {
   onToggleResearch: (on: boolean) => void;
   user: { name: string; email: string; avatarUrl?: string | null };
   isDev?: boolean;
+  plan: Plan;
+  onUpgrade: () => void;
 }
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -57,6 +60,8 @@ export function Sidebar({
   onToggleResearch,
   user,
   isDev,
+  plan,
+  onUpgrade,
 }: SidebarProps) {
   const { theme, model } = useTheme();
   const [q, setQ] = useState("");
@@ -197,7 +202,16 @@ export function Sidebar({
           <span className="min-w-0 flex-1 leading-tight">
             <span className="block truncate text-sm font-medium">{user.name}</span>
             <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-              {isDev ? "Dev rejim" : "Free"} · <span style={{ color: model.accent }}>Upgrade →</span>
+              <span style={{ color: plan.color }}>{plan.name}</span>
+              {isDev ? " · Dev" : ""}
+              {plan.id !== "ultra" && (
+                <>
+                  {" · "}
+                  <button type="button" onClick={onUpgrade} className="hover:underline" style={{ color: model.accent }}>
+                    Upgrade →
+                  </button>
+                </>
+              )}
             </span>
           </span>
           <form action={signOut}>

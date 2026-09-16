@@ -29,7 +29,7 @@ export function hasKeyFor(model: SovereignModel): boolean {
   return isResearchModel(model) ? !!process.env.PERPLEXITY_API_KEY : !!process.env.OPENROUTER_API_KEY;
 }
 
-export function buildSystemPrompt(model: SovereignModel, research: boolean): string {
+export function buildSystemPrompt(model: SovereignModel, research: boolean, extra?: string): string {
   const base = [
     `Sen SOVEREIGN AI platformasidagi "${model.name}" modelisan.`,
     "Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (asosan o'zbek tili).",
@@ -39,8 +39,15 @@ export function buildSystemPrompt(model: SovereignModel, research: boolean): str
   if (research || isResearchModel(model)) {
     base.push("Faqat tasdiqlangan manbalardan javob ber va har bir da'voni manba raqami [n] bilan asosla.");
   }
+  if (extra) base.push(extra);
   return base.join(" ");
 }
+
+/** Plan-level guardrail for cheap tiers: simple chat, no large code deliverables. */
+export const SIMPLE_CHAT_GUARDRAIL =
+  "Bu foydalanuvchi oddiy chat tarifida. Javoblarni qisqa va sodda tut (3-6 gap yoki qisqa ro'yxat). " +
+  "Kod so'ralsa faqat kichik, oddiy misol (10-15 qatorgacha) ber; to'liq loyiha, ko'p fayl yoki uzun kod yozma — " +
+  "buning o'rniga bu imkoniyat Pro tarifida ekanini bir gapda eslat.";
 
 /** Parses an SSE body into the JSON objects carried by `data:` lines. */
 async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<Record<string, unknown>> {
@@ -262,6 +269,8 @@ export interface StreamOptions {
   research?: boolean;
   temperature?: number;
   maxTokens?: number;
+  /** Extra system-prompt clause (plan guardrails). */
+  extraSystem?: string;
   signal?: AbortSignal;
 }
 
@@ -279,7 +288,7 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
   }
 
   const messages: ChatMessageInput[] = [
-    { role: "system", content: buildSystemPrompt(model, !!opts.research) },
+    { role: "system", content: buildSystemPrompt(model, !!opts.research, opts.extraSystem) },
     ...opts.messages.filter((m) => m.role !== "system"),
   ];
 

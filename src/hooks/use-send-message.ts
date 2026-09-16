@@ -50,7 +50,12 @@ export function useSendMessage() {
             citations = ev.citations;
             s.updateMessage(conversationId, assistant.id, { citations });
           } else if (ev.type === "error") {
-            failed = ev.message;
+            if (ev.message.startsWith("[upgrade]")) {
+              failed = ev.message.replace("[upgrade]", "").trim();
+              window.dispatchEvent(new CustomEvent("sovereign:upgrade", { detail: { reason: failed } }));
+            } else {
+              failed = ev.message;
+            }
           }
         },
       });

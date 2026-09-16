@@ -2,6 +2,7 @@
 
 import { Globe, Menu, Palette, PanelRight, Share2 } from "lucide-react";
 import { HERO_DEMO_MODELS, RESEARCH_MODEL_ID } from "@/config/models";
+import type { Plan } from "@/config/plans";
 import { cn } from "@/lib/utils";
 import { ModelSwitcher } from "./ModelSwitcher";
 import { useTheme } from "./theme-context";
@@ -10,6 +11,7 @@ interface ChatHeaderProps {
   title: string;
   modelId: string;
   onModelChange: (id: string) => void;
+  plan: Plan;
   onOpenSidebar: () => void;
   dynamicTheme: boolean;
   onToggleDynamicTheme: () => void;
@@ -22,6 +24,7 @@ export function ChatHeader({
   title,
   modelId,
   onModelChange,
+  plan,
   onOpenSidebar,
   dynamicTheme,
   onToggleDynamicTheme,
@@ -47,7 +50,7 @@ export function ChatHeader({
         <Menu className="size-5" />
       </button>
 
-      <ModelSwitcher value={modelId} onChange={onModelChange} />
+      <ModelSwitcher value={modelId} onChange={onModelChange} plan={plan} />
 
       <div className="hidden items-center gap-1 lg:flex">
         {quick.map((m) => {

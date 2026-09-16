@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deleteConversationAction } from "@/app/actions/chat";
 import { MODEL_BY_ID, DEFAULT_MODEL_ID, RESEARCH_MODEL_ID } from "@/config/models";
 import { MODEL_THEMES, themeVars } from "@/config/model-themes";
+import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type PlanId } from "@/config/plans";
+import { PricingDialog } from "./PricingDialog";
 import { useSendMessage } from "@/hooks/use-send-message";
 import { EASE } from "@/lib/motion";
 import { useChat, useChatHydrated, type Conversation } from "@/store/chat";
@@ -21,9 +23,19 @@ interface DashboardProps {
   defaultModelId?: string;
   initialConversations?: Conversation[];
   isDev?: boolean;
+  plan?: PlanId;
 }
 
-export function Dashboard({ user, defaultModelId, initialConversations, isDev }: DashboardProps) {
+export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free" }: DashboardProps) {
+  const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
+  const [pricing, setPricing] = useState<{ open: boolean; reason: string | null; suggested: PlanId | null }>({
+    open: false,
+    reason: null,
+    suggested: null,
+  });
+  const openPricing = useCallback((reason: string | null = null, suggested: PlanId | null = null) => {
+    setPricing({ open: true, reason, suggested });
+  }, []);
   const hydrated = useChatHydrated();
   const {
     conversations,
@@ -71,10 +83,14 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev }:
 
   const handleToggleResearch = useCallback(
     (on: boolean) => {
+      if (on && !plan.limits.research) {
+        openPricing("Internet tadqiqot (Perplexity) Pro tarifida mavjud.", "pro");
+        return;
+      }
       setResearch(on);
       if (on && model.category !== "research") setModel(RESEARCH_MODEL_ID);
     },
-    [setResearch, setModel, model.category],
+    [setResearch, setModel, model.category, plan.limits.research, openPricing],
   );
 
   const handleDelete = useCallback(
@@ -84,6 +100,31 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev }:
     },
     [remove],
   );
+
+  /** Model change with plan gating: locked models open the pricing dialog. */
+  const handleModelChange = useCallback(
+    (id: string) => {
+      const m = MODEL_BY_ID[id];
+      if (!m) return;
+      if (!planAllowsTier(plan, m.tier)) {
+        const need = planForTier(m.tier);
+        openPricing(`${m.name} — ${TIER_LABEL[m.tier]} darajasidagi model. ${need.name} tarifida ochiladi.`, need.id);
+        return;
+      }
+      setModel(id);
+    },
+    [plan, setModel, openPricing],
+  );
+
+  // Server-side refusals ([upgrade] errors) open the pricing dialog.
+  useEffect(() => {
+    const onUpgrade = (e: Event) => {
+      const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason ?? null;
+      openPricing(reason, plan.id === "free" ? "starter" : plan.id === "starter" ? "pro" : "ultra");
+    };
+    window.addEventListener("sovereign:upgrade", onUpgrade);
+    return () => window.removeEventListener("sovereign:upgrade", onUpgrade);
+  }, [openPricing, plan.id]);
 
   const inputEl = (
     <InputArea
@@ -126,6 +167,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev }:
           onToggleResearch={handleToggleResearch}
           user={user}
           isDev={isDev}
+          plan={plan}
+          onUpgrade={() => openPricing()}
         />
 
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -140,7 +183,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev }:
           <ChatHeader
             title={active?.title ?? "Yangi suhbat"}
             modelId={modelId}
-            onModelChange={setModel}
+            onModelChange={handleModelChange}
+            plan={plan}
             onOpenSidebar={() => setSidebarOpen(true)}
             dynamicTheme={dynamicTheme}
             onToggleDynamicTheme={() => setDynamicTheme(!dynamicTheme)}
@@ -190,6 +234,14 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev }:
             </AnimatePresence>
           </div>
         </div>
+
+        <PricingDialog
+          open={pricing.open}
+          onClose={() => setPricing((p) => ({ ...p, open: false }))}
+          currentPlan={plan.id}
+          reason={pricing.reason}
+          suggestedPlan={pricing.suggested}
+        />
       </div>
     </ThemeProvider>
   );

@@ -1,9 +1,10 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Lock } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { MODELS, MODEL_GROUPS, type SovereignModel } from "@/config/models";
+import { planAllowsTier, type Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme-context";
@@ -11,6 +12,7 @@ import { useTheme } from "./theme-context";
 interface ModelSwitcherProps {
   value: string;
   onChange: (id: string) => void;
+  plan: Plan;
   compact?: boolean;
 }
 
@@ -35,7 +37,7 @@ function Bars({ model }: { model: SovereignModel }) {
   );
 }
 
-export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) {
+export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherProps) {
   const { model } = useTheme();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -93,18 +95,25 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
           >
             <div className="px-2 pb-2 pt-1 text-xs font-semibold" style={{ color: "var(--t-text)" }}>Model tanlang</div>
             {MODEL_GROUPS.map((g) => {
-              const items = MODELS.filter((m) => m.category === g.category);
+              const items = MODELS.filter((m) => m.tier === g.tier);
               if (!items.length) return null;
+              const unlocked = planAllowsTier(plan, g.tier);
               return (
-                <div key={g.category} className="mb-1.5">
+                <div key={g.tier} className="mb-1.5">
                   <div
                     className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
                     style={{ color: "var(--t-text-muted)", borderTop: "1px solid var(--t-border)" }}
                   >
                     {g.label} {g.badge && <span>{g.badge}</span>}
+                    {!unlocked && (
+                      <span className="ml-auto inline-flex items-center gap-1 normal-case tracking-normal" style={{ color: "#F59E0B" }}>
+                        <Lock className="size-3" /> Upgrade
+                      </span>
+                    )}
                   </div>
                   {items.map((m) => {
                     const active = m.id === value;
+                    const locked = !planAllowsTier(plan, m.tier);
                     return (
                       <button
                         key={m.id}
@@ -115,8 +124,12 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
                           onChange(m.id);
                           setOpen(false);
                         }}
-                        className="tt flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/5"
+                        className={cn(
+                          "tt flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/5",
+                          locked && "opacity-55",
+                        )}
                         style={active ? { background: `color-mix(in srgb, ${m.primary} 14%, transparent)` } : undefined}
+                        title={locked ? "Bu model yuqoriroq tarifda ochiladi" : undefined}
                       >
                         <span
                           className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-base"
@@ -140,7 +153,11 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
                           <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{m.tagline}</span>
                           <Bars model={m} />
                         </span>
-                        {active && <Check className="mt-1 size-4 shrink-0" style={{ color: m.primary }} />}
+                        {locked ? (
+                          <Lock className="mt-1 size-3.5 shrink-0" style={{ color: "#F59E0B" }} />
+                        ) : (
+                          active && <Check className="mt-1 size-4 shrink-0" style={{ color: m.primary }} />
+                        )}
                       </button>
                     );
                   })}

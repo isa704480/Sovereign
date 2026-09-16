@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { listConversations } from "@/app/actions/chat";
 import { Dashboard } from "@/components/dashboard/Dashboard";
-import { displayName, getProfile } from "@/lib/auth/profile";
+import { displayName, effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import type { Conversation } from "@/store/chat";
@@ -42,6 +42,7 @@ export default async function AppPage() {
       }}
       defaultModelId={profile.default_model}
       initialConversations={initial}
+      plan={effectivePlan(profile).id}
     />
   );
 }

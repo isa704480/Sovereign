@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 const NAV = [
   { href: "#features", label: "Imkoniyatlar" },
   { href: "#models", label: "Modellar" },
+  { href: "#pricing", label: "Narxlar" },
   { href: "#privacy", label: "Maxfiylik" },
 ];
 
