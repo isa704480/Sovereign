@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { ChatMessage } from "@/store/chat";
+import { useTTS } from "@/hooks/use-tts";
 import { MessageItem } from "./MessageItem";
 
 interface MessageListProps {
@@ -10,6 +11,7 @@ interface MessageListProps {
 }
 
 export function MessageList({ messages, onRegenerate }: MessageListProps) {
+  const tts = useTTS();
   const bottom = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const last = messages[messages.length - 1];
@@ -27,7 +29,13 @@ export function MessageList({ messages, onRegenerate }: MessageListProps) {
     <div ref={container} className="flex-1 overflow-y-auto">
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-7 px-4 py-8 md:px-6 md:py-10">
         {messages.map((m, i) => (
-          <MessageItem key={m.id} message={m} isLast={i === messages.length - 1} onRegenerate={onRegenerate} />
+          <MessageItem
+            key={m.id}
+            message={m}
+            isLast={i === messages.length - 1}
+            onRegenerate={onRegenerate}
+            tts={tts.supported ? { speaking: tts.speakingId === m.id, onToggle: () => tts.toggle(m.id, m.content) } : undefined}
+          />
         ))}
         <div ref={bottom} className="h-2" />
       </div>

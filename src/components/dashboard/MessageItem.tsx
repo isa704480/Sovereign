@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "lucide-react";
+import { AlertTriangle, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
@@ -18,6 +18,7 @@ interface MessageItemProps {
   message: ChatMessage;
   isLast: boolean;
   onRegenerate?: () => void;
+  tts?: { speaking: boolean; onToggle: () => void };
 }
 
 function timeLabel(iso: string) {
@@ -28,7 +29,7 @@ function timeLabel(iso: string) {
   }
 }
 
-export function MessageItem({ message, isLast, onRegenerate }: MessageItemProps) {
+export function MessageItem({ message, isLast, onRegenerate, tts }: MessageItemProps) {
   const { theme, model: activeModel } = useTheme();
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
@@ -258,6 +259,17 @@ export function MessageItem({ message, isLast, onRegenerate }: MessageItemProps)
             <button type="button" onClick={copy} className="rounded-md p-1.5 hover:bg-white/10" title="Nusxa olish">
               {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
             </button>
+            {tts && (
+              <button
+                type="button"
+                onClick={tts.onToggle}
+                className="rounded-md p-1.5 hover:bg-white/10"
+                title={tts.speaking ? "To'xtatish" : "Ovozda o'qish"}
+                style={tts.speaking ? { color: model.primary } : undefined}
+              >
+                {tts.speaking ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+              </button>
+            )}
             {isLast && onRegenerate && (
               <button type="button" onClick={onRegenerate} className="rounded-md p-1.5 hover:bg-white/10" title="Qayta yaratish">
                 <RefreshCw className="size-3.5" />
