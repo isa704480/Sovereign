@@ -53,7 +53,7 @@ export interface SovereignModel {
   demo: { user: string; ai: string };
 }
 
-export const MODELS: SovereignModel[] = [
+const FLAGSHIP: SovereignModel[] = [
   {
     id: "claude-sonnet-4-5",
     name: "Claude Sonnet 4.5",
@@ -349,6 +349,129 @@ export const MODELS: SovereignModel[] = [
     demo: { user: "", ai: "" },
   },
 ];
+
+/* ------------------------------------------------------------------ */
+/* Extended catalog (50+). Generated compactly from provider metadata.  */
+/* ------------------------------------------------------------------ */
+
+interface ProviderMeta {
+  theme: ModelTheme;
+  provider: string;
+  glyph: string;
+  primary: string;
+  accent: string;
+  bg: string;
+}
+const PROV: Record<string, ProviderMeta> = {
+  anthropic: { theme: "claude", provider: "Anthropic", glyph: "✦", primary: "#D97757", accent: "#E0A08A", bg: "#262624" },
+  openai: { theme: "chatgpt", provider: "OpenAI", glyph: "⬡", primary: "#10A37F", accent: "#19C37D", bg: "#212121" },
+  google: { theme: "gemini", provider: "Google", glyph: "✦", primary: "#4285F4", accent: "#A855F7", bg: "#0C0C1E" },
+  mistralai: { theme: "mistral", provider: "Mistral AI", glyph: "⬌", primary: "#FF7000", accent: "#FF9500", bg: "#0F0A05" },
+  meta: { theme: "llama", provider: "Meta AI", glyph: "🦙", primary: "#7C3AED", accent: "#9F67FF", bg: "#080516" },
+  deepseek: { theme: "sovereign", provider: "DeepSeek", glyph: "◇", primary: "#4D6BFE", accent: "#7C8FFF", bg: "#060812" },
+  qwen: { theme: "sovereign", provider: "Alibaba Qwen", glyph: "◈", primary: "#615CED", accent: "#8B87F5", bg: "#060812" },
+  xai: { theme: "sovereign", provider: "xAI", glyph: "✕", primary: "#8E8E93", accent: "#C7C7CC", bg: "#060812" },
+  zai: { theme: "sovereign", provider: "Z.ai", glyph: "◎", primary: "#5B50F0", accent: "#7C6FF7", bg: "#060812" },
+  nvidia: { theme: "sovereign", provider: "NVIDIA", glyph: "▹", primary: "#76B900", accent: "#9BE000", bg: "#060812" },
+};
+
+type Spec = [
+  prov: keyof typeof PROV,
+  id: string,
+  providerModel: string,
+  name: string,
+  shortName: string,
+  tier: ModelTier,
+  price: string,
+  tagline: string,
+];
+
+// prov, id, providerModel, name, shortName, tier, price, tagline
+const EXTRA_SPECS: Spec[] = [
+  // Anthropic
+  ["anthropic", "claude-opus-5", "anthropic/claude-opus-5", "Claude Opus 5", "Opus 5", "ultra", "$5/M", "Eng kuchli Claude — murakkab vazifalar"],
+  ["anthropic", "claude-sonnet-5", "anthropic/claude-sonnet-5", "Claude Sonnet 5", "Sonnet 5", "pro", "$2/M", "Muvozanatli, tez va aqlli Claude"],
+  ["anthropic", "claude-opus-4-8", "anthropic/claude-opus-4.8", "Claude Opus 4.8", "Opus 4.8", "ultra", "$5/M", "Chuqur fikrlash va tahlil"],
+  // OpenAI
+  ["openai", "gpt-6-astra", "openai/gpt-6-astra", "GPT-6 Astra", "GPT-6", "ultra", "$10/M", "OpenAI'ning eng ilg'or modeli"],
+  ["openai", "gpt-5-6-sol", "openai/gpt-5.6-sol", "GPT-5.6 Sol", "GPT-5.6", "pro", "$2/M", "Kuchli umumiy va kod modeli"],
+  ["openai", "gpt-5-6-luna", "openai/gpt-5.6-luna", "GPT-5.6 Luna", "Luna", "starter", "$0.20/M", "Tez va arzon GPT"],
+  ["openai", "o1-mini", "openai/o1-mini", "o1-mini", "o1-mini", "pro", "$1.1/M", "Fikrlash (reasoning) modeli"],
+  // Google
+  ["google", "gemini-3-5-flash", "google/gemini-3.5-flash", "Gemini 3.5 Flash", "Gemini 3.5", "pro", "$1.5/M", "Tez, ko'p modal Gemini"],
+  ["google", "gemini-3-1-flash-lite", "google/gemini-3.1-flash-lite", "Gemini 3.1 Flash Lite", "Flash Lite", "starter", "$0.25/M", "Yengil va arzon Gemini"],
+  ["google", "gemini-3-pro-image", "google/gemini-3-pro-image", "Gemini 3 Pro (Nano Banana)", "Nano Banana", "pro", "$2/M", "Rasm yaratish va tahrir"],
+  // Mistral
+  ["mistralai", "mistral-medium-3-5", "mistralai/mistral-medium-3-5", "Mistral Medium 3.5", "Medium 3.5", "pro", "$1.5/M", "Evropa AI'si, ko'p tilli"],
+  ["mistralai", "mistral-small", "mistralai/mistral-small-latest", "Mistral Small", "Small", "starter", "$0.20/M", "Yengil Mistral"],
+  // Meta
+  ["meta", "llama-3-3-70b", "meta-llama/llama-3.3-70b-instruct", "LLaMA 3.3 70B", "LLaMA 70B", "starter", "$0.13/M", "Kuchli ochiq Meta modeli"],
+  ["meta", "llama-4-scout", "meta-llama/llama-4-scout", "LLaMA 4 Scout", "LLaMA 4", "pro", "$0.6/M", "Meta'ning yangi avlodi"],
+  // DeepSeek
+  ["deepseek", "deepseek-v4-pro", "deepseek/deepseek-v4-pro-0813", "DeepSeek V4 Pro", "DeepSeek Pro", "pro", "$0.58/M", "Kod va fikrlashda kuchli"],
+  ["deepseek", "deepseek-v4-flash", "deepseek/deepseek-v4-flash-0731", "DeepSeek V4 Flash", "DeepSeek Flash", "starter", "$0.06/M", "Juda arzon va tez"],
+  // Qwen
+  ["qwen", "qwen3-7-max", "qwen/qwen3.7-max", "Qwen 3.7 Max", "Qwen Max", "pro", "$1.48/M", "Alibaba'ning kuchli modeli"],
+  ["qwen", "qwen3-7-flash", "qwen/qwen3.7-flash", "Qwen 3.7 Flash", "Qwen Flash", "starter", "$0.03/M", "Eng arzon variantlardan"],
+  // xAI
+  ["xai", "grok-4-6", "x-ai/grok-4.6", "Grok 4.6", "Grok 4.6", "pro", "$2/M", "xAI'ning suhbatga kuchli modeli"],
+  ["xai", "grok-4-3", "x-ai/grok-4.3", "Grok 4.3", "Grok 4.3", "pro", "$1.25/M", "Tez va hazil-mutoyibali Grok"],
+  // Z.ai
+  ["zai", "glm-5-3", "z-ai/glm-5.3", "GLM 5.3", "GLM 5.3", "pro", "$1.4/M", "Kuchli ko'p tilli model"],
+  ["zai", "glm-5-3-flash", "z-ai/glm-5.3-flash", "GLM 5.3 Flash", "GLM Flash", "starter", "$0.09/M", "Yengil GLM"],
+  // NVIDIA free
+  ["nvidia", "nemotron-lightning-free", "nvidia/nemotron-3.5-lightning:free", "Nemotron 3.5 Lightning", "Nemotron Lite", "free", "Tekin", "Tez, tekin NVIDIA modeli"],
+  ["nvidia", "nemotron-nano-free", "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", "Nemotron 3 Nano", "Nemotron Nano", "free", "Tekin", "Fikrlaydigan tekin model"],
+  // More — to broaden choice (50+ total)
+  ["anthropic", "claude-fable-5-1", "anthropic/claude-fable-5.1", "Claude Fable 5.1", "Fable 5.1", "ultra", "$10/M", "Anthropic'ning eng ijodiy modeli"],
+  ["openai", "gpt-5-6-terra", "openai/gpt-5.6-terra", "GPT-5.6 Terra", "Terra", "pro", "$2/M", "Kuchli kod va tahlil"],
+  ["openai", "gpt-5-6-luna-pro", "openai/gpt-5.6-luna-pro", "GPT-5.6 Luna Pro", "Luna Pro", "starter", "$0.20/M", "Arzon, kengaytirilgan Luna"],
+  ["google", "gemini-3-8-flash", "google/gemini-3.8-flash", "Gemini 3.8 Flash", "Gemini 3.8", "pro", "$0.75/M", "Google'ning eng yangi Flash'i"],
+  ["google", "gemini-3-1-flash-image", "google/gemini-3.1-flash-image", "Gemini 3.1 (Nano Banana 2)", "Nano Banana 2", "pro", "$0.5/M", "Rasm yaratish"],
+  ["xai", "grok-4-5", "x-ai/grok-4.5", "Grok 4.5", "Grok 4.5", "pro", "$2/M", "xAI'ning kuchli modeli"],
+  ["qwen", "qwen3-8-max", "qwen/qwen3.8-max-0902", "Qwen 3.8 Max", "Qwen 3.8", "pro", "$2/M", "Alibaba'ning yangi flagmani"],
+  ["qwen", "qwen3-8-27b", "qwen/qwen3.8-27b", "Qwen 3.8 27B", "Qwen 27B", "starter", "$0.21/M", "Arzon, kuchli ochiq model"],
+  ["deepseek", "deepseek-v4-1-flash", "deepseek/deepseek-v4.1-flash", "DeepSeek V4.1 Flash", "DeepSeek 4.1", "starter", "$0.15/M", "Yangi, tez DeepSeek"],
+  ["zai", "glm-5-2", "z-ai/glm-5.2", "GLM 5.2", "GLM 5.2 Pro", "pro", "$1.4/M", "Kuchli ko'p tilli GLM"],
+  ["mistralai", "mistral-large-2", "mistralai/mistral-large", "Mistral Large", "Large", "pro", "$2/M", "Mistral'ning flagmani"],
+  ["nvidia", "nemotron-ultra-free", "nvidia/nemotron-3-ultra-550b-a55b:free", "Nemotron 3 Ultra", "Nemotron Ultra", "free", "Tekin", "550B tekin ochiq model"],
+  ["openai", "gpt-4o-full", "openai/gpt-4o", "GPT-4o", "GPT-4o", "pro", "$2.5/M", "Ishonchli ko'p modal GPT"],
+  ["google", "gemini-3-5-flash-lite", "google/gemini-3.5-flash-lite", "Gemini 3.5 Flash Lite", "3.5 Lite", "starter", "$0.30/M", "Yengil 3.5"],
+  ["meta", "llama-3-1-70b", "meta-llama/llama-3.1-70b-instruct", "LLaMA 3.1 70B", "LLaMA 3.1", "starter", "$0.13/M", "Barqaror ochiq model"],
+  ["xai", "grok-build", "x-ai/grok-build-0.1", "Grok Build", "Grok Build", "pro", "$1/M", "Kod va qurishga yo'naltirilgan"],
+];
+
+function specToModel([prov, id, providerModel, name, shortName, tier, price, tagline]: Spec): SovereignModel {
+  const p = PROV[prov];
+  const category: ModelCategory = tier === "free" ? "free" : "premium";
+  return {
+    id,
+    name,
+    shortName,
+    provider: p.provider,
+    theme: p.theme,
+    cost: tier === "free" ? "free" : tier === "starter" ? "$" : "$$",
+    category,
+    tier,
+    providerModel,
+    price,
+    glyph: p.glyph,
+    tagline,
+    description: tagline,
+    primary: p.primary,
+    accent: p.accent,
+    bg: p.bg,
+    capabilities: [
+      { label: tier === "free" ? "Tekin" : "Aqlli", score: tier === "ultra" ? 5 : tier === "pro" ? 4 : 3 },
+      { label: "Tez", score: tier === "starter" || tier === "free" ? 5 : 4 },
+    ],
+    demo: { user: "", ai: "" },
+  };
+}
+
+const EXTRA_MODELS: SovereignModel[] = EXTRA_SPECS.map(specToModel);
+
+export const MODELS: SovereignModel[] = [...FLAGSHIP, ...EXTRA_MODELS];
 
 export const MODEL_BY_ID: Record<string, SovereignModel> = Object.fromEntries(
   MODELS.map((m) => [m.id, m]),
