@@ -40,7 +40,7 @@ export const PLANS: Plan[] = [
     tagline: "Sinab ko'rish uchun",
     description: "3 ta ochiq model, kunlik chegara bilan.",
     tiers: ["free"],
-    limits: { messagesPerDay: 20, maxTokens: 600, fullCode: false, research: false, deepResearch: false },
+    limits: { messagesPerDay: 20, maxTokens: 1024, fullCode: false, research: false, deepResearch: false },
     features: ["3 ta tekin model (Gemma, GLM, Nemotron)", "Kuniga 20 ta xabar", "Qisqa javoblar", "Suhbat tarixi"],
     color: "#9BA3CC",
   },
@@ -51,7 +51,7 @@ export const PLANS: Plan[] = [
     tagline: "Oddiy kundalik chat",
     description: "Yengil modellar, oddiy savol-javob uchun. Katta kod loyihalari uchun emas.",
     tiers: ["free", "starter"],
-    limits: { messagesPerDay: 150, maxTokens: 900, fullCode: false, research: false, deepResearch: false },
+    limits: { messagesPerDay: 150, maxTokens: 1500, fullCode: false, research: false, deepResearch: false },
     features: [
       "Tekin modellar + Claude Haiku, GPT-4o mini, LLaMA",
       "Kuniga 150 ta xabar",
