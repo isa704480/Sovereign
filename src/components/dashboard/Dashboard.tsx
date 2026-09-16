@@ -14,6 +14,7 @@ import { ArtifactPanel } from "./ArtifactPanel";
 import { ArtifactProvider, type ArtifactPayload } from "./artifact-context";
 import { ChatHeader } from "./ChatHeader";
 import { InputArea, type InputAreaHandle } from "./InputArea";
+import { MemoryPanel } from "./MemoryPanel";
 import { MessageList } from "./MessageList";
 import { Sidebar } from "./Sidebar";
 import { SourcesPanel } from "./SourcesPanel";
@@ -26,9 +27,10 @@ interface DashboardProps {
   initialConversations?: Conversation[];
   isDev?: boolean;
   plan?: PlanId;
+  memoryEnabled?: boolean;
 }
 
-export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free" }: DashboardProps) {
+export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true }: DashboardProps) {
   const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
   const [pricing, setPricing] = useState<{ open: boolean; reason: string | null; suggested: PlanId | null }>({
     open: false,
@@ -63,6 +65,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const seededRef = useRef(false);
   const [sourcesOpen, setSourcesOpen] = useState(true);
   const [artifact, setArtifact] = useState<ArtifactPayload | null>(null);
+  const [memoryOpen, setMemoryOpen] = useState(false);
+  const [memoryEnabled, setMemoryEnabled] = useState(memoryInit);
   const artifactCtx = useMemo(
     () => ({ open: (a: ArtifactPayload) => setArtifact(a) }),
     [],
@@ -204,6 +208,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           isDev={isDev}
           plan={plan}
           onUpgrade={() => openPricing()}
+          onOpenMemory={() => setMemoryOpen(true)}
         />
 
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -279,6 +284,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           reason={pricing.reason}
           suggestedPlan={pricing.suggested}
         />
+        <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
       </div>
       </ArtifactProvider>
     </ThemeProvider>

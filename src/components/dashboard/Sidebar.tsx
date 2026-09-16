@@ -26,6 +26,7 @@ interface SidebarProps {
   isDev?: boolean;
   plan: Plan;
   onUpgrade: () => void;
+  onOpenMemory: () => void;
 }
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -62,6 +63,7 @@ export function Sidebar({
   isDev,
   plan,
   onUpgrade,
+  onOpenMemory,
 }: SidebarProps) {
   const { theme, model } = useTheme();
   const [q, setQ] = useState("");
@@ -177,8 +179,8 @@ export function Sidebar({
 
       {/* footer */}
       <div className="space-y-1 px-2 pb-2 pt-2" style={{ borderTop: "1px solid var(--t-border)" }}>
-        <button type="button" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm opacity-60" style={{ color: "var(--t-text-muted)" }} title="Phase 3" disabled>
-          <Brain className="size-4" /> Xotira <span className="ml-auto text-[10px]">tez orada</span>
+        <button type="button" onClick={onOpenMemory} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/5" style={{ color: "var(--t-text-muted)" }}>
+          <Brain className="size-4" /> Xotira
         </button>
         <button type="button" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm opacity-60" style={{ color: "var(--t-text-muted)" }} title="Phase 4" disabled>
           <FolderOpen className="size-4" /> Knowledge Base <span className="ml-auto text-[10px]">tez orada</span>

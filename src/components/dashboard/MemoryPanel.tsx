@@ -1,0 +1,141 @@
+"use client";
+
+import { Brain, Trash2, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useState, useTransition } from "react";
+import { clearMemories, deleteMemory, listMemories, setMemoryEnabled } from "@/app/actions/memory";
+import type { MemoryNode } from "@/lib/ai/memory";
+import { EASE_OUT_EXPO } from "@/lib/motion";
+
+interface MemoryPanelProps {
+  open: boolean;
+  onClose: () => void;
+  enabled: boolean;
+  onEnabledChange: (v: boolean) => void;
+}
+
+const KIND_LABEL: Record<string, string> = { fact: "Fakt", preference: "Afzallik", project: "Loyiha", person: "Shaxs" };
+
+export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryPanelProps) {
+  const [items, setItems] = useState<MemoryNode[] | null>(null);
+  const [, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    listMemories()
+      .then((r) => alive && setItems(r))
+      .catch(() => alive && setItems([]));
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    return () => {
+      alive = false;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  function remove(id: string) {
+    setItems((prev) => prev?.filter((m) => m.id !== id) ?? null);
+    startTransition(() => void deleteMemory(id));
+  }
+  function clearAll() {
+    setItems([]);
+    startTransition(() => void clearMemories());
+  }
+  function toggle(v: boolean) {
+    onEnabledChange(v);
+    startTransition(() => void setMemoryEnabled(v));
+  }
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+          onClick={onClose}
+          role="dialog"
+          aria-modal
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.98 }}
+            transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
+            onClick={(e) => e.stopPropagation()}
+            className="tt flex max-h-[86vh] w-full max-w-lg flex-col rounded-3xl border shadow-lg"
+            style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
+          >
+            <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
+              <div className="flex items-center gap-2">
+                <Brain className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
+                <span className="font-display text-lg font-bold">Xotira</span>
+                {items && <span className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{items.length} tugun</span>}
+              </div>
+              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Yopish" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid var(--t-border, rgba(255,255,255,0.1))" }}>
+              <div>
+                <div className="text-sm font-medium">AI sizni eslab qolsinmi?</div>
+                <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>Ism, loyiha va uslubingizni suhbatlar orasida eslaydi.</div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={enabled}
+                onClick={() => toggle(!enabled)}
+                className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+                style={{ background: enabled ? "var(--t-primary, #5B50F0)" : "color-mix(in srgb, var(--t-text, #fff) 18%, transparent)" }}
+              >
+                <span className="absolute top-0.5 size-5 rounded-full bg-white transition-transform" style={{ transform: enabled ? "translateX(22px)" : "translateX(2px)" }} />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto p-3">
+              {items === null ? (
+                <div className="space-y-2 p-2">
+                  {[0, 1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-xl" style={{ background: "color-mix(in srgb, var(--t-text,#fff) 6%, transparent)" }} />)}
+                </div>
+              ) : items.length === 0 ? (
+                <div className="px-3 py-10 text-center text-sm" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                  Hali xotira yo&apos;q. Suhbatlashsangiz, AI muhim faktlarni eslab qoladi.
+                </div>
+              ) : (
+                <ul className="space-y-1.5">
+                  {items.map((m) => (
+                    <li
+                      key={m.id}
+                      className="group flex items-start gap-2 rounded-xl px-3 py-2.5"
+                      style={{ background: "color-mix(in srgb, var(--t-text,#fff) 4%, transparent)" }}
+                    >
+                      <span className="mt-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "color-mix(in srgb, var(--t-primary,#5B50F0) 18%, transparent)", color: "var(--t-accent,#7C6FF7)" }}>
+                        {KIND_LABEL[m.kind] ?? m.kind}
+                      </span>
+                      <span className="min-w-0 flex-1 text-sm">{m.content}</span>
+                      <button type="button" onClick={() => remove(m.id)} className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100" aria-label="O'chirish" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {items && items.length > 0 && (
+              <div className="border-t px-5 py-3" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
+                <button type="button" onClick={clearAll} className="text-xs font-medium" style={{ color: "var(--error, #EF4444)" }}>
+                  Barcha xotirani o&apos;chirish
+                </button>
+              </div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

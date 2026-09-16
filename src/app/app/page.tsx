@@ -43,6 +43,7 @@ export default async function AppPage() {
       defaultModelId={profile.default_model}
       initialConversations={initial}
       plan={effectivePlan(profile).id}
+      memoryEnabled={profile.memory_enabled}
     />
   );
 }

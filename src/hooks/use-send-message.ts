@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { syncConversation } from "@/app/actions/chat";
+import { rememberExchange } from "@/app/actions/memory";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
 import { useChat, uuid, type ChatMessage } from "@/store/chat";
@@ -104,6 +105,14 @@ export function useSendMessage() {
 
     setStreaming(false);
     abortRef.current = null;
+
+    // Learn durable facts from this exchange (server no-ops without a session).
+    if (!failed && text) {
+      const firstUser = [...history].reverse().find((mm) => mm.role === "user");
+      if (firstUser && typeof firstUser.content === "string") {
+        void rememberExchange(firstUser.content, text).catch(() => {});
+      }
+    }
 
     // Mirror to Supabase when a session exists (no-op otherwise).
     const final = useChat.getState().conversations[conversationId];
