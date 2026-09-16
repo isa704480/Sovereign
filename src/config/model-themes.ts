@@ -136,8 +136,8 @@ export const MODEL_THEMES: Record<ModelTheme, ModelThemeSpec> = {
     provider: "OpenAI",
     wordmark: "ChatGPT",
     glyph: "⬡",
-    greeting: "Men sizga qanday yordam bera olaman?",
-    placeholder: "Xabar yozing",
+    greeting: "Nimadan boshlaymiz?",
+    placeholder: "Istalgan narsani so'rang",
     suggestions: [
       "Menga JavaScript'da promise'larni tushuntir",
       "Sayohat uchun ro'yxat tuz",
@@ -208,7 +208,7 @@ export const MODEL_THEMES: Record<ModelTheme, ModelThemeSpec> = {
     provider: "Perplexity AI",
     wordmark: "perplexity",
     glyph: "⊕",
-    greeting: "Bilim shu yerdan boshlanadi",
+    greeting: "Nimani bilmoqchisiz?",
     placeholder: "Istalgan narsani so'rang...",
     suggestions: [
       "2026 da AI maxfiylik qonunlari",

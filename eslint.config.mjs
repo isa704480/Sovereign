@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // SOVEREIGN CLI is plain Node ESM, linted separately.
+    "cli/**",
   ]),
 ]);
 

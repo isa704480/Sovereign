@@ -1,0 +1,20 @@
+{
+  "name": "sovereign-cli",
+  "version": "0.1.0",
+  "description": "SOVEREIGN AI — terminaldagi AI koding agenti. `sovereign` deb yozing.",
+  "type": "module",
+  "bin": {
+    "sovereign": "bin/sovereign.mjs",
+    "sov": "bin/sovereign.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "license": "UNLICENSED",
+  "private": true
+}

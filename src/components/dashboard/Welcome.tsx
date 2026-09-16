@@ -96,12 +96,14 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
     return wrap(
       <>
         <div className="text-center">
-          <div className="text-5xl" style={{ color: model.primary }}>✦</div>
-          <h1 className="t-display mt-5 text-3xl font-medium md:text-4xl" style={{ color: "var(--t-text)" }}>
-            {theme.greeting}
-          </h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--t-text-muted)" }}>
-            Xayrli kun, {userName}. {theme.subGreeting}
+          <div className="flex items-center justify-center gap-3">
+            <span className="text-4xl" style={{ color: model.primary }}>✦</span>
+            <h1 className="t-display text-3xl font-medium md:text-4xl" style={{ color: "var(--t-text)" }}>
+              Salom, {userName}
+            </h1>
+          </div>
+          <p className="mt-3 text-sm" style={{ color: "var(--t-text-muted)" }}>
+            {theme.subGreeting}
           </p>
         </div>
         {input}

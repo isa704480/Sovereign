@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "db:migrate": "node --env-file=.env.local --import tsx db/migrate.ts"
+    "db:migrate": "node --env-file=.env.local --import tsx db/migrate.ts",
+    "cli:install": "npm --prefix cli install -g .",
+    "cli": "node cli/bin/sovereign.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
