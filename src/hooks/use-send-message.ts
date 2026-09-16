@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { syncConversation } from "@/app/actions/chat";
 import { rememberExchange } from "@/app/actions/memory";
 import { mask } from "@/lib/ai/blind-prompting";
+import { detectImageIntent } from "@/lib/chat/image-intent";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
 import { useChat, uuid, type ChatMessage } from "@/store/chat";
@@ -182,6 +183,47 @@ export function useSendMessage() {
         status: "done",
       };
       state.appendMessage(conversationId, user);
+
+      // Image-generation shortcut: skip the LLM and call the image endpoint.
+      if (detectImageIntent(text) && !attachments?.length) {
+        const assistant: ChatMessage = {
+          id: uuid(),
+          role: "assistant",
+          content: "Rasm chizilyapti...",
+          createdAt: new Date().toISOString(),
+          status: "streaming",
+        };
+        state.appendMessage(conversationId, assistant);
+        setStreaming(true);
+        try {
+          const res = await fetch("/api/image", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: text }),
+          });
+          const data = (await res.json()) as { urls?: string[]; error?: string };
+          if (!res.ok || !data.urls?.length) {
+            useChat.getState().updateMessage(conversationId, assistant.id, {
+              status: "error",
+              error: data.error ?? "Rasm yaratilmadi",
+            });
+          } else {
+            const md = data.urls.map((u) => `![](${u})`).join("\n\n");
+            useChat.getState().updateMessage(conversationId, assistant.id, {
+              status: "done",
+              content: `Mana chizilgan rasm:\n\n${md}`,
+            });
+          }
+        } catch (err) {
+          useChat.getState().updateMessage(conversationId, assistant.id, {
+            status: "error",
+            error: err instanceof Error ? err.message : "Ulanish xatosi",
+          });
+        }
+        setStreaming(false);
+        return;
+      }
+
       const history = useChat.getState().conversations[conversationId]?.messages ?? [user];
       await run(conversationId, history);
     },

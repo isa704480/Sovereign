@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SIMPLE_CHAT_GUARDRAIL, streamCompletion, type StreamEvent } from "@/lib/ai/providers";
-import { planRoute } from "@/lib/ai/router";
+import { planRouteLLM } from "@/lib/ai/router";
 import { AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
@@ -104,10 +104,17 @@ export async function POST(req: Request) {
   }
 
   // ---- Build the execution plan (single model, or Auto orchestration) ----
-  const steps = isAuto
-    ? planRoute(lastUser ?? "", plan).steps
-    : [{ modelId, kind: (research || MODEL_BY_ID[modelId].category === "research" ? "research" : "answer") as "research" | "answer", purpose: "" }];
-  const routeReason = isAuto ? planRoute(lastUser ?? "", plan).reason : "";
+  const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan) : null;
+  const steps = routePlan
+    ? routePlan.steps
+    : [
+        {
+          modelId,
+          kind: (research || MODEL_BY_ID[modelId].category === "research" ? "research" : "answer") as "research" | "answer",
+          purpose: "",
+        },
+      ];
+  const routeReason = routePlan?.reason ?? "";
 
   // Plan gating for a concrete (non-auto) model.
   if (!isAuto) {

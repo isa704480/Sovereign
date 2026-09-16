@@ -117,6 +117,18 @@ export const Markdown = memo(function Markdown({ content, citations }: MarkdownP
           </div>
         );
       },
+      img({ src, alt }: ComponentProps<"img">) {
+        if (typeof src !== "string") return null;
+        return (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt={alt ?? ""}
+            className="my-3 max-h-[560px] w-auto max-w-full rounded-xl"
+            style={{ border: "1px solid var(--t-border)" }}
+          />
+        );
+      },
     }),
     [citations],
   );
