@@ -3,7 +3,6 @@
 import { Check, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState, useTransition } from "react";
-import { choosePlan } from "@/app/actions/plans";
 import { PLANS, type PlanId } from "@/config/plans";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -30,13 +29,24 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
   }, [open, onClose]);
 
   function pick(planId: PlanId) {
+    if (planId === "free") return;
     setMessage(null);
     startTransition(async () => {
-      const res = await choosePlan(planId);
-      if (!res.ok) setMessage(res.error);
-      else {
-        setMessage("Tarif yangilandi. Sahifa yangilanmoqda...");
-        setTimeout(() => window.location.reload(), 800);
+      try {
+        const res = await fetch("/api/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ plan: planId }),
+        });
+        const data = (await res.json()) as { checkoutUrl?: string; error?: string };
+        if (data.checkoutUrl) {
+          setMessage("To'lov sahifasiga o'tilmoqda...");
+          window.location.href = data.checkoutUrl;
+        } else {
+          setMessage(data.error ?? "To'lov yaratilmadi");
+        }
+      } catch {
+        setMessage("Serverga ulanib bo'lmadi");
       }
     });
   }
@@ -139,7 +149,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           : { background: p.color, color: "#fff" }
                       }
                     >
-                      {current ? "Joriy tarif" : p.price === 0 ? "Free'ga qaytish" : "Tanlash"}
+                      {current ? "Joriy tarif" : p.price === 0 ? "Free" : `$${p.price} — kripto to'lov`}
                     </button>
                   </div>
                 );
@@ -162,7 +172,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
             </AnimatePresence>
 
             <p className="mt-4 text-center text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-              To&apos;lov: Payme / Click / karta — tez orada. Narxlar oyiga, istalgan vaqt bekor qilish mumkin.
+              To&apos;lov kripto (USDT / USDC / BTC) orqali — ZenoBank xavfsiz checkout. Narxlar oyiga.
             </p>
           </motion.div>
         </motion.div>
