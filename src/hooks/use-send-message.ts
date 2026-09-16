@@ -3,17 +3,44 @@
 import { useCallback, useRef, useState } from "react";
 import { syncConversation } from "@/app/actions/chat";
 import { rememberExchange } from "@/app/actions/memory";
+import { mask } from "@/lib/ai/blind-prompting";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
 import { useChat, uuid, type ChatMessage } from "@/store/chat";
 
-/** Maps stored messages to the API wire format, expanding attachments. */
-function toWire(messages: ChatMessage[]) {
-  return messages.map((m) => ({
-    role: m.role,
-    content:
-      m.role === "user" && m.attachments?.length ? buildUserContent(m.content, m.attachments) : m.content,
-  }));
+/**
+ * Maps stored messages to the API wire format. When Blind Prompting is on,
+ * PII in the *latest* user message is replaced with tokens; the returned
+ * `tokenMap` is used to un-mask the streamed answer on the client.
+ */
+function toWire(messages: ChatMessage[], blind: boolean) {
+  const tokenMap: Record<string, string> = {};
+  const last = messages[messages.length - 1];
+  const wire = messages.map((m) => {
+    const isTargetUser = blind && m === last && m.role === "user" && typeof m.content === "string";
+    const raw = isTargetUser
+      ? (() => {
+          const r = mask(m.content as string);
+          Object.assign(tokenMap, r.tokenMap);
+          return r.masked;
+        })()
+      : m.content;
+    return {
+      role: m.role,
+      content: m.role === "user" && m.attachments?.length ? buildUserContent(raw as string, m.attachments) : raw,
+    };
+  });
+  return { wire, tokenMap };
+}
+
+function applyTokenMap(text: string, tokenMap: Record<string, string>): string {
+  if (!text) return text;
+  let out = text;
+  for (const [tok, val] of Object.entries(tokenMap)) {
+    const esc = tok.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(esc, "g"), val);
+  }
+  return out;
 }
 
 const HISTORY_LIMIT = 24;
@@ -47,18 +74,23 @@ export function useSendMessage() {
     let skills: string[] | undefined;
     let failed: string | null = null;
 
+    const state0 = useChat.getState();
+    const { wire, tokenMap } = toWire(history.slice(-HISTORY_LIMIT), state0.blindPrompting);
+    const hasMask = Object.keys(tokenMap).length > 0;
+
     try {
       await streamChat({
         modelId: conv.modelId,
         research: conv.research,
-        skills: useChat.getState().enabledSkills,
-        messages: toWire(history.slice(-HISTORY_LIMIT)),
+        skills: state0.enabledSkills,
+        messages: wire,
         signal: controller.signal,
         onEvent: (ev) => {
           const s = useChat.getState();
           if (ev.type === "text") {
             text += ev.text;
-            s.updateMessage(conversationId, assistant.id, { content: text });
+            const shown = hasMask ? applyTokenMap(text, tokenMap) : text;
+            s.updateMessage(conversationId, assistant.id, { content: shown });
           } else if (ev.type === "citations") {
             citations = ev.citations;
             s.updateMessage(conversationId, assistant.id, { citations });
@@ -93,7 +125,8 @@ export function useSendMessage() {
     if (failed && !text) {
       s.updateMessage(conversationId, assistant.id, { status: "error", error: failed });
     } else {
-      s.updateMessage(conversationId, assistant.id, { status: "done", content: text, citations, skills });
+      const finalContent = hasMask ? applyTokenMap(text, tokenMap) : text;
+      s.updateMessage(conversationId, assistant.id, { status: "done", content: finalContent, citations, skills });
     }
 
     // First exchange names the conversation.

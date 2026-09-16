@@ -61,6 +61,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     mergeFromServer,
     enabledSkills,
     toggleSkill,
+    blindPrompting,
+    setBlindPrompting,
   } = useChat();
   const { send, regenerate, stop, isStreaming } = useSendMessage();
   const inputRef = useRef<InputAreaHandle>(null);
@@ -175,6 +177,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       onToggleResearch={handleToggleResearch}
       enabledSkills={enabledSkills}
       onToggleSkill={toggleSkill}
+      blindPrompting={blindPrompting}
+      onToggleBlindPrompting={setBlindPrompting}
       ref={inputRef}
       autoFocus
     />

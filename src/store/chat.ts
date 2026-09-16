@@ -56,12 +56,15 @@ interface ChatState {
   dynamicTheme: boolean;
   /** User-enabled SOVEREIGN skills (auto-detected ones are added per message). */
   enabledSkills: string[];
+  /** Mask PII in the outgoing prompt (Blind Prompting). */
+  blindPrompting: boolean;
 
   setModel: (id: string) => void;
   setResearch: (on: boolean) => void;
   setSidebarOpen: (open: boolean) => void;
   setDynamicTheme: (on: boolean) => void;
   toggleSkill: (id: string) => void;
+  setBlindPrompting: (on: boolean) => void;
   newChat: () => void;
   select: (id: string | null) => void;
   createConversation: (modelId: string, research: boolean) => Conversation;
@@ -93,6 +96,7 @@ export const useChat = create<ChatState>()(
       sidebarOpen: true,
       dynamicTheme: true,
       enabledSkills: DEFAULT_ENABLED_SKILLS,
+      blindPrompting: false,
 
       setModel: (modelId) => {
         if (modelId !== AUTO_MODEL_ID && !MODEL_BY_ID[modelId]) return;
@@ -120,6 +124,7 @@ export const useChat = create<ChatState>()(
             ? s.enabledSkills.filter((x) => x !== id)
             : [...s.enabledSkills, id],
         })),
+      setBlindPrompting: (blindPrompting) => set({ blindPrompting }),
 
       newChat: () => set({ activeId: null }),
       select: (id) => {
@@ -242,6 +247,7 @@ export const useChat = create<ChatState>()(
         sidebarOpen: s.sidebarOpen,
         dynamicTheme: s.dynamicTheme,
         enabledSkills: s.enabledSkills,
+        blindPrompting: s.blindPrompting,
       }),
     },
   ),

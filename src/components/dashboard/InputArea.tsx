@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Brain, Globe, Loader2, Mic, Paperclip, Square, X, Zap } from "lucide-react";
+import { ArrowUp, Brain, Globe, Loader2, Mic, Paperclip, ShieldCheck, Square, X, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import {
   useCallback,
@@ -31,6 +31,8 @@ interface InputAreaProps {
   onToggleResearch: (on: boolean) => void;
   enabledSkills: string[];
   onToggleSkill: (id: string) => void;
+  blindPrompting: boolean;
+  onToggleBlindPrompting: (on: boolean) => void;
   ref?: Ref<InputAreaHandle>;
   autoFocus?: boolean;
   className?: string;
@@ -83,6 +85,8 @@ export function InputArea({
   onToggleResearch,
   enabledSkills,
   onToggleSkill,
+  blindPrompting,
+  onToggleBlindPrompting,
   ref,
   autoFocus,
   className,
@@ -308,7 +312,14 @@ export function InputArea({
               onClick={() => onToggleResearch(!research)}
               title="Perplexity orqali internet tadqiqoti"
             />
-            <Chip icon={<Brain className="size-3.5" />} label="Xotira" disabled title="Phase 3" />
+            <Chip
+              active={blindPrompting}
+              icon={<ShieldCheck className="size-3.5" />}
+              label="Maxfiy rejim"
+              onClick={() => onToggleBlindPrompting(!blindPrompting)}
+              title="Blind Prompting — ism, telefon, email va boshqa shaxsiy ma'lumotlarni AI ko'rmasligi uchun maskalash"
+            />
+            <Chip icon={<Brain className="size-3.5" />} label="Xotira" disabled title="Faol" />
             <Chip icon={<Zap className="size-3.5" />} label="Tez javob" disabled title="Tez orada" />
           </div>
         )}
