@@ -102,6 +102,21 @@ export async function processFile(file: File): Promise<Attachment> {
   }
   if (kind === "audio" || kind === "video") {
     base.previewUrl = URL.createObjectURL(file);
+    // Transcribe via /api/transcribe (best-effort; failure leaves preview only).
+    if (file.size > 0 && file.size <= 25 * 1024 * 1024) {
+      try {
+        const form = new FormData();
+        form.append("file", file, file.name);
+        form.append("language", "uz");
+        const res = await fetch("/api/transcribe", { method: "POST", body: form });
+        if (res.ok) {
+          const data = (await res.json()) as { text?: string };
+          if (data.text) base.text = data.text.slice(0, 40_000);
+        }
+      } catch {
+        /* keep preview-only */
+      }
+    }
     return base;
   }
   return base;
@@ -118,7 +133,11 @@ export function buildUserContent(text: string, attachments: Attachment[]): strin
     prefix += `\n\n[Fayl: ${d.name}]\n${d.text}\n[/Fayl]`;
   }
   for (const m of media) {
-    prefix += `\n\n[Media fayl biriktirildi: ${m.name} (${m.mime}). Hozircha audio/video tahlili tez orada qo'shiladi.]`;
+    if (m.text) {
+      prefix += `\n\n[TRANSKRIPT: ${m.name}]\n${m.text}\n[/TRANSKRIPT]`;
+    } else {
+      prefix += `\n\n[Media fayl biriktirildi: ${m.name} (${m.mime}). Transkripsiya olinmadi.]`;
+    }
   }
   const full = (text + prefix).trim();
 

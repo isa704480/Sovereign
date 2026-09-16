@@ -13,11 +13,46 @@ interface ArtifactPanelProps {
   onClose: () => void;
 }
 
+// Live edit lets the user tweak the artifact and re-render immediately.
+const HTML_TABS = ["preview", "code"] as const;
+
 function toHtmlDoc(code: string, lang: string): string {
   const l = lang.toLowerCase();
   const isFullDoc = /<!doctype html|<html[\s>]/i.test(code);
   if (l === "svg") {
     return `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#fff}svg{max-width:100%;max-height:100%}</style>${code}`;
+  }
+  if (l === "jsx" || l === "tsx" || l === "react") {
+    // JSX/TSX runs inside a sandboxed iframe with React, Babel and Tailwind
+    // preloaded. The user's code either exports (default) or defines a
+    // component named App / Component.
+    const escaped = code.replace(/<\/script>/g, "<\\/script>");
+    return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#fff;color:#1d1d1f}#root{min-height:100vh}</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="typescript,react">
+try {
+${escaped}
+  const target = (typeof App !== "undefined" && App) || (typeof Component !== "undefined" && Component) || (typeof Page !== "undefined" && Page);
+  if (!target) throw new Error("Komponent topilmadi (App yoki Component nomi bilan e'lon qiling)");
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(React.createElement(target));
+} catch (e) {
+  document.body.innerHTML = "<pre style='color:#b00020;padding:16px;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace'>" + String(e.message || e) + "</pre>";
+}
+</script>
+</body>
+</html>`;
   }
   if (isFullDoc) return code;
   // Wrap an HTML fragment in a minimal, readable document.
@@ -30,11 +65,12 @@ function extOf(lang: string): string {
 }
 
 export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
-  const { code, lang, title } = artifact;
+  const { lang, title } = artifact;
   const l = lang.toLowerCase();
   const isMarkdown = l === "markdown" || l === "md";
   // Panel is keyed by content in the parent, so state resets on a new artifact.
-  const [tab, setTab] = useState<"preview" | "code">("preview");
+  const [code, setCode] = useState(artifact.code);
+  const [tab, setTab] = useState<(typeof HTML_TABS)[number]>("preview");
   const [copied, setCopied] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -82,7 +118,7 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
         <div className="flex items-center gap-1">
           {!isMarkdown && (
             <div className="mr-1 flex rounded-lg p-0.5" style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}>
-              {(["preview", "code"] as const).map((t) => (
+              {HTML_TABS.map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -95,7 +131,7 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
                   }}
                 >
                   {t === "preview" ? <Eye className="size-3.5" /> : <Code2 className="size-3.5" />}
-                  {t === "preview" ? "Ko'rinish" : "Kod"}
+                  {t === "preview" ? "Ko'rinish" : "Tahrir"}
                 </button>
               ))}
             </div>
@@ -131,10 +167,21 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
             className="h-full w-full border-0 bg-white"
           />
         ) : (
-          <div className="h-full overflow-auto p-4">
-            <pre className="text-[13px] leading-relaxed" style={{ color: "var(--t-text)" }}>
-              <code>{code}</code>
-            </pre>
+          <div className="flex h-full flex-col">
+            <textarea
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              spellCheck={false}
+              className="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-[13px] leading-relaxed outline-none"
+              style={{ color: "var(--t-text)" }}
+            />
+            <div
+              className="flex items-center justify-between border-t px-3 py-1.5 text-[11px]"
+              style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
+            >
+              <span>Tahrir qilinganda Ko&apos;rinish o&apos;z-o&apos;zidan yangilanadi</span>
+              <span>{code.length} belgi</span>
+            </div>
           </div>
         )}
       </div>

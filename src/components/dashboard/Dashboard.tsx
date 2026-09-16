@@ -149,7 +149,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       const last = conv?.messages[conv.messages.length - 1];
       if (!last || last.role !== "assistant" || last.status === "streaming") return;
       if (autoOpenedRef.current === last.id) return;
-      const m = /```(html|svg)\s*\n([\s\S]*?)```/i.exec(last.content);
+      const m = /```(html|svg|jsx|tsx|react)\s*\n([\s\S]*?)```/i.exec(last.content);
       if (m && m[2].trim().length > 40) {
         autoOpenedRef.current = last.id;
         setArtifact({ code: m[2].trim(), lang: m[1].toLowerCase() });
