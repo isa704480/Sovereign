@@ -15,6 +15,12 @@ export type StreamEvent =
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 const PERPLEXITY_BASE = "https://api.perplexity.ai";
 
+/** Perplexity Agent API presets ("sonar" ids kept in config for continuity). */
+const PERPLEXITY_PRESET: Record<string, string> = {
+  sonar: "fast",
+  "sonar-pro": "medium",
+};
+
 export function isResearchModel(model: SovereignModel) {
   return model.category === "research";
 }
@@ -36,7 +42,7 @@ export function buildSystemPrompt(model: SovereignModel, research: boolean): str
   return base.join(" ");
 }
 
-/** Parses an OpenAI-style SSE body into JSON chunks. */
+/** Parses an SSE body into the JSON objects carried by `data:` lines. */
 async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<Record<string, unknown>> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -61,53 +67,194 @@ async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<Record
   }
 }
 
-type Chunk = {
+async function errorMessage(res: Response): Promise<string> {
+  let message = `${res.status} ${res.statusText}`;
+  let code = res.status;
+  try {
+    const j = (await res.json()) as {
+      error?: { message?: string; code?: number; metadata?: { raw?: string } } | string;
+      message?: string;
+    };
+    if (typeof j.error === "string") message = j.error;
+    else if (j.error?.message) {
+      message = j.error.metadata?.raw ?? j.error.message;
+      code = j.error.code ?? code;
+    } else if (j.message) message = j.message;
+  } catch {
+    /* ignore */
+  }
+  if (code === 429 || /rate-limited|rate limit/i.test(message)) {
+    return `Model hozir band (rate limit). Bir necha soniyadan keyin qayta urinib ko'ring yoki boshqa modelni tanlang. (${message})`;
+  }
+  if (code === 402 || /credits/i.test(message)) {
+    return `Provayder balansi yetarli emas: ${message}`;
+  }
+  return message;
+}
+
+/* ------------------------------------------------------------------ */
+/* OpenRouter (OpenAI chat-completions format)                          */
+/* ------------------------------------------------------------------ */
+
+type OrChunk = {
   choices?: { delta?: { content?: string } }[];
-  citations?: string[];
   error?: { message?: string };
 };
 
-async function* streamOpenAiCompatible(
-  url: string,
-  headers: Record<string, string>,
-  payload: Record<string, unknown>,
-  signal?: AbortSignal,
+async function* streamOpenRouter(
+  model: SovereignModel,
+  messages: ChatMessageInput[],
+  opts: StreamOptions,
+  maxTokens: number,
+  retried = false,
 ): AsyncGenerator<StreamEvent> {
-  const res = await fetch(url, {
+  const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify({ ...payload, stream: true }),
-    signal,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+      "X-Title": "SOVEREIGN AI",
+    },
+    body: JSON.stringify({
+      model: model.providerModel,
+      messages,
+      temperature: opts.temperature ?? 0.7,
+      max_tokens: maxTokens,
+      transforms: ["middle-out"],
+      route: "fallback",
+      stream: true,
+    }),
+    signal: opts.signal,
   });
 
   if (!res.ok || !res.body) {
-    let message = `${res.status} ${res.statusText}`;
-    try {
-      const j = (await res.json()) as { error?: { message?: string } };
-      if (j.error?.message) message = j.error.message;
-    } catch {
-      /* ignore */
+    const message = await errorMessage(res);
+    // Low-credit accounts: "You requested up to N tokens, but can only afford M."
+    const afford = /can only afford (\d+)/i.exec(message);
+    if (afford && !retried) {
+      const allowed = Math.max(256, Number(afford[1]) - 64);
+      yield* streamOpenRouter(model, messages, opts, allowed, true);
+      return;
     }
     yield { type: "error", message };
     return;
   }
 
-  let citationsSent = false;
   for await (const chunk of readSse(res.body)) {
-    const c = chunk as Chunk;
+    const c = chunk as OrChunk;
     if (c.error?.message) {
       yield { type: "error", message: c.error.message };
       return;
-    }
-    if (!citationsSent && Array.isArray(c.citations) && c.citations.length) {
-      citationsSent = true;
-      yield { type: "citations", citations: c.citations };
     }
     const text = c.choices?.[0]?.delta?.content;
     if (text) yield { type: "text", text };
   }
   yield { type: "done" };
 }
+
+/* ------------------------------------------------------------------ */
+/* Perplexity Agent API (/v1/responses, OpenAI Responses format)        */
+/* ------------------------------------------------------------------ */
+
+type PplxEvent = {
+  type?: string;
+  delta?: string;
+  results?: { url?: string }[];
+  item?: { type?: string; results?: { url?: string }[] };
+  response?: {
+    status?: string;
+    error?: { message?: string } | null;
+    output?: { type?: string; results?: { url?: string }[]; content?: { type?: string; text?: string }[] }[];
+  };
+  error?: { message?: string };
+  message?: string;
+};
+
+function collectUrls(results?: { url?: string }[]): string[] {
+  return (results ?? []).map((r) => r.url).filter((u): u is string => typeof u === "string" && u.length > 0);
+}
+
+async function* streamPerplexity(
+  model: SovereignModel,
+  messages: ChatMessageInput[],
+  opts: StreamOptions,
+): AsyncGenerator<StreamEvent> {
+  const system = messages.find((m) => m.role === "system")?.content;
+  const input = messages
+    .filter((m) => m.role !== "system")
+    .map((m) => ({ role: m.role, content: m.content }));
+
+  const res = await fetch(`${PERPLEXITY_BASE}/v1/responses`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+    },
+    body: JSON.stringify({
+      preset: PERPLEXITY_PRESET[model.providerModel] ?? "fast",
+      input,
+      instructions: system,
+      max_output_tokens: opts.maxTokens ?? 1500,
+      stream: true,
+    }),
+    signal: opts.signal,
+  });
+
+  if (!res.ok || !res.body) {
+    yield { type: "error", message: await errorMessage(res) };
+    return;
+  }
+
+  const citations: string[] = [];
+  let sentCount = 0;
+  let text = "";
+
+  for await (const chunk of readSse(res.body)) {
+    const ev = chunk as PplxEvent;
+    const type = ev.type ?? "";
+
+    if (type === "response.output_text.delta" && typeof ev.delta === "string") {
+      text += ev.delta;
+      yield { type: "text", text: ev.delta };
+      continue;
+    }
+
+    if (type === "response.reasoning.search_results" || ev.item?.type === "search_results") {
+      for (const u of collectUrls(ev.results ?? ev.item?.results)) if (!citations.includes(u)) citations.push(u);
+      if (citations.length > sentCount) {
+        sentCount = citations.length;
+        yield { type: "citations", citations: [...citations] };
+      }
+      continue;
+    }
+
+    if (type === "response.failed" || type === "error" || ev.error) {
+      yield { type: "error", message: ev.response?.error?.message ?? ev.error?.message ?? ev.message ?? "Perplexity xatosi" };
+      return;
+    }
+
+    if (type === "response.completed" && ev.response?.output) {
+      for (const item of ev.response.output) {
+        if (item.type === "search_results" || Array.isArray(item.results)) {
+          for (const u of collectUrls(item.results)) if (!citations.includes(u)) citations.push(u);
+        }
+        // Fallback: no deltas were streamed → emit the final text once.
+        if (!text && item.type === "message" && item.content) {
+          const full = item.content.map((c) => c.text ?? "").join("");
+          if (full) {
+            text = full;
+            yield { type: "text", text: full };
+          }
+        }
+      }
+      if (citations.length > sentCount) yield { type: "citations", citations: [...citations] };
+    }
+  }
+  yield { type: "done" };
+}
+
+/* ------------------------------------------------------------------ */
 
 export interface StreamOptions {
   modelId: string;
@@ -137,39 +284,10 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
   ];
 
   if (isResearchModel(model)) {
-    yield* streamOpenAiCompatible(
-      `${PERPLEXITY_BASE}/chat/completions`,
-      { Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}` },
-      {
-        model: model.providerModel,
-        messages,
-        temperature: opts.temperature ?? 0.2,
-        max_tokens: opts.maxTokens ?? 2048,
-        return_citations: true,
-        search_recency_filter: "month",
-      },
-      opts.signal,
-    );
+    yield* streamPerplexity(model, messages, opts);
     return;
   }
-
-  yield* streamOpenAiCompatible(
-    `${OPENROUTER_BASE}/chat/completions`,
-    {
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-      "X-Title": "SOVEREIGN AI",
-    },
-    {
-      model: model.providerModel,
-      messages,
-      temperature: opts.temperature ?? 0.7,
-      max_tokens: opts.maxTokens ?? 4096,
-      transforms: ["middle-out"],
-      route: "fallback",
-    },
-    opts.signal,
-  );
+  yield* streamOpenRouter(model, messages, opts, opts.maxTokens ?? 2048);
 }
 
 /* ------------------------------------------------------------------ */

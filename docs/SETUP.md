@@ -10,10 +10,16 @@
 
 ## 2. Ma'lumotlar bazasi
 
-**SQL Editor** → yangi so'rov → quyidagi fayllarni tartib bilan joylashtirib **Run** qiling:
+**SQL Editor** → yangi so'rov → `supabase/schema.sql` faylining to'liq matnini joylashtiring → **Run**.
 
-1. `supabase/migrations/0001_profiles.sql` — `profiles` jadvali, RLS, `auth.users` trigger (har yangi foydalanuvchi uchun profil avtomatik ochiladi)
-2. `supabase/migrations/0002_chat.sql` — `conversations` va `messages` jadvallari (chat tarixi, RLS bilan)
+Bu bitta fayl ikkala migratsiyani o'z ichiga oladi:
+
+1. `0001_profiles.sql` — `profiles` jadvali, RLS, `auth.users` trigger (har yangi foydalanuvchi uchun profil avtomatik ochiladi)
+2. `0002_chat.sql` — `conversations` va `messages` jadvallari (chat tarixi, RLS bilan)
+
+Tekshirish: **Table Editor** da `profiles`, `conversations`, `messages` ko'rinishi kerak.
+
+> Holat (2026-09-16): loyiha `provrwznkeptfotvfgoa` ulandi, jadvallar **hali yaratilmagan** (REST 404), Google/GitHub provider **o'chiq**, Confirm email **yoqiq**. Quyidagi 3-bo'limdagi qadamlar bajarilishi kerak.
 
 ## 2.1 AI kalitlar (Phase 2)
 

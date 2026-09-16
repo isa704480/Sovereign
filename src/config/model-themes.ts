@@ -279,9 +279,9 @@ export const MODEL_THEMES: Record<ModelTheme, ModelThemeSpec> = {
     provider: "Meta AI",
     wordmark: "LLaMA",
     glyph: "🦙",
-    badge: "TEKIN",
+    badge: "OCHIQ MANBA",
     greeting: "Salom! Men LLaMA.",
-    subGreeting: "Ochiq manbali, to'liq tekin model.",
+    subGreeting: "Meta'ning ochiq manbali, eng arzon modeli.",
     placeholder: "LLaMA'ga yozing...",
     suggestions: [
       "Bugun nima pishirsam bo'ladi?",
