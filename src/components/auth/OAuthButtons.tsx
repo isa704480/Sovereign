@@ -3,6 +3,8 @@
 import { Loader2 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { signInWithOAuth } from "@/app/actions/auth";
+import { createClient } from "@/lib/supabase/client";
+import { googleIdTokenViaFirebase, isFirebaseConfigured } from "@/lib/firebase/client";
 import type { OAuthProvider } from "@/lib/validations/auth";
 import { cn } from "@/lib/utils";
 
@@ -25,11 +27,6 @@ function GitHubIcon() {
   );
 }
 
-const PROVIDERS: { id: OAuthProvider; label: string; Icon: () => React.JSX.Element }[] = [
-  { id: "google", label: "Google bilan davom etish", Icon: GoogleIcon },
-  { id: "github", label: "GitHub bilan davom etish", Icon: GitHubIcon },
-];
-
 interface OAuthButtonsProps {
   next?: string | null;
   onError?: (message: string) => void;
@@ -39,10 +36,36 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
   const [pending, startTransition] = useTransition();
   const [active, setActive] = useState<OAuthProvider | null>(null);
 
-  function start(provider: OAuthProvider) {
-    setActive(provider);
+  async function google() {
+    setActive("google");
+    try {
+      if (isFirebaseConfigured()) {
+        // Firebase Google popup → Supabase session via ID token.
+        const { idToken, accessToken } = await googleIdTokenViaFirebase();
+        const supabase = createClient();
+        const { error } = await supabase.auth.signInWithIdToken({
+          provider: "google",
+          token: idToken,
+          access_token: accessToken,
+        });
+        if (error) throw new Error(error.message);
+        window.location.href = next && next.startsWith("/") ? next : "/onboarding";
+        return;
+      }
+      // Fallback: Supabase redirect OAuth.
+      const res = await signInWithOAuth("google", next);
+      if (res && !res.ok) throw new Error(res.error);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Google bilan kirishda xato";
+      onError?.(/popup-closed|cancelled|closed by user/i.test(msg) ? "Oyna yopildi. Qayta urinib ko'ring." : msg);
+      setActive(null);
+    }
+  }
+
+  function github() {
+    setActive("github");
     startTransition(async () => {
-      const res = await signInWithOAuth(provider, next);
+      const res = await signInWithOAuth("github", next);
       if (res && !res.ok) {
         onError?.(res.error);
         setActive(null);
@@ -50,24 +73,36 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
     });
   }
 
+  const busy = pending || active !== null;
+
   return (
     <div className="grid gap-2.5">
-      {PROVIDERS.map(({ id, label, Icon }) => (
-        <button
-          key={id}
-          type="button"
-          disabled={pending}
-          onClick={() => start(id)}
-          className={cn(
-            "inline-flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-border bg-bg-base/60 text-sm font-medium text-text-primary transition-all",
-            "hover:border-[var(--border-strong)] hover:bg-bg-hover focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
-            "disabled:cursor-not-allowed disabled:opacity-60",
-          )}
-        >
-          {pending && active === id ? <Loader2 className="size-4 animate-spin text-text-muted" /> : <Icon />}
-          {label}
-        </button>
-      ))}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={google}
+        className={cn(
+          "inline-flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-border bg-bg-base/60 text-sm font-medium text-text-primary transition-all",
+          "hover:border-[var(--border-strong)] hover:bg-bg-hover focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+          "disabled:cursor-not-allowed disabled:opacity-60",
+        )}
+      >
+        {active === "google" ? <Loader2 className="size-4 animate-spin text-text-muted" /> : <GoogleIcon />}
+        Google bilan davom etish
+      </button>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={github}
+        className={cn(
+          "inline-flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-border bg-bg-base/60 text-sm font-medium text-text-primary transition-all",
+          "hover:border-[var(--border-strong)] hover:bg-bg-hover focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+          "disabled:cursor-not-allowed disabled:opacity-60",
+        )}
+      >
+        {active === "github" ? <Loader2 className="size-4 animate-spin text-text-muted" /> : <GitHubIcon />}
+        GitHub bilan davom etish
+      </button>
     </div>
   );
 }
