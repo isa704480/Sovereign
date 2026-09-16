@@ -2,9 +2,9 @@
 node_modules
 .env.local
 .env
-docs
-cli
-supabase
-db
+/docs
+/cli
+/supabase
+/db
 tsconfig.tsbuildinfo
 *.log

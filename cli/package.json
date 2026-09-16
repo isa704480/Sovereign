@@ -1,5 +1,5 @@
 {
-  "name": "sovereign-cli",
+  "name": "@islombekmansurov/sov-cli",
   "version": "0.1.0",
   "description": "SOVEREIGN AI — terminaldagi AI koding agenti. `sovereign` deb yozing.",
   "type": "module",
