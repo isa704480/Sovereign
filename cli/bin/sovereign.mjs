@@ -3,6 +3,7 @@ import readline from "node:readline";
 import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages } from "../src/agent.mjs";
 import { login } from "../src/login.mjs";
+import { printModels, resolveModelId } from "../src/models.mjs";
 import { banner, c, logo } from "../src/ui.mjs";
 
 const rawArgs = process.argv.slice(2);
@@ -86,7 +87,8 @@ function handleHelp() {
       `    ${c.white("sovereign help")}            yordam`,
       "",
       "  Interaktiv buyruqlar:",
-      `    ${c.white("/model <id>")}   modelni almashtirish`,
+      `    ${c.white("/models")}       model ro'yxati`,
+      `    ${c.white("/model <id>")}   modelni almashtirish (qisqa nom ham bo'ladi)`,
       `    ${c.white("/cwd <path>")}   ish papkasini o'zgartirish`,
       `    ${c.white("/clear")}        suhbatni tozalash`,
       `    ${c.white("/exit")}         chiqish`,
@@ -128,14 +130,20 @@ async function repl() {
       process.stdout.write("  " + promptStr());
       continue;
     }
+    if (input === "/models") {
+      printModels(config.model);
+      process.stdout.write("  " + promptStr());
+      continue;
+    }
     if (input.startsWith("/model")) {
-      const m = input.split(/\s+/)[1];
-      if (m) {
+      const arg = input.slice(6).trim();
+      if (arg) {
+        const m = resolveModelId(arg);
         config = { ...config, model: m };
         saveConfig({ model: m });
-        console.log(`  ${c.green("Model:")} ${c.indigo(m)}`);
+        console.log(`  ${c.green("Model:")} ${c.indigo(m)}${config.token ? c.dim("  (akkaunt rejimida server tarifga qarab tanlaydi)") : ""}`);
       } else {
-        console.log(`  ${c.dim("Joriy model:")} ${c.indigo(config.model)}`);
+        printModels(config.model);
       }
       process.stdout.write("  " + promptStr());
       continue;
@@ -213,7 +221,8 @@ function handleWhoami() {
 
 // ---- dispatch ---------------------------------------------------------
 const cmd = args[0];
-if (cmd === "login") await handleLogin();
+if (cmd === "models") printModels(loadConfig().model);
+else if (cmd === "login") await handleLogin();
 else if (cmd === "logout") handleLogout();
 else if (cmd === "whoami" || cmd === "who") handleWhoami();
 else if (cmd === "config") await handleConfig();
