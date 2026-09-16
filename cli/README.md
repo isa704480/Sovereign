@@ -38,15 +38,34 @@ Kalit https://openrouter.ai/keys dan olinadi. Yoki shell'da `OPENROUTER_API_KEY`
 ## Foydalanish
 
 ```bash
-sovereign                       # interaktiv rejim (chat + agent)
-sovereign "React todo app yarat"   # bitta topshiriq
-sovereign --yes "..."           # amallarni avtomatik tasdiqlash
-sovereign whoami                # holat
-sovereign logout                # chiqish
-sovereign help                  # yordam
+sovereign                             # interaktiv rejim (chat + agent)
+sovereign "React todo app yarat"      # bitta topshiriq
+sovereign "..." -f rasm.png -f a.pdf  # fayllarni biriktirib yuborish
+sovereign --yes "..."                 # amallarni avtomatik tasdiqlash
+sovereign whoami                      # holat
+sovereign logout                      # chiqish
+sovereign help                        # yordam
 ```
 
-Interaktiv rejimda: `/model`, `/cwd <yo'l>`, `/clear`, `/exit`.
+Interaktiv rejimda: `/model`, `/cwd <yo'l>`, `/attach <fayl>`, `/detach`, `/clear`, `/exit`.
+
+## Fayl biriktirish
+
+Rasm (`.png .jpg .webp .gif`), PDF, va matn (`.md .json .ts .py ...`) fayllarni biriktirib yuborsangiz bo'ladi:
+
+```bash
+sovereign "bu diagrammaga qarab kod yoz" -f diagram.png
+sovereign "bu PDFdan asosiy g'oyalarni chiqar" -f paper.pdf
+```
+
+Interaktiv rejimda:
+
+```
+› /attach ./mockup.png
+› Shu dizaynga qarab HTML yoz
+```
+
+Cheklovlar: rasm 8 MB, matn 2 MB, PDF 20 MB. PDF matnini ajratish uchun `npm i -g pdf-parse` o'rnating (ixtiyoriy).
 
 ## Xavfsizlik
 

@@ -10,6 +10,7 @@ const SYSTEM = [
   "MUHIM: har bir qadamda nima qilayotganingni QISQA gap bilan tushuntirib bor — avval rejangni ayt, keyin vositani chaqir.",
   "Masalan: 'Avval package.json yarataman, keyin src papkasini ochaman.' — keyin write_file/make_dir chaqir.",
   "Kod toza, ishlaydigan va xavfsiz bo'lsin. Fayl uchun write_file, papka uchun make_dir vositasidan foydalan.",
+  "Foydalanuvchi rasm biriktirsa — uni ko'rib, tavsifla; PDF/matn biriktirsa — mazmunini o'qib xulosa qil.",
   "Ish tugagach, nima qilganingni 1-2 gapda xulosala.",
 ].join(" ");
 
