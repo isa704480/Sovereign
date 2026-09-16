@@ -5,6 +5,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
+import type { Attachment } from "@/lib/chat/attachments";
 
 export type Role = "user" | "assistant" | "system";
 export type MessageStatus = "streaming" | "done" | "error";
@@ -17,6 +18,8 @@ export interface ChatMessage {
   citations?: string[];
   /** Skill ids that were active for this answer. */
   skills?: string[];
+  /** User attachments (images / files) shown with the message and sent to the model. */
+  attachments?: Attachment[];
   createdAt: string;
   status?: MessageStatus;
   error?: string;
@@ -199,7 +202,30 @@ export const useChat = create<ChatState>()(
       name: "sovereign.chat",
       skipHydration: true,
       partialize: (s) => ({
-        conversations: s.conversations,
+        // Strip heavy attachment payloads (data URLs / extracted text) from
+        // localStorage — keep only lightweight metadata for display after reload.
+        conversations: Object.fromEntries(
+          Object.entries(s.conversations).map(([id, c]) => [
+            id,
+            {
+              ...c,
+              messages: c.messages.map((m) =>
+                m.attachments?.length
+                  ? {
+                      ...m,
+                      attachments: m.attachments.map((a) => ({
+                        id: a.id,
+                        name: a.name,
+                        mime: a.mime,
+                        size: a.size,
+                        kind: a.kind,
+                      })),
+                    }
+                  : m,
+              ),
+            },
+          ]),
+        ),
         order: s.order,
         activeId: s.activeId,
         modelId: s.modelId,

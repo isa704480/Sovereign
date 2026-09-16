@@ -3,7 +3,17 @@
 import { useCallback, useRef, useState } from "react";
 import { syncConversation } from "@/app/actions/chat";
 import { streamChat } from "@/lib/chat/sse-client";
+import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
 import { useChat, uuid, type ChatMessage } from "@/store/chat";
+
+/** Maps stored messages to the API wire format, expanding attachments. */
+function toWire(messages: ChatMessage[]) {
+  return messages.map((m) => ({
+    role: m.role,
+    content:
+      m.role === "user" && m.attachments?.length ? buildUserContent(m.content, m.attachments) : m.content,
+  }));
+}
 
 const HISTORY_LIMIT = 24;
 
@@ -41,7 +51,7 @@ export function useSendMessage() {
         modelId: conv.modelId,
         research: conv.research,
         skills: useChat.getState().enabledSkills,
-        messages: history.slice(-HISTORY_LIMIT).map((m) => ({ role: m.role, content: m.content })),
+        messages: toWire(history.slice(-HISTORY_LIMIT)),
         signal: controller.signal,
         onEvent: (ev) => {
           const s = useChat.getState();
@@ -107,7 +117,7 @@ export function useSendMessage() {
   }, []);
 
   const send = useCallback(
-    async (text: string) => {
+    async (text: string, attachments?: Attachment[]) => {
       const state = useChat.getState();
       let conversationId = state.activeId;
       if (!conversationId || !state.conversations[conversationId]) {
@@ -117,6 +127,7 @@ export function useSendMessage() {
         id: uuid(),
         role: "user",
         content: text,
+        attachments: attachments?.length ? attachments : undefined,
         createdAt: new Date().toISOString(),
         status: "done",
       };

@@ -18,7 +18,8 @@ const bodySchema = z.object({
     .array(
       z.object({
         role: z.enum(["user", "assistant", "system"]),
-        content: z.string().min(1).max(32_000),
+        // string, or multimodal array (text + image_url parts) for vision.
+        content: z.union([z.string().max(200_000), z.array(z.any()).max(12)]),
       }),
     )
     .min(1)
@@ -67,7 +68,13 @@ export async function POST(req: Request) {
   }
 
   // Resolve SOVEREIGN skills: user-enabled ∪ auto-detected from the last message.
-  const lastUserText = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
+  const lastUserText =
+    typeof lastUser === "string"
+      ? lastUser
+      : Array.isArray(lastUser)
+        ? lastUser.map((p) => (p && typeof p === "object" && "text" in p ? String((p as { text?: string }).text ?? "") : "")).join(" ")
+        : "";
   const activeSkills = resolveActiveSkills(enabledSkills, lastUserText);
 
   const encoder = new TextEncoder();

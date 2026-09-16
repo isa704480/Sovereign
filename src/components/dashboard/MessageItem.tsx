@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
 import { SKILL_BY_ID } from "@/config/skills";
+import { attachmentGlyph } from "@/lib/chat/attachments";
 import type { ChatMessage } from "@/store/chat";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -69,20 +70,50 @@ export function MessageItem({ message, isLast, onRegenerate }: MessageItemProps)
         transition={{ duration: 0.2, ease: EASE }}
         className="group flex justify-end"
       >
-        <div className="flex max-w-[78%] flex-col items-end gap-1">
-          <div
-            className="tt whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-relaxed"
-            style={{
-              background: "var(--t-user-bubble)",
-              color: "var(--t-text)",
-              borderRadius:
-                theme.id === "chatgpt" || theme.id === "gemini"
-                  ? "var(--t-input-radius)"
-                  : "18px 18px 4px 18px",
-            }}
-          >
-            {message.content}
-          </div>
+        <div className="flex max-w-[78%] flex-col items-end gap-1.5">
+          {message.attachments?.length ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              {message.attachments.map((a) =>
+                a.kind === "image" && a.dataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={a.id}
+                    src={a.dataUrl}
+                    alt={a.name}
+                    className="tt max-h-48 rounded-xl object-cover"
+                    style={{ border: "1px solid var(--t-border)" }}
+                  />
+                ) : a.kind === "video" && a.previewUrl ? (
+                  <video key={a.id} src={a.previewUrl} controls className="max-h-48 rounded-xl" />
+                ) : a.kind === "audio" && a.previewUrl ? (
+                  <audio key={a.id} src={a.previewUrl} controls />
+                ) : (
+                  <span
+                    key={a.id}
+                    className="tt inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
+                    style={{ background: "var(--t-user-bubble)", color: "var(--t-text)" }}
+                  >
+                    {attachmentGlyph(a.kind)} <span className="max-w-[160px] truncate">{a.name}</span>
+                  </span>
+                ),
+              )}
+            </div>
+          ) : null}
+          {message.content && (
+            <div
+              className="tt whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-relaxed"
+              style={{
+                background: "var(--t-user-bubble)",
+                color: "var(--t-text)",
+                borderRadius:
+                  theme.id === "chatgpt" || theme.id === "gemini"
+                    ? "var(--t-input-radius)"
+                    : "18px 18px 4px 18px",
+              }}
+            >
+              {message.content}
+            </div>
+          )}
           <span className="pr-1 text-[11px] opacity-0 transition-opacity group-hover:opacity-100" style={{ color: "var(--t-text-muted)" }}>
             {timeLabel(message.createdAt)}
           </span>

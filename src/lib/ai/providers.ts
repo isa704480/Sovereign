@@ -3,7 +3,8 @@ import { MODEL_BY_ID, type SovereignModel } from "@/config/models";
 
 export interface ChatMessageInput {
   role: "user" | "assistant" | "system";
-  content: string;
+  /** string, or a multimodal array (text + image_url parts) for vision models. */
+  content: string | unknown[];
 }
 
 export type StreamEvent =
@@ -24,6 +25,14 @@ const PERPLEXITY_PRESET: Record<string, string> = {
 
 export function isResearchModel(model: SovereignModel) {
   return model.category === "research";
+}
+
+/** Plain text of a message content (string or multimodal array). */
+function textOf(content: string | unknown[]): string {
+  if (typeof content === "string") return content;
+  return content
+    .map((p) => (p && typeof p === "object" && "text" in p ? String((p as { text?: string }).text ?? "") : ""))
+    .join(" ");
 }
 
 export function hasKeyFor(model: SovereignModel): boolean {
@@ -188,10 +197,10 @@ async function* streamPerplexity(
   messages: ChatMessageInput[],
   opts: StreamOptions,
 ): AsyncGenerator<StreamEvent> {
-  const system = messages.find((m) => m.role === "system")?.content;
+  const system = textOf(messages.find((m) => m.role === "system")?.content ?? "");
   const input = messages
     .filter((m) => m.role !== "system")
-    .map((m) => ({ role: m.role, content: m.content }));
+    .map((m) => ({ role: m.role, content: textOf(m.content) }));
 
   const res = await fetch(`${PERPLEXITY_BASE}/v1/responses`, {
     method: "POST",
@@ -341,7 +350,7 @@ function mockAnswer(model: SovereignModel, last: string): string {
 }
 
 async function* mockStream(model: SovereignModel, messages: ChatMessageInput[]): AsyncGenerator<StreamEvent> {
-  const last = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const last = textOf([...messages].reverse().find((m) => m.role === "user")?.content ?? "");
   const text = mockAnswer(model, last);
   if (isResearchModel(model)) {
     yield {

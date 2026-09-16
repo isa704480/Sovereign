@@ -6,7 +6,8 @@ export interface StreamChatOptions {
   modelId: string;
   research: boolean;
   skills?: string[];
-  messages: { role: "user" | "assistant" | "system"; content: string }[];
+  /** content is a string, or a multimodal array (text + image parts). */
+  messages: { role: "user" | "assistant" | "system"; content: unknown }[];
   signal?: AbortSignal;
   onEvent: (ev: StreamEvent) => void;
 }
