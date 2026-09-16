@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { SIMPLE_CHAT_GUARDRAIL, streamCompletion } from "@/lib/ai/providers";
 import { MODEL_BY_ID } from "@/config/models";
+import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -12,6 +13,7 @@ export const maxDuration = 60;
 const bodySchema = z.object({
   modelId: z.string().min(1),
   research: z.boolean().optional().default(false),
+  skills: z.array(z.string()).max(12).optional().default([]),
   messages: z
     .array(
       z.object({
@@ -58,11 +60,15 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
   }
-  const { modelId, research, messages } = parsed.data;
+  const { modelId, research, skills: enabledSkills, messages } = parsed.data;
   const model = MODEL_BY_ID[modelId];
   if (!model) {
     return Response.json({ error: "Noma'lum model" }, { status: 400 });
   }
+
+  // Resolve SOVEREIGN skills: user-enabled ∪ auto-detected from the last message.
+  const lastUserText = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+  const activeSkills = resolveActiveSkills(enabledSkills, lastUserText);
 
   const encoder = new TextEncoder();
   const sse = (payload: unknown) => encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
@@ -97,15 +103,23 @@ export async function POST(req: Request) {
     );
   }
 
+  const extraSystem = [skillsPrompt(activeSkills), plan.limits.fullCode ? "" : SIMPLE_CHAT_GUARDRAIL]
+    .filter(Boolean)
+    .join("\n\n");
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      // Tell the client which skills ended up active (for the "used skills" chip).
+      if (activeSkills.length) {
+        controller.enqueue(sse({ type: "skills", skills: activeSkills.map((s) => s.id) }));
+      }
       try {
         for await (const ev of streamCompletion({
           modelId,
           research,
           messages,
           maxTokens: plan.limits.maxTokens,
-          extraSystem: plan.limits.fullCode ? undefined : SIMPLE_CHAT_GUARDRAIL,
+          extraSystem: extraSystem || undefined,
           signal: req.signal,
         })) {
           if (ev.type === "done") break;

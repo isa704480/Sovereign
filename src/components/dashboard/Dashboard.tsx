@@ -53,6 +53,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     select,
     remove,
     mergeFromServer,
+    enabledSkills,
+    toggleSkill,
   } = useChat();
   const { send, regenerate, stop, isStreaming } = useSendMessage();
   const inputRef = useRef<InputAreaHandle>(null);
@@ -133,6 +135,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       isStreaming={isStreaming}
       research={research}
       onToggleResearch={handleToggleResearch}
+      enabledSkills={enabledSkills}
+      onToggleSkill={toggleSkill}
       ref={inputRef}
       autoFocus
     />

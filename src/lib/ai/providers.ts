@@ -9,6 +9,7 @@ export interface ChatMessageInput {
 export type StreamEvent =
   | { type: "text"; text: string }
   | { type: "citations"; citations: string[] }
+  | { type: "skills"; skills: string[] }
   | { type: "error"; message: string }
   | { type: "done" };
 

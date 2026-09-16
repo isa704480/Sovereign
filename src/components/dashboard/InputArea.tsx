@@ -4,6 +4,7 @@ import { ArrowUp, Brain, FileUp, Globe, Mic, Paperclip, Plus, Square, Zap } from
 import { motion } from "motion/react";
 import { useCallback, useImperativeHandle, useRef, useState, type KeyboardEvent, type Ref } from "react";
 import { cn } from "@/lib/utils";
+import { SkillPicker } from "./SkillPicker";
 import { useTheme } from "./theme-context";
 
 /** Imperative handle so suggestion chips can prefill the box. */
@@ -18,6 +19,8 @@ interface InputAreaProps {
   isStreaming: boolean;
   research: boolean;
   onToggleResearch: (on: boolean) => void;
+  enabledSkills: string[];
+  onToggleSkill: (id: string) => void;
   ref?: Ref<InputAreaHandle>;
   autoFocus?: boolean;
   className?: string;
@@ -66,6 +69,8 @@ export function InputArea({
   isStreaming,
   research,
   onToggleResearch,
+  enabledSkills,
+  onToggleSkill,
   ref,
   autoFocus,
   className,
@@ -199,6 +204,7 @@ export function InputArea({
 
         {!isPill && !isSearch && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <SkillPicker enabled={enabledSkills} onToggle={onToggleSkill} />
             <Chip
               active={research}
               icon={<Globe className="size-3.5" />}
@@ -212,6 +218,12 @@ export function InputArea({
           </div>
         )}
       </div>
+
+      {(isPill || isSearch) && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1">
+          <SkillPicker enabled={enabledSkills} onToggle={onToggleSkill} />
+        </div>
+      )}
 
       <div className="mt-2 hidden justify-center gap-4 text-[11px] sm:flex" style={{ color: "var(--t-text-muted)" }}>
         <span>

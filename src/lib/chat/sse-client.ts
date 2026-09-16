@@ -5,17 +5,18 @@ import type { StreamEvent } from "@/lib/ai/providers";
 export interface StreamChatOptions {
   modelId: string;
   research: boolean;
+  skills?: string[];
   messages: { role: "user" | "assistant" | "system"; content: string }[];
   signal?: AbortSignal;
   onEvent: (ev: StreamEvent) => void;
 }
 
 /** Calls POST /api/chat and forwards SSE events to `onEvent`. */
-export async function streamChat({ modelId, research, messages, signal, onEvent }: StreamChatOptions) {
+export async function streamChat({ modelId, research, skills, messages, signal, onEvent }: StreamChatOptions) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ modelId, research, messages }),
+    body: JSON.stringify({ modelId, research, skills: skills ?? [], messages }),
     signal,
   });
 

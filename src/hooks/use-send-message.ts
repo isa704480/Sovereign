@@ -33,12 +33,14 @@ export function useSendMessage() {
 
     let text = "";
     let citations: string[] | undefined;
+    let skills: string[] | undefined;
     let failed: string | null = null;
 
     try {
       await streamChat({
         modelId: conv.modelId,
         research: conv.research,
+        skills: useChat.getState().enabledSkills,
         messages: history.slice(-HISTORY_LIMIT).map((m) => ({ role: m.role, content: m.content })),
         signal: controller.signal,
         onEvent: (ev) => {
@@ -49,6 +51,9 @@ export function useSendMessage() {
           } else if (ev.type === "citations") {
             citations = ev.citations;
             s.updateMessage(conversationId, assistant.id, { citations });
+          } else if (ev.type === "skills") {
+            skills = ev.skills;
+            s.updateMessage(conversationId, assistant.id, { skills });
           } else if (ev.type === "error") {
             if (ev.message.startsWith("[upgrade]")) {
               failed = ev.message.replace("[upgrade]", "").trim();
@@ -69,7 +74,7 @@ export function useSendMessage() {
     if (failed && !text) {
       s.updateMessage(conversationId, assistant.id, { status: "error", error: failed });
     } else {
-      s.updateMessage(conversationId, assistant.id, { status: "done", content: text, citations });
+      s.updateMessage(conversationId, assistant.id, { status: "done", content: text, citations, skills });
     }
 
     // First exchange names the conversation.

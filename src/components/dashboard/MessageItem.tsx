@@ -4,6 +4,7 @@ import { AlertTriangle, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp } from "luc
 import { motion } from "motion/react";
 import { useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
+import { SKILL_BY_ID } from "@/config/skills";
 import type { ChatMessage } from "@/store/chat";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -148,6 +149,25 @@ export function MessageItem({ message, isLast, onRegenerate }: MessageItemProps)
             </div>
           )}
         </div>
+
+        {message.skills?.length ? (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {message.skills.map((id) => {
+              const sk = SKILL_BY_ID[id];
+              if (!sk) return null;
+              return (
+                <span
+                  key={id}
+                  className="tt inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium"
+                  style={{ borderColor: `${sk.color}55`, color: sk.color, background: `color-mix(in srgb, ${sk.color} 10%, transparent)` }}
+                  title={sk.description}
+                >
+                  {sk.glyph || "✦"} {sk.name}
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
 
         {message.citations?.length && !theme.layout.showCitations ? (
           <div className="mt-2 flex flex-wrap gap-1.5">

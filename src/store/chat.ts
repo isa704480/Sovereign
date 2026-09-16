@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
+import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
 
 export type Role = "user" | "assistant" | "system";
 export type MessageStatus = "streaming" | "done" | "error";
@@ -14,6 +15,8 @@ export interface ChatMessage {
   content: string;
   modelId?: string;
   citations?: string[];
+  /** Skill ids that were active for this answer. */
+  skills?: string[];
   createdAt: string;
   status?: MessageStatus;
   error?: string;
@@ -39,11 +42,14 @@ interface ChatState {
   sidebarOpen: boolean;
   /** "Model atmosferasi": re-skin the dashboard when the model changes. */
   dynamicTheme: boolean;
+  /** User-enabled SOVEREIGN skills (auto-detected ones are added per message). */
+  enabledSkills: string[];
 
   setModel: (id: string) => void;
   setResearch: (on: boolean) => void;
   setSidebarOpen: (open: boolean) => void;
   setDynamicTheme: (on: boolean) => void;
+  toggleSkill: (id: string) => void;
   newChat: () => void;
   select: (id: string | null) => void;
   createConversation: (modelId: string, research: boolean) => Conversation;
@@ -74,6 +80,7 @@ export const useChat = create<ChatState>()(
       research: false,
       sidebarOpen: true,
       dynamicTheme: true,
+      enabledSkills: DEFAULT_ENABLED_SKILLS,
 
       setModel: (modelId) => {
         if (!MODEL_BY_ID[modelId]) return;
@@ -95,6 +102,12 @@ export const useChat = create<ChatState>()(
       setResearch: (research) => set({ research }),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
       setDynamicTheme: (dynamicTheme) => set({ dynamicTheme }),
+      toggleSkill: (id) =>
+        set((s) => ({
+          enabledSkills: s.enabledSkills.includes(id)
+            ? s.enabledSkills.filter((x) => x !== id)
+            : [...s.enabledSkills, id],
+        })),
 
       newChat: () => set({ activeId: null }),
       select: (id) => {
@@ -193,6 +206,7 @@ export const useChat = create<ChatState>()(
         research: s.research,
         sidebarOpen: s.sidebarOpen,
         dynamicTheme: s.dynamicTheme,
+        enabledSkills: s.enabledSkills,
       }),
     },
   ),
