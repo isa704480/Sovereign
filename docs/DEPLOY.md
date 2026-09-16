@@ -1,38 +1,86 @@
-# Vercel'ga deploy
+# Deploy: Vercel (vebsayt) + npm (CLI)
 
-## 1. Repo'ni ulash
+Ikki narsa alohida chiqariladi: **vebsayt** Vercel'ga, **CLI** npm'ga.
 
-GitHub'ga push qiling → https://vercel.com/new → repo'ni tanlang. Framework: **Next.js** (avtomatik aniqlanadi).
+---
 
-## 2. Environment Variables (Vercel → Project → Settings → Environment Variables)
+## A. Vebsaytni Vercel'ga qo'yish
+
+### 1. GitHub'ga push
+
+```bash
+git remote add origin https://github.com/<siz>/sovereign.git
+git push -u origin main
+```
+
+### 2. Vercel'ga ulash
+
+https://vercel.com/new → repo'ni import → Framework: **Next.js** (avtomatik).
+
+### 3. Environment Variables (Vercel → Settings → Environment Variables)
 
 | Nomi | Qiymat |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://provrwznkeptfotvfgoa.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sb_publishable_...` |
-| `NEXT_PUBLIC_SITE_URL` | `https://<sizning-domen>.vercel.app` (yoki custom domen) |
+| `NEXT_PUBLIC_SITE_URL` | `https://<domen>.vercel.app` |
 | `OPENROUTER_API_KEY` | `sk-or-v1-...` |
 | `PERPLEXITY_API_KEY` | `pplx-...` |
 
 `DATABASE_URL` Vercel'ga kerak emas (faqat lokal migratsiya uchun).
 
-## 3. Supabase URL sozlamalari (deploy'dan keyin)
+### 4. Supabase URL sozlamalari
 
-**Authentication → URL Configuration**
-
+Authentication → URL Configuration:
 - Site URL: `https://<domen>`
-- Redirect URLs: `https://<domen>/auth/callback` (lokalni ham qoldiring: `http://localhost:3000/auth/callback`)
+- Redirect URLs: `https://<domen>/auth/callback` (+ lokalni qoldiring)
 
-## 4. Google / GitHub OAuth (deploy'dan keyin)
+### 5. Google / GitHub OAuth
 
-- **Google Cloud Console** → Credentials → OAuth client (Web) → Authorized redirect URI:
+- Google Cloud Console → Credentials → OAuth client (Web) → redirect URI:
   `https://provrwznkeptfotvfgoa.supabase.co/auth/v1/callback`
-- **GitHub** → Settings → Developer settings → OAuth Apps → Authorization callback URL:
+- GitHub → Developer settings → OAuth Apps → callback:
   `https://provrwznkeptfotvfgoa.supabase.co/auth/v1/callback`
-- Client ID / Secret'larni Supabase → Authentication → Providers ga kiriting va provider'ni yoqing.
+- Client ID/Secret'ni Supabase → Auth → Providers ga kiriting, provider'ni yoqing.
 
-## 5. Tekshirish
+---
 
-- `https://<domen>/` landing ochiladi
-- `/register` → email bilan hisob → `/onboarding` → `/app`
-- `/app` da real javob keladi (OpenRouter), Research rejimida manbalar ko'rinadi
+## B. CLI'ni npm'ga chiqarish
+
+### 1. npm hisobi
+
+https://www.npmjs.com da bepul ro'yxatdan o'ting, so'ng:
+
+```bash
+npm login
+```
+
+### 2. Publish
+
+```bash
+cd cli
+npm publish
+```
+
+> Nom band bo'lsa `cli/package.json` dagi `name` ni o'zgartiring (masalan `@fayzinc/sovereign-cli` — bunda `npm publish --access public`).
+
+### 3. Endi har kim o'rnatadi
+
+```bash
+npm install -g sovereign-cli
+sovereign login
+```
+
+`sovereign login` brauzerni ochadi → foydalanuvchi SOVEREIGN hisobiga kiradi → **Ruxsat berish** → CLI ulanadi. Server manzili default `https://sovereign.ai`; boshqa domen bo'lsa CLI kodidagi `baseUrl` (`cli/src/config.mjs`) ni yoki `SOVEREIGN_URL` ni sozlang.
+
+> **Muhim:** deploy'dan keyin `cli/src/config.mjs` dagi default `baseUrl` ni haqiqiy Vercel domeningizga o'zgartiring, so'ng CLI'ni qayta publish qiling (`version` ni oshiring).
+
+### Yangi versiya chiqarish
+
+```bash
+cd cli
+npm version patch    # 0.1.0 → 0.1.1
+npm publish
+```
+
+Foydalanuvchilar: `npm update -g sovereign-cli`.

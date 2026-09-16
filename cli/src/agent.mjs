@@ -16,47 +16,68 @@ const SYSTEM = [
  * Runs one agent turn: sends the conversation, executes any tool calls,
  * loops until the model produces a final text answer. Returns the answer.
  */
+/** One model round-trip. Account mode → SOVEREIGN server; else → OpenRouter. */
+async function modelCall(messages, config) {
+  if (config.token) {
+    const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+      body: JSON.stringify({ messages, tools: TOOL_SCHEMA }),
+    });
+    if (!res.ok) {
+      let msg = `${res.status}`;
+      try {
+        msg = (await res.json()).error ?? msg;
+      } catch {
+        /* keep */
+      }
+      throw new Error(msg);
+    }
+    return (await res.json()).message;
+  }
+
+  const res = await fetch(OPENROUTER, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.openrouterKey}`,
+      "HTTP-Referer": "https://sovereign.ai",
+      "X-Title": "SOVEREIGN CLI",
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages,
+      tools: TOOL_SCHEMA,
+      tool_choice: "auto",
+      temperature: 0.4,
+      max_tokens: 4096,
+    }),
+  });
+  if (!res.ok) {
+    let msg = `${res.status}`;
+    try {
+      msg = JSON.parse(await res.text()).error?.message ?? msg;
+    } catch {
+      /* keep */
+    }
+    throw new Error(msg);
+  }
+  return (await res.json()).choices?.[0]?.message;
+}
+
 export async function agentTurn({ messages, config, confirm, maxSteps = 12 }) {
   const seen = new Set();
   for (let step = 0; step < maxSteps; step++) {
     const spin = spinner(step === 0 ? "o'ylayapti..." : "davom etyapti...");
-    let data;
+    let msg;
     try {
-      const res = await fetch(OPENROUTER, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.openrouterKey}`,
-          "HTTP-Referer": "https://sovereign.ai",
-          "X-Title": "SOVEREIGN CLI",
-        },
-        body: JSON.stringify({
-          model: config.model,
-          messages,
-          tools: TOOL_SCHEMA,
-          tool_choice: "auto",
-          temperature: 0.4,
-          max_tokens: 4096,
-        }),
-      });
+      msg = await modelCall(messages, config);
       spin.stop();
-      if (!res.ok) {
-        const body = await res.text();
-        let msg = `${res.status}`;
-        try {
-          msg = JSON.parse(body).error?.message ?? msg;
-        } catch {
-          /* keep */
-        }
-        return { error: msg };
-      }
-      data = await res.json();
     } catch (err) {
       spin.stop();
       return { error: err.message };
     }
 
-    const msg = data.choices?.[0]?.message;
     if (!msg) return { error: "Bo'sh javob." };
     messages.push(msg);
 

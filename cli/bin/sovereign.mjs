@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import readline from "node:readline";
-import { loadConfig, saveConfig, CONFIG_PATH } from "../src/config.mjs";
+import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages } from "../src/agent.mjs";
+import { login } from "../src/login.mjs";
 import { banner, c, logo } from "../src/ui.mjs";
 
 const rawArgs = process.argv.slice(2);
@@ -37,18 +38,24 @@ function printAnswer(text) {
   console.log("\n" + c.indigo("⬡") + "  " + text.replace(/\n/g, "\n   ") + "\n");
 }
 
-async function ensureKey(rl) {
+async function ensureAuth(rl) {
   let config = loadConfig();
-  if (config.openrouterKey) return config;
-  console.log(`\n  ${c.amber("OpenRouter API kalit topilmadi.")}`);
-  console.log(`  ${c.dim("Oling: https://openrouter.ai/keys — bepul ro'yxatdan o'tib kalit yarating.")}`);
-  const key = await askRequired(rl, `  ${c.dim("Kalitni kiriting (sk-or-...): ")}`);
-  if (!key) {
-    console.log(c.red("  Kalit kiritilmadi. Keyinroq 'sovereign config' bilan qo'shishingiz mumkin."));
-    process.exit(1);
+  if (isAccountMode(config) || config.openrouterKey) return config;
+
+  console.log(`\n  ${c.amber("Hali ulanmagansiz.")}`);
+  console.log(`  ${c.dim("1)")} ${c.white("SOVEREIGN akkaunti")} ${c.dim("(tavsiya) — brauzerda login")}`);
+  console.log(`  ${c.dim("2)")} ${c.white("O'z OpenRouter kalitim")}`);
+  const choice = (await askRequired(rl, `  ${c.dim("Tanlang [1/2]: ")}`)).trim();
+
+  if (choice === "2") {
+    const key = await askRequired(rl, `  ${c.dim("OpenRouter kalit (sk-or-...): ")}`);
+    if (!key) process.exit(1);
+    saveConfig({ openrouterKey: key });
+    return loadConfig();
   }
-  const path = saveConfig({ openrouterKey: key });
-  console.log(`  ${c.green("Saqlandi:")} ${c.dim(path)}\n`);
+
+  const ok = await login(config.baseUrl);
+  if (!ok) process.exit(1);
   return loadConfig();
 }
 
@@ -69,14 +76,17 @@ async function handleConfig() {
 }
 
 function handleHelp() {
-  console.log(banner(loadConfig().model));
+  console.log(banner(loadConfig()));
   console.log(
     [
       "  Foydalanish:",
       `    ${c.white("sovereign")}                 interaktiv rejim (chat + agent)`,
       `    ${c.white('sovereign "vazifa"')}        bitta topshiriq va chiq`,
-      `    ${c.white("sovereign key sk-or-...")}   API kalitni bir buyruqda saqlash`,
-      `    ${c.white("sovereign config")}          kalit va modelni sozlash`,
+      `    ${c.white("sovereign login")}           brauzer orqali hisobga ulanish`,
+      `    ${c.white("sovereign login --local")}   lokal serverga ulanish (test)`,
+      `    ${c.white("sovereign logout")}          hisobdan chiqish`,
+      `    ${c.white("sovereign whoami")}          holat`,
+      `    ${c.white("sovereign key sk-or-...")}   o'z OpenRouter kalitingiz`,
       `    ${c.white("sovereign help")}            yordam`,
       "",
       "  Interaktiv buyruqlar:",
@@ -94,10 +104,10 @@ function handleHelp() {
 // ---- interactive REPL -------------------------------------------------
 async function repl() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  let config = await ensureKey(rl);
+  let config = await ensureAuth(rl);
   let messages = initialMessages();
 
-  console.log(banner(config.model));
+  console.log(banner(config));
   const confirm = await confirmer(rl);
 
   const promptStr = () => `${c.green("›")} `;
@@ -165,7 +175,7 @@ async function repl() {
 // ---- one-shot ---------------------------------------------------------
 async function oneShot(task) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const config = await ensureKey(rl);
+  const config = await ensureAuth(rl);
   const confirm = await confirmer(rl);
   const messages = initialMessages();
   messages.push({ role: "user", content: task });
@@ -187,10 +197,34 @@ function handleKey(key) {
   console.log(`  ${c.dim("Endi shunchaki")} ${c.white("sovereign")} ${c.dim("deb yozing.")}\n`);
 }
 
+async function handleLogin() {
+  const cfg = loadConfig();
+  const urlFlag = rawArgs.includes("--local")
+    ? "http://localhost:3000"
+    : (rawArgs.find((a) => a.startsWith("--url="))?.slice(6) ?? cfg.baseUrl);
+  const ok = await login(urlFlag);
+  process.exit(ok ? 0 : 1);
+}
+
+function handleLogout() {
+  const base = clearAuth();
+  console.log(`\n  ${c.green("Chiqdingiz.")} ${base ? c.dim(base) : ""}\n`);
+}
+
+function handleWhoami() {
+  const cfg = loadConfig();
+  if (cfg.token) console.log(`\n  ${c.green("Ulangan:")} SOVEREIGN akkaunt ${c.dim("(" + cfg.baseUrl + ")")}\n`);
+  else if (cfg.openrouterKey) console.log(`\n  ${c.green("Ulangan:")} O'z OpenRouter kaliti ${c.dim("(" + cfg.model + ")")}\n`);
+  else console.log(`\n  ${c.amber("Ulanmagan.")} ${c.dim("sovereign login")}\n`);
+}
+
 // ---- dispatch ---------------------------------------------------------
 const cmd = args[0];
-if (cmd === "config") await handleConfig();
-else if (cmd === "key" || cmd === "login") handleKey(args[1]);
+if (cmd === "login") await handleLogin();
+else if (cmd === "logout") handleLogout();
+else if (cmd === "whoami" || cmd === "who") handleWhoami();
+else if (cmd === "config") await handleConfig();
+else if (cmd === "key") handleKey(args[1]);
 else if (cmd === "help" || cmd === "--help" || cmd === "-h") handleHelp();
 else if (cmd && !cmd.startsWith("-")) await oneShot(args.join(" "));
 else await repl();

@@ -4,66 +4,57 @@ Terminaldagi AI koding agenti. `sovereign` deb yozing — AI ochiladi, ish papka
 
 ## O'rnatish
 
-Node.js 20+ kerak. Loyiha ildizidan:
+Node.js 20+ kerak.
 
 ```bash
-npm run cli:install
+npm install -g sovereign-cli
 ```
 
-yoki qo'lda:
-
-```bash
-cd cli
-npm install -g .
-```
-
-Bu `sovereign` (va qisqa `sov`) buyrug'ini butun tizimga o'rnatadi.
-
+> Loyiha ichidan (publish qilinmagan bo'lsa): `npm run cli:install`
 > O'chirish: `npm uninstall -g sovereign-cli`
 
-## Sozlash (API kalit)
+Bu `sovereign` (va qisqa `sov`) buyrug'ini o'rnatadi.
 
-Eng oson yo'l — kalitni bir buyruqda saqlash:
+## Ulanish (2 yo'l)
+
+### 1. SOVEREIGN akkaunti (tavsiya)
+
+```bash
+sovereign login
+```
+
+Brauzer ochiladi, SOVEREIGN hisobingizda **Ruxsat berish** bosasiz — CLI hisobingizga ulanadi. Hech qanday API kalit kerak emas, tarifingiz (Free/Pro/...) amal qiladi.
+
+Lokal serverga (test): `sovereign login --local`
+
+### 2. O'z OpenRouter kalitingiz
 
 ```bash
 sovereign key sk-or-v1-...
 ```
 
-Yoki interaktiv sozlash:
-
-```bash
-sovereign config
-```
-
-Birinchi ishga tushirishda ham kalit so'raydi va `~/.sovereign/config.json` ga saqlaydi.
-
-Muqobil: shell'da `OPENROUTER_API_KEY` o'rnating — avtomatik ishlaydi. Kalitni https://openrouter.ai/keys dan oling.
+Kalit https://openrouter.ai/keys dan olinadi. Yoki shell'da `OPENROUTER_API_KEY`.
 
 ## Foydalanish
 
 ```bash
 sovereign                       # interaktiv rejim (chat + agent)
-sovereign "React todo app yarat"   # bitta topshiriq va chiqish
-sovereign --yes "..."           # barcha amallarni avtomatik tasdiqlash
-sovereign config                # kalit / model
+sovereign "React todo app yarat"   # bitta topshiriq
+sovereign --yes "..."           # amallarni avtomatik tasdiqlash
+sovereign whoami                # holat
+sovereign logout                # chiqish
 sovereign help                  # yordam
 ```
 
-Interaktiv rejimda:
-
-| Buyruq | Ish |
-|---|---|
-| `/model <id>` | modelni almashtirish (masalan `openai/gpt-4o`) |
-| `/cwd <yo'l>` | ish papkasini o'zgartirish |
-| `/clear` | suhbatni tozalash |
-| `/exit` | chiqish |
+Interaktiv rejimda: `/model`, `/cwd <yo'l>`, `/clear`, `/exit`.
 
 ## Xavfsizlik
 
-- Barcha fayl amallari **faqat `sovereign` ishga tushgan papka ichida** bo'ladi (tashqariga chiqolmaydi).
-- Fayl yozish, papka yaratish va buyruq bajarishdan oldin **tasdiq so'raydi** (`--yes` bilan o'chiriladi).
-- Kalitlar faqat sizning kompyuteringizda (`~/.sovereign/config.json`).
+- Fayl amallari **faqat `sovereign` ishga tushgan papka ichida** bo'ladi.
+- Fayl/papka/buyruqdan oldin **tasdiq so'raydi** (`--yes` bilan o'chiriladi).
+- Token va kalitlar faqat kompyuteringizda (`~/.sovereign/config.json`).
 
-## Model
+## Sozlash manzili
 
-Default: `openai/gpt-4o-mini` (arzon, tool-calling'ni qo'llab-quvvatlaydi). `/model` yoki `sovereign config` orqali o'zgartiring. Vositalar (fayl yaratish) uchun model tool-calling'ni qo'llab-quvvatlashi shart — ba'zi tekin modellar buni qila olmaydi.
+`SOVEREIGN_URL` — server manzili (default `https://sovereign.ai`).
+`SOVEREIGN_TOKEN` — akkaunt tokeni (env orqali).

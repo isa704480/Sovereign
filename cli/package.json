@@ -15,6 +15,9 @@
     "src",
     "README.md"
   ],
-  "license": "UNLICENSED",
-  "private": true
+  "keywords": ["ai", "cli", "agent", "coding", "sovereign", "openrouter"],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
 }

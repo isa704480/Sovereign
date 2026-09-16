@@ -1,0 +1,31 @@
+import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { displayName, getProfile } from "@/lib/auth/profile";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { CliConnect } from "@/components/cli/CliConnect";
+
+export const metadata: Metadata = { title: "CLI ulash" };
+
+export default async function CliConnectPage(props: PageProps<"/cli/connect">) {
+  const sp = await props.searchParams;
+  const code = typeof sp.code === "string" ? sp.code : "";
+
+  if (!isSupabaseConfigured()) redirect("/");
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect(`/login?next=${encodeURIComponent(`/cli/connect?code=${code}`)}`);
+
+  const profile = await getProfile(supabase, user.id);
+
+  return (
+    <CliConnect
+      code={code}
+      name={displayName(user, profile)}
+      email={user.email ?? ""}
+      plan={profile?.plan ?? "free"}
+    />
+  );
+}

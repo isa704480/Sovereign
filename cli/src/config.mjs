@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -6,10 +6,11 @@ const DIR = join(homedir(), ".sovereign");
 const FILE = join(DIR, "config.json");
 
 const DEFAULTS = {
-  // OpenRouter model that supports tool calling. Cheap by default.
+  // Account mode: SOVEREIGN server base URL + issued token.
+  baseUrl: "https://sovereign.ai",
+  token: "",
+  // Direct mode: user's own OpenRouter key + model.
   model: "openai/gpt-4o-mini",
-  // Optional research model (Perplexity).
-  researchModel: "sonar",
   openrouterKey: "",
   perplexityKey: "",
 };
@@ -26,7 +27,8 @@ export function loadConfig() {
   return {
     ...DEFAULTS,
     ...file,
-    // Env vars win, so `OPENROUTER_API_KEY` in the shell just works.
+    baseUrl: process.env.SOVEREIGN_URL || file.baseUrl || DEFAULTS.baseUrl,
+    token: process.env.SOVEREIGN_TOKEN || file.token || "",
     openrouterKey: process.env.OPENROUTER_API_KEY || file.openrouterKey || "",
     perplexityKey: process.env.PERPLEXITY_API_KEY || file.perplexityKey || "",
     model: process.env.SOVEREIGN_MODEL || file.model || DEFAULTS.model,
@@ -46,6 +48,22 @@ export function saveConfig(patch) {
   const next = { ...current, ...patch };
   writeFileSync(FILE, JSON.stringify(next, null, 2));
   return FILE;
+}
+
+export function clearAuth() {
+  if (!existsSync(FILE)) return;
+  const cfg = loadConfig();
+  saveConfig({ token: "" });
+  return cfg.baseUrl;
+}
+
+export function resetConfig() {
+  if (existsSync(FILE)) rmSync(FILE);
+}
+
+/** Account mode when a server token is present. */
+export function isAccountMode(cfg) {
+  return Boolean(cfg.token);
 }
 
 export const CONFIG_PATH = FILE;

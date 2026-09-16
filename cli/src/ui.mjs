@@ -20,13 +20,16 @@ export function logo() {
   return c.indigo("⬡") + " " + c.bold(c.white("SOVEREIGN"));
 }
 
-export function banner(model) {
+export function banner(config) {
   const line = c.gray("─".repeat(48));
+  const source = config?.token
+    ? `${c.green("SOVEREIGN akkaunt")} ${c.dim("(" + (config.baseUrl || "") + ")")}`
+    : `${c.dim("OpenRouter:")} ${c.indigo(config?.model || "")}`;
   return [
     "",
     `  ${logo()}  ${c.dim("terminal AI agent")}`,
     `  ${line}`,
-    `  ${c.dim("Model:")} ${c.indigo(model)}`,
+    `  ${c.dim("Manba:")} ${source}`,
     `  ${c.dim("Ish papkasi:")} ${c.white(process.cwd())}`,
     `  ${c.dim("Buyruqlar:")} ${c.white("/help /model /clear /cwd /exit")}`,
     `  ${line}`,
