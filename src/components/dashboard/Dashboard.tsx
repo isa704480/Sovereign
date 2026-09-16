@@ -10,6 +10,8 @@ import { PricingDialog } from "./PricingDialog";
 import { useSendMessage } from "@/hooks/use-send-message";
 import { EASE } from "@/lib/motion";
 import { useChat, useChatHydrated, type Conversation } from "@/store/chat";
+import { ArtifactPanel } from "./ArtifactPanel";
+import { ArtifactProvider, type ArtifactPayload } from "./artifact-context";
 import { ChatHeader } from "./ChatHeader";
 import { InputArea, type InputAreaHandle } from "./InputArea";
 import { MessageList } from "./MessageList";
@@ -60,6 +62,11 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const inputRef = useRef<InputAreaHandle>(null);
   const seededRef = useRef(false);
   const [sourcesOpen, setSourcesOpen] = useState(true);
+  const [artifact, setArtifact] = useState<ArtifactPayload | null>(null);
+  const artifactCtx = useMemo(
+    () => ({ open: (a: ArtifactPayload) => setArtifact(a) }),
+    [],
+  );
 
   // One-time: merge server conversations and apply the onboarding default model.
   useEffect(() => {
@@ -118,6 +125,24 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     [plan, setModel, openPricing],
   );
 
+  // Auto-open the artifact panel when a finished answer contains a site (HTML/SVG).
+  const autoOpenedRef = useRef<string | null>(null);
+  useEffect(() => {
+    const check = () => {
+      const s = useChat.getState();
+      const conv = s.activeId ? s.conversations[s.activeId] : null;
+      const last = conv?.messages[conv.messages.length - 1];
+      if (!last || last.role !== "assistant" || last.status === "streaming") return;
+      if (autoOpenedRef.current === last.id) return;
+      const m = /```(html|svg)\s*\n([\s\S]*?)```/i.exec(last.content);
+      if (m && m[2].trim().length > 40) {
+        autoOpenedRef.current = last.id;
+        setArtifact({ code: m[2].trim(), lang: m[1].toLowerCase() });
+      }
+    };
+    return useChat.subscribe(check);
+  }, []);
+
   // Server-side refusals ([upgrade] errors) open the pricing dialog.
   useEffect(() => {
     const onUpgrade = (e: Event) => {
@@ -147,6 +172,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
 
   return (
     <ThemeProvider value={ctx}>
+      <ArtifactProvider value={artifactCtx}>
       <div
         className="theme-root tt flex h-svh w-full overflow-hidden"
         style={themeVars(theme)}
@@ -226,15 +252,17 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
             </div>
 
             <AnimatePresence>
-              {showSources && (
+              {artifact ? (
+                <ArtifactPanel key={artifact.code.slice(0, 64)} artifact={artifact} onClose={() => setArtifact(null)} />
+              ) : showSources ? (
                 <SourcesPanel
                   key="sources"
                   citations={citations}
-                  query={lastUser?.content}
+                  query={typeof lastUser?.content === "string" ? lastUser.content : undefined}
                   updatedAt={lastAssistant?.createdAt}
                   onClose={() => setSourcesOpen(false)}
                 />
-              )}
+              ) : null}
             </AnimatePresence>
           </div>
         </div>
@@ -247,6 +275,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           suggestedPlan={pricing.suggested}
         />
       </div>
+      </ArtifactProvider>
     </ThemeProvider>
   );
 }

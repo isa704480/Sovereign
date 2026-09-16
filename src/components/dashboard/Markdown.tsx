@@ -1,13 +1,16 @@
 "use client";
 
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, PanelRightOpen } from "lucide-react";
 import { memo, useMemo, useState, type ComponentProps } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { isRenderable, useArtifact } from "./artifact-context";
 
 function CodeBlock({ className, children }: { className?: string; children: string }) {
   const [copied, setCopied] = useState(false);
+  const artifact = useArtifact();
   const lang = /language-(\w+)/.exec(className ?? "")?.[1] ?? "text";
+  const canOpen = isRenderable(lang);
 
   async function copy() {
     try {
@@ -29,14 +32,28 @@ function CodeBlock({ className, children }: { className?: string; children: stri
         style={{ color: "var(--t-text-muted)", borderBottom: "1px solid var(--t-border)" }}
       >
         <span>{lang}</span>
-        <button
-          type="button"
-          onClick={copy}
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case tracking-normal transition-colors hover:bg-white/10"
-        >
-          {copied ? <Check className="size-3.5" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-3.5" />}
-          {copied ? "Nusxalandi" : "Nusxa olish"}
-        </button>
+        <div className="flex items-center gap-1">
+          {canOpen && (
+            <button
+              type="button"
+              onClick={() => artifact.open({ code: children, lang })}
+              className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case tracking-normal transition-colors hover:bg-white/10"
+              style={{ color: "var(--t-accent)" }}
+              title="Yonda ochib ko'rish"
+            >
+              <PanelRightOpen className="size-3.5" />
+              Ochish
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={copy}
+            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case tracking-normal transition-colors hover:bg-white/10"
+          >
+            {copied ? <Check className="size-3.5" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-3.5" />}
+            {copied ? "Nusxalandi" : "Nusxa olish"}
+          </button>
+        </div>
       </div>
       <pre className="overflow-x-auto p-3">
         <code className={className}>{children}</code>
