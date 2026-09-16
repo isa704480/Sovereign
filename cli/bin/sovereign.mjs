@@ -12,6 +12,15 @@ function ask(rl, q) {
   return new Promise((res) => rl.question(q, (a) => res(a)));
 }
 
+/** Ask until a non-empty answer (tolerates a stray leading newline on Windows cmd). */
+async function askRequired(rl, q, tries = 4) {
+  for (let i = 0; i < tries; i++) {
+    const a = (await ask(rl, q)).trim();
+    if (a) return a;
+  }
+  return "";
+}
+
 async function confirmer(rl) {
   return async (question) => {
     if (AUTO_YES) {
@@ -32,10 +41,10 @@ async function ensureKey(rl) {
   let config = loadConfig();
   if (config.openrouterKey) return config;
   console.log(`\n  ${c.amber("OpenRouter API kalit topilmadi.")}`);
-  console.log(`  ${c.dim("Oling: https://openrouter.ai/keys")}`);
-  const key = (await ask(rl, `  ${c.dim("Kalitni kiriting (sk-or-...): ")}`)).trim();
+  console.log(`  ${c.dim("Oling: https://openrouter.ai/keys — bepul ro'yxatdan o'tib kalit yarating.")}`);
+  const key = await askRequired(rl, `  ${c.dim("Kalitni kiriting (sk-or-...): ")}`);
   if (!key) {
-    console.log(c.red("  Kalit kerak. Chiqildi."));
+    console.log(c.red("  Kalit kiritilmadi. Keyinroq 'sovereign config' bilan qo'shishingiz mumkin."));
     process.exit(1);
   }
   const path = saveConfig({ openrouterKey: key });
@@ -66,6 +75,7 @@ function handleHelp() {
       "  Foydalanish:",
       `    ${c.white("sovereign")}                 interaktiv rejim (chat + agent)`,
       `    ${c.white('sovereign "vazifa"')}        bitta topshiriq va chiq`,
+      `    ${c.white("sovereign key sk-or-...")}   API kalitni bir buyruqda saqlash`,
       `    ${c.white("sovereign config")}          kalit va modelni sozlash`,
       `    ${c.white("sovereign help")}            yordam`,
       "",
@@ -166,9 +176,21 @@ async function oneShot(task) {
   rl.close();
 }
 
+function handleKey(key) {
+  if (!key || !key.startsWith("sk-")) {
+    console.log(c.red("  Kalit 'sk-or-...' bilan boshlanishi kerak."));
+    console.log(c.dim("  Foydalanish: sovereign key sk-or-v1-..."));
+    process.exit(1);
+  }
+  const path = saveConfig({ openrouterKey: key });
+  console.log(`\n  ${c.green("Kalit saqlandi:")} ${c.dim(path)}`);
+  console.log(`  ${c.dim("Endi shunchaki")} ${c.white("sovereign")} ${c.dim("deb yozing.")}\n`);
+}
+
 // ---- dispatch ---------------------------------------------------------
 const cmd = args[0];
 if (cmd === "config") await handleConfig();
+else if (cmd === "key" || cmd === "login") handleKey(args[1]);
 else if (cmd === "help" || cmd === "--help" || cmd === "-h") handleHelp();
 else if (cmd && !cmd.startsWith("-")) await oneShot(args.join(" "));
 else await repl();

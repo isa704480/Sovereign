@@ -23,11 +23,19 @@ Bu `sovereign` (va qisqa `sov`) buyrug'ini butun tizimga o'rnatadi.
 
 ## Sozlash (API kalit)
 
-Birinchi ishga tushirishda kalit so'raydi va `~/.sovereign/config.json` ga saqlaydi. Yoki:
+Eng oson yo'l — kalitni bir buyruqda saqlash:
+
+```bash
+sovereign key sk-or-v1-...
+```
+
+Yoki interaktiv sozlash:
 
 ```bash
 sovereign config
 ```
+
+Birinchi ishga tushirishda ham kalit so'raydi va `~/.sovereign/config.json` ga saqlaydi.
 
 Muqobil: shell'da `OPENROUTER_API_KEY` o'rnating — avtomatik ishlaydi. Kalitni https://openrouter.ai/keys dan oling.
 
