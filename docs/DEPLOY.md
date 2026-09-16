@@ -1,86 +1,100 @@
-# Deploy: Vercel (vebsayt) + npm (CLI)
+# SOVEREIGN — Vercel'ga deploy
 
-Ikki narsa alohida chiqariladi: **vebsayt** Vercel'ga, **CLI** npm'ga.
+Bu qo'llanma **birinchi marta** deploy qilish uchun. Keyingi safar `git push` bilan avtomatik yangilanadi.
 
----
-
-## A. Vebsaytni Vercel'ga qo'yish
-
-### 1. GitHub'ga push
+## 1. Kod GitHub'da bo'lishi kerak
 
 ```bash
-git remote add origin https://github.com/<siz>/sovereign.git
+# GitHub'da yangi bo'sh repo yarating (masalan: sovereign-ai)
+# Keyin loyihada:
+git remote add origin https://github.com/<siz>/sovereign-ai.git
+git branch -M main
 git push -u origin main
 ```
 
-### 2. Vercel'ga ulash
+## 2. Vercel loyihasini yaratish
 
-https://vercel.com/new → repo'ni import → Framework: **Next.js** (avtomatik).
+1. https://vercel.com/new — GitHub bilan kiring
+2. **Import Git Repository** → yaratgan repongizni tanlang
+3. **Framework Preset**: Next.js (o'z-o'zidan aniqlanadi)
+4. **Root Directory**: `./` (asosiy papka)
+5. **Environment Variables** bo'limiga quyidagilarni qo'ying (`.env.local` dan)
 
-### 3. Environment Variables (Vercel → Settings → Environment Variables)
+### Serverga qo'yiladigan environment kalitlari
 
-| Nomi | Qiymat |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | `https://provrwznkeptfotvfgoa.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `sb_publishable_...` |
-| `NEXT_PUBLIC_SITE_URL` | `https://<domen>.vercel.app` |
-| `OPENROUTER_API_KEY` | `sk-or-v1-...` |
-| `PERPLEXITY_API_KEY` | `pplx-...` |
+| Kalit | Manba | Izoh |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Settings → API | ochiq |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Settings → API | ochiq |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API | **maxfiy** |
+| `NEXT_PUBLIC_SITE_URL` | `https://<siz>.vercel.app` (yoki domeningiz) | keyin domenni ulasangiz o'zgartiring |
+| `OPENROUTER_API_KEY` | openrouter.ai/keys | **maxfiy** |
+| `PERPLEXITY_API_KEY` | perplexity.ai/settings/api | **maxfiy** |
+| `OPENAI_API_KEY` | platform.openai.com | audio transkripsiya uchun (ixtiyoriy) |
+| `ZENOBANK_API_KEY` | dashboard.zenobank.io | to'lov uchun |
+| `ZENOBANK_WEBHOOK_SECRET` | ZenoBank webhook sozlamalari | **maxfiy** |
+| `NEXT_PUBLIC_FIREBASE_API_KEY` | Firebase Console | Google login uchun |
+| `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Firebase Console | |
+| `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | Firebase Console | |
+| `NEXT_PUBLIC_FIREBASE_APP_ID` | Firebase Console | |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Google Cloud → OAuth 2.0 Client | |
+| `ALLOW_PLAN_SWITCH` | `false` prodaksiyada | test uchun `true` qilib qo'ying |
 
-`DATABASE_URL` Vercel'ga kerak emas (faqat lokal migratsiya uchun).
+> **Muhim**: `DATABASE_URL` faqat migratsiyalar uchun kerak (lokal `npm run db:migrate`) — Vercel'ga qo'shish shart emas.
 
-### 4. Supabase URL sozlamalari
+6. **Deploy** tugmasini bosing. Birinchi build 2-3 daqiqa oladi.
 
-Authentication → URL Configuration:
-- Site URL: `https://<domen>`
-- Redirect URLs: `https://<domen>/auth/callback` (+ lokalni qoldiring)
+## 3. Supabase'ni yangi URL bilan bog'lang
 
-### 5. Google / GitHub OAuth
+Deploy tugagach `https://<siz>.vercel.app` yoki `https://<domen>` manzilingiz bo'ladi.
 
-- Google Cloud Console → Credentials → OAuth client (Web) → redirect URI:
-  `https://provrwznkeptfotvfgoa.supabase.co/auth/v1/callback`
-- GitHub → Developer settings → OAuth Apps → callback:
-  `https://provrwznkeptfotvfgoa.supabase.co/auth/v1/callback`
-- Client ID/Secret'ni Supabase → Auth → Providers ga kiriting, provider'ni yoqing.
+### Auth → URL Configuration
 
----
+- **Site URL**: `https://<sizning-domen>`
+- **Redirect URLs** (qo'shing):
+  - `https://<sizning-domen>/auth/callback`
+  - `http://localhost:3000/auth/callback` (dev uchun)
 
-## B. CLI'ni npm'ga chiqarish
+### Google Cloud → OAuth Client
 
-### 1. npm hisobi
+Authorized redirect URIs ro'yxatiga qo'shing:
+- `https://<supabase-project>.supabase.co/auth/v1/callback`
 
-https://www.npmjs.com da bepul ro'yxatdan o'ting, so'ng:
+### Firebase → Authentication → Settings → Authorized domains
+
+Qo'shing:
+- `<sizning-domen>` (masalan `sovereign.vercel.app`)
+
+## 4. ZenoBank webhook
+
+Dashboard → Webhooks:
+- URL: `https://<sizning-domen>/api/webhooks/zenobank`
+- Events: `checkout.completed`
+- Signing secret'ni oling → `ZENOBANK_WEBHOOK_SECRET` sifatida Vercel'ga qo'ying → Redeploy
+
+## 5. CLI serverga ishora qilsin
+
+CLI foydalanuvchilariga:
 
 ```bash
-npm login
-```
-
-### 2. Publish
-
-```bash
-cd cli
-npm publish
-```
-
-> Nom band bo'lsa `cli/package.json` dagi `name` ni o'zgartiring (masalan `@fayzinc/sovereign-cli` — bunda `npm publish --access public`).
-
-### 3. Endi har kim o'rnatadi
-
-```bash
-npm install -g sovereign-cli
+export SOVEREIGN_URL=https://<sizning-domen>
 sovereign login
 ```
 
-`sovereign login` brauzerni ochadi → foydalanuvchi SOVEREIGN hisobiga kiradi → **Ruxsat berish** → CLI ulanadi. Server manzili default `https://sovereign.ai`; boshqa domen bo'lsa CLI kodidagi `baseUrl` (`cli/src/config.mjs`) ni yoki `SOVEREIGN_URL` ni sozlang.
+Yoki `~/.sovereign/config.json` da `baseUrl` ni yangilash.
 
-> **Muhim:** deploy'dan keyin `cli/src/config.mjs` dagi default `baseUrl` ni haqiqiy Vercel domeningizga o'zgartiring, so'ng CLI'ni qayta publish qiling (`version` ni oshiring).
-
-### Yangi versiya chiqarish
+## 6. Yangi versiya deploy qilish
 
 ```bash
-cd cli
-npm version patch    # 0.1.0 → 0.1.1
-npm publish
+git add .
+git commit -m "..."
+git push
 ```
 
-Foydalanuvchilar: `npm update -g sovereign-cli`.
+Vercel avtomatik build va deploy qiladi (Preview PR + Production main).
+
+## Debug
+
+- Build xatosi → Vercel dashboard → Deployments → **View Function Logs**
+- Runtime xatosi → **Logs** tab
+- Env yetishmasa → sahifada `NEXT_PUBLIC_SUPABASE_URL kerak` xatolari chiqadi
