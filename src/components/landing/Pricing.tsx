@@ -40,7 +40,7 @@ export function Pricing() {
                 </span>
               )}
               <div className="text-sm font-semibold" style={{ color: p.color }}>{p.name}</div>
-              <div className="font-display mt-2 text-4xl font-extrabold text-text-primary">
+              <div className="font-display nums mt-2 text-4xl font-extrabold text-text-primary">
                 {p.price === 0 ? "0" : `$${p.price}`}
                 <span className="text-sm font-normal text-text-muted">/oy</span>
               </div>

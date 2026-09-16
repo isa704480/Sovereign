@@ -420,14 +420,37 @@
   }
 
   .glass {
-    background: rgba(13, 16, 51, 0.6);
-    backdrop-filter: blur(16px) saturate(140%);
-    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    background: rgba(13, 16, 51, 0.55);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
     border: 1px solid var(--border-default);
   }
 
   .shadow-glow {
     box-shadow: var(--shadow-glow);
+  }
+
+  /* Gentle Apple-style hover lift (pair with transition). */
+  .lift {
+    transition:
+      transform 0.3s var(--ease-out-expo),
+      box-shadow 0.3s var(--ease-out-expo),
+      border-color 0.3s var(--ease-out-expo);
+  }
+  .lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Tabular figures for stats / prices / counts. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Hairline divider (Apple: unify + hairline instead of fragmented borders). */
+  .hairline {
+    border-color: var(--border-subtle);
   }
 
   .noise::after {

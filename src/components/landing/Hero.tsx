@@ -131,7 +131,7 @@ export function Hero() {
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-4">
           {STATS.map((s) => (
             <div key={s.label} className="bg-bg-base/80 px-5 py-4 backdrop-blur-sm">
-              <div className="font-display text-2xl font-extrabold text-text-primary">
+              <div className="font-display nums text-2xl font-extrabold text-text-primary">
                 <span style={{ color: s.color }}>{s.value}</span>
               </div>
               <div className="mt-0.5 text-xs text-text-muted">{s.label}</div>
