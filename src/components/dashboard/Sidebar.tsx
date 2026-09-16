@@ -28,6 +28,7 @@ interface SidebarProps {
   onUpgrade: () => void;
   onOpenMemory: () => void;
   onOpenSettings: () => void;
+  onOpenKnowledge: () => void;
 }
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -66,6 +67,7 @@ export function Sidebar({
   onUpgrade,
   onOpenMemory,
   onOpenSettings,
+  onOpenKnowledge,
 }: SidebarProps) {
   const { theme, model } = useTheme();
   const [q, setQ] = useState("");
@@ -184,8 +186,8 @@ export function Sidebar({
         <button type="button" onClick={onOpenMemory} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/5" style={{ color: "var(--t-text-muted)" }}>
           <Brain className="size-4" /> Xotira
         </button>
-        <button type="button" className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm opacity-60" style={{ color: "var(--t-text-muted)" }} title="Tez orada" disabled>
-          <FolderOpen className="size-4" /> Knowledge Base <span className="ml-auto text-[10px]">tez orada</span>
+        <button type="button" onClick={onOpenKnowledge} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/5" style={{ color: "var(--t-text-muted)" }}>
+          <FolderOpen className="size-4" /> Knowledge Base
         </button>
         <button type="button" onClick={onOpenSettings} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/5" style={{ color: "var(--t-text-muted)" }}>
           <Settings className="size-4" /> Sozlamalar

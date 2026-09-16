@@ -5,6 +5,7 @@ import { AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
 import { getMemories, memoryPrompt } from "@/lib/ai/memory";
+import { knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -29,8 +30,15 @@ const bodySchema = z.object({
 
 const UPGRADE = "[upgrade]";
 
-async function resolveEntitlement(): Promise<{ plan: Plan; usedToday: number; memoryText: string }> {
-  if (!isSupabaseConfigured()) return { plan: PLAN_BY_ID.ultra, usedToday: 0, memoryText: "" };
+async function resolveEntitlement(lastText: string): Promise<{
+  plan: Plan;
+  usedToday: number;
+  memoryText: string;
+  knowledgeText: string;
+}> {
+  if (!isSupabaseConfigured()) {
+    return { plan: PLAN_BY_ID.ultra, usedToday: 0, memoryText: "", knowledgeText: "" };
+  }
   const supabase = await createClient();
   const {
     data: { user },
@@ -40,12 +48,21 @@ async function resolveEntitlement(): Promise<{ plan: Plan; usedToday: number; me
       plan: process.env.NODE_ENV === "development" ? PLAN_BY_ID.ultra : PLAN_BY_ID.free,
       usedToday: 0,
       memoryText: "",
+      knowledgeText: "",
     };
   }
   const profile = await getProfile(supabase, user.id);
   const { data: used } = await supabase.rpc("messages_today", { uid: user.id });
   const memoryText = profile?.memory_enabled === false ? "" : memoryPrompt(await getMemories(supabase, user.id));
-  return { plan: effectivePlan(profile), usedToday: typeof used === "number" ? used : 0, memoryText };
+  const knowledgeText = lastText
+    ? knowledgePrompt(await retrieveKnowledge(supabase, user.id, lastText, 6))
+    : "";
+  return {
+    plan: effectivePlan(profile),
+    usedToday: typeof used === "number" ? used : 0,
+    memoryText,
+    knowledgeText,
+  };
 }
 
 function textOf(content: string | unknown[]): string {
@@ -75,11 +92,10 @@ export async function POST(req: Request) {
   };
   const refuse = (message: string) => new Response(new Blob([sse({ type: "error", message }), done]), { headers });
 
-  const { plan, usedToday, memoryText } = await resolveEntitlement();
-
   // Skills (user-enabled ∪ auto-detected).
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
   const lastText = lastUser ? textOf(lastUser) : "";
+  const { plan, usedToday, memoryText, knowledgeText } = await resolveEntitlement(lastText);
   const activeSkills = resolveActiveSkills(enabledSkills, lastText);
   const skillText = skillsPrompt(activeSkills);
 
@@ -129,7 +145,12 @@ export async function POST(req: Request) {
             });
           }
 
-          const extra = [memoryText, skillText, plan.limits.fullCode ? "" : SIMPLE_CHAT_GUARDRAIL]
+          const extra = [
+            knowledgeText,
+            memoryText,
+            skillText,
+            plan.limits.fullCode ? "" : SIMPLE_CHAT_GUARDRAIL,
+          ]
             .filter(Boolean)
             .join("\n\n");
           let stepText = "";

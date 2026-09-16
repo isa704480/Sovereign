@@ -14,6 +14,7 @@ import { ArtifactPanel } from "./ArtifactPanel";
 import { ArtifactProvider, type ArtifactPayload } from "./artifact-context";
 import { ChatHeader } from "./ChatHeader";
 import { InputArea, type InputAreaHandle } from "./InputArea";
+import { KnowledgePanel } from "./KnowledgePanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { MessageList } from "./MessageList";
@@ -69,6 +70,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [memoryEnabled, setMemoryEnabled] = useState(memoryInit);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [kbOpen, setKbOpen] = useState(false);
   const artifactCtx = useMemo(
     () => ({ open: (a: ArtifactPayload) => setArtifact(a) }),
     [],
@@ -212,6 +214,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           onUpgrade={() => openPricing()}
           onOpenMemory={() => setMemoryOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenKnowledge={() => setKbOpen(true)}
         />
 
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -288,6 +291,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           suggestedPlan={pricing.suggested}
         />
         <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
+        <KnowledgePanel open={kbOpen} onClose={() => setKbOpen(false)} />
         <SettingsPanel
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
