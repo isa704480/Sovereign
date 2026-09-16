@@ -3,9 +3,14 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
+import { AUTO_MODEL_ID, DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
 import type { Attachment } from "@/lib/chat/attachments";
+
+export interface RouteInfo {
+  reason: string;
+  steps: { modelId: string; kind: string; purpose: string }[];
+}
 
 export type Role = "user" | "assistant" | "system";
 export type MessageStatus = "streaming" | "done" | "error";
@@ -20,6 +25,10 @@ export interface ChatMessage {
   skills?: string[];
   /** User attachments (images / files) shown with the message and sent to the model. */
   attachments?: Attachment[];
+  /** Auto-mode routing decision shown above the answer. */
+  route?: RouteInfo;
+  /** Ids of models actually used (Auto pipeline). */
+  usedModels?: string[];
   createdAt: string;
   status?: MessageStatus;
   error?: string;
@@ -86,9 +95,9 @@ export const useChat = create<ChatState>()(
       enabledSkills: DEFAULT_ENABLED_SKILLS,
 
       setModel: (modelId) => {
-        if (!MODEL_BY_ID[modelId]) return;
+        if (modelId !== AUTO_MODEL_ID && !MODEL_BY_ID[modelId]) return;
         const { activeId, conversations } = get();
-        const research = MODEL_BY_ID[modelId].category === "research" ? true : get().research;
+        const research = MODEL_BY_ID[modelId]?.category === "research" ? true : get().research;
         if (activeId && conversations[activeId]) {
           set({
             modelId,

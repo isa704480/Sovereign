@@ -14,6 +14,8 @@ export type StreamEvent =
   | { type: "text"; text: string }
   | { type: "citations"; citations: string[] }
   | { type: "skills"; skills: string[] }
+  | { type: "route"; reason: string; steps: { modelId: string; kind: string; purpose: string }[] }
+  | { type: "step"; modelId: string; kind: string; purpose: string; index: number }
   | { type: "error"; message: string }
   | { type: "done" };
 

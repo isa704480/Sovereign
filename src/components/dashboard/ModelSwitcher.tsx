@@ -3,7 +3,7 @@
 import { Check, ChevronDown, Lock } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { MODELS, MODEL_GROUPS, type SovereignModel } from "@/config/models";
+import { AUTO_MODEL, AUTO_MODEL_ID, MODELS, MODEL_GROUPS, resolveModel, type SovereignModel } from "@/config/models";
 import { planAllowsTier, type Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -38,7 +38,8 @@ function Bars({ model }: { model: SovereignModel }) {
 }
 
 export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherProps) {
-  const { model } = useTheme();
+  const { model: themeModel } = useTheme();
+  const model = value === AUTO_MODEL_ID ? AUTO_MODEL : resolveModel(value) ?? themeModel;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -94,6 +95,30 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
             role="listbox"
           >
             <div className="px-2 pb-2 pt-1 text-xs font-semibold" style={{ color: "var(--t-text)" }}>Model tanlang</div>
+
+            {/* Auto — smart routing */}
+            <button
+              type="button"
+              onClick={() => {
+                onChange(AUTO_MODEL_ID);
+                setOpen(false);
+              }}
+              className="tt mb-1 flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/5"
+              style={value === AUTO_MODEL_ID ? { background: "color-mix(in srgb, var(--t-primary) 14%, transparent)" } : undefined}
+            >
+              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-base" style={{ background: "color-mix(in srgb, #5B50F0 22%, transparent)", color: "#7C6FF7" }}>
+                ✦
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="text-sm font-medium" style={{ color: "var(--t-text)" }}>SOVEREIGN Auto</span>
+                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(91,80,240,0.2)", color: "#7C6FF7" }}>Aqlli</span>
+                </span>
+                <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>Savolga mos modelni o&apos;zi tanlaydi</span>
+              </span>
+              {value === AUTO_MODEL_ID && <Check className="mt-1 size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
+            </button>
+
             {MODEL_GROUPS.map((g) => {
               const items = MODELS.filter((m) => m.tier === g.tier);
               if (!items.length) return null;

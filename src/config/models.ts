@@ -367,6 +367,36 @@ export const MODEL_GROUPS: { tier: ModelTier; label: string; badge?: string }[] 
 
 export const DEFAULT_MODEL_ID = "claude-sonnet-4-5";
 export const RESEARCH_MODEL_ID = "sonar-online";
+export const AUTO_MODEL_ID = "auto";
+
+/** Virtual "Auto" model — the server picks the real model(s) per request. */
+export const AUTO_MODEL: SovereignModel = {
+  id: AUTO_MODEL_ID,
+  name: "SOVEREIGN Auto",
+  shortName: "Auto",
+  provider: "Aqlli yo'naltirish",
+  theme: "sovereign",
+  cost: "free",
+  category: "premium",
+  tier: "free",
+  providerModel: "",
+  price: "Aqlli",
+  glyph: "✦",
+  tagline: "Savolga mos modelni o'zi tanlaydi",
+  description: "Avval o'ylab, vazifaga qarab eng mos modelni (yoki research→kod zanjirini) tanlaydi.",
+  primary: "#5B50F0",
+  accent: "#7C6FF7",
+  bg: "#060812",
+  capabilities: [
+    { label: "Aqlli", score: 5 },
+    { label: "Avto", score: 5 },
+  ],
+  demo: { user: "", ai: "" },
+};
+
+export function resolveModel(id: string): SovereignModel {
+  return id === AUTO_MODEL_ID ? AUTO_MODEL : (MODEL_BY_ID[id] ?? MODEL_BY_ID[DEFAULT_MODEL_ID]);
+}
 
 export const MODEL_BY_THEME: Record<Exclude<ModelTheme, "sovereign">, SovereignModel> =
   Object.fromEntries(SHOWCASE_MODELS.map((m) => [m.theme, m])) as Record<

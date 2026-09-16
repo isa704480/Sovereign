@@ -64,6 +64,14 @@ export function useSendMessage() {
           } else if (ev.type === "skills") {
             skills = ev.skills;
             s.updateMessage(conversationId, assistant.id, { skills });
+          } else if (ev.type === "route") {
+            s.updateMessage(conversationId, assistant.id, {
+              route: { reason: ev.reason, steps: ev.steps },
+              usedModels: ev.steps.map((st) => st.modelId),
+            });
+          } else if (ev.type === "step") {
+            // Show which model is active for the current pipeline step.
+            s.updateMessage(conversationId, assistant.id, { modelId: ev.modelId });
           } else if (ev.type === "error") {
             if (ev.message.startsWith("[upgrade]")) {
               failed = ev.message.replace("[upgrade]", "").trim();

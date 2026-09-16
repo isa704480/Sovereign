@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deleteConversationAction } from "@/app/actions/chat";
-import { MODEL_BY_ID, DEFAULT_MODEL_ID, RESEARCH_MODEL_ID } from "@/config/models";
+import { AUTO_MODEL_ID, MODEL_BY_ID, DEFAULT_MODEL_ID, RESEARCH_MODEL_ID, resolveModel } from "@/config/models";
 import { MODEL_THEMES, themeVars } from "@/config/model-themes";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type PlanId } from "@/config/plans";
 import { PricingDialog } from "./PricingDialog";
@@ -81,8 +81,9 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
 
   const active = activeId ? conversations[activeId] : null;
   const messages = active?.messages ?? [];
-  const model = MODEL_BY_ID[modelId] ?? MODEL_BY_ID[DEFAULT_MODEL_ID];
-  const theme = dynamicTheme ? MODEL_THEMES[model.theme] : MODEL_THEMES.sovereign;
+  const model = resolveModel(modelId);
+  // Auto uses the SOVEREIGN theme (the per-answer model is shown in the message).
+  const theme = !dynamicTheme || modelId === AUTO_MODEL_ID ? MODEL_THEMES.sovereign : MODEL_THEMES[model.theme];
   const ctx = useMemo(() => ({ theme, model }), [theme, model]);
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant" && m.citations?.length);
@@ -113,6 +114,10 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   /** Model change with plan gating: locked models open the pricing dialog. */
   const handleModelChange = useCallback(
     (id: string) => {
+      if (id === AUTO_MODEL_ID) {
+        setModel(id);
+        return;
+      }
       const m = MODEL_BY_ID[id];
       if (!m) return;
       if (!planAllowsTier(plan, m.tier)) {

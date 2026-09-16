@@ -140,6 +140,33 @@ export function MessageItem({ message, isLast, onRegenerate }: MessageItemProps)
       )}
 
       <div className={cn("min-w-0 flex-1", flat ? "max-w-full" : "max-w-[85%]")}>
+        {message.route && (
+          <div className="mb-3 rounded-xl border px-3 py-2 text-xs" style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-primary) 6%, transparent)" }}>
+            <div className="flex items-center gap-1.5 font-medium" style={{ color: "var(--t-accent)" }}>
+              ✦ SOVEREIGN Auto
+            </div>
+            <p className="mt-1" style={{ color: "var(--t-text-muted)" }}>{message.route.reason}</p>
+            {message.route.steps.length > 1 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {message.route.steps.map((st, i) => {
+                  const sm = MODEL_BY_ID[st.modelId];
+                  return (
+                    <span key={i} className="inline-flex items-center gap-1">
+                      {i > 0 && <span style={{ color: "var(--t-text-muted)" }}>→</span>}
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5"
+                        style={{ borderColor: `${sm?.primary ?? "#5B50F0"}55`, color: sm?.primary ?? "var(--t-text)" }}
+                      >
+                        {st.kind === "research" ? "🌐" : sm?.glyph} {sm?.shortName ?? st.modelId}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {theme.layout.showCitations && (
           <div className="mb-2 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--t-text-muted)" }}>
             <span style={{ color: model.primary }}>{model.glyph}</span> Javob
