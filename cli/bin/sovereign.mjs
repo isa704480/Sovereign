@@ -33,10 +33,6 @@ async function confirmer(rl) {
   };
 }
 
-function printAnswer(text) {
-  if (!text) return;
-  console.log("\n" + c.indigo("⬡") + "  " + text.replace(/\n/g, "\n   ") + "\n");
-}
 
 async function ensureAuth(rl) {
   let config = loadConfig();
@@ -162,9 +158,8 @@ async function repl() {
     }
 
     messages.push({ role: "user", content: input });
-    const { text, error } = await agentTurn({ messages, config, confirm });
+    const { error } = await agentTurn({ messages, config, confirm });
     if (error) console.log(c.red(`\n  Xato: ${error}\n`));
-    else printAnswer(text);
     process.stdout.write("  " + promptStr());
   }
 
@@ -179,10 +174,8 @@ async function oneShot(task) {
   const confirm = await confirmer(rl);
   const messages = initialMessages();
   messages.push({ role: "user", content: task });
-  console.log();
-  const { text, error } = await agentTurn({ messages, config, confirm });
+  const { error } = await agentTurn({ messages, config, confirm });
   if (error) console.log(c.red(`  Xato: ${error}`));
-  else printAnswer(text);
   rl.close();
 }
 
