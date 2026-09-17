@@ -88,8 +88,8 @@ async function runRound(messages, config, onText) {
     return { message, toolCalls };
   }
 
-  // Direct OpenRouter — true token streaming.
-  const res = await fetch(OPENROUTER, {
+  // Direct OpenRouter — true token streaming with low-balance auto-retry.
+  const send = async (maxTokens) => fetch(OPENROUTER, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -103,10 +103,11 @@ async function runRound(messages, config, onText) {
       tools: TOOL_SCHEMA,
       tool_choice: "auto",
       temperature: 0.4,
-      max_tokens: 4096,
+      max_tokens: maxTokens,
       stream: true,
     }),
   });
+  let res = await send(4096);
   if (!res.ok || !res.body) {
     let m = `${res.status}`;
     try {
@@ -114,7 +115,20 @@ async function runRound(messages, config, onText) {
     } catch {
       /* keep */
     }
-    throw new Error(m);
+    // "You requested up to N tokens, but can only afford M." — kaliting balansi
+    // past. M-64 gacha kamaytirib qayta urinamiz — user oddiy javob ololsin.
+    const afford = /can only afford (\d+)/i.exec(m);
+    if (afford) {
+      const allowed = Math.max(256, Number(afford[1]) - 64);
+      res = await send(allowed);
+      if (!res.ok || !res.body) {
+        let m2 = `${res.status}`;
+        try { m2 = JSON.parse(await res.text()).error?.message ?? m2; } catch { /* keep */ }
+        throw new Error(m2 + "  (OpenRouter balansingiz juda past — https://openrouter.ai/settings/credits)");
+      }
+    } else {
+      throw new Error(m);
+    }
   }
 
   let content = "";

@@ -1,28 +1,30 @@
 import { c } from "./ui.mjs";
 
-/** Curated OpenRouter models for the CLI (direct mode). */
+/**
+ * OpenRouter'da HAQIQIY mavjud modellar (2026 yil boshi). Ba'zilari tekin, ba'zilari
+ * balansingizga qarab hisoblanadi. Tool-calling qo'llab-quvvatlaydiganlarga * qo'yildi.
+ */
 export const CLI_MODELS = [
-  { id: "openai/gpt-4o-mini", label: "GPT-4o mini", note: "arzon, tez, tool-calling" },
-  { id: "openai/gpt-4o", label: "GPT-4o", note: "kuchli ko'p modal" },
-  { id: "openai/gpt-5.6-sol", label: "GPT-5.6 Sol", note: "yangi, kuchli" },
-  { id: "anthropic/claude-sonnet-4.5", label: "Claude Sonnet 4.5", note: "kod va yozish" },
-  { id: "anthropic/claude-sonnet-5", label: "Claude Sonnet 5", note: "yangi Sonnet" },
-  { id: "anthropic/claude-opus-5", label: "Claude Opus 5", note: "eng kuchli" },
-  { id: "google/gemini-3.5-flash", label: "Gemini 3.5 Flash", note: "tez, ko'p modal" },
-  { id: "deepseek/deepseek-v4-pro-0813", label: "DeepSeek V4 Pro", note: "kodga kuchli" },
-  { id: "x-ai/grok-4.6", label: "Grok 4.6", note: "suhbat" },
-  { id: "qwen/qwen3.7-max", label: "Qwen 3.7 Max", note: "ko'p tilli" },
-  { id: "z-ai/glm-5.2:free", label: "GLM 5.2 (tekin)", note: "tool-calling cheklangan" },
+  { id: "openai/gpt-4o-mini",              label: "GPT-4o mini",        note: "arzon, tez, tool-calling ★" },
+  { id: "openai/gpt-4o",                   label: "GPT-4o",             note: "kuchli ko'p modal, tool-calling ★" },
+  { id: "anthropic/claude-3.5-sonnet",     label: "Claude 3.5 Sonnet",  note: "kod va tahlil, tool-calling ★" },
+  { id: "anthropic/claude-3.5-haiku",      label: "Claude 3.5 Haiku",   note: "arzon Anthropic, tool-calling ★" },
+  { id: "google/gemini-2.0-flash-001",     label: "Gemini 2.0 Flash",   note: "tez, ko'p modal, tekin qismi bor" },
+  { id: "google/gemini-flash-1.5",         label: "Gemini 1.5 Flash",   note: "tez, katta kontekst" },
+  { id: "deepseek/deepseek-chat",          label: "DeepSeek V3",        note: "kodga kuchli, arzon" },
+  { id: "meta-llama/llama-3.3-70b-instruct", label: "Llama 3.3 70B",    note: "ochiq model, kuchli" },
+  { id: "x-ai/grok-2-1212",                label: "Grok 2",             note: "suhbat, tahlil" },
+  { id: "qwen/qwen-2.5-72b-instruct",      label: "Qwen 2.5 72B",       note: "ko'p tilli, kod" },
 ];
 
 export function printModels(current) {
-  console.log(`\n  ${c.bold(c.white("Modellar"))}  ${c.dim("(/model <id> yoki sovereign key bilan)")}\n`);
+  console.log(`\n  ${c.bold(c.white("Modellar"))}  ${c.dim("(/model <id> yoki qisqa nom bilan)")}\n`);
   for (const m of CLI_MODELS) {
     const active = m.id === current;
     const mark = active ? c.green("●") : c.dim("○");
-    console.log(`  ${mark} ${c.white(m.label.padEnd(22))} ${c.dim(m.id)}  ${c.gray("— " + m.note)}`);
+    console.log(`  ${mark} ${c.white(m.label.padEnd(22))} ${c.dim(m.id.padEnd(38))}  ${c.gray("— " + m.note)}`);
   }
-  console.log(`\n  ${c.dim("Almashtirish:")} ${c.white("/model openai/gpt-4o")}\n`);
+  console.log(`\n  ${c.dim("Misol:")} ${c.white("/model claude")}   yoki   ${c.white("/model openai/gpt-4o")}\n`);
 }
 
 /** Resolve a short name or partial id to a full model id. */
