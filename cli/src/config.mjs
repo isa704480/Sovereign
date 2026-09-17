@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, chmodSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -36,7 +36,7 @@ export function loadConfig() {
 }
 
 export function saveConfig(patch) {
-  if (!existsSync(DIR)) mkdirSync(DIR, { recursive: true });
+  if (!existsSync(DIR)) mkdirSync(DIR, { recursive: true, mode: 0o700 });
   let current = {};
   if (existsSync(FILE)) {
     try {
@@ -46,7 +46,14 @@ export function saveConfig(patch) {
     }
   }
   const next = { ...current, ...patch };
-  writeFileSync(FILE, JSON.stringify(next, null, 2));
+  // Token va API kalitlar shu faylda — faqat foydalanuvchi o'qishi kerak (0600).
+  // Windows'da chmod tam qo'llanmaydi, lekin POSIX/WSL/macOS/Linux'da ta'sirli.
+  writeFileSync(FILE, JSON.stringify(next, null, 2), { mode: 0o600 });
+  try {
+    chmodSync(FILE, 0o600);
+  } catch {
+    /* Windows'da chmod no-op — indamay o'tadi */
+  }
   return FILE;
 }
 

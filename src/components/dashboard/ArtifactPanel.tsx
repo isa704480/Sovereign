@@ -26,7 +26,8 @@ function toHtmlDoc(code: string, lang: string): string {
     // JSX/TSX runs inside a sandboxed iframe with React, Babel and Tailwind
     // preloaded. The user's code either exports (default) or defines a
     // component named App / Component.
-    const escaped = code.replace(/<\/script>/g, "<\\/script>");
+    // Case-insensitive </script> escape — LLM `</SCRIPT>` yozsa ham break bo'lmasin.
+    const escaped = code.replace(/<\/script/gi, "<\\/script");
     return `<!doctype html>
 <html>
 <head>
@@ -163,7 +164,7 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
             key={reloadKey}
             title="Artifact preview"
             srcDoc={srcDoc}
-            sandbox="allow-scripts allow-forms allow-popups allow-modals"
+            sandbox="allow-scripts"
             className="h-full w-full border-0 bg-white"
           />
         ) : (

@@ -29,7 +29,8 @@ export async function POST(req: Request) {
   } = await supabase.auth.getUser();
   if (!user) return Response.json({ error: "Avval tizimga kiring" }, { status: 401 });
 
-  const orderId = `sov_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // CSPRNG bilan bashoratlab bo'lmaydigan order ID. UUIDv4 (~122 bit entropy).
+  const orderId = `sov_${crypto.randomUUID()}`;
   const amount = String(plan.price);
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(req.url).origin;
 

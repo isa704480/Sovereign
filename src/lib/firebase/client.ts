@@ -21,18 +21,30 @@ function getFirebase(): Auth {
   return getAuth(app);
 }
 
+function toHex(buf: ArrayBuffer): string {
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 /**
- * Opens the Google popup via Firebase and returns the Google ID token.
- * We hand that token to Supabase (signInWithIdToken) so the rest of the
- * app keeps running on the Supabase session (RLS, profiles, chat).
+ * Opens the Google popup via Firebase and returns the Google ID token +
+ * random nonce. Supabase `signInWithIdToken` bilan nonce paketda bo'lishi
+ * ID token replay hujumini bekor qiladi.
+ *
+ * Nonce naqshi (Supabase docs): mijoz `SHA256(nonce)` ni provider'ga uzatadi,
+ * keyin toza `nonce` ni Supabase'ga beradi. Supabase ID token ichidagi
+ * `nonce` claim'ni sha256(bizniki) ga solishtiradi.
  */
-export async function googleIdTokenViaFirebase(): Promise<{ idToken: string; accessToken?: string }> {
+export async function googleIdTokenViaFirebase(): Promise<{ idToken: string; accessToken?: string; nonce: string }> {
   const auth = getFirebase();
   auth.useDeviceLanguage();
   const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: "select_account" });
+  const nonce = crypto.randomUUID();
+  const hashed = toHex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(nonce)));
+  provider.setCustomParameters({ prompt: "select_account", nonce: hashed });
   const result = await signInWithPopup(auth, provider);
   const cred = GoogleAuthProvider.credentialFromResult(result);
   if (!cred?.idToken) throw new Error("Google tokeni olinmadi");
-  return { idToken: cred.idToken, accessToken: cred.accessToken };
+  return { idToken: cred.idToken, accessToken: cred.accessToken, nonce };
 }

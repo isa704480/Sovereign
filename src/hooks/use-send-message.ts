@@ -16,10 +16,11 @@ import { useChat, uuid, type ChatMessage } from "@/store/chat";
  */
 function toWire(messages: ChatMessage[], blind: boolean) {
   const tokenMap: Record<string, string> = {};
-  const last = messages[messages.length - 1];
   const wire = messages.map((m) => {
-    const isTargetUser = blind && m === last && m.role === "user" && typeof m.content === "string";
-    const raw = isTargetUser
+    // Blind Prompting yoqilganda BARCHA user xabarlari (nafaqat oxirgi)
+    // maskalanadi — chunki avvalgi turlarda ham PII kelishi mumkin.
+    const isMaskable = blind && m.role === "user" && typeof m.content === "string";
+    const raw = isMaskable
       ? (() => {
           const r = mask(m.content as string);
           Object.assign(tokenMap, r.tokenMap);
@@ -147,10 +148,16 @@ export function useSendMessage() {
     abortRef.current = null;
 
     // Learn durable facts from this exchange (server no-ops without a session).
+    // MUHIM: Blind Prompting yoqilgan bo'lsa, serverga masked matnni yuboramiz —
+    // aks holda "AI ko'rmaydi" va'dasi memory extraction bosqichida buziladi.
     if (!failed && text) {
       const firstUser = [...history].reverse().find((mm) => mm.role === "user");
       if (firstUser && typeof firstUser.content === "string") {
-        void rememberExchange(firstUser.content, text).catch(() => {});
+        const userForMemory = state0.blindPrompting
+          ? mask(firstUser.content).masked
+          : firstUser.content;
+        const answerForMemory = hasMask ? text : text; // model allaqachon masked tokenlarda javob berdi
+        void rememberExchange(userForMemory, answerForMemory).catch(() => {});
       }
     }
 

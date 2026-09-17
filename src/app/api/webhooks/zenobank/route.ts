@@ -1,5 +1,5 @@
 import { zeno, ZENO_WEBHOOK_SECRET } from "@/lib/payments/zenobank";
-import { createAnonClient } from "@/lib/supabase/anon";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
 
@@ -8,20 +8,27 @@ interface WebhookEvent {
   data: { orderId?: string; status?: string };
 }
 
-/** POST /api/webhooks/zenobank — verifies the Svix signature and applies payment. */
+/**
+ * POST /api/webhooks/zenobank — Svix imzosini majburiy tekshiradi va
+ * to'lovni service-role client bilan qo'llaydi. Signature secret unutilgan
+ * bo'lsa 500 qaytadi (fail-secure) — anonim kim bo'lishidan qat'i nazar
+ * hech qachon payment RPC chaqirilmaydi.
+ */
 export async function POST(req: Request) {
   const rawBody = await req.text();
 
-  if (ZENO_WEBHOOK_SECRET) {
-    try {
-      zeno().webhooks.verify({
-        secret: ZENO_WEBHOOK_SECRET,
-        rawBody,
-        headers: Object.fromEntries(req.headers),
-      });
-    } catch {
-      return Response.json({ error: "Invalid signature" }, { status: 401 });
-    }
+  if (!ZENO_WEBHOOK_SECRET) {
+    // Fail-secure: xavfsiz imzosiz webhook qabul qilishga ruxsat berilmaydi.
+    return Response.json({ error: "Webhook misconfigured" }, { status: 500 });
+  }
+  try {
+    zeno().webhooks.verify({
+      secret: ZENO_WEBHOOK_SECRET,
+      rawBody,
+      headers: Object.fromEntries(req.headers),
+    });
+  } catch {
+    return Response.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   let event: WebhookEvent;
@@ -35,7 +42,8 @@ export async function POST(req: Request) {
   if (!orderId) return Response.json({ received: true });
 
   try {
-    const supabase = createAnonClient();
+    // Payment RPClari faqat service_role uchun ochiq (migration 0010).
+    const supabase = createServiceClient();
     if (event.type === "checkout.completed") {
       await supabase.rpc("apply_order_payment", { p_order_id: orderId });
     } else if (event.type === "checkout.expired") {

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,8 +17,10 @@ const MODEL_FOR_PLAN: Record<string, string> = {
 };
 
 const schema = z.object({
-  messages: z.array(z.object({ role: z.string(), content: z.any().optional() }).passthrough()).min(1).max(80),
-  tools: z.array(z.any()).optional(),
+  // Xabar tuzilmasi ochiq (tool_call / role / content moslashuvchan),
+  // lekin umumiy soni va tools soni cheklangan — cost-DoS'ni bosadi.
+  messages: z.array(z.object({ role: z.string().max(20), content: z.any().optional() }).passthrough()).min(1).max(20),
+  tools: z.array(z.any()).max(16).optional(),
 });
 
 function bearer(req: Request): string | null {
@@ -35,6 +38,21 @@ export async function POST(req: Request) {
   const token = bearer(req);
   if (!token) return Response.json({ error: "Token yo'q. `sovereign login` qiling." }, { status: 401 });
 
+  // Rate limit: har bir token uchun daqiqasiga 20 chaqiruv (tool-loop hisobga olib).
+  const tokenHash = token.slice(0, 24); // token o'zi kalit sifatida — logga tushmasin
+  const rl = rateLimit(`cli:${tokenHash}`, 20, 60_000);
+  if (!rl.ok) {
+    return Response.json(
+      { error: "Juda ko'p so'rov. Bir oz kuting." },
+      { status: 429, headers: { "Retry-After": Math.ceil(rl.retryAfterMs / 1000).toString() } },
+    );
+  }
+  // Qo'shimcha IP-bazasidagi tekshiruv (agar bitta token ko'p mijozdan foydalanilsa).
+  const ipRl = rateLimit(`cli:ip:${clientIp(req)}`, 60, 60_000);
+  if (!ipRl.ok) {
+    return Response.json({ error: "Juda ko'p so'rov (IP)." }, { status: 429 });
+  }
+
   const json = await req.json().catch(() => null);
   const parsed = schema.safeParse(json);
   if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
@@ -45,6 +63,7 @@ export async function POST(req: Request) {
 
   // Resolve the token → user + plan.
   let planId = "free";
+  let userId: string | null = null;
   try {
     const supabase = createAnonClient();
     const { data, error } = await supabase.rpc("cli_whoami", { p_token: token });
@@ -52,6 +71,7 @@ export async function POST(req: Request) {
     if (error || !row?.user_id) {
       return Response.json({ error: "Token yaroqsiz. Qayta `sovereign login` qiling." }, { status: 401 });
     }
+    userId = row.user_id;
     planId = isPlanId(row.plan) ? row.plan : "free";
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : "Server xatosi" }, { status: 500 });
@@ -59,6 +79,22 @@ export async function POST(req: Request) {
 
   const plan = (isPlanId(planId) && PLAN_BY_ID[planId]) || PLAN_BY_ID.free;
   const model = MODEL_FOR_PLAN[planId] ?? MODEL_FOR_PLAN.free;
+
+  // CLI ham veb chat bilan bir xil kunlik chegaraga bo'ysunadi.
+  try {
+    const supabase = createAnonClient();
+    const { data: used } = await supabase.rpc("cli_messages_today", { p_token: token });
+    const usedToday = typeof used === "number" ? used : 0;
+    if (usedToday >= plan.limits.messagesPerDay) {
+      return Response.json(
+        { error: `Kunlik limit tugadi (${plan.limits.messagesPerDay}, ${plan.name}). Ertaga davom eting.` },
+        { status: 429 },
+      );
+    }
+  } catch {
+    /* limit tekshiruvi xato bo'lsa fail-open — chunki rate-limit yuqorida allaqachon bor */
+  }
+  void userId; // hozircha faqat log/attribute uchun
 
   const res = await fetch(OPENROUTER, {
     method: "POST",

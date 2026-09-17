@@ -40,16 +40,21 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
     setActive("google");
     try {
       if (isFirebaseConfigured()) {
-        // Firebase Google popup → Supabase session via ID token.
-        const { idToken, accessToken } = await googleIdTokenViaFirebase();
+        // Firebase Google popup → Supabase session via ID token + nonce.
+        const { idToken, accessToken, nonce } = await googleIdTokenViaFirebase();
         const supabase = createClient();
         const { error } = await supabase.auth.signInWithIdToken({
           provider: "google",
           token: idToken,
           access_token: accessToken,
+          nonce,
         });
         if (error) throw new Error(error.message);
-        window.location.href = next && next.startsWith("/") ? next : "/onboarding";
+        // Open-redirect'ni to'sish: protokol-nisbiy `//evil.com` va backslash
+        // yo'llarini rad etamiz. Faqat toza absolute-path (/dan boshlanuvchi
+        // va ikkinchi belgi `/\` bo'lmagan) qabul qilinadi.
+        const isSafe = typeof next === "string" && /^\/[^/\\]/.test(next);
+        window.location.href = isSafe ? next : "/onboarding";
         return;
       }
       // Fallback: Supabase redirect OAuth.

@@ -59,12 +59,14 @@ async function askRequired(rl, q, tries = 4) {
 }
 
 async function confirmer(rl) {
-  return async (question) => {
-    if (AUTO_YES) {
+  return async (question, forcePrompt = false) => {
+    if (AUTO_YES && !forcePrompt) {
       console.log(`  ${c.amber("?")} ${question} ${c.green("auto-yes")}`);
       return true;
     }
-    const a = (await ask(rl, `  ${c.amber("?")} ${question} ${c.dim("[y/N] ")}`)).trim().toLowerCase();
+    // `forcePrompt` — xavfli buyruqlar uchun --yes bo'lsa ham majburiy tasdiq.
+    const prefix = forcePrompt ? c.red("!") : c.amber("?");
+    const a = (await ask(rl, `  ${prefix} ${question} ${c.dim("[y/N] ")}`)).trim().toLowerCase();
     return a === "y" || a === "yes" || a === "ha";
   };
 }

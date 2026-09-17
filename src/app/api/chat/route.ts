@@ -11,55 +11,73 @@ import { knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
+// SSRF/schema attack surface'ini kamaytirish uchun content-part
+// diskriminated union sifatida qat'iy tekshiriladi. `image_url` faqat
+// data: (bevosita yuklangan rasm) yoki https:// bo'lishi mumkin.
+const contentPart = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), text: z.string().max(20_000) }),
+  z.object({
+    type: z.literal("image_url"),
+    image_url: z.object({
+      url: z
+        .string()
+        .max(12_000_000) // ~11MB base64 data URL
+        .refine((u) => /^data:image\/(png|jpe?g|gif|webp|bmp);base64,/i.test(u) || /^https:\/\//i.test(u), {
+          message: "faqat data:image/* yoki https:// URL",
+        }),
+    }),
+  }),
+]);
+
 const bodySchema = z.object({
-  modelId: z.string().min(1),
+  modelId: z.string().min(1).max(100),
   research: z.boolean().optional().default(false),
-  skills: z.array(z.string()).max(12).optional().default([]),
+  skills: z.array(z.string().max(64)).max(12).optional().default([]),
   messages: z
     .array(
       z.object({
         role: z.enum(["user", "assistant", "system"]),
-        content: z.union([z.string().max(200_000), z.array(z.any()).max(12)]),
+        content: z.union([z.string().max(20_000), z.array(contentPart).max(12)]),
       }),
     )
     .min(1)
-    .max(60),
+    .max(24),
 });
 
 const UPGRADE = "[upgrade]";
 
 async function resolveEntitlement(lastText: string): Promise<{
+  authed: boolean;
   plan: Plan;
   usedToday: number;
   memoryText: string;
   knowledgeText: string;
 }> {
   if (!isSupabaseConfigured()) {
-    return { plan: PLAN_BY_ID.ultra, usedToday: 0, memoryText: "", knowledgeText: "" };
+    // Local development-only: Supabase sozlanmagan bo'lsa demo rejim.
+    return { authed: false, plan: PLAN_BY_ID.ultra, usedToday: 0, memoryText: "", knowledgeText: "" };
   }
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return {
-      plan: process.env.NODE_ENV === "development" ? PLAN_BY_ID.ultra : PLAN_BY_ID.free,
-      usedToday: 0,
-      memoryText: "",
-      knowledgeText: "",
-    };
+    return { authed: false, plan: PLAN_BY_ID.free, usedToday: 0, memoryText: "", knowledgeText: "" };
   }
   const profile = await getProfile(supabase, user.id);
-  const { data: used } = await supabase.rpc("messages_today", { uid: user.id });
+  // Migration 0010 dan keyin messages_today() argumentsiz — auth.uid()'ni ishlatadi.
+  const { data: used } = await supabase.rpc("messages_today");
   const memoryText = profile?.memory_enabled === false ? "" : memoryPrompt(await getMemories(supabase, user.id));
   const knowledgeText = lastText
     ? knowledgePrompt(await retrieveKnowledge(supabase, user.id, lastText, 6))
     : "";
   return {
+    authed: true,
     plan: effectivePlan(profile),
     usedToday: typeof used === "number" ? used : 0,
     memoryText,
@@ -75,6 +93,17 @@ function textOf(content: string | unknown[]): string {
 }
 
 export async function POST(req: Request) {
+  // IP-bazasidagi umumiy anti-abuse — auth kelib chiqishidan qat'i nazar
+  // burst hujumni to'sadi. Auth foydalanuvchilarga alohida tokened bucket.
+  const ip = clientIp(req);
+  const ipRl = rateLimit(`chat:ip:${ip}`, 30, 60_000); // 30/min per IP
+  if (!ipRl.ok) {
+    return Response.json({ error: "Juda ko'p so'rov. Bir oz kuting." }, {
+      status: 429,
+      headers: { "Retry-After": Math.ceil(ipRl.retryAfterMs / 1000).toString() },
+    });
+  }
+
   const json = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
@@ -97,9 +126,14 @@ export async function POST(req: Request) {
   // Skills (user-enabled ∪ auto-detected).
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
   const lastText = lastUser ? textOf(lastUser) : "";
-  const { plan, usedToday, memoryText, knowledgeText } = await resolveEntitlement(lastText);
+  const { authed, plan, usedToday, memoryText, knowledgeText } = await resolveEntitlement(lastText);
   const activeSkills = resolveActiveSkills(enabledSkills, lastText);
   const skillText = skillsPrompt(activeSkills);
+
+  // Auth majburiy (prod'da Supabase sozlangan bo'lsa) — anonim cost-DoS ni to'sish.
+  if (!authed && isSupabaseConfigured()) {
+    return refuse(`${UPGRADE} Chat uchun avval kiring yoki ro'yxatdan o'ting.`);
+  }
 
   if (usedToday >= plan.limits.messagesPerDay) {
     return refuse(`${UPGRADE} Kunlik limit tugadi (${plan.limits.messagesPerDay} ta xabar, ${plan.name}). Ertaga davom eting yoki tarifni oshiring.`);

@@ -15,8 +15,11 @@ type Result = { ok: true } | { ok: false; error: string };
  */
 export async function choosePlan(planId: PlanId): Promise<Result> {
   if (!isPlanId(planId)) return { ok: false, error: "Noto'g'ri tarif" };
-  if (process.env.ALLOW_PLAN_SWITCH !== "true") {
-    return { ok: false, error: "To'lov tizimi tez orada ulanadi. Hozircha tarifni almashtirish yopiq." };
+  // XAVFSIZLIK: ALLOW_PLAN_SWITCH prodda ochilib qolsa, har qanday foydalanuvchi
+  // o'zini Ultra tarifga chiqarib olishi mumkin. Shu sababli bayroq faqat
+  // NODE_ENV=development bilan birgalikda ishlaydi.
+  if (process.env.NODE_ENV !== "development" || process.env.ALLOW_PLAN_SWITCH !== "true") {
+    return { ok: false, error: "Tarif faqat to'lov orqali ochiladi." };
   }
   if (!isSupabaseConfigured()) return { ok: false, error: "Supabase sozlanmagan" };
 
