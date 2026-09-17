@@ -5,7 +5,8 @@ import { agentTurn, initialMessages } from "../src/agent.mjs";
 import { login } from "../src/login.mjs";
 import { printModels, resolveModelId } from "../src/models.mjs";
 import { readAttachment } from "../src/files.mjs";
-import { banner, c, clearScreen, hintBar, logo, separator } from "../src/ui.mjs";
+import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu } from "../src/ui.mjs";
+import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
 
 const rawArgs = process.argv.slice(2);
 const AUTO_YES = rawArgs.includes("--yes") || rawArgs.includes("-y");
@@ -139,47 +140,117 @@ function handleHelp() {
   );
 }
 
+/** Format menu rows with proper color per item. */
+function renderSlashMenu() {
+  const items = SLASH_COMMANDS.map((s) => ({
+    glyph: s.glyph,
+    cmd: s.cmd,
+    desc: s.desc,
+    color: c[s.color] || c.indigo,
+  }));
+  return slashMenu(items);
+}
+
+/** Bulk console.log with proper left gutter. */
+function print(...lines) {
+  const g = gutter();
+  for (const line of lines) console.log(g + line);
+}
+
 // ---- interactive REPL -------------------------------------------------
 async function repl() {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  // Tab autocomplete for slash commands. Boshi `/` bo'lsa mos keladiganlarni
+  // qaytaradi; bo'sh bo'lsa hamma buyruqni.
+  const completer = (line) => {
+    if (!line.startsWith("/")) return [[], line];
+    const hits = SLASH_NAMES.filter((n) => n.startsWith(line));
+    return [hits.length ? hits.map((h) => h + " ") : SLASH_NAMES.map((h) => h + " "), line];
+  };
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, completer });
+
   let config = await ensureAuth(rl);
   let messages = initialMessages();
   const pending = []; // paths queued via /attach for the next user message
+  const enabledSkills = new Set(config.enabledSkills || ["ui-ux-pro-max", "clean-code"]);
 
   clearScreen();
-  console.log(banner(config));
+  console.log(banner(config, [...enabledSkills]));
   console.log(hintBar(config, pending.length));
   console.log();
   const confirm = await confirmer(rl);
 
   // Attractive prompt: pending-count chip + gradient chevron.
+  const G = gutter();
   const promptStr = () =>
     (pending.length ? `${c.amber("📎 " + pending.length)}  ` : "") +
     `${c.indigo("▎")}${c.violet("›")} `;
-  process.stdout.write("  " + promptStr());
+  process.stdout.write(G + promptStr());
+
+  const rewritePrompt = () => process.stdout.write(G + promptStr());
+  const say = (line) => console.log(G + line);
 
   for await (const raw of rl) {
     const input = raw.trim();
     if (!input) {
-      process.stdout.write("  " + promptStr());
+      rewritePrompt();
       continue;
     }
 
+    // ── SLASH MENU ── faqat "/" yozilsa hamma buyruqni jadval bo'lib chiqar.
+    if (input === "/") {
+      console.log(renderSlashMenu());
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Exit ──
     if (input === "/exit" || input === "/quit") break;
+
+    // ── Suhbatni tozalash ──
     if (input === "/clear") {
       messages = initialMessages();
-      console.log(c.dim("  Suhbat tozalandi."));
-      process.stdout.write("  " + promptStr());
+      say(c.dim("Suhbat tozalandi."));
+      rewritePrompt();
       continue;
     }
+
+    // ── Help / Menyu ──
     if (input === "/help") {
-      handleHelp();
-      process.stdout.write("  " + promptStr());
+      console.log(renderSlashMenu());
+      rewritePrompt();
       continue;
     }
+
+    // ── SOVEREIGN Skills ──
+    if (input === "/skills") {
+      console.log(skillsList(SKILLS, [...enabledSkills]));
+      rewritePrompt();
+      continue;
+    }
+    if (input.startsWith("/skill")) {
+      const id = input.slice(6).trim();
+      if (!id) {
+        say(c.dim("Foydalanish: /skill <id> (masalan /skill cybersecurity)"));
+      } else if (!SKILL_IDS.includes(id)) {
+        say(c.red(`Noma'lum skil: ${id}`) + c.dim("  /skills bilan ro'yxatni ko'ring."));
+      } else {
+        if (enabledSkills.has(id)) {
+          enabledSkills.delete(id);
+          say(c.amber(`○ ${id}`) + c.dim("  o'chirildi"));
+        } else {
+          enabledSkills.add(id);
+          say(c.emerald(`● ${id}`) + c.dim("  yoqildi"));
+        }
+        saveConfig({ enabledSkills: [...enabledSkills] });
+      }
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Modellar ──
     if (input === "/models") {
       printModels(config.model);
-      process.stdout.write("  " + promptStr());
+      rewritePrompt();
       continue;
     }
     if (input.startsWith("/model")) {
@@ -188,52 +259,106 @@ async function repl() {
         const m = resolveModelId(arg);
         config = { ...config, model: m };
         saveConfig({ model: m });
-        console.log(`  ${c.green("Model:")} ${c.indigo(m)}${config.token ? c.dim("  (akkaunt rejimida server tarifga qarab tanlaydi)") : ""}`);
+        say(`${c.green("Model:")} ${c.indigo(m)}${config.token ? c.dim("  (server tarifga qarab tanlaydi)") : ""}`);
       } else {
         printModels(config.model);
       }
-      process.stdout.write("  " + promptStr());
+      rewritePrompt();
       continue;
     }
+
+    // ── Ish papkasi ──
     if (input.startsWith("/cwd")) {
       const p = input.slice(4).trim();
       if (p) {
         try {
           process.chdir(p);
           messages = initialMessages();
-          console.log(`  ${c.green("Ish papkasi:")} ${c.white(process.cwd())} ${c.dim("(kontekst yangilandi)")}`);
+          say(`${c.green("Ish papkasi:")} ${c.white(process.cwd())} ${c.dim("(kontekst yangilandi)")}`);
         } catch (err) {
-          console.log(c.red(`  Xato: ${err.message}`));
+          say(c.red(`Xato: ${err.message}`));
         }
       } else {
-        console.log(`  ${c.dim(process.cwd())}`);
+        say(c.dim(process.cwd()));
       }
-      process.stdout.write("  " + promptStr());
+      rewritePrompt();
       continue;
     }
+
+    // ── Fayl biriktirish ──
     if (input.startsWith("/attach")) {
       const p = input.slice(7).trim().replace(/^["']|["']$/g, "");
       if (!p) {
-        console.log(`  ${c.dim("Foydalanish: /attach <fayl-yo'li>")}`);
+        say(c.dim("Foydalanish: /attach <fayl-yo'li>"));
       } else {
         try {
           const att = await readAttachment(p);
           pending.push({ path: p, part: att.part, label: att.label });
-          console.log(`  ${att.label} ${c.dim("navbatda — keyingi xabarga qo'shiladi")}`);
+          say(`${att.label} ${c.dim("navbatda — keyingi xabarga qo'shiladi")}`);
         } catch (err) {
-          console.log(c.red(`  Xato: ${err.message}`));
+          say(c.red(`Xato: ${err.message}`));
         }
       }
-      process.stdout.write("  " + promptStr());
+      rewritePrompt();
       continue;
     }
     if (input === "/detach") {
       pending.length = 0;
-      console.log(c.dim("  Biriktirilgan fayllar tozalandi."));
-      process.stdout.write("  " + promptStr());
+      say(c.dim("Biriktirilgan fayllar tozalandi."));
+      rewritePrompt();
       continue;
     }
 
+    // ── Akkaunt: login / logout / register / upgrade / whoami ──
+    if (input === "/whoami") {
+      if (config.token) say(`${c.green("Ulangan:")} SOVEREIGN akkaunt ${c.dim("(" + config.baseUrl + ")")}`);
+      else if (config.openrouterKey) say(`${c.green("Ulangan:")} O'z OpenRouter kaliti ${c.dim("(" + config.model + ")")}`);
+      else say(c.amber("Ulanmagan."));
+      rewritePrompt();
+      continue;
+    }
+    if (input === "/login") {
+      say(c.dim("Brauzerda tasdiqlash oynasi ochiladi..."));
+      const ok = await login(config.baseUrl);
+      if (ok) {
+        config = loadConfig();
+        say(c.emerald("Muvaffaqiyatli kirdingiz."));
+      } else {
+        say(c.red("Kirish bekor qilindi."));
+      }
+      rewritePrompt();
+      continue;
+    }
+    if (input === "/logout") {
+      const base = clearAuth();
+      config = loadConfig();
+      say(`${c.amber("Chiqdingiz.")} ${base ? c.dim(base) : ""}`);
+      rewritePrompt();
+      continue;
+    }
+    if (input === "/register") {
+      const url = `${config.baseUrl.replace(/\/$/, "")}/register`;
+      openBrowser(url);
+      say(`${c.emerald("→")} Ro'yxatdan o'tish sahifasi ochildi: ${c.dim(url)}`);
+      rewritePrompt();
+      continue;
+    }
+    if (input === "/upgrade") {
+      const url = `${config.baseUrl.replace(/\/$/, "")}/app?upgrade=1`;
+      openBrowser(url);
+      say(`${c.pink("💎")} Tariflar sahifasi ochildi: ${c.dim(url)}`);
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Noma'lum slash-buyruq ──
+    if (input.startsWith("/")) {
+      say(c.red(`Noma'lum buyruq: ${input}`) + c.dim("  /") + c.dim(" yozib menyuni oching."));
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Oddiy xabar → agentga uzatish ──
     if (pending.length) {
       const parts = pending.map((x) => x.part);
       parts.push({ type: "text", text: input });
@@ -242,13 +367,21 @@ async function repl() {
     } else {
       messages.push({ role: "user", content: input });
     }
+    // Yoqilgan skillar system-prompt sifatida agentga uzatiladi (birinchi turda).
+    if (enabledSkills.size && messages.filter((m) => m.role === "system").length < 3) {
+      const activeNames = SKILLS.filter((s) => enabledSkills.has(s.id)).map((s) => `- ${s.name}: ${s.desc}`);
+      messages.splice(2, 0, {
+        role: "system",
+        content: `Foydalanuvchi tomonidan yoqilgan SOVEREIGN Skills:\n${activeNames.join("\n")}\nUlarni javob berayotganda qo'llang.`,
+      });
+    }
     const { error } = await agentTurn({ messages, config, confirm });
-    if (error) console.log(c.red(`\n  Xato: ${error}\n`));
-    process.stdout.write("  " + promptStr());
+    if (error) console.log(G + c.red(`Xato: ${error}\n`));
+    rewritePrompt();
   }
 
   rl.close();
-  console.log(c.dim("\n  Xayr! ⬡\n"));
+  console.log(G + c.dim("\nXayr! ⬡\n"));
 }
 
 // ---- one-shot ---------------------------------------------------------

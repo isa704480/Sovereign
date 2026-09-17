@@ -30,6 +30,19 @@ export function termWidth() {
   return Math.min(Math.max(process.stdout.columns || 80, 60), 120);
 }
 
+/**
+ * Adaptive left gutter — kontent chap tomonga tiqilib qolmasin. Katta terminalda
+ * ~10-15 belgi bo'shliq, kichigida 2 belgi. Butun UI shu gutterga aliniangan.
+ */
+export function gutter() {
+  const w = termWidth();
+  if (w >= 110) return "     ";
+  if (w >= 90) return "    ";
+  if (w >= 75) return "   ";
+  return "  ";
+}
+const G = gutter;
+
 /** Visible length ignoring ANSI escapes. */
 function visLen(s) {
   return String(s).replace(/\x1b\[[0-9;]*m/g, "").length;
@@ -90,8 +103,9 @@ export function logo() {
 }
 
 /** Welcome banner shown when interactive REPL starts. */
-export function banner(config) {
-  const width = Math.min(termWidth() - 2, 88);
+export function banner(config, enabledSkills = []) {
+  const g = G();
+  const width = Math.min(termWidth() - g.length * 2, 84);
   const source = config?.token
     ? `${c.emerald("●")} ${c.white("SOVEREIGN akkaunt")} ${c.dim("· " + (config.baseUrl || ""))}`
     : `${c.amber("●")} ${c.white("O'z kalitingiz")} ${c.dim("· " + (config.model || "openai/gpt-4o-mini"))}`;
@@ -100,19 +114,13 @@ export function banner(config) {
   const tagline = center(c.dim("terminaldagi ") + c.white("AI koding agenti") + c.dim(" · Uzbek-first"), width);
 
   const chip = (label, val, col = c.indigo) => `${col("▸")} ${c.dim(label)} ${c.white(val)}`;
-  const rowStatus = [
-    chip("Manba", "", c.indigo).trim() + " " + source,
-  ].join("   ");
+  const skillsChip = enabledSkills.length
+    ? chip("Skillar", enabledSkills.join(" · "), c.violet)
+    : chip("Skillar", "bekor (/skills bilan yoqing)", c.violet);
+  const rowStatus = chip("Manba", "", c.indigo).trim() + " " + source;
   const rowCwd = chip("Ish papkasi", process.cwd(), c.teal);
-  const rowKeys = [
-    chip("Buyruqlar", "", c.pink).trim() + "  " +
-    c.gray("/help") + c.darkGray(" · ") +
-    c.gray("/model") + c.darkGray(" · ") +
-    c.gray("/attach") + c.darkGray(" · ") +
-    c.gray("/cwd") + c.darkGray(" · ") +
-    c.gray("/clear") + c.darkGray(" · ") +
-    c.gray("/exit"),
-  ].join("");
+  const rowSkills = skillsChip;
+  const rowKeys = chip("Buyruqlar", "", c.pink).trim() + "  " + c.gray("/") + c.white(" yozib menyuni oching");
 
   const boxLines = box(
     [
@@ -123,13 +131,14 @@ export function banner(config) {
       "",
       rowStatus,
       rowCwd,
+      rowSkills,
       rowKeys,
       "",
     ],
     { width, color: c.indigo },
   );
 
-  return "\n" + boxLines.join("\n") + "\n";
+  return "\n" + boxLines.map((l) => g + l).join("\n") + "\n";
 }
 
 /** Compact one-line hint bar (below the prompt). */
@@ -138,10 +147,47 @@ export function hintBar(config, pendingCount = 0) {
   const parts = [
     `${c.indigo("◉")} ${c.dim(model)}`,
     pendingCount ? `${c.amber("📎 " + pendingCount)}` : null,
-    `${c.dim("tab")} ${c.gray("history")}`,
+    `${c.dim("/")} ${c.gray("menu")}`,
+    `${c.dim("tab")} ${c.gray("autocomplete")}`,
     `${c.dim("ctrl+c")} ${c.gray("cancel")}`,
   ].filter(Boolean);
-  return "  " + parts.join(c.darkGray("  ·  "));
+  return G() + parts.join(c.darkGray("  ·  "));
+}
+
+/**
+ * Slash-command menyusi. Foydalanuvchi shunchaki `/` yozsa yoki `/help`
+ * chaqirsa chiqariladi. Har element: glyph, buyruq, tavsif.
+ */
+export function slashMenu(items) {
+  const g = G();
+  const width = Math.min(termWidth() - g.length * 2, 74);
+  const rows = items.map(({ glyph, cmd, desc, color = c.indigo }) => {
+    const glyphPad = pad(color(glyph), 4);
+    const cmdPad = pad(c.white(cmd), 16);
+    return `${glyphPad}  ${cmdPad}  ${c.dim(desc)}`;
+  });
+  const header = c.dim("Buyruqlar menyusi · ") + c.white("tab") + c.dim(" bilan to'ldiriladi");
+  const lines = box(["", header, "", ...rows, ""], { width, color: c.violet });
+  return "\n" + lines.map((l) => g + l).join("\n") + "\n";
+}
+
+/**
+ * Skillar ro'yxati — yoqilgan/o'chirilgan holatini ko'rsatadi.
+ */
+export function skillsList(skills, enabledIds) {
+  const g = G();
+  const width = Math.min(termWidth() - g.length * 2, 78);
+  const rows = skills.map((s) => {
+    const on = enabledIds.includes(s.id);
+    const badge = on ? c.emerald("● ON ") : c.darkGray("○ OFF");
+    const glyph = c.violet(pad(s.glyph, 3));
+    const name = pad(c.white(s.name), 20);
+    const id = pad(c.dim(s.id), 20);
+    return `${badge}  ${glyph}${name} ${id} ${c.dim(s.desc)}`;
+  });
+  const header = c.dim("SOVEREIGN Skills · ") + c.white("/skill <id>") + c.dim(" bilan yoqing/o'chiring");
+  const lines = box(["", header, "", ...rows, ""], { width, color: c.emerald });
+  return "\n" + lines.map((l) => g + l).join("\n") + "\n";
 }
 
 /** Full-screen clear helper. */
@@ -170,11 +216,12 @@ export function spinner(label) {
 
 /** Print a subtle separator between agent turns. */
 export function separator() {
-  const width = Math.min(termWidth() - 4, 76);
-  return "  " + c.darkGray("─".repeat(width));
+  const g = G();
+  const width = Math.min(termWidth() - g.length * 2, 76);
+  return g + c.darkGray("─".repeat(width));
 }
 
 /** Section header for step announcements. */
 export function stepHeader(step, total, label) {
-  return "  " + c.indigo(`[${step}/${total}]`) + " " + c.white(label);
+  return G() + c.indigo(`[${step}/${total}]`) + " " + c.white(label);
 }
