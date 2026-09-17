@@ -189,9 +189,15 @@ async function* streamOpenRouter(
     body: JSON.stringify({
       model: model.providerModel,
       // Free models share an upstream pool and get rate-limited; let OpenRouter
-      // auto-fall-back to the other free models before failing.
+      // auto-fall-back to 2 other free models before failing. OpenRouter cheklovi:
+      // `models` massivida 3 tadan ko'p bo'lmasin.
       ...(model.category === "free"
-        ? { models: [model.providerModel, ...FREE_FALLBACKS.filter((m) => m !== model.providerModel)] }
+        ? {
+            models: [
+              model.providerModel,
+              ...FREE_FALLBACKS.filter((m) => m !== model.providerModel).slice(0, 2),
+            ],
+          }
         : {}),
       messages: cached,
       temperature: opts.temperature ?? 0.7,
