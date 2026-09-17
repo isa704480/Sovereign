@@ -5,7 +5,7 @@ import { agentTurn, initialMessages } from "../src/agent.mjs";
 import { login } from "../src/login.mjs";
 import { printModels, resolveModelId } from "../src/models.mjs";
 import { readAttachment } from "../src/files.mjs";
-import { banner, c, logo } from "../src/ui.mjs";
+import { banner, c, clearScreen, hintBar, logo, separator } from "../src/ui.mjs";
 
 const rawArgs = process.argv.slice(2);
 const AUTO_YES = rawArgs.includes("--yes") || rawArgs.includes("-y");
@@ -146,10 +146,16 @@ async function repl() {
   let messages = initialMessages();
   const pending = []; // paths queued via /attach for the next user message
 
+  clearScreen();
   console.log(banner(config));
+  console.log(hintBar(config, pending.length));
+  console.log();
   const confirm = await confirmer(rl);
 
-  const promptStr = () => (pending.length ? `${c.amber(`[${pending.length}📎]`)} ${c.green("›")} ` : `${c.green("›")} `);
+  // Attractive prompt: pending-count chip + gradient chevron.
+  const promptStr = () =>
+    (pending.length ? `${c.amber("📎 " + pending.length)}  ` : "") +
+    `${c.indigo("▎")}${c.violet("›")} `;
   process.stdout.write("  " + promptStr());
 
   for await (const raw of rl) {

@@ -144,10 +144,11 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
   let printedHeader = false;
   const write = (t) => {
     if (!printedHeader) {
-      process.stdout.write("\n  " + c.indigo("⬡") + "  ");
+      // Uslubli AI javob boshi: markazlashtirilgan ⬡ + rangli chegara
+      process.stdout.write("\n  " + c.indigo("╭") + c.indigo("─") + c.indigo(" ⬡ SOVEREIGN ") + c.indigo("─".repeat(2)) + "\n  " + c.indigo("│") + "  ");
       printedHeader = true;
     }
-    process.stdout.write(t.replace(/\n/g, "\n     "));
+    process.stdout.write(t.replace(/\n/g, "\n  " + c.indigo("│") + "  "));
   };
 
   for (let step = 0; step < maxSteps; step++) {
@@ -171,12 +172,13 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
     messages.push(round.message);
 
     if (!round.toolCalls.length) {
-      process.stdout.write("\n\n");
+      if (printedHeader) process.stdout.write("\n  " + c.indigo("╰" + "─".repeat(3)) + "\n\n");
+      else process.stdout.write("\n");
       return { done: true };
     }
 
     // Model asked for tools — narrate & run each, then loop.
-    if (printedHeader) process.stdout.write("\n");
+    if (printedHeader) process.stdout.write("\n  " + c.indigo("│") + "\n");
     printedHeader = false;
     for (const call of round.toolCalls) {
       let args = {};
