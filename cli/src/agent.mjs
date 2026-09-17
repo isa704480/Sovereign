@@ -94,7 +94,7 @@ async function runRound(messages, config, onText) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${config.openrouterKey}`,
-      "HTTP-Referer": "https://sovereign.ai",
+      "HTTP-Referer": "https://sovhq.vercel.app",
       "X-Title": "SOVEREIGN CLI",
     },
     body: JSON.stringify({

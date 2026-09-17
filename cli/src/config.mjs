@@ -7,7 +7,7 @@ const FILE = join(DIR, "config.json");
 
 const DEFAULTS = {
   // Account mode: SOVEREIGN server base URL + issued token.
-  baseUrl: "https://sovereign.ai",
+  baseUrl: "https://sovhq.vercel.app",
   token: "",
   // Direct mode: user's own OpenRouter key + model.
   model: "openai/gpt-4o-mini",

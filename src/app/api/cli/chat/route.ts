@@ -65,7 +65,7 @@ export async function POST(req: Request) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://sovereign.ai",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://sovhq.vercel.app",
       "X-Title": "SOVEREIGN CLI",
     },
     body: JSON.stringify({
