@@ -20,7 +20,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Browser device-login: opens the approve page, polls until a token is issued. */
 export async function login(baseUrl) {
   const base = baseUrl.replace(/\/$/, "");
-  console.log(`\n  ${logo()} ${c.dim("login")}  →  ${c.dim(base)}`);
+  console.log(`\n  ${logo()} ${c.dim("login")}`);
 
   let code, url;
   try {
@@ -37,9 +37,15 @@ export async function login(baseUrl) {
     return false;
   }
 
-  console.log(`\n  Brauzerda ushbu sahifani oching va ${c.white("Ruxsat berish")} bosing:`);
-  console.log(`  ${c.indigo(url)}\n`);
-  openBrowser(url);
+  // Brauzer avtomatik ochiladi — URL'ni terminalga ko'rsatmaymiz.
+  // Faqat brauzer ochilmasa (Ctrl+click ishlamasa) fallback sifatida chiqamiz.
+  const opened = openBrowser(url);
+  if (opened) {
+    console.log(`  ${c.dim("Brauzerda ochildi — sahifada")} ${c.white("Ruxsat berish")} ${c.dim("bosing.")}`);
+  } else {
+    console.log(`  ${c.dim("Brauzer o'z-o'zidan ochilmadi. Ushbu sahifani qo'lda oching:")}`);
+    console.log(`  ${c.indigo(url)}`);
+  }
 
   process.stdout.write(`  ${c.dim("Tasdiqlanishini kutmoqda")}`);
   const started = Date.now();
