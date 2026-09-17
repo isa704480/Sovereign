@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX } from "lucide-react";
+import { AlertTriangle, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { Markdown } from "./Markdown";
 import { ModelAvatar } from "./ModelAvatar";
 import { TypingIndicator } from "./TypingIndicator";
+import { VerifierPanel } from "./VerifierPanel";
 import { useTheme } from "./theme-context";
 
 interface MessageItemProps {
@@ -168,6 +169,17 @@ export function MessageItem({ message, isLast, onRegenerate, tts }: MessageItemP
           </div>
         )}
 
+        {message.cache && (
+          <div
+            className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]"
+            style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
+            title={`Semantik keshdan (${Math.round(message.cache.similarity * 100)}% o'xshash) — arzon va tez`}
+          >
+            <Zap className="size-3" style={{ color: "var(--t-accent)" }} />
+            Keshdan · {Math.round(message.cache.similarity * 100)}% mos
+          </div>
+        )}
+
         {theme.layout.showCitations && (
           <div className="mb-2 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--t-text-muted)" }}>
             <span style={{ color: model.primary }}>{model.glyph}</span> Javob
@@ -208,6 +220,10 @@ export function MessageItem({ message, isLast, onRegenerate, tts }: MessageItemP
             </div>
           )}
         </div>
+
+        {message.verifier && message.verifier.length > 0 && (
+          <VerifierPanel issues={message.verifier} />
+        )}
 
         {message.skills?.length ? (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">

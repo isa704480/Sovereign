@@ -106,6 +106,12 @@ export function useSendMessage() {
           } else if (ev.type === "step") {
             // Show which model is active for the current pipeline step.
             s.updateMessage(conversationId, assistant.id, { modelId: ev.modelId });
+          } else if (ev.type === "cache") {
+            s.updateMessage(conversationId, assistant.id, {
+              cache: { model: ev.model, similarity: ev.similarity },
+            });
+          } else if (ev.type === "verifier") {
+            s.updateMessage(conversationId, assistant.id, { verifier: ev.issues });
           } else if (ev.type === "error") {
             if (ev.message.startsWith("[upgrade]")) {
               failed = ev.message.replace("[upgrade]", "").trim();

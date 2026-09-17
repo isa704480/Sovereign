@@ -12,6 +12,17 @@ export interface RouteInfo {
   steps: { modelId: string; kind: string; purpose: string }[];
 }
 
+export interface VerifierIssue {
+  fact: string;
+  verdict: "correct" | "suspicious" | "unverifiable";
+  note?: string;
+}
+
+export interface CacheInfo {
+  model: string;
+  similarity: number;
+}
+
 export type Role = "user" | "assistant" | "system";
 export type MessageStatus = "streaming" | "done" | "error";
 
@@ -29,6 +40,10 @@ export interface ChatMessage {
   route?: RouteInfo;
   /** Ids of models actually used (Auto pipeline). */
   usedModels?: string[];
+  /** Semantic-cache hit (javob keshdan qaytarilgan bo'lsa). */
+  cache?: CacheInfo;
+  /** Verifier tomonidan topilgan shubhali faktlar. */
+  verifier?: VerifierIssue[];
   createdAt: string;
   status?: MessageStatus;
   error?: string;

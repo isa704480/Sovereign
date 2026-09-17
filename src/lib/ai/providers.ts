@@ -16,6 +16,8 @@ export type StreamEvent =
   | { type: "skills"; skills: string[] }
   | { type: "route"; reason: string; steps: { modelId: string; kind: string; purpose: string }[] }
   | { type: "step"; modelId: string; kind: string; purpose: string; index: number }
+  | { type: "cache"; model: string; similarity: number }
+  | { type: "verifier"; issues: { fact: string; verdict: "correct" | "suspicious" | "unverifiable"; note?: string }[] }
   | { type: "error"; message: string }
   | { type: "done" };
 
@@ -49,7 +51,8 @@ export function buildSystemPrompt(model: SovereignModel, research: boolean, extr
     `Sen SOVEREIGN AI platformasidagi "${model.name}" modelisan.`,
     "Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (asosan o'zbek tili).",
     "Javoblarni Markdown'da formatla: sarlavhalar, ro'yxatlar, kod bloklari (til ko'rsatilgan).",
-    "Aniq, qisqa va foydali bo'l. Bilmasang — bilmasligingni ayt.",
+    "Aniq, qisqa va foydali bo'l.",
+    ANTI_HALLUCINATION,
   ];
   if (research || isResearchModel(model)) {
     base.push("Faqat tasdiqlangan manbalardan javob ber va har bir da'voni manba raqami [n] bilan asosla.");
@@ -57,6 +60,28 @@ export function buildSystemPrompt(model: SovereignModel, research: boolean, extr
   if (extra) base.push(extra);
   return base.join(" ");
 }
+
+/**
+ * Faktual xatolarni (gallyusinatsiya) 30-50% kamaytiruvchi asosiy qoida.
+ * Modelga "bilmayman deb aytishga" ijozat beradi va aniqroq faktlar so'rashi
+ * mumkinligini aytadi.
+ */
+export const ANTI_HALLUCINATION = [
+  "QAT'IY QOIDA (gallyusinatsiyaga qarshi):",
+  "1. Agar biror faktga (sana, ism, statistika, funksiya nomi, kutubxona versiyasi) qat'iy ishonchli bo'lmasang — \"bilmayman\" yoki \"tekshirish kerak\" deb yoz. HECH QACHON to'qib chiqarma.",
+  "2. Yo'l, URL, API endpoint, raqamli qiymatlarni faqat manbadan olib yoz. O'ylab topib yozma.",
+  "3. Kod yozganingda mavjud bo'lgan kutubxonalar va funksiyalarnigina ishlatishga urin. Ishlatgan har bir sinov qilinmagan API ni \"tekshirish kerak\" deb belgila.",
+  "4. Foydalanuvchi savoli noaniq bo'lsa — o'zing ko'p variantni sanaganingdan ko'ra, aniqlashtiruvchi savol ber.",
+].join(" ");
+
+/**
+ * RAG konteksti (bilim bazasi hujjatlari) bilan javob berilganda ishlatiladi:
+ * modelga faqat berilgan matn ichidan javob berishga majburlaydi.
+ */
+export const GROUNDED_GENERATION =
+  "MUHIM: Yuqorida keltirilgan Bilim Bazasi ma'lumotlariga TAYANIB javob ber. " +
+  "Har bir da'voga qavs ichida hujjat nomini yoz (masalan: [architecture.pdf]). " +
+  "Agar javob berilgan matnda YO'Q bo'lsa — \"bu bilim bazangizda ko'rsatilmagan\" deb yoz va o'zingdan qo'shma.";
 
 /** Plan-level guardrail for cheap tiers: simple chat, no large code deliverables. */
 export const SIMPLE_CHAT_GUARDRAIL =
@@ -123,6 +148,28 @@ type OrChunk = {
   error?: { message?: string };
 };
 
+/**
+ * Anthropic modellar OpenRouter orqali `cache_control` orqali system promptni
+ * keshlashi mumkin — bu 90% arzon bo'ladi (~5 daqiqa TTL). Faqat system message
+ * uzun (>1000 token taxminan) bo'lsa foydali, aks holda kesh cache-write o'zi
+ * qimmat.
+ */
+function withPromptCache(model: SovereignModel, messages: ChatMessageInput[]): ChatMessageInput[] {
+  if (!model.providerModel.startsWith("anthropic/")) return messages;
+  const sys = messages.find((m) => m.role === "system");
+  if (!sys) return messages;
+  const text = typeof sys.content === "string" ? sys.content : textOf(sys.content);
+  if (text.length < 2000) return messages; // ~500 tokendan kam bo'lsa kesh foyda bermaydi
+  return messages.map((m) =>
+    m.role === "system"
+      ? {
+          role: "system",
+          content: [{ type: "text", text, cache_control: { type: "ephemeral" } }],
+        }
+      : m,
+  );
+}
+
 async function* streamOpenRouter(
   model: SovereignModel,
   messages: ChatMessageInput[],
@@ -130,6 +177,7 @@ async function* streamOpenRouter(
   maxTokens: number,
   retried = false,
 ): AsyncGenerator<StreamEvent> {
+  const cached = withPromptCache(model, messages);
   const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
     method: "POST",
     headers: {
@@ -145,7 +193,7 @@ async function* streamOpenRouter(
       ...(model.category === "free"
         ? { models: [model.providerModel, ...FREE_FALLBACKS.filter((m) => m !== model.providerModel)] }
         : {}),
-      messages,
+      messages: cached,
       temperature: opts.temperature ?? 0.7,
       max_tokens: maxTokens,
       transforms: ["middle-out"],

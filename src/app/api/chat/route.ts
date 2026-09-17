@@ -1,5 +1,7 @@
 import { z } from "zod";
-import { SIMPLE_CHAT_GUARDRAIL, streamCompletion, type StreamEvent } from "@/lib/ai/providers";
+import { GROUNDED_GENERATION, SIMPLE_CHAT_GUARDRAIL, streamCompletion, type StreamEvent } from "@/lib/ai/providers";
+import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
+import { verifyAnswer } from "@/lib/ai/verifier";
 import { planRouteLLM } from "@/lib/ai/router";
 import { AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
@@ -131,6 +133,17 @@ export async function POST(req: Request) {
     }
   }
 
+  // Semantic cache: faqat oddiy savol (RAG/xotira/attach yo'q, research emas)
+  // — foydalanuvchi savoli o'xshash bo'lsa modelga bormay javob qaytariladi.
+  const canCache =
+    isSupabaseConfigured() &&
+    !research &&
+    !isAuto &&
+    !knowledgeText &&
+    !memoryText &&
+    typeof lastUser === "string" &&
+    lastText.length >= 12;
+
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (ev: StreamEvent | Record<string, unknown>) => controller.enqueue(sse(ev));
@@ -138,7 +151,31 @@ export async function POST(req: Request) {
         if (activeSkills.length) send({ type: "skills", skills: activeSkills.map((s) => s.id) });
         if (isAuto) send({ type: "route", reason: routeReason, steps });
 
+        // Semantik keshdan tekshirish.
+        if (canCache) {
+          try {
+            const supabase = await createClient();
+            const hit = await lookupSemanticCache(supabase, lastText);
+            if (hit) {
+              send({ type: "cache", model: hit.model, similarity: hit.similarity });
+              // Javobni bo'laklab yuborish — foydalanuvchi streaming his qiladi.
+              const parts = hit.answer.match(/\S+\s*|\s+/g) ?? [hit.answer];
+              for (const p of parts) {
+                send({ type: "text", text: p });
+                await new Promise((r) => setTimeout(r, 5));
+              }
+              send({ type: "done" });
+              controller.enqueue(done);
+              controller.close();
+              return;
+            }
+          } catch {
+            /* kesh xatosi indamay o'tadi */
+          }
+        }
+
         let researchContext = "";
+        let cacheableAnswer = "";
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
           if (isAuto || steps.length > 1) send({ type: "step", modelId: step.modelId, kind: step.kind, purpose: step.purpose, index: i });
@@ -154,6 +191,7 @@ export async function POST(req: Request) {
 
           const extra = [
             knowledgeText,
+            knowledgeText ? GROUNDED_GENERATION : "",
             memoryText,
             skillText,
             plan.limits.fullCode ? "" : SIMPLE_CHAT_GUARDRAIL,
@@ -177,6 +215,29 @@ export async function POST(req: Request) {
           if (step.kind === "research") {
             researchContext = stepText;
             if (steps.length > 1) send({ type: "text", text: "\n\n---\n\n" });
+          } else if (step.kind === "answer") {
+            cacheableAnswer = stepText;
+          }
+        }
+
+        // Muvaffaqiyatli tugagach — yangi javobni keshga yozamiz.
+        if (canCache && cacheableAnswer && steps.length === 1) {
+          try {
+            const supabase = await createClient();
+            void saveSemanticCache(supabase, lastText, cacheableAnswer, steps[0].modelId);
+          } catch {
+            /* ignore */
+          }
+        }
+
+        // Verifier: uzun faktual javoblarni haiku bilan tekshirish.
+        // Streaming tugagandan keyin qo'shimcha "verifier" eventi keladi.
+        if (cacheableAnswer.length >= 300 && !research) {
+          try {
+            const issues = await verifyAnswer(lastText, cacheableAnswer);
+            if (issues.length > 0) send({ type: "verifier", issues });
+          } catch {
+            /* verifier ixtiyoriy — xato bo'lsa jim */
           }
         }
       } catch (err) {
