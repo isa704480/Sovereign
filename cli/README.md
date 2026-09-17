@@ -7,11 +7,11 @@ Terminaldagi AI koding agenti. `sovereign` deb yozing — AI ochiladi, ish papka
 Node.js 20+ kerak.
 
 ```bash
-npm install -g @islombekmansurov/sov-cli
+npm install -g @isa704480/sov-cli
 ```
 
 > Loyiha ichidan (publish qilinmagan bo'lsa): `npm run cli:install`
-> O'chirish: `npm uninstall -g @islombekmansurov/sov-cli`
+> O'chirish: `npm uninstall -g @isa704480/sov-cli`
 
 Bu `sovereign` (va qisqa `sov`) buyrug'ini o'rnatadi.
 
