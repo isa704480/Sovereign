@@ -27,6 +27,7 @@ const GROQ_BASE = "https://api.groq.com/openai/v1";
 const OPENAI_BASE = "https://api.openai.com/v1";
 const CEREBRAS_BASE = "https://api.cerebras.ai/v1";
 const SAMBANOVA_BASE = "https://api.sambanova.ai/v1";
+const MISTRAL_BASE = "https://api.mistral.ai/v1";
 
 /**
  * Direct provider mapping — OpenRouter'ni chetlab tez va ishonchli endpointga
@@ -37,7 +38,7 @@ const SAMBANOVA_BASE = "https://api.sambanova.ai/v1";
  * 4) OpenAI direct — kuchli, ammo pullik
  * 5) OpenRouter — universal fallback
  */
-type Provider = "groq" | "cerebras" | "sambanova" | "openai";
+type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai";
 
 interface RouteCandidate {
   provider: Provider;
@@ -70,6 +71,11 @@ const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
     { provider: "groq", model: "qwen-2.5-coder-32b" },
     { provider: "cerebras", model: "qwen-3-32b" },
   ],
+  // Mistral direct — kod, umumiy va Codestral (kod uchun mutaxassis)
+  "mistralai/mistral-large": [{ provider: "mistral", model: "mistral-large-latest" }],
+  "mistralai/mistral-small": [{ provider: "mistral", model: "mistral-small-latest" }],
+  "mistralai/codestral-latest": [{ provider: "mistral", model: "codestral-latest" }],
+  "mistralai/pixtral-large": [{ provider: "mistral", model: "pixtral-large-latest" }],
   // DeepSeek R1 — SambaNova eng tez
   "deepseek/deepseek-r1-distill-llama-70b": [
     { provider: "sambanova", model: "DeepSeek-R1-Distill-Llama-70B" },
@@ -90,6 +96,7 @@ function providerAvailable(p: Provider): boolean {
   if (p === "groq") return !!process.env.GROQ_API_KEY;
   if (p === "cerebras") return !!process.env.CEREBRAS_API_KEY;
   if (p === "sambanova") return !!process.env.SAMBANOVA_API_KEY;
+  if (p === "mistral") return !!process.env.MISTRAL_API_KEY;
   return !!process.env.OPENAI_API_KEY;
 }
 
@@ -97,6 +104,7 @@ function providerEndpoint(p: Provider): { url: string; auth: string } {
   if (p === "groq") return { url: `${GROQ_BASE}/chat/completions`, auth: process.env.GROQ_API_KEY! };
   if (p === "cerebras") return { url: `${CEREBRAS_BASE}/chat/completions`, auth: process.env.CEREBRAS_API_KEY! };
   if (p === "sambanova") return { url: `${SAMBANOVA_BASE}/chat/completions`, auth: process.env.SAMBANOVA_API_KEY! };
+  if (p === "mistral") return { url: `${MISTRAL_BASE}/chat/completions`, auth: process.env.MISTRAL_API_KEY! };
   return { url: `${OPENAI_BASE}/chat/completions`, auth: process.env.OPENAI_API_KEY! };
 }
 
