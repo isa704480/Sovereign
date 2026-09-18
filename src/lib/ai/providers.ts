@@ -25,33 +25,89 @@ const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 const PERPLEXITY_BASE = "https://api.perplexity.ai";
 const GROQ_BASE = "https://api.groq.com/openai/v1";
 const OPENAI_BASE = "https://api.openai.com/v1";
+const CEREBRAS_BASE = "https://api.cerebras.ai/v1";
+const SAMBANOVA_BASE = "https://api.sambanova.ai/v1";
 
 /**
  * Direct provider mapping — OpenRouter'ni chetlab tez va ishonchli endpointga
- * yo'naltirish. Kaliti bor bo'lsa direct, aks holda OpenRouter fallback.
- * Groq eng tez inference (~500 tok/s), OpenAI direct native gpt-4o.
+ * yo'naltirish. Har model uchun tarjih tartibi:
+ * 1) Groq — dunyodagi eng tez (~500 tok/s)
+ * 2) Cerebras — kuchli (Llama 405B tekin sxema)
+ * 3) SambaNova — DeepSeek R1 (reasoning) uchun eng tez
+ * 4) OpenAI direct — kuchli, ammo pullik
+ * 5) OpenRouter — universal fallback
  */
-const DIRECT_ROUTES: Record<string, { provider: "groq" | "openai"; model: string }> = {
-  // Groq direct (tekin sxema, dunyo eng tez)
-  "meta-llama/llama-3.3-70b-instruct": { provider: "groq", model: "llama-3.3-70b-versatile" },
-  "meta-llama/llama-3.3-70b-instruct:free": { provider: "groq", model: "llama-3.3-70b-versatile" },
-  "meta-llama/llama-3.1-8b-instruct": { provider: "groq", model: "llama-3.1-8b-instant" },
-  "qwen/qwen-2.5-coder-32b-instruct": { provider: "groq", model: "qwen-2.5-coder-32b" },
+type Provider = "groq" | "cerebras" | "sambanova" | "openai";
+
+interface RouteCandidate {
+  provider: Provider;
+  model: string;
+}
+
+const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
+  // Llama 3.3 70B — Groq → Cerebras → SambaNova (barchada bor)
+  "meta-llama/llama-3.3-70b-instruct": [
+    { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "cerebras", model: "llama-3.3-70b" },
+    { provider: "sambanova", model: "Meta-Llama-3.3-70B-Instruct" },
+  ],
+  "meta-llama/llama-3.3-70b-instruct:free": [
+    { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "cerebras", model: "llama-3.3-70b" },
+    { provider: "sambanova", model: "Meta-Llama-3.3-70B-Instruct" },
+  ],
+  "meta-llama/llama-3.1-8b-instruct": [
+    { provider: "groq", model: "llama-3.1-8b-instant" },
+    { provider: "cerebras", model: "llama3.1-8b" },
+  ],
+  // Llama 3.1 405B — faqat SambaNova va Cerebras da bor
+  "meta-llama/llama-3.1-405b-instruct": [
+    { provider: "sambanova", model: "Meta-Llama-3.1-405B-Instruct" },
+    { provider: "cerebras", model: "llama3.1-405b" },
+  ],
+  // Qwen Coder
+  "qwen/qwen-2.5-coder-32b-instruct": [
+    { provider: "groq", model: "qwen-2.5-coder-32b" },
+    { provider: "cerebras", model: "qwen-3-32b" },
+  ],
+  // DeepSeek R1 — SambaNova eng tez
+  "deepseek/deepseek-r1-distill-llama-70b": [
+    { provider: "sambanova", model: "DeepSeek-R1-Distill-Llama-70B" },
+    { provider: "groq", model: "deepseek-r1-distill-llama-70b" },
+  ],
+  "deepseek/deepseek-r1-distill-llama-70b:free": [
+    { provider: "sambanova", model: "DeepSeek-R1-Distill-Llama-70B" },
+    { provider: "groq", model: "deepseek-r1-distill-llama-70b" },
+  ],
 
   // OpenAI direct
-  "openai/gpt-4o-mini": { provider: "openai", model: "gpt-4o-mini" },
-  "openai/gpt-4o": { provider: "openai", model: "gpt-4o" },
-  "openai/gpt-4-turbo": { provider: "openai", model: "gpt-4-turbo" },
+  "openai/gpt-4o-mini": [{ provider: "openai", model: "gpt-4o-mini" }],
+  "openai/gpt-4o": [{ provider: "openai", model: "gpt-4o" }],
+  "openai/gpt-4-turbo": [{ provider: "openai", model: "gpt-4-turbo" }],
 };
 
-function pickDirectRoute(providerModel: string): { url: string; auth: string; model: string } | null {
-  const route = DIRECT_ROUTES[providerModel];
-  if (!route) return null;
-  if (route.provider === "groq" && process.env.GROQ_API_KEY) {
-    return { url: `${GROQ_BASE}/chat/completions`, auth: process.env.GROQ_API_KEY, model: route.model };
-  }
-  if (route.provider === "openai" && process.env.OPENAI_API_KEY) {
-    return { url: `${OPENAI_BASE}/chat/completions`, auth: process.env.OPENAI_API_KEY, model: route.model };
+function providerAvailable(p: Provider): boolean {
+  if (p === "groq") return !!process.env.GROQ_API_KEY;
+  if (p === "cerebras") return !!process.env.CEREBRAS_API_KEY;
+  if (p === "sambanova") return !!process.env.SAMBANOVA_API_KEY;
+  return !!process.env.OPENAI_API_KEY;
+}
+
+function providerEndpoint(p: Provider): { url: string; auth: string } {
+  if (p === "groq") return { url: `${GROQ_BASE}/chat/completions`, auth: process.env.GROQ_API_KEY! };
+  if (p === "cerebras") return { url: `${CEREBRAS_BASE}/chat/completions`, auth: process.env.CEREBRAS_API_KEY! };
+  if (p === "sambanova") return { url: `${SAMBANOVA_BASE}/chat/completions`, auth: process.env.SAMBANOVA_API_KEY! };
+  return { url: `${OPENAI_BASE}/chat/completions`, auth: process.env.OPENAI_API_KEY! };
+}
+
+function pickDirectRoute(providerModel: string): { url: string; auth: string; model: string; provider: Provider } | null {
+  const candidates = DIRECT_ROUTES[providerModel];
+  if (!candidates) return null;
+  for (const c of candidates) {
+    if (providerAvailable(c.provider)) {
+      const ep = providerEndpoint(c.provider);
+      return { ...ep, model: c.model, provider: c.provider };
+    }
   }
   return null;
 }
