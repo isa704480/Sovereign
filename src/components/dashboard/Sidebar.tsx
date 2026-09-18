@@ -181,53 +181,125 @@ export function Sidebar({
         ))}
       </div>
 
-      {/* footer */}
-      <div className="space-y-1 px-2 pb-2 pt-2" style={{ borderTop: "1px solid var(--t-border)" }}>
-        <button type="button" onClick={onOpenMemory} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/5" style={{ color: "var(--t-text-muted)" }}>
-          <Brain className="size-4" /> Xotira
-        </button>
-        <button type="button" onClick={onOpenKnowledge} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/5" style={{ color: "var(--t-text-muted)" }}>
-          <FolderOpen className="size-4" /> Knowledge Base
-        </button>
-        <button type="button" onClick={onOpenSettings} className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-white/5" style={{ color: "var(--t-text-muted)" }}>
-          <Settings className="size-4" /> Sozlamalar
-        </button>
-        <div className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm" style={{ color: "var(--t-text-muted)" }}>
-          <Globe className="size-4" /> Research rejim
-          <span className="ml-auto">
-            <Toggle on={research} onChange={onToggleResearch} label="Research rejim" />
-          </span>
-        </div>
+      {/* footer — Apple unified panel: hairline dividers ichida, chegara tashqarida */}
+      <div className="px-2 pb-3 pt-2">
+        <div
+          className="tt overflow-hidden"
+          style={{
+            border: "1px solid var(--t-border)",
+            borderRadius: "14px",
+            background: "color-mix(in srgb, var(--t-text) 3%, transparent)",
+          }}
+        >
+          {/* Xotira */}
+          <button
+            type="button"
+            onClick={onOpenMemory}
+            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+            style={{ color: "var(--t-text)" }}
+          >
+            <Brain className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <span className="flex-1 text-left">Xotira</span>
+          </button>
 
-        <div className="mt-1 flex items-center gap-2.5 px-3 py-2" style={{ borderTop: "1px solid var(--t-border)" }}>
-          {user.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={user.avatarUrl} alt="" className="size-8 rounded-full object-cover" />
-          ) : (
-            <span className="flex size-8 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: model.primary }}>
-              {initials || "S"}
+          <div style={{ height: 1, background: "var(--t-border)" }} />
+
+          {/* Knowledge Base */}
+          <button
+            type="button"
+            onClick={onOpenKnowledge}
+            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+            style={{ color: "var(--t-text)" }}
+          >
+            <FolderOpen className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <span className="flex-1 text-left">Knowledge Base</span>
+          </button>
+
+          <div style={{ height: 1, background: "var(--t-border)" }} />
+
+          {/* Research rejim (toggle qatori) */}
+          <div className="flex items-center gap-2.5 px-3 py-2.5 text-sm" style={{ color: "var(--t-text)" }}>
+            <Globe className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <span className="flex-1">Research rejim</span>
+            <Toggle on={research} onChange={onToggleResearch} label="Research rejim" />
+          </div>
+
+          <div style={{ height: 1, background: "var(--t-border)" }} />
+
+          {/* Sozlamalar */}
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+            style={{ color: "var(--t-text)" }}
+          >
+            <Settings className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <span className="flex-1 text-left">Sozlamalar</span>
+          </button>
+
+          <div style={{ height: 1, background: "var(--t-border)" }} />
+
+          {/* Akkaunt tile — butun tile Settings ochadi, faqat logout tugmasi alohida ishlaydi */}
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="tt group flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/5"
+          >
+            {user.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={user.avatarUrl} alt="" className="size-8 rounded-full object-cover" />
+            ) : (
+              <span
+                className="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                style={{ background: model.primary }}
+              >
+                {initials || "S"}
+              </span>
+            )}
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>
+                {user.name}
+              </span>
+              <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+                <span style={{ color: plan.color }}>{plan.name}</span>
+                {isDev ? " · Dev" : ""}
+                {plan.id !== "ultra" && (
+                  <>
+                    {" · "}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onUpgrade();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.stopPropagation();
+                          onUpgrade();
+                        }
+                      }}
+                      className="cursor-pointer hover:underline"
+                      style={{ color: model.accent }}
+                    >
+                      Upgrade →
+                    </span>
+                  </>
+                )}
+              </span>
             </span>
-          )}
-          <span className="min-w-0 flex-1 leading-tight">
-            <span className="block truncate text-sm font-medium">{user.name}</span>
-            <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-              <span style={{ color: plan.color }}>{plan.name}</span>
-              {isDev ? " · Dev" : ""}
-              {plan.id !== "ultra" && (
-                <>
-                  {" · "}
-                  <button type="button" onClick={onUpgrade} className="hover:underline" style={{ color: model.accent }}>
-                    Upgrade →
-                  </button>
-                </>
-              )}
-            </span>
-          </span>
-          <form action={signOut}>
-            <button type="submit" className="rounded-md p-1.5 transition-colors hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title="Chiqish">
-              <LogOut className="size-4" />
-            </button>
-          </form>
+            <form action={signOut} onClick={(e) => e.stopPropagation()}>
+              <button
+                type="submit"
+                className="rounded-md p-1.5 opacity-60 transition-all hover:bg-white/10 hover:opacity-100"
+                style={{ color: "var(--t-text-muted)" }}
+                title="Chiqish"
+                aria-label="Chiqish"
+              >
+                <LogOut className="size-4" />
+              </button>
+            </form>
+          </button>
         </div>
       </div>
     </div>
