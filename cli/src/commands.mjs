@@ -14,23 +14,30 @@ export const SKILLS = [
 
 export const SKILL_IDS = SKILLS.map((s) => s.id);
 
-/** Slash-buyruqlar to'liq ro'yxati (menu + tab autocomplete uchun). */
+/**
+ * Slash-buyruqlar — Apple-style restraint: hech qanday emoji, faqat matn.
+ * Menyu Apple settings-list ko'rinishida guruhlanadi (ui.mjs slashMenu).
+ */
 export const SLASH_COMMANDS = [
-  { cmd: "/help",     glyph: "❔", desc: "Yordam va buyruqlar ro'yxati", color: "indigo" },
-  { cmd: "/skills",   glyph: "✦",  desc: "SOVEREIGN skillari ro'yxati", color: "violet" },
-  { cmd: "/skill",    glyph: "◈",  desc: "Skilni yoqish/o'chirish: /skill <id>", color: "violet" },
-  { cmd: "/models",   glyph: "⬡",  desc: "Mavjud modellar ro'yxati", color: "teal" },
-  { cmd: "/model",    glyph: "◉",  desc: "Modelni almashtirish: /model <id>", color: "teal" },
-  { cmd: "/attach",   glyph: "📎", desc: "Fayl biriktirish: /attach <yo'l>", color: "amber" },
-  { cmd: "/detach",   glyph: "✕",  desc: "Biriktirilgan fayllarni tozalash", color: "gray" },
-  { cmd: "/cwd",      glyph: "📁", desc: "Ish papkasini o'zgartirish: /cwd <yo'l>", color: "teal" },
-  { cmd: "/clear",    glyph: "🗑", desc: "Suhbatni tozalash", color: "gray" },
-  { cmd: "/login",    glyph: "🔑", desc: "SOVEREIGN akkauntga kirish", color: "emerald" },
-  { cmd: "/logout",   glyph: "🚪", desc: "Akkauntdan chiqish", color: "amber" },
-  { cmd: "/register", glyph: "✎",  desc: "Saytda ro'yxatdan o'tish (brauzer ochiladi)", color: "emerald" },
-  { cmd: "/upgrade",  glyph: "💎", desc: "Tarifni oshirish (brauzer ochiladi)", color: "pink" },
-  { cmd: "/whoami",   glyph: "👤", desc: "Kim sifatida ulanganingiz", color: "gray" },
-  { cmd: "/exit",     glyph: "⎋",  desc: "Chiqish", color: "red" },
+  { cmd: "/help",     desc: "Buyruqlar menyusi" },
+  { cmd: "/clear",    desc: "Suhbat tarixini tozalash" },
+  { cmd: "/attach",   desc: "Fayl biriktirish — /attach <yo'l>" },
+  { cmd: "/detach",   desc: "Barcha biriktirilganlarni bekor qilish" },
+
+  { cmd: "/model",    desc: "Modelni tanlash — /model <id>" },
+  { cmd: "/models",   desc: "Barcha modellar ro'yxati" },
+
+  { cmd: "/skills",   desc: "SOVEREIGN Skills ro'yxati" },
+  { cmd: "/skill",    desc: "Skilni ON/OFF — /skill <id>" },
+
+  { cmd: "/whoami",   desc: "Ulanish holati" },
+  { cmd: "/login",    desc: "SOVEREIGN akkauntga kirish" },
+  { cmd: "/logout",   desc: "Akkauntdan chiqish" },
+  { cmd: "/register", desc: "Ro'yxatdan o'tish (brauzer ochiladi)" },
+  { cmd: "/upgrade",  desc: "Tarifni oshirish (brauzer ochiladi)" },
+
+  { cmd: "/cwd",      desc: "Ish papkasini o'zgartirish" },
+  { cmd: "/exit",     desc: "Chiqish" },
 ];
 
 export const SLASH_NAMES = SLASH_COMMANDS.map((s) => s.cmd);

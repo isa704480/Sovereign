@@ -1,39 +1,55 @@
-// SOVEREIGN CLI — polished TUI. Zero dependencies (ANSI + terminal size only).
+// SOVEREIGN CLI — Apple Liquid Glass adapted for terminal.
+// Zero dependencies. Restrained palette, hairline dividers, unified panels.
 
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const wrap = (open, close) => (s) => (useColor ? `\x1b[${open}m${s}\x1b[${close}m` : String(s));
 
+/**
+ * Apple-style restrained palette:
+ * - `text` (white) and `dim` (mid gray) do 90% of the work
+ * - `subtle` and `muted` for hairline hierarchies
+ * - `accent` (single indigo) — used sparingly for emphasis
+ * - Semantic (green/amber/red) only for status meaning, never decoration
+ */
 export const c = {
   reset: "\x1b[0m",
   bold: wrap(1, 22),
   dim: wrap(2, 22),
   italic: wrap(3, 23),
   underline: wrap(4, 24),
-  indigo: wrap("38;2;124;111;247", 39),
-  violet: wrap("38;2;168;85;247", 39),
-  teal: wrap("38;2;32;212;232", 39),
-  cyan: wrap("38;2;103;232;249", 39),
-  green: wrap("38;2;16;212;160", 39),
-  emerald: wrap("38;2;52;211;153", 39),
-  amber: wrap("38;2;245;158;11", 39),
-  red: wrap("38;2;239;68;68", 39),
-  pink: wrap("38;2;236;72;153", 39),
+
+  text: wrap("38;2;235;238;250", 39),
+  subtle: wrap("38;2;175;180;205", 39),
+  muted: wrap("38;2;120;127;160", 39),
+  faint: wrap("38;2;80;85;110", 39),
+  hairline: wrap("38;2;48;52;72", 39),
+
+  accent: wrap("38;2;118;108;235", 39),
+  accentDim: wrap("38;2;90;82;180", 39),
+  ok: wrap("38;2;90;204;150", 39),
+  warn: wrap("38;2;245;170;60", 39),
+  err: wrap("38;2;235;90;100", 39),
+
+  // Compat aliases (agent.mjs & older code)
+  white: wrap("38;2;235;238;250", 39),
   gray: wrap("38;2;120;127;160", 39),
   darkGray: wrap("38;2;80;85;110", 39),
-  white: wrap("38;2;240;242;255", 39),
-  bgIndigo: wrap("48;2;40;35;80", 49),
-  bgSurface: wrap("48;2;20;22;38", 49),
+  green: wrap("38;2;90;204;150", 39),
+  emerald: wrap("38;2;90;204;150", 39),
+  amber: wrap("38;2;245;170;60", 39),
+  red: wrap("38;2;235;90;100", 39),
+  indigo: wrap("38;2;118;108;235", 39),
+  violet: wrap("38;2;140;120;235", 39),
+  teal: wrap("38;2;90;180;220", 39),
+  cyan: wrap("38;2;100;200;225", 39),
+  pink: wrap("38;2;220;125;175", 39),
 };
 
-/** Terminal width, safely clamped. */
 export function termWidth() {
   return Math.min(Math.max(process.stdout.columns || 80, 60), 120);
 }
 
-/**
- * Adaptive left gutter — kontent chap tomonga tiqilib qolmasin. Katta terminalda
- * ~10-15 belgi bo'shliq, kichigida 2 belgi. Butun UI shu gutterga aliniangan.
- */
+/** Adaptive left gutter — Apple-style breathing room. */
 export function gutter() {
   const w = termWidth();
   if (w >= 110) return "     ";
@@ -43,9 +59,17 @@ export function gutter() {
 }
 const G = gutter;
 
-/** Visible length ignoring ANSI escapes. */
+/** Visible length ignoring ANSI. Doubles wide emoji as 2. */
 function visLen(s) {
-  return String(s).replace(/\x1b\[[0-9;]*m/g, "").length;
+  const noAnsi = String(s).replace(/\x1b\[[0-9;]*m/g, "");
+  // Rough emoji width: chars > U+2600 that are pictographic count 2.
+  let n = 0;
+  for (const ch of noAnsi) {
+    const code = ch.codePointAt(0);
+    if (code > 0x1f000 || (code >= 0x2600 && code <= 0x27ff)) n += 2;
+    else n += 1;
+  }
+  return n;
 }
 
 function pad(s, width) {
@@ -60,168 +84,193 @@ function center(s, width) {
   return " ".repeat(left) + s + " ".repeat(right);
 }
 
-/** Draw a box with rounded corners and colored border. */
-export function box(lines, opts = {}) {
-  const width = opts.width || Math.min(termWidth() - 4, 76);
-  const color = opts.color || c.indigo;
-  const tl = color("╭"), tr = color("╮"), bl = color("╰"), br = color("╯"), h = color("─"), v = color("│");
+/**
+ * Apple-style unified panel: single rounded box with hairline dividers
+ * INSIDE (not fragmented sub-boxes). Border is subtle, content breathes.
+ */
+export function panel(sections, opts = {}) {
+  const width = opts.width || Math.min(termWidth() - G().length * 2, 78);
+  const b = c.hairline;
+  const tl = b("╭"), tr = b("╮"), bl = b("╰"), br = b("╯"), h = b("─"), v = b("│");
   const top = tl + h.repeat(width - 2) + tr;
   const bot = bl + h.repeat(width - 2) + br;
-  const body = lines.map((l) => v + " " + pad(l, width - 4) + " " + v);
+  const divider = b("├") + h.repeat(width - 2) + b("┤");
+
+  const body = [];
+  sections.forEach((section, i) => {
+    if (i > 0) body.push(divider);
+    const pad2 = "  ";
+    body.push(v + " " + " ".repeat(width - 4) + " " + v); // top-pad
+    for (const line of section) {
+      body.push(v + pad2 + pad(line, width - 6) + pad2 + v);
+    }
+    body.push(v + " " + " ".repeat(width - 4) + " " + v); // bottom-pad
+  });
+
   return [top, ...body, bot];
 }
 
-/** Big centered SOVEREIGN wordmark using Unicode block glyphs. */
-function bigLogo() {
-  // 5-line block-lettering — compact "SOVEREIGN"
-  const raw = [
-    "███████╗ ██████╗ ██╗   ██╗███████╗██████╗ ███████╗██╗ ██████╗ ███╗   ██╗",
-    "██╔════╝██╔═══██╗██║   ██║██╔════╝██╔══██╗██╔════╝██║██╔════╝ ████╗  ██║",
-    "███████╗██║   ██║██║   ██║█████╗  ██████╔╝█████╗  ██║██║  ███╗██╔██╗ ██║",
-    "╚════██║██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗██╔══╝  ██║██║   ██║██║╚██╗██║",
-    "███████║╚██████╔╝ ╚████╔╝ ███████╗██║  ██║███████╗██║╚██████╔╝██║ ╚████║",
-    "╚══════╝ ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝",
-  ];
-  return raw;
+/** Simple box (single section — kept for compatibility). */
+export function box(lines, opts = {}) {
+  return panel([lines], opts);
 }
 
-/** Fits `bigLogo` when terminal is wide enough; otherwise falls back to a compact tag. */
+/**
+ * Big centered SOVEREIGN wordmark — kept restrained, hairline weight.
+ * On narrow terminals falls back to a small mark.
+ */
+const BIG = [
+  "███████╗ ██████╗ ██╗   ██╗███████╗██████╗ ███████╗██╗ ██████╗ ███╗   ██╗",
+  "██╔════╝██╔═══██╗██║   ██║██╔════╝██╔══██╗██╔════╝██║██╔════╝ ████╗  ██║",
+  "███████╗██║   ██║██║   ██║█████╗  ██████╔╝█████╗  ██║██║  ███╗██╔██╗ ██║",
+  "╚════██║██║   ██║╚██╗ ██╔╝██╔══╝  ██╔══██╗██╔══╝  ██║██║   ██║██║╚██╗██║",
+  "███████║╚██████╔╝ ╚████╔╝ ███████╗██║  ██║███████╗██║╚██████╔╝██║ ╚████║",
+  "╚══════╝ ╚═════╝   ╚═══╝  ╚══════╝╚═╝  ╚═╝╚══════╝╚═╝ ╚═════╝ ╚═╝  ╚═══╝",
+];
+
 function heroLogo(width) {
-  const big = bigLogo();
-  const needed = big[0].length;
+  const needed = BIG[0].length;
   if (width < needed + 4) {
-    // Fallback: bracketed compact wordmark
-    return [
-      c.indigo("⬡") + " " + c.bold(c.white("SOVEREIGN")) + " " + c.dim("· AI"),
-    ];
+    return [c.accent("◆") + " " + c.bold(c.text("SOVEREIGN"))];
   }
-  return big.map((line) => center(c.indigo(line), width));
+  return BIG.map((line) => center(c.accent(line), width));
 }
 
 export function logo() {
-  return c.indigo("⬡") + " " + c.bold(c.white("SOVEREIGN"));
-}
-
-/** Welcome banner shown when interactive REPL starts. */
-export function banner(config, enabledSkills = []) {
-  const g = G();
-  const width = Math.min(termWidth() - g.length * 2, 84);
-  const source = config?.token
-    ? `${c.emerald("●")} ${c.white("SOVEREIGN akkaunt")} ${c.dim("· " + (config.baseUrl || ""))}`
-    : `${c.amber("●")} ${c.white("O'z kalitingiz")} ${c.dim("· " + (config.model || "openai/gpt-4o-mini"))}`;
-
-  const hero = heroLogo(width);
-  const tagline = center(c.dim("terminaldagi ") + c.white("AI koding agenti") + c.dim(" · Uzbek-first"), width);
-
-  const chip = (label, val, col = c.indigo) => `${col("▸")} ${c.dim(label)} ${c.white(val)}`;
-  const skillsChip = enabledSkills.length
-    ? chip("Skillar", enabledSkills.join(" · "), c.violet)
-    : chip("Skillar", "bekor (/skills bilan yoqing)", c.violet);
-  const rowStatus = chip("Manba", "", c.indigo).trim() + " " + source;
-  const rowCwd = chip("Ish papkasi", process.cwd(), c.teal);
-  const rowSkills = skillsChip;
-  const rowKeys = chip("Buyruqlar", "", c.pink).trim() + "  " + c.gray("/") + c.white(" yozib menyuni oching");
-
-  const boxLines = box(
-    [
-      "",
-      ...hero,
-      "",
-      tagline,
-      "",
-      rowStatus,
-      rowCwd,
-      rowSkills,
-      rowKeys,
-      "",
-    ],
-    { width, color: c.indigo },
-  );
-
-  return "\n" + boxLines.map((l) => g + l).join("\n") + "\n";
-}
-
-/** Compact one-line hint bar (below the prompt). */
-export function hintBar(config, pendingCount = 0) {
-  const model = config?.token ? "auto (server)" : (config?.model || "openai/gpt-4o-mini");
-  const parts = [
-    `${c.indigo("◉")} ${c.dim(model)}`,
-    pendingCount ? `${c.amber("📎 " + pendingCount)}` : null,
-    `${c.dim("/")} ${c.gray("menu")}`,
-    `${c.dim("tab")} ${c.gray("autocomplete")}`,
-    `${c.dim("ctrl+c")} ${c.gray("cancel")}`,
-  ].filter(Boolean);
-  return G() + parts.join(c.darkGray("  ·  "));
+  return c.accent("◆") + " " + c.bold(c.text("SOVEREIGN"));
 }
 
 /**
- * Slash-command menyusi. Foydalanuvchi shunchaki `/` yozsa yoki `/help`
- * chaqirsa chiqariladi. Har element: glyph, buyruq, tavsif.
+ * Welcome banner — Apple-style unified surface.
+ * One panel, hairline dividers between sections. Grayscale hierarchy.
+ */
+export function banner(config, enabledSkills = []) {
+  const g = G();
+  const width = Math.min(termWidth() - g.length * 2, 82);
+
+  const hero = heroLogo(width);
+  const tagline = center(c.subtle("Terminaldagi AI koding agenti"), width);
+  const version = center(c.faint("v0.5 · SOVEREIGN"), width);
+
+  const label = (t) => c.faint(t.toUpperCase());
+  const kv = (k, v, tint = c.text) => label(k.padEnd(10)) + "  " + tint(v);
+
+  const source = config?.token
+    ? kv("ACCOUNT", "sovereign · " + (config.baseUrl || "").replace(/^https?:\/\//, ""), c.ok)
+    : kv("SOURCE ", "openrouter · " + (config.model || "openai/gpt-4o-mini"), c.text);
+
+  const cwd = kv("DIR    ", process.cwd(), c.subtle);
+  const skills = kv("SKILLS ", enabledSkills.length ? enabledSkills.join(" · ") : "—", c.subtle);
+  const help = kv("MENU   ", "yozing /", c.subtle);
+
+  const p = panel(
+    [
+      [...hero, "", tagline, version],
+      [source, cwd, skills, help],
+    ],
+    { width },
+  );
+
+  return "\n" + p.map((l) => g + l).join("\n") + "\n";
+}
+
+/**
+ * Bottom hint bar — Apple system bar aesthetic. Small caps, dim, single accent.
+ */
+export function hintBar(config, pendingCount = 0) {
+  const g = G();
+  const dot = c.accent("•");
+  const model = config?.token ? "auto" : (config?.model || "openai/gpt-4o-mini");
+  const parts = [
+    c.subtle(model),
+    pendingCount ? c.warn("📎 " + pendingCount) : null,
+    c.faint("/ menu"),
+    c.faint("tab autocomplete"),
+    c.faint("ctrl+c cancel"),
+  ].filter(Boolean);
+  return g + parts.join("  " + dot + "  ");
+}
+
+/**
+ * Slash-command menu — Apple-style unified list, hairline dividers between
+ * groups (not per-item borders). Two-column alignment.
  */
 export function slashMenu(items) {
   const g = G();
-  const width = Math.min(termWidth() - g.length * 2, 74);
-  const rows = items.map(({ glyph, cmd, desc, color = c.indigo }) => {
-    const glyphPad = pad(color(glyph), 4);
-    const cmdPad = pad(c.white(cmd), 16);
-    return `${glyphPad}  ${cmdPad}  ${c.dim(desc)}`;
+  const width = Math.min(termWidth() - g.length * 2, 72);
+
+  // Group by category — Apple-style hierarchy
+  const groups = [
+    { label: "Suhbat",   cmds: ["/help", "/clear", "/attach", "/detach"] },
+    { label: "Model",    cmds: ["/model", "/models"] },
+    { label: "Skillar",  cmds: ["/skills", "/skill"] },
+    { label: "Akkaunt",  cmds: ["/whoami", "/login", "/logout", "/register", "/upgrade"] },
+    { label: "Tizim",    cmds: ["/cwd", "/exit"] },
+  ];
+
+  const byName = Object.fromEntries(items.map((i) => [i.cmd, i]));
+
+  const sections = groups.map((g) => {
+    const rows = [c.faint(g.label.toUpperCase())];
+    for (const cmdName of g.cmds) {
+      const item = byName[cmdName];
+      if (!item) continue;
+      const name = pad(c.text(item.cmd), 14);
+      rows.push("  " + name + "  " + c.subtle(item.desc));
+    }
+    return rows;
   });
-  const header = c.dim("Buyruqlar menyusi · ") + c.white("tab") + c.dim(" bilan to'ldiriladi");
-  const lines = box(["", header, "", ...rows, ""], { width, color: c.violet });
-  return "\n" + lines.map((l) => g + l).join("\n") + "\n";
+
+  const p = panel(sections, { width });
+  return "\n" + p.map((l) => g + l).join("\n") + "\n";
 }
 
 /**
- * Skillar ro'yxati — yoqilgan/o'chirilgan holatini ko'rsatadi.
+ * Skills list — Apple settings-style: one panel, unified rows, ON/OFF chip.
  */
 export function skillsList(skills, enabledIds) {
   const g = G();
-  const width = Math.min(termWidth() - g.length * 2, 78);
+  const width = Math.min(termWidth() - g.length * 2, 76);
+
+  const header = c.faint("SOVEREIGN SKILLS  ") + c.subtle("/skill <id> — yoq/o'chir");
+
   const rows = skills.map((s) => {
     const on = enabledIds.includes(s.id);
-    const badge = on ? c.emerald("● ON ") : c.darkGray("○ OFF");
-    const glyph = c.violet(pad(s.glyph, 3));
-    const name = pad(c.white(s.name), 20);
-    const id = pad(c.dim(s.id), 20);
-    return `${badge}  ${glyph}${name} ${id} ${c.dim(s.desc)}`;
+    const badge = on ? c.ok("● ON ") : c.faint("○ OFF");
+    const name = pad(c.text(s.name), 22);
+    const id = pad(c.faint(s.id), 18);
+    return "  " + badge + "   " + name + id + "  " + c.subtle(s.desc);
   });
-  const header = c.dim("SOVEREIGN Skills · ") + c.white("/skill <id>") + c.dim(" bilan yoqing/o'chiring");
-  const lines = box(["", header, "", ...rows, ""], { width, color: c.emerald });
-  return "\n" + lines.map((l) => g + l).join("\n") + "\n";
+
+  const p = panel([[header], rows], { width });
+  return "\n" + p.map((l) => g + l).join("\n") + "\n";
 }
 
-/** Full-screen clear helper. */
 export function clearScreen() {
-  if (process.stdout.isTTY) {
-    process.stdout.write("\x1b[2J\x1b[H");
-  }
+  if (process.stdout.isTTY) process.stdout.write("\x1b[2J\x1b[H");
 }
 
 const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 export function spinner(label) {
-  if (!process.stdout.isTTY) {
-    return { stop() {} };
-  }
+  if (!process.stdout.isTTY) return { stop() {} };
   let i = 0;
   const timer = setInterval(() => {
-    process.stdout.write(`\r  ${c.indigo(FRAMES[i++ % FRAMES.length])} ${c.dim(label)} `);
+    process.stdout.write(`\r${G()}${c.accent(FRAMES[i++ % FRAMES.length])} ${c.subtle(label)} `);
   }, 80);
   return {
     stop(clear = true) {
       clearInterval(timer);
-      if (clear) process.stdout.write("\r" + " ".repeat(label.length + 8) + "\r");
+      if (clear) process.stdout.write("\r" + " ".repeat(label.length + G().length + 4) + "\r");
     },
   };
 }
 
-/** Print a subtle separator between agent turns. */
 export function separator() {
   const g = G();
   const width = Math.min(termWidth() - g.length * 2, 76);
-  return g + c.darkGray("─".repeat(width));
+  return g + c.hairline("─".repeat(width));
 }
 
-/** Section header for step announcements. */
 export function stepHeader(step, total, label) {
-  return G() + c.indigo(`[${step}/${total}]`) + " " + c.white(label);
+  return G() + c.accent(`${step}/${total}`) + "  " + c.text(label);
 }

@@ -158,11 +158,12 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
   let printedHeader = false;
   const write = (t) => {
     if (!printedHeader) {
-      // Uslubli AI javob boshi: markazlashtirilgan ⬡ + rangli chegara
-      process.stdout.write("\n  " + c.indigo("╭") + c.indigo("─") + c.indigo(" ⬡ SOVEREIGN ") + c.indigo("─".repeat(2)) + "\n  " + c.indigo("│") + "  ");
+      // Apple-style javob boshi: yagona kul indent + kichik accent belgi
+      process.stdout.write("\n   " + c.accent("◆") + "  ");
       printedHeader = true;
     }
-    process.stdout.write(t.replace(/\n/g, "\n  " + c.indigo("│") + "  "));
+    // Faqat matnni yumshoq indent bilan, chegara chizmasdan
+    process.stdout.write(t.replace(/\n/g, "\n      "));
   };
 
   for (let step = 0; step < maxSteps; step++) {
@@ -186,13 +187,12 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
     messages.push(round.message);
 
     if (!round.toolCalls.length) {
-      if (printedHeader) process.stdout.write("\n  " + c.indigo("╰" + "─".repeat(3)) + "\n\n");
-      else process.stdout.write("\n");
+      process.stdout.write("\n\n");
       return { done: true };
     }
 
     // Model asked for tools — narrate & run each, then loop.
-    if (printedHeader) process.stdout.write("\n  " + c.indigo("│") + "\n");
+    if (printedHeader) process.stdout.write("\n");
     printedHeader = false;
     for (const call of round.toolCalls) {
       let args = {};

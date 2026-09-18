@@ -179,11 +179,11 @@ async function repl() {
   console.log();
   const confirm = await confirmer(rl);
 
-  // Attractive prompt: pending-count chip + gradient chevron.
+  // Apple-style prompt: minimal single chevron, restrained color.
   const G = gutter();
   const promptStr = () =>
-    (pending.length ? `${c.amber("📎 " + pending.length)}  ` : "") +
-    `${c.indigo("▎")}${c.violet("›")} `;
+    (pending.length ? `${c.warn("📎 " + pending.length)}  ` : "") +
+    `${c.accent("❯")} `;
   process.stdout.write(G + promptStr());
 
   const rewritePrompt = () => process.stdout.write(G + promptStr());

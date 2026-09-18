@@ -1,6 +1,6 @@
 {
   "name": "@islombekrrr/sov-cli",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "SOVEREIGN AI — terminaldagi AI koding agenti. `sovereign` deb yozing.",
   "type": "module",
   "bin": {
