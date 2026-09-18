@@ -7,14 +7,37 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
+const GROQ = "https://api.groq.com/openai/v1/chat/completions";
+const OPENAI = "https://api.openai.com/v1/chat/completions";
 
-/** A capable tool-calling model per plan (CLI needs function calling). */
-const MODEL_FOR_PLAN: Record<string, string> = {
-  free: "openai/gpt-4o-mini",
-  starter: "openai/gpt-4o-mini",
-  pro: "openai/gpt-4o",
-  ultra: "openai/gpt-4o",
-};
+/**
+ * Kod-agent uchun har tarif eng mos providerni oladi:
+ * - Free/Starter: Groq (dunyodagi eng tez, tekin sxema, tool-calling kuchli)
+ * - Pro/Ultra: OpenAI direct (gpt-4o eng kuchli agentcha)
+ * Groq kaliti yo'q bo'lsa OpenRouter'ga fallback.
+ */
+type Route = { provider: "groq" | "openai" | "openrouter"; model: string };
+
+function pickRoute(plan: string): Route {
+  const hasGroq = !!process.env.GROQ_API_KEY;
+  const hasOpenAI = !!process.env.OPENAI_API_KEY;
+
+  if (plan === "free" || plan === "starter") {
+    if (hasGroq) return { provider: "groq", model: "llama-3.3-70b-versatile" };
+    if (hasOpenAI) return { provider: "openai", model: "gpt-4o-mini" };
+    return { provider: "openrouter", model: "openai/gpt-4o-mini" };
+  }
+  // Pro / Ultra
+  if (hasOpenAI) return { provider: "openai", model: "gpt-4o" };
+  if (hasGroq) return { provider: "groq", model: "llama-3.3-70b-versatile" };
+  return { provider: "openrouter", model: "openai/gpt-4o" };
+}
+
+function endpointFor(r: Route): { url: string; auth: string } {
+  if (r.provider === "groq") return { url: GROQ, auth: process.env.GROQ_API_KEY! };
+  if (r.provider === "openai") return { url: OPENAI, auth: process.env.OPENAI_API_KEY! };
+  return { url: OPENROUTER, auth: process.env.OPENROUTER_API_KEY! };
+}
 
 const schema = z.object({
   // Xabar tuzilmasi ochiq (tool_call / role / content moslashuvchan),
@@ -57,8 +80,9 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(json);
   if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
 
-  if (!process.env.OPENROUTER_API_KEY) {
-    return Response.json({ error: "Serverda OPENROUTER_API_KEY sozlanmagan" }, { status: 503 });
+  // Kamida bitta provider kaliti kerak.
+  if (!process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
+    return Response.json({ error: "Serverda hech qanday AI provider kaliti sozlanmagan" }, { status: 503 });
   }
 
   // Resolve the token → user + plan.
@@ -78,7 +102,7 @@ export async function POST(req: Request) {
   }
 
   const plan = (isPlanId(planId) && PLAN_BY_ID[planId]) || PLAN_BY_ID.free;
-  const model = MODEL_FOR_PLAN[planId] ?? MODEL_FOR_PLAN.free;
+  const route = pickRoute(planId);
 
   // CLI ham veb chat bilan bir xil kunlik chegaraga bo'ysunadi.
   try {
@@ -96,16 +120,21 @@ export async function POST(req: Request) {
   }
   void userId; // hozircha faqat log/attribute uchun
 
-  const res = await fetch(OPENROUTER, {
+  const ep = endpointFor(route);
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${ep.auth}`,
+  };
+  if (route.provider === "openrouter") {
+    headers["HTTP-Referer"] = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sovhq.vercel.app";
+    headers["X-Title"] = "SOVEREIGN CLI";
+  }
+
+  const res = await fetch(ep.url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://sovhq.vercel.app",
-      "X-Title": "SOVEREIGN CLI",
-    },
+    headers,
     body: JSON.stringify({
-      model,
+      model: route.model,
       messages: parsed.data.messages,
       tools: parsed.data.tools,
       tool_choice: parsed.data.tools?.length ? "auto" : undefined,
@@ -122,10 +151,10 @@ export async function POST(req: Request) {
     } catch {
       /* keep */
     }
-    return Response.json({ error: message }, { status: 502 });
+    return Response.json({ error: `${route.provider}: ${message}` }, { status: 502 });
   }
 
   const data = (await res.json()) as { choices?: { message?: unknown }[] };
   const message = data.choices?.[0]?.message ?? { role: "assistant", content: "" };
-  return Response.json({ message, plan: planId, model });
+  return Response.json({ message, plan: planId, model: route.model, provider: route.provider });
 }

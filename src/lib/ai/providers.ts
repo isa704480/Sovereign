@@ -23,6 +23,38 @@ export type StreamEvent =
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
 const PERPLEXITY_BASE = "https://api.perplexity.ai";
+const GROQ_BASE = "https://api.groq.com/openai/v1";
+const OPENAI_BASE = "https://api.openai.com/v1";
+
+/**
+ * Direct provider mapping — OpenRouter'ni chetlab tez va ishonchli endpointga
+ * yo'naltirish. Kaliti bor bo'lsa direct, aks holda OpenRouter fallback.
+ * Groq eng tez inference (~500 tok/s), OpenAI direct native gpt-4o.
+ */
+const DIRECT_ROUTES: Record<string, { provider: "groq" | "openai"; model: string }> = {
+  // Groq direct (tekin sxema, dunyo eng tez)
+  "meta-llama/llama-3.3-70b-instruct": { provider: "groq", model: "llama-3.3-70b-versatile" },
+  "meta-llama/llama-3.3-70b-instruct:free": { provider: "groq", model: "llama-3.3-70b-versatile" },
+  "meta-llama/llama-3.1-8b-instruct": { provider: "groq", model: "llama-3.1-8b-instant" },
+  "qwen/qwen-2.5-coder-32b-instruct": { provider: "groq", model: "qwen-2.5-coder-32b" },
+
+  // OpenAI direct
+  "openai/gpt-4o-mini": { provider: "openai", model: "gpt-4o-mini" },
+  "openai/gpt-4o": { provider: "openai", model: "gpt-4o" },
+  "openai/gpt-4-turbo": { provider: "openai", model: "gpt-4-turbo" },
+};
+
+function pickDirectRoute(providerModel: string): { url: string; auth: string; model: string } | null {
+  const route = DIRECT_ROUTES[providerModel];
+  if (!route) return null;
+  if (route.provider === "groq" && process.env.GROQ_API_KEY) {
+    return { url: `${GROQ_BASE}/chat/completions`, auth: process.env.GROQ_API_KEY, model: route.model };
+  }
+  if (route.provider === "openai" && process.env.OPENAI_API_KEY) {
+    return { url: `${OPENAI_BASE}/chat/completions`, auth: process.env.OPENAI_API_KEY, model: route.model };
+  }
+  return null;
+}
 
 /** Perplexity Agent API presets ("sonar" ids kept in config for continuity). */
 const PERPLEXITY_PRESET: Record<string, string> = {
@@ -178,34 +210,46 @@ async function* streamOpenRouter(
   retried = false,
 ): AsyncGenerator<StreamEvent> {
   const cached = withPromptCache(model, messages);
-  const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+  const direct = pickDirectRoute(model.providerModel);
+
+  // Direct route ishlatiladigan bo'lsa uni ishlatamiz — Groq / OpenAI direct
+  // OpenRouter proxysidan tezroq va ishonchliroq.
+  const url = direct ? direct.url : `${OPENROUTER_BASE}/chat/completions`;
+  const auth = direct ? direct.auth : process.env.OPENROUTER_API_KEY!;
+  const modelId = direct ? direct.model : model.providerModel;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${auth}`,
+  };
+  if (!direct) {
+    headers["HTTP-Referer"] = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+    headers["X-Title"] = "SOVEREIGN AI";
+  }
+
+  const body: Record<string, unknown> = {
+    model: modelId,
+    messages: cached,
+    temperature: opts.temperature ?? 0.7,
+    max_tokens: maxTokens,
+    stream: true,
+  };
+  if (!direct) {
+    // OpenRouter-specific transforms + fallback pool
+    body.transforms = ["middle-out"];
+    body.route = "fallback";
+    if (model.category === "free") {
+      body.models = [
+        model.providerModel,
+        ...FREE_FALLBACKS.filter((m) => m !== model.providerModel).slice(0, 2),
+      ];
+    }
+  }
+
+  const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-      "X-Title": "SOVEREIGN AI",
-    },
-    body: JSON.stringify({
-      model: model.providerModel,
-      // Free models share an upstream pool and get rate-limited; let OpenRouter
-      // auto-fall-back to 2 other free models before failing. OpenRouter cheklovi:
-      // `models` massivida 3 tadan ko'p bo'lmasin.
-      ...(model.category === "free"
-        ? {
-            models: [
-              model.providerModel,
-              ...FREE_FALLBACKS.filter((m) => m !== model.providerModel).slice(0, 2),
-            ],
-          }
-        : {}),
-      messages: cached,
-      temperature: opts.temperature ?? 0.7,
-      max_tokens: maxTokens,
-      transforms: ["middle-out"],
-      route: "fallback",
-      stream: true,
-    }),
+    headers,
+    body: JSON.stringify(body),
     signal: opts.signal,
   });
 
