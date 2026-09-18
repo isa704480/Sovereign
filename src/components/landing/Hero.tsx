@@ -13,11 +13,13 @@ import { EASE_OUT_EXPO } from "@/lib/motion";
 
 const CYCLE_MS = 3600;
 
+// Apple: har raqamga alohida rang emas — barcha yagona oq/ochiq rangda.
+// Faqat "0" (asosiy va'da) accent rang bilan ta'kidlangan.
 const STATS = [
-  { value: "7+", label: "AI model, bitta interfeys", color: "#7C6FF7" },
-  { value: "256-bit", label: "AES-GCM shifrlash", color: "#10D4A0" },
-  { value: "0", label: "Ma'lumot uchinchi tomonga", color: "#20D4E8" },
-  { value: "< 50ms", label: "Blind Prompting kechikish", color: "#FF9500" },
+  { value: "7+", label: "AI model, bitta interfeys", emphasize: false },
+  { value: "256-bit", label: "AES-GCM shifrlash", emphasize: false },
+  { value: "0", label: "Ma'lumot uchinchi tomonga", emphasize: true },
+  { value: "< 50ms", label: "Blind Prompting kechikish", emphasize: false },
 ];
 
 export function Hero() {
@@ -128,11 +130,12 @@ export function Hero() {
         transition={{ duration: 0.7, ease: EASE_OUT_EXPO, delay: 0.9 }}
         className="mx-auto max-w-6xl px-5 pb-16 md:px-8"
       >
+        {/* Apple: unified panel + hairline dividers, ranglar birxil. Faqat asosiy raqam ta'kidlanadi. */}
         <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-4">
           {STATS.map((s) => (
-            <div key={s.label} className="bg-bg-base/80 px-5 py-4 backdrop-blur-sm">
-              <div className="font-display nums text-2xl font-extrabold text-text-primary">
-                <span style={{ color: s.color }}>{s.value}</span>
+            <div key={s.label} className="bg-bg-base px-5 py-4">
+              <div className="font-display nums text-2xl font-extrabold tabular-nums" style={{ color: s.emphasize ? "#8B7DFF" : "var(--text-primary)" }}>
+                {s.value}
               </div>
               <div className="mt-0.5 text-xs text-text-muted">{s.label}</div>
             </div>

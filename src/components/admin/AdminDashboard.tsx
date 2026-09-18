@@ -143,12 +143,13 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders }: A
           transition={{ duration: 0.4, ease: EASE }}
           className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6"
         >
+          {/* Apple: KPI raqamlari hammasi bir xil rangda. Faqat "To'lovchi" — daromad va'dasi — accent'da. */}
           <KPI label="Jami foydalanuvchi" value={fmt(summary?.total_users)} />
-          <KPI label="Bugun yangi" value={fmt(summary?.new_today)} color="#10D4A0" />
+          <KPI label="Bugun yangi" value={fmt(summary?.new_today)} />
           <KPI label="Kunlik faol (DAU)" value={fmt(summary?.dau)} />
           <KPI label="Haftalik (WAU)" value={fmt(summary?.wau)} />
           <KPI label="Oylik (MAU)" value={fmt(summary?.mau)} />
-          <KPI label="To'lovchi" value={fmt(summary?.paying_users)} color="#FF7000" />
+          <KPI label="To'lovchi" value={fmt(summary?.paying_users)} color="#8B7DFF" />
         </motion.div>
 
         {/* Revenue + Tokens (30 kun) */}

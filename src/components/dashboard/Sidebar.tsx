@@ -239,59 +239,53 @@ export function Sidebar({
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
 
-          {/* Akkaunt tile — butun tile Settings ochadi, faqat logout tugmasi alohida ishlaydi */}
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            className="tt group flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/5"
-          >
-            {user.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatarUrl} alt="" className="size-8 rounded-full object-cover" />
-            ) : (
-              <span
-                className="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                style={{ background: model.primary }}
+          {/* Akkaunt tile — WCAG 2.5.5: nested interactive elements yo'q.
+             3 alohida tugma flex ichida. Butun profil qismi Settings ochadi. */}
+          <div className="flex items-center gap-2 px-2 py-2">
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              className="tt group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-[color:var(--surface-hover)]"
+              aria-label="Sozlamalarni ochish"
+            >
+              {user.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.avatarUrl} alt="" className="size-8 rounded-full object-cover" />
+              ) : (
+                <span
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
+                  style={{ background: model.primary }}
+                >
+                  {initials || "S"}
+                </span>
+              )}
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>
+                  {user.name}
+                </span>
+                <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>
+                  <span style={{ color: plan.color }}>{plan.name}</span>
+                  {isDev ? " · Dev" : ""}
+                </span>
+              </span>
+            </button>
+
+            {plan.id !== "ultra" && (
+              <button
+                type="button"
+                onClick={onUpgrade}
+                className="tt shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
+                style={{ color: model.accent }}
+                title="Tarifni oshirish"
               >
-                {initials || "S"}
-              </span>
+                Upgrade →
+              </button>
             )}
-            <span className="min-w-0 flex-1 leading-tight">
-              <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>
-                {user.name}
-              </span>
-              <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-                <span style={{ color: plan.color }}>{plan.name}</span>
-                {isDev ? " · Dev" : ""}
-                {plan.id !== "ultra" && (
-                  <>
-                    {" · "}
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onUpgrade();
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.stopPropagation();
-                          onUpgrade();
-                        }
-                      }}
-                      className="cursor-pointer hover:underline"
-                      style={{ color: model.accent }}
-                    >
-                      Upgrade →
-                    </span>
-                  </>
-                )}
-              </span>
-            </span>
-            <form action={signOut} onClick={(e) => e.stopPropagation()}>
+
+            <form action={signOut} className="shrink-0">
               <button
                 type="submit"
-                className="rounded-md p-1.5 opacity-60 transition-all hover:bg-white/10 hover:opacity-100"
+                className="rounded-md p-1.5 opacity-60 transition-all hover:bg-[color:var(--surface-hover)] hover:opacity-100"
                 style={{ color: "var(--t-text-muted)" }}
                 title="Chiqish"
                 aria-label="Chiqish"
@@ -299,7 +293,7 @@ export function Sidebar({
                 <LogOut className="size-4" />
               </button>
             </form>
-          </button>
+          </div>
         </div>
       </div>
     </div>

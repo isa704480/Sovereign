@@ -82,9 +82,9 @@
   --font-mono: var(--font-dm-mono), ui-monospace, SFMono-Regular, monospace;
 
   /* Type scale */
-  --text-xs: 11px;
-  --text-xs--line-height: 1.4;
-  --text-sm: 13px;
+  --text-xs: 12px;
+  --text-xs--line-height: 1.45;
+  --text-sm: 13.5px;
   --text-sm--line-height: 1.5;
   --text-base: 15px;
   --text-base--line-height: 1.65;
@@ -262,6 +262,19 @@
   font-family: var(--t-font-body);
   color: var(--t-text);
   background: var(--t-bg);
+  /* Apple: yagona hover surface tokeni. Light-mode ishlaganda avtomatik moslashadi. */
+  --surface-hover: color-mix(in srgb, var(--t-text) 8%, transparent);
+  --surface-active: color-mix(in srgb, var(--t-text) 12%, transparent);
+}
+
+/* Apple a11y: har button uchun focus-visible ring — klaviatura foydalanuvchisi
+   uchun ko'rinishni ta'minlaydi. Sichqoncha bilan bosgan da chiqmaydi. */
+.theme-root button:focus-visible,
+.theme-root a:focus-visible,
+.theme-root [role="button"]:focus-visible {
+  outline: 2px solid var(--t-primary);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 .theme-root .tt,
 .theme-root .tt::before,
@@ -391,15 +404,17 @@
     letter-spacing: -0.02em;
   }
 
+  /* Apple falsafasi: yagona ranglar oilasi (indigo tonal). Cyan/purple/orange
+     aralashmasidan voz kechildi — brendni suyultirar edi. */
   .text-gradient-brand {
-    background: linear-gradient(135deg, #00d4ff 0%, #5b50f0 35%, #a855f7 65%, #ff7000 100%);
+    background: linear-gradient(135deg, #8B7DFF 0%, #5B50F0 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
 
   .bg-gradient-brand {
-    background: linear-gradient(135deg, #00d4ff 0%, #5b50f0 35%, #a855f7 65%, #ff7000 100%);
+    background: linear-gradient(135deg, #8B7DFF 0%, #5B50F0 100%);
   }
 
   .border-gradient-brand {
@@ -411,7 +426,7 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, rgba(0, 212, 255, 0.6), rgba(91, 80, 240, 0.6), rgba(168, 85, 247, 0.6), rgba(255, 112, 0, 0.6));
+    background: linear-gradient(135deg, rgba(139, 125, 255, 0.5), rgba(91, 80, 240, 0.5));
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;

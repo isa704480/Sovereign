@@ -319,8 +319,7 @@ export function InputArea({
               onClick={() => onToggleBlindPrompting(!blindPrompting)}
               title="Blind Prompting — ism, telefon, email va boshqa shaxsiy ma'lumotlarni AI ko'rmasligi uchun maskalash"
             />
-            <Chip icon={<Brain className="size-3.5" />} label="Xotira" disabled title="Faol" />
-            <Chip icon={<Zap className="size-3.5" />} label="Tez javob" disabled title="Tez orada" />
+            {/* Xotira va Tez javob — hozircha shipp qilinmagan; Apple: disabled affordances chiqarmaymiz */}
           </div>
         )}
       </div>

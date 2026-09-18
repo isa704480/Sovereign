@@ -45,13 +45,16 @@ export async function POST(req: Request) {
     // Payment RPClari faqat service_role uchun ochiq (migration 0010).
     const supabase = createServiceClient();
     if (event.type === "checkout.completed") {
-      await supabase.rpc("apply_order_payment", { p_order_id: orderId });
+      const { error } = await supabase.rpc("apply_order_payment", { p_order_id: orderId });
+      if (error) {
+        // ZenoBank qayta urinib ko'rsin — 500 bilan; sabab bizning DB muammo
+        return Response.json({ error: "DB write failed" }, { status: 500 });
+      }
     } else if (event.type === "checkout.expired") {
       await supabase.rpc("expire_order", { p_order_id: orderId });
     }
   } catch {
-    // Return 200 anyway so ZenoBank doesn't hammer retries on a transient DB error;
-    // reconciliation can be done via checkouts.get() polling.
+    return Response.json({ error: "Internal error" }, { status: 500 });
   }
   return Response.json({ received: true });
 }

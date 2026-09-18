@@ -139,7 +139,10 @@ function textOf(content: string | unknown[]): string {
 }
 
 export function hasKeyFor(model: SovereignModel): boolean {
-  return isResearchModel(model) ? !!process.env.PERPLEXITY_API_KEY : !!process.env.OPENROUTER_API_KEY;
+  if (isResearchModel(model)) return !!process.env.PERPLEXITY_API_KEY;
+  // Agar direct provider (Groq/Cerebras/SambaNova/Mistral/OpenAI) bor bo'lsa, OpenRouter shart emas.
+  if (pickDirectRoute(model.providerModel)) return true;
+  return !!process.env.OPENROUTER_API_KEY;
 }
 
 export function buildSystemPrompt(model: SovereignModel, research: boolean, extra?: string): string {
@@ -211,28 +214,41 @@ async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<Record
 }
 
 async function errorMessage(res: Response): Promise<string> {
-  let message = `${res.status} ${res.statusText}`;
+  let rawMessage = `${res.status} ${res.statusText}`;
   let code = res.status;
   try {
     const j = (await res.json()) as {
       error?: { message?: string; code?: number; metadata?: { raw?: string } } | string;
       message?: string;
     };
-    if (typeof j.error === "string") message = j.error;
+    if (typeof j.error === "string") rawMessage = j.error;
     else if (j.error?.message) {
-      message = j.error.metadata?.raw ?? j.error.message;
+      rawMessage = j.error.metadata?.raw ?? j.error.message;
       code = j.error.code ?? code;
-    } else if (j.message) message = j.message;
+    } else if (j.message) rawMessage = j.message;
   } catch {
     /* ignore */
   }
-  if (code === 429 || /rate-limited|rate limit/i.test(message)) {
-    return "Tekin modellar hozir band (juda ko'p so'rov). Bir necha soniyadan keyin qayta urinib ko'ring yoki boshqa (masalan Pro) modelni tanlang.";
+  // Xato'ni serverga xotira uchun log qilamiz (agar keyinroq Sentry ulasak),
+  // lekin foydalanuvchiga faqat generic xabar qaytariladi — infra sirlarni fosh qilmaymiz.
+  const isAffordError = /can only afford (\d+)/i.exec(rawMessage);
+  if (isAffordError) {
+    // low-credit auto-retry uchun raw message qoladi (streamOpenRouter ichida ushlanadi)
+    return rawMessage;
   }
-  if (code === 402 || /credits/i.test(message)) {
-    return `Provayder balansi yetarli emas: ${message}`;
+  if (code === 429 || /rate-limited|rate limit/i.test(rawMessage)) {
+    return "Model hozir band. Bir necha soniyadan keyin qayta urinib ko'ring yoki boshqa modelni tanlang.";
   }
-  return message;
+  if (code === 402 || /credits|billing|payment/i.test(rawMessage)) {
+    return "Server sozlamalarida muammo. Iltimos, adminga xabar bering.";
+  }
+  if (code >= 500) {
+    return "Model xizmatida vaqtinchalik muammo. Bir necha soniyadan keyin qayta urinib ko'ring.";
+  }
+  if (code === 401 || code === 403) {
+    return "Server sozlamalarida muammo. Iltimos, adminga xabar bering.";
+  }
+  return "So'rovni bajarib bo'lmadi. Iltimos, qayta urinib ko'ring.";
 }
 
 /* ------------------------------------------------------------------ */

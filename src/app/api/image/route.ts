@@ -3,6 +3,7 @@ import { generateImage } from "@/lib/ai/image";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -11,6 +12,10 @@ const schema = z.object({ prompt: z.string().min(2).max(2000) });
 
 /** POST /api/image — generate an image for the current user (plan-gated). */
 export async function POST(req: Request) {
+  // Cost-DoS: har foydalanuvchi/IP uchun kuchli rate-limit
+  const ipRl = rateLimit(`img:ip:${clientIp(req)}`, 10, 60_000);
+  if (!ipRl.ok) return Response.json({ error: "Juda ko'p rasm so'rovi" }, { status: 429 });
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });

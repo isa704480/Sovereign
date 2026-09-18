@@ -39,12 +39,27 @@ function endpointFor(r: Route): { url: string; auth: string } {
   return { url: OPENROUTER, auth: process.env.OPENROUTER_API_KEY! };
 }
 
-const schema = z.object({
-  // Xabar tuzilmasi ochiq (tool_call / role / content moslashuvchan),
-  // lekin umumiy soni va tools soni cheklangan — cost-DoS'ni bosadi.
-  messages: z.array(z.object({ role: z.string().max(20), content: z.any().optional() }).passthrough()).min(1).max(20),
-  tools: z.array(z.any()).max(16).optional(),
+// Cost-DoS'ni to'sish: strict schema. Provider'ga o'zboshimchalik parametrlar
+// (response_format, logprobs, stream=false, top_p ...) uzatilishini bekor qiladi.
+const messageSchema = z.object({
+  role: z.enum(["user", "assistant", "system", "tool"]),
+  content: z.union([z.string().max(30_000), z.array(z.any()).max(12), z.null()]).optional(),
+  tool_call_id: z.string().max(200).optional(),
+  tool_calls: z.array(z.any()).max(8).optional(),
+  name: z.string().max(100).optional(),
 });
+const toolSchema = z.object({
+  type: z.literal("function"),
+  function: z.object({
+    name: z.string().max(80),
+    description: z.string().max(2000).optional(),
+    parameters: z.any().optional(),
+  }),
+});
+const schema = z.object({
+  messages: z.array(messageSchema).min(1).max(20),
+  tools: z.array(toolSchema).max(8).optional(),
+}).strict();
 
 function bearer(req: Request): string | null {
   const h = req.headers.get("authorization") ?? "";

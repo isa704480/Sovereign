@@ -2,6 +2,7 @@ import { transcribe } from "@/lib/ai/transcribe";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -10,6 +11,10 @@ const MAX = 25 * 1024 * 1024;
 
 /** POST /api/transcribe — multipart form with a "file" field. Pro+ only. */
 export async function POST(req: Request) {
+  // Cost-DoS: Whisper qimmat, IP bo'yicha kuchli chegara
+  const ipRl = rateLimit(`trs:ip:${clientIp(req)}`, 5, 60_000);
+  if (!ipRl.ok) return Response.json({ error: "Juda ko'p transkripsiya so'rovi" }, { status: 429 });
+
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
     const {

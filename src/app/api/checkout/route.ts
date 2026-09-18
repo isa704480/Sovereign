@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { isZenoConfigured, zeno } from "@/lib/payments/zenobank";
 
@@ -51,7 +52,13 @@ export async function POST(req: Request) {
       priceCurrency: "USD",
       successRedirectUrl: `${origin.replace(/\/$/, "")}/app?paid=1`,
     });
-    await supabase.from("orders").update({ checkout_id: checkout.id }).eq("id", orderId);
+    // orders UPDATE policy yo'q — service-role bilan yozamiz
+    try {
+      const service = createServiceClient();
+      await service.from("orders").update({ checkout_id: checkout.id }).eq("id", orderId);
+    } catch {
+      /* fallback — checkout ishlayveradi, faqat webhook reconciliation susayadi */
+    }
     return Response.json({ checkoutUrl: checkout.checkoutUrl, orderId });
   } catch (e) {
     await supabase.from("orders").update({ status: "cancelled" }).eq("id", orderId);
