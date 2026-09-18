@@ -18,6 +18,7 @@ import { KnowledgePanel } from "./KnowledgePanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { MessageList } from "./MessageList";
+import { PlanStatusBanner } from "./PlanStatusBanner";
 import { Sidebar } from "./Sidebar";
 import { SourcesPanel } from "./SourcesPanel";
 import { Welcome } from "./Welcome";
@@ -30,9 +31,11 @@ interface DashboardProps {
   isDev?: boolean;
   plan?: PlanId;
   memoryEnabled?: boolean;
+  planState?: "free" | "active" | "expiring_soon" | "expired";
+  daysLeft?: number | null;
 }
 
-export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true }: DashboardProps) {
+export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null }: DashboardProps) {
   const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
   const [pricing, setPricing] = useState<{ open: boolean; reason: string | null; suggested: PlanId | null }>({
     open: false,
@@ -241,6 +244,14 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
             hasSources={theme.layout.showCitations && citations.length > 0}
             sourcesOpen={sourcesOpen}
             onToggleSources={() => setSourcesOpen((o) => !o)}
+          />
+
+          {/* Tarif expired/expiring_soon holatida chirali panel chiqadi */}
+          <PlanStatusBanner
+            planState={planState}
+            daysLeft={daysLeft}
+            planName={plan.name}
+            onUpgrade={() => openPricing()}
           />
 
           <div className="flex min-h-0 flex-1">

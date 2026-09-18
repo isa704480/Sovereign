@@ -56,6 +56,22 @@ export async function login(baseUrl) {
       const data = await res.json();
       if (data.status === "approved" && data.token) {
         saveConfig({ baseUrl: base, token: data.token });
+        // Server tomondan sozlamalarni ham darhol yuklab olamiz (skillar, model, plan)
+        try {
+          const meRes = await fetch(`${base}/api/cli/me`, {
+            headers: { Authorization: `Bearer ${data.token}` },
+          });
+          if (meRes.ok) {
+            const me = await meRes.json();
+            saveConfig({
+              enabledSkills: me.enabled_skills ?? [],
+              model: me.default_model || undefined,
+              plan: me.plan,
+              planState: me.plan_state,
+              planExpiresAt: me.plan_expires_at,
+            });
+          }
+        } catch { /* ignore sync error, mustaqil davom etadi */ }
         console.log(`\n\n  ${c.green("✓ Ulandi!")} Hisobingiz bilan bog'landi.\n`);
         return true;
       }

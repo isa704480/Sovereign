@@ -7,6 +7,7 @@ import { printModels, resolveModelId } from "../src/models.mjs";
 import { readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
+import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
 
 const rawArgs = process.argv.slice(2);
 const AUTO_YES = rawArgs.includes("--yes") || rawArgs.includes("-y");
@@ -173,21 +174,73 @@ async function repl() {
   const pending = []; // paths queued via /attach for the next user message
   const enabledSkills = new Set(config.enabledSkills || ["ui-ux-pro-max", "clean-code"]);
 
+  // Server bilan sinxronlash — akkaunt rejimida
+  if (config.token) {
+    const me = await fetchMe(config);
+    if (me) {
+      // Server tomondan kelgan sozlamalar — ustunroq
+      if (Array.isArray(me.enabled_skills)) {
+        enabledSkills.clear();
+        for (const s of me.enabled_skills) enabledSkills.add(s);
+      }
+      if (me.default_model) config.model = me.default_model;
+      config.planState = me.plan_state;
+      config.plan = me.plan;
+      config.daysLeft = me.days_left;
+      saveConfig({
+        enabledSkills: [...enabledSkills],
+        model: config.model,
+        planState: me.plan_state,
+        plan: me.plan,
+      });
+    }
+  }
+
   clearScreen();
   console.log(banner(config, [...enabledSkills]));
   console.log(hintBar(config, pending.length));
+
+  // Plan expired/expiring notice
+  if (config.planState === "expired") {
+    console.log();
+    console.log(gutter() + c.red("● Tarifingiz muddati tugagan.") + " " + c.dim("Yangilash: ") + c.violet("/upgrade"));
+  } else if (config.planState === "expiring_soon" && config.daysLeft != null) {
+    console.log();
+    console.log(gutter() + c.amber(`● Tarif ${config.daysLeft} kundan keyin tugaydi.`) + " " + c.dim("Yangilash: ") + c.violet("/upgrade"));
+  }
   console.log();
   const confirm = await confirmer(rl);
+
+  // Fon rejimidagi sinxronlash — web tarafida qilingan o'zgarishlar CLI ga keladi
+  const stopSync = config.token
+    ? startBackgroundSync(config, (changed) => {
+        if (changed.enabledSkills) {
+          enabledSkills.clear();
+          for (const s of changed.enabledSkills) enabledSkills.add(s);
+          say(c.dim("↻ Skillar web bilan sinxronlandi"));
+        }
+        if (changed.model) {
+          config.model = changed.model;
+          say(c.dim(`↻ Model o'zgardi: ${changed.model}`));
+        }
+        if (changed.planState === "expired") {
+          say(c.red("● Tarifingiz muddati tugadi.") + " " + c.dim("Yangilash uchun: /upgrade"));
+        } else if (changed.planState === "expiring_soon" && changed.daysLeft != null) {
+          say(c.amber(`● Tarif ${changed.daysLeft} kundan keyin tugaydi.`));
+        }
+      })
+    : () => {};
 
   // Apple-style prompt: minimal single chevron, restrained color.
   const G = gutter();
   const promptStr = () =>
     (pending.length ? `${c.warn("📎 " + pending.length)}  ` : "") +
     `${c.accent("❯")} `;
-  process.stdout.write(G + promptStr());
 
   const rewritePrompt = () => process.stdout.write(G + promptStr());
   const say = (line) => console.log(G + line);
+
+  process.stdout.write(G + promptStr());
 
   for await (const raw of rl) {
     const input = raw.trim();
@@ -241,7 +294,14 @@ async function repl() {
           enabledSkills.add(id);
           say(c.emerald(`● ${id}`) + c.dim("  yoqildi"));
         }
-        saveConfig({ enabledSkills: [...enabledSkills] });
+        const arr = [...enabledSkills];
+        saveConfig({ enabledSkills: arr });
+        // Server bilan sinxron — akkaunt rejimida webga darhol ko'chadi
+        if (config.token) {
+          pushSettings(config, { enabled_skills: arr }).then((ok) => {
+            if (ok) say(c.dim("  ↻ web bilan sinxronlandi"));
+          });
+        }
       }
       rewritePrompt();
       continue;
@@ -260,6 +320,8 @@ async function repl() {
         config = { ...config, model: m };
         saveConfig({ model: m });
         say(`${c.green("Model:")} ${c.indigo(m)}${config.token ? c.dim("  (server tarifga qarab tanlaydi)") : ""}`);
+        // Web bilan model tanlovini ham sinxronlaymiz
+        if (config.token) pushSettings(config, { default_model: m });
       } else {
         printModels(config.model);
       }
@@ -380,6 +442,7 @@ async function repl() {
     rewritePrompt();
   }
 
+  stopSync();
   rl.close();
   console.log(G + c.dim("\nXayr! ⬡\n"));
 }

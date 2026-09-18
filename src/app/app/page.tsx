@@ -33,6 +33,10 @@ export default async function AppPage() {
 
   const initial = (await listConversations()) as Conversation[];
 
+  // Tarif holati — expired/expiring_soon banneri uchun
+  const { data: statusData } = await supabase.rpc("plan_status", { p_user_id: user.id });
+  const status = Array.isArray(statusData) ? statusData[0] : statusData;
+
   return (
     <Dashboard
       user={{
@@ -44,6 +48,8 @@ export default async function AppPage() {
       initialConversations={initial}
       plan={effectivePlan(profile).id}
       memoryEnabled={profile.memory_enabled}
+      planState={(status?.state as "free" | "active" | "expiring_soon" | "expired") ?? "free"}
+      daysLeft={status?.days_left ?? null}
     />
   );
 }
