@@ -32,6 +32,23 @@ export const metadata: Metadata = {
     "GPT-4o, Claude, Gemini, Mistral — hamma bitta interfeys orqali. Suhbatlaringiz shifrlangan. Xotirangiz sizda.",
   applicationName: "SOVEREIGN AI",
   keywords: ["AI", "Claude", "ChatGPT", "Gemini", "privacy", "maxfiylik", "O'zbek"],
+  icons: {
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/logo.svg",
+  },
+  manifest: "/site.webmanifest",
+  openGraph: {
+    title: "SOVEREIGN AI",
+    description: "Barcha AI'lar bitta joyda. Faqat sizniki.",
+    url: "https://sovhq.vercel.app",
+    siteName: "SOVEREIGN",
+    images: [{ url: "/logo.svg", width: 512, height: 512 }],
+    locale: "uz_UZ",
+    type: "website",
+  },
 };
 
 export const viewport: Viewport = {

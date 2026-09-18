@@ -130,9 +130,9 @@ export function MessageItem({ message, isLast, onRegenerate, tts }: MessageItemP
 
   return (
     <motion.div
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.25, ease: EASE, delay: 0.05 }}
+      initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={{ type: "spring", stiffness: 340, damping: 28, mass: 0.7 }}
       className="group flex gap-3"
     >
       {showAvatar && (

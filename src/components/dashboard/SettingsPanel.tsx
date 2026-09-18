@@ -1,12 +1,13 @@
 "use client";
 
-import { Download, LogOut, Palette, Settings, ShieldAlert, Sparkles, X } from "lucide-react";
+import { Download, Keyboard, LogOut, Palette, Settings, ShieldAlert, Sparkles, Sun, Type, X, Zap } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState, useTransition } from "react";
 import { signOut } from "@/app/actions/auth";
 import { deleteMyData, exportMyData } from "@/app/actions/account";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { EASE_OUT_EXPO } from "@/lib/motion";
+import { useChat } from "@/store/chat";
 
 interface SettingsPanelProps {
   open: boolean;
@@ -45,12 +46,47 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
   );
 }
 
+function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
+  return (
+    <div className="inline-flex rounded-lg border p-0.5" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          style={{
+            background: value === o.value ? "var(--t-primary, #5B50F0)" : "transparent",
+            color: value === o.value ? "#fff" : "var(--t-text-muted, #9BA3CC)",
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function SettingsPanel({ open, onClose, user, plan, dynamicTheme, onToggleDynamicTheme, onUpgrade }: SettingsPanelProps) {
   const [, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const planName = (isPlanId(plan) ? PLAN_BY_ID[plan] : PLAN_BY_ID.free).name;
   const initials = user.name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
+
+  // Yangi sozlamalar — chat matn o'lchami, zichlik, streaming, enter, motion
+  const fontSize = useChat((s) => s.fontSize);
+  const setFontSize = useChat((s) => s.setFontSize);
+  const density = useChat((s) => s.density);
+  const setDensity = useChat((s) => s.setDensity);
+  const enterToSend = useChat((s) => s.enterToSend);
+  const setEnterToSend = useChat((s) => s.setEnterToSend);
+  const streamingSpeed = useChat((s) => s.streamingSpeed);
+  const setStreamingSpeed = useChat((s) => s.setStreamingSpeed);
+  const reducedMotion = useChat((s) => s.reducedMotion);
+  const setReducedMotion = useChat((s) => s.setReducedMotion);
+  const autoScroll = useChat((s) => s.autoScroll);
+  const setAutoScroll = useChat((s) => s.setAutoScroll);
 
   useEffect(() => {
     if (!open) return;
@@ -158,6 +194,52 @@ export function SettingsPanel({ open, onClose, user, plan, dynamicTheme, onToggl
                 </div>
                 <Row title="Model atmosferasi" desc="Model almashganda butun interfeys unga moslashadi.">
                   <Toggle on={dynamicTheme} onChange={onToggleDynamicTheme} />
+                </Row>
+                <Row title="Matn o'lchami" desc="Chat matni katta-kichikligi.">
+                  <Segmented
+                    value={fontSize}
+                    options={[
+                      { value: "sm", label: "S" },
+                      { value: "md", label: "M" },
+                      { value: "lg", label: "L" },
+                    ]}
+                    onChange={setFontSize}
+                  />
+                </Row>
+                <Row title="Zichlik" desc="Xabarlar orasidagi masofa.">
+                  <Segmented
+                    value={density}
+                    options={[
+                      { value: "compact", label: "Zich" },
+                      { value: "comfortable", label: "Bo'sh" },
+                    ]}
+                    onChange={setDensity}
+                  />
+                </Row>
+                <Row title="Animatsiyani kamaytirish" desc="Kichikroq harakatlar, batarey uchun.">
+                  <Toggle on={reducedMotion} onChange={setReducedMotion} />
+                </Row>
+              </div>
+
+              <div className="border-t py-1" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
+                <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                  <Keyboard className="size-3.5" /> Chat xatti-harakati
+                </div>
+                <Row title="Enter — yuborish" desc="O'chirilganda Ctrl+Enter bilan yuboriladi.">
+                  <Toggle on={enterToSend} onChange={setEnterToSend} />
+                </Row>
+                <Row title="Streaming tezligi" desc="Naturali — bo'lakli; Darhol — butun javob birga.">
+                  <Segmented
+                    value={streamingSpeed}
+                    options={[
+                      { value: "natural", label: "Natural" },
+                      { value: "instant", label: "Darhol" },
+                    ]}
+                    onChange={setStreamingSpeed}
+                  />
+                </Row>
+                <Row title="Avto-scroll" desc="Javob kelganda pastga o'zi tushadi.">
+                  <Toggle on={autoScroll} onChange={setAutoScroll} />
                 </Row>
               </div>
 

@@ -73,6 +73,18 @@ interface ChatState {
   enabledSkills: string[];
   /** Mask PII in the outgoing prompt (Blind Prompting). */
   blindPrompting: boolean;
+  /** Chat matn o'lchami. */
+  fontSize: "sm" | "md" | "lg";
+  /** Xabar zichligi. */
+  density: "compact" | "comfortable";
+  /** Enter yuboradi (default) yoki Ctrl+Enter yuboradi. */
+  enterToSend: boolean;
+  /** Streaming tezligi — "natural" (bo'lakli) yoki "instant" (darhol butun). */
+  streamingSpeed: "natural" | "instant";
+  /** Reduced motion — foydalanuvchi animatsiya kamayishini xohlaydi. */
+  reducedMotion: boolean;
+  /** Suhbat javobi kelganda avtomatik pastga scroll. */
+  autoScroll: boolean;
 
   setModel: (id: string) => void;
   setResearch: (on: boolean) => void;
@@ -80,6 +92,12 @@ interface ChatState {
   setDynamicTheme: (on: boolean) => void;
   toggleSkill: (id: string) => void;
   setBlindPrompting: (on: boolean) => void;
+  setFontSize: (v: "sm" | "md" | "lg") => void;
+  setDensity: (v: "compact" | "comfortable") => void;
+  setEnterToSend: (on: boolean) => void;
+  setStreamingSpeed: (v: "natural" | "instant") => void;
+  setReducedMotion: (on: boolean) => void;
+  setAutoScroll: (on: boolean) => void;
   newChat: () => void;
   select: (id: string | null) => void;
   createConversation: (modelId: string, research: boolean) => Conversation;
@@ -109,9 +127,25 @@ export const useChat = create<ChatState>()(
       modelId: DEFAULT_MODEL_ID,
       research: false,
       sidebarOpen: true,
+      // Default: dynamicTheme YOQILGAN. Auto rejimda SOVEREIGN temasi ko'rinadi
+      // (Dashboard.tsx modelId === AUTO_MODEL_ID → SOVEREIGN qoidasi). Foydalanuvchi
+      // Claude/Gemini/ChatGPT chip'ini bosgach — o'sha model temasi.
       dynamicTheme: true,
       enabledSkills: DEFAULT_ENABLED_SKILLS,
       blindPrompting: false,
+      fontSize: "md",
+      density: "comfortable",
+      enterToSend: true,
+      streamingSpeed: "natural",
+      reducedMotion: false,
+      autoScroll: true,
+
+      setFontSize: (fontSize) => set({ fontSize }),
+      setDensity: (density) => set({ density }),
+      setEnterToSend: (enterToSend) => set({ enterToSend }),
+      setStreamingSpeed: (streamingSpeed) => set({ streamingSpeed }),
+      setReducedMotion: (reducedMotion) => set({ reducedMotion }),
+      setAutoScroll: (autoScroll) => set({ autoScroll }),
 
       setModel: (modelId) => {
         if (modelId !== AUTO_MODEL_ID && !MODEL_BY_ID[modelId]) return;

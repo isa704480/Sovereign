@@ -1,0 +1,12 @@
+{
+  "name": "SOVEREIGN AI",
+  "short_name": "SOVEREIGN",
+  "description": "Barcha AI'lar bitta joyda. Faqat sizniki.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060812",
+  "theme_color": "#5B50F0",
+  "icons": [
+    { "src": "/logo.svg", "type": "image/svg+xml", "sizes": "any" }
+  ]
+}

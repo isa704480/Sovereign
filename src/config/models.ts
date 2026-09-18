@@ -489,7 +489,9 @@ export const MODEL_GROUPS: { tier: ModelTier; label: string; badge?: string }[] 
   { tier: "ultra", label: "Ultra · $29", badge: "🚀" },
 ];
 
-export const DEFAULT_MODEL_ID = "claude-sonnet-4-5";
+// Default: Auto rejim — Dashboard SOVEREIGN temasi ko'rsatadi (model temasi emas).
+// Foydalanuvchi Claude/Gemini/ChatGPT chip'ini bosgach o'sha model temasi keladi.
+export const DEFAULT_MODEL_ID = "auto";
 export const RESEARCH_MODEL_ID = "sonar-online";
 export const AUTO_MODEL_ID = "auto";
 
