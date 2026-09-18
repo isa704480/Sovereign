@@ -264,6 +264,25 @@ export async function POST(req: Request) {
           }
         }
 
+        // Token hisobini yozib qo'yamiz (billing va admin analytics uchun).
+        // Aniq son hisob qilinmaydi — modelning javob uzunligi asosida taxminlaymiz
+        // (~4 char = 1 token).
+        if (authed && cacheableAnswer) {
+          try {
+            const supabase = await createClient();
+            const inputEstimate = Math.round(lastText.length / 4);
+            const outputEstimate = Math.round(cacheableAnswer.length / 4);
+            void supabase.rpc("record_token_usage", {
+              p_input_tokens: inputEstimate,
+              p_output_tokens: outputEstimate,
+              p_model: steps[steps.length - 1]?.modelId ?? modelId,
+              p_provider: null,
+            });
+          } catch {
+            /* jim */
+          }
+        }
+
         // Verifier: uzun faktual javoblarni haiku bilan tekshirish.
         // Streaming tugagandan keyin qo'shimcha "verifier" eventi keladi.
         if (cacheableAnswer.length >= 300 && !research) {

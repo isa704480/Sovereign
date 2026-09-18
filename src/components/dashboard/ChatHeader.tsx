@@ -4,6 +4,7 @@ import { Globe, Menu, Palette, PanelRight, Share2 } from "lucide-react";
 import { HERO_DEMO_MODELS, RESEARCH_MODEL_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
 import { cn } from "@/lib/utils";
+import { CreditIndicator } from "./CreditIndicator";
 import { ModelSwitcher } from "./ModelSwitcher";
 import { useTheme } from "./theme-context";
 
@@ -18,6 +19,7 @@ interface ChatHeaderProps {
   hasSources: boolean;
   sourcesOpen: boolean;
   onToggleSources: () => void;
+  onUpgrade: () => void;
 }
 
 export function ChatHeader({
@@ -31,6 +33,7 @@ export function ChatHeader({
   hasSources,
   sourcesOpen,
   onToggleSources,
+  onUpgrade,
 }: ChatHeaderProps) {
   const { model } = useTheme();
   const quick = [...HERO_DEMO_MODELS.slice(0, 3)];
@@ -86,7 +89,8 @@ export function ChatHeader({
         </button>
       </div>
 
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-2">
+        <CreditIndicator plan={plan} onUpgrade={onUpgrade} />
         <span className="mr-2 hidden max-w-[220px] truncate text-sm md:inline" style={{ color: "var(--t-text-muted)" }} title={title}>
           {title}
         </span>

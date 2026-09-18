@@ -244,6 +244,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
             hasSources={theme.layout.showCitations && citations.length > 0}
             sourcesOpen={sourcesOpen}
             onToggleSources={() => setSourcesOpen((o) => !o)}
+            onUpgrade={() => openPricing()}
           />
 
           {/* Tarif expired/expiring_soon holatida chirali panel chiqadi */}
