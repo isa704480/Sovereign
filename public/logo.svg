@@ -1,0 +1,20 @@
+<svg width="256" height="256" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="sov-shell" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8B7DFF"/>
+      <stop offset="100%" stop-color="#5B50F0"/>
+    </linearGradient>
+    <linearGradient id="sov-core" x1="10" y1="9" x2="22" y2="23" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6558E8"/>
+      <stop offset="100%" stop-color="#4238B8"/>
+    </linearGradient>
+    <radialGradient id="sov-glow" cx="0.35" cy="0.3" r="0.7">
+      <stop offset="0%" stop-color="#B4AAFF" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#B4AAFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <path d="M16 2.5 L27.6 9.25 L27.6 22.75 L16 29.5 L4.4 22.75 L4.4 9.25 Z" stroke="url(#sov-shell)" stroke-width="1.75" stroke-linejoin="round"/>
+  <path d="M16 9 L21.9 12.5 L21.9 19.5 L16 23 L10.1 19.5 L10.1 12.5 Z" fill="url(#sov-core)"/>
+  <path d="M16 9 L21.9 12.5 L21.9 19.5 L16 23 L10.1 19.5 L10.1 12.5 Z" fill="url(#sov-glow)"/>
+  <circle cx="16" cy="16" r="1.6" fill="#F5F3FF"/>
+</svg>
