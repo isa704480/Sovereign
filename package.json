@@ -22,6 +22,8 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cn": "^0.3.0",
+    "dodopayments": "^2.51.0",
+    "dodopayments-checkout": "^1.9.9",
     "firebase": "^12.19.0",
     "lucide-react": "^1.46.0",
     "motion": "^13.3.0",

@@ -1,4 +1,4 @@
-import { planForDodoProduct, verifyDodoWebhook } from "@/lib/payments/dodo";
+import { planForDodoProduct, unwrapDodoWebhook } from "@/lib/payments/dodo";
 import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
@@ -26,15 +26,11 @@ export async function POST(req: Request) {
   if (!secret) return Response.json({ error: "Webhook misconfigured" }, { status: 500 });
 
   const rawBody = await req.text();
-  if (!verifyDodoWebhook(rawBody, req.headers, secret)) {
-    return Response.json({ error: "Invalid signature" }, { status: 401 });
-  }
-
   let event: DodoEvent;
   try {
-    event = JSON.parse(rawBody);
+    event = unwrapDodoWebhook(rawBody, req.headers) as DodoEvent;
   } catch {
-    return Response.json({ error: "Bad payload" }, { status: 400 });
+    return Response.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   const type = event.type ?? "";

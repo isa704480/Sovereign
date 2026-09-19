@@ -39,8 +39,28 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ plan: planId }),
         });
-        const data = (await res.json()) as { checkoutUrl?: string; error?: string };
-        if (data.checkoutUrl) {
+        const data = (await res.json()) as { checkoutUrl?: string; error?: string; mode?: "live" | "test" };
+        if (data.checkoutUrl && method === "card") {
+          setMessage("To'lov oynasi ochilmoqda...");
+          try {
+            // Overlay keeps the user on SOVEREIGN; the SDK itself follows
+            // checkout.redirect to our return_url once payment succeeds.
+            const { DodoPayments } = await import("dodopayments-checkout");
+            DodoPayments.Initialize({
+              mode: data.mode ?? "live",
+              displayType: "overlay",
+              onEvent: (ev) => {
+                if (ev.event_type === "checkout.closed") setMessage(null);
+                if (ev.event_type === "checkout.error" || ev.event_type === "checkout.link_expired") {
+                  setMessage("To'lov oynasida xato. Qayta urinib ko'ring.");
+                }
+              },
+            });
+            DodoPayments.Checkout.open({ checkoutUrl: data.checkoutUrl });
+          } catch {
+            window.location.href = data.checkoutUrl;
+          }
+        } else if (data.checkoutUrl) {
           setMessage("To'lov sahifasiga o'tilmoqda...");
           window.location.href = data.checkoutUrl;
         } else {

@@ -3,7 +3,7 @@ import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { createDodoCheckout, isDodoConfigured } from "@/lib/payments/dodo";
+import { createDodoCheckout, dodoMode, isDodoConfigured } from "@/lib/payments/dodo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -58,12 +58,19 @@ export async function POST(req: Request) {
     } catch {
       /* reconciliation-only field */
     }
-    return Response.json({ checkoutUrl: checkout.checkoutUrl, orderId });
-  } catch {
+    return Response.json({ checkoutUrl: checkout.checkoutUrl, orderId, mode: dodoMode() });
+  } catch (e) {
     try {
       await createServiceClient().from("orders").update({ status: "cancelled" }).eq("id", orderId);
     } catch {
       /* ignore */
+    }
+    // 403 = Dodo hasn't enabled live payments for the merchant yet (verification pending).
+    if ((e as { status?: number }).status === 403) {
+      return Response.json(
+        { error: "Karta orqali to'lov tez orada ochiladi. Hozircha Kripto orqali to'lashingiz mumkin." },
+        { status: 503 },
+      );
     }
     return Response.json({ error: "To'lov sahifasi yaratilmadi. Qayta urinib ko'ring." }, { status: 502 });
   }
