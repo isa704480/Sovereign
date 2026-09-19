@@ -20,6 +20,7 @@ interface PricingDialogProps {
 export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPlan }: PricingDialogProps) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [method, setMethod] = useState<"card" | "crypto">("card");
 
   useEffect(() => {
     if (!open) return;
@@ -33,7 +34,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
     setMessage(null);
     startTransition(async () => {
       try {
-        const res = await fetch("/api/checkout", {
+        const res = await fetch(method === "card" ? "/api/checkout/dodo" : "/api/checkout", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ plan: planId }),
@@ -93,6 +94,34 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                   {reason}
                 </p>
               )}
+              <div
+                role="radiogroup"
+                aria-label="To'lov usuli"
+                className="mx-auto mt-5 inline-flex rounded-xl border p-1"
+                style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}
+              >
+                {(
+                  [
+                    { id: "card", label: "Karta · Apple/Google Pay" },
+                    { id: "crypto", label: "Kripto · USDT/BTC" },
+                  ] as const
+                ).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={method === m.id}
+                    onClick={() => setMethod(m.id)}
+                    className="rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+                    style={{
+                      background: method === m.id ? "var(--t-primary, #5B50F0)" : "transparent",
+                      color: method === m.id ? "#fff" : "var(--t-text-muted, #9BA3CC)",
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -149,7 +178,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           : { background: p.color, color: "#fff" }
                       }
                     >
-                      {current ? "Joriy tarif" : p.price === 0 ? "Free" : `$${p.price} — kripto to'lov`}
+                      {current ? "Joriy tarif" : p.price === 0 ? "Free" : `$${p.price} — ${method === "card" ? "karta" : "kripto"}`}
                     </button>
                   </div>
                 );
@@ -172,7 +201,9 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
             </AnimatePresence>
 
             <p className="mt-4 text-center text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-              To&apos;lov kripto (USDT / USDC / BTC) orqali — ZenoBank xavfsiz checkout. Narxlar oyiga.
+              {method === "card"
+                ? "Karta obunasi — Dodo Payments xavfsiz checkout. 7 kun bepul sinov, istalgan vaqt bekor qilish."
+                : "Kripto (USDT / USDC / BTC) — ZenoBank xavfsiz checkout. 30 kunlik bir martalik to'lov."}
             </p>
           </motion.div>
         </motion.div>
