@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/react";
-import { Menu, X } from "lucide-react";
+import { Menu, MessageSquare, X } from "lucide-react";
 import { useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ const NAV = [
   { href: "#privacy", label: "Maxfiylik" },
 ];
 
-export function Navbar() {
+export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -51,12 +51,22 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Button asChild variant="ghost" className="h-9 px-3 text-text-secondary hover:text-text-primary">
-            <Link href="/login">Kirish</Link>
-          </Button>
-          <Button asChild className="h-9 rounded-xl bg-primary px-4 text-white shadow-glow hover:bg-primary-dark">
-            <Link href="/register">Bepul boshlash</Link>
-          </Button>
+          {signedIn ? (
+            <Button asChild className="h-9 rounded-xl bg-primary px-4 text-white shadow-glow hover:bg-primary-dark">
+              <Link href="/app">
+                <MessageSquare className="size-4" /> Chatbotga qaytish
+              </Link>
+            </Button>
+          ) : (
+            <>
+              <Button asChild variant="ghost" className="h-9 px-3 text-text-secondary hover:text-text-primary">
+                <Link href="/login">Kirish</Link>
+              </Button>
+              <Button asChild className="h-9 rounded-xl bg-primary px-4 text-white shadow-glow hover:bg-primary-dark">
+                <Link href="/register">Bepul boshlash</Link>
+              </Button>
+            </>
+          )}
         </div>
 
         <button
@@ -88,14 +98,24 @@ export function Navbar() {
                 {n.label}
               </a>
             ))}
-            <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-3">
-              <Button asChild variant="outline" className="h-10 rounded-xl">
-                <Link href="/login">Kirish</Link>
-              </Button>
-              <Button asChild className="h-10 rounded-xl bg-primary text-white hover:bg-primary-dark">
-                <Link href="/register">Boshlash</Link>
-              </Button>
-            </div>
+            {signedIn ? (
+              <div className="mt-2 border-t border-border pt-3">
+                <Button asChild className="h-10 w-full rounded-xl bg-primary text-white hover:bg-primary-dark">
+                  <Link href="/app">
+                    <MessageSquare className="size-4" /> Chatbotga qaytish
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-3">
+                <Button asChild variant="outline" className="h-10 rounded-xl">
+                  <Link href="/login">Kirish</Link>
+                </Button>
+                <Button asChild className="h-10 rounded-xl bg-primary text-white hover:bg-primary-dark">
+                  <Link href="/register">Boshlash</Link>
+                </Button>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

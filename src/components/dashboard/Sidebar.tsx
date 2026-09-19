@@ -1,8 +1,8 @@
 "use client";
 
-import { Brain, FolderOpen, Globe, LogOut, MessageSquarePlus, PanelLeftClose, Search, Settings, Trash2 } from "lucide-react";
+import { Brain, FolderOpen, Globe, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Search, Settings, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { MODEL_BY_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
@@ -13,6 +13,7 @@ import { useTheme } from "./theme-context";
 
 interface SidebarProps {
   open: boolean;
+  onOpen: () => void;
   onClose: () => void;
   conversations: Record<string, Conversation>;
   order: string[];
@@ -39,12 +40,12 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
       aria-checked={on}
       aria-label={label}
       onClick={() => onChange(!on)}
-      className="tt relative h-5 w-9 rounded-full transition-colors"
+      className="tt relative h-5 w-9 shrink-0 rounded-full p-0 transition-colors"
       style={{ background: on ? "var(--t-primary)" : "color-mix(in srgb, var(--t-text) 18%, transparent)" }}
     >
       <span
-        className="absolute top-0.5 size-4 rounded-full bg-white transition-transform"
-        style={{ transform: on ? "translateX(18px)" : "translateX(2px)" }}
+        className="absolute left-0.5 top-0.5 size-4 rounded-full bg-white transition-transform duration-200"
+        style={{ transform: on ? "translateX(16px)" : "translateX(0)" }}
       />
     </button>
   );
@@ -52,6 +53,7 @@ function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) =
 
 export function Sidebar({
   open,
+  onOpen,
   onClose,
   conversations,
   order,
@@ -71,6 +73,11 @@ export function Sidebar({
 }: SidebarProps) {
   const { theme, model } = useTheme();
   const [q, setQ] = useState("");
+  const openSearch = useCallback(() => {
+    onOpen();
+    // Focus the desktop panel's input once it has expanded enough to be visible.
+    setTimeout(() => document.querySelector<HTMLInputElement>("aside [data-sidebar-search]")?.focus(), 260);
+  }, [onOpen]);
 
   const filteredOrder = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -126,6 +133,7 @@ export function Sidebar({
         >
           <Search className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
           <input
+            data-sidebar-search
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Suhbatlarni qidirish"
@@ -299,17 +307,100 @@ export function Sidebar({
     </div>
   );
 
+  const railItems = [
+    { label: "Yangi suhbat", Icon: MessageSquarePlus, onClick: onNew, primary: true },
+    { label: "Suhbatlarni qidirish", Icon: Search, onClick: openSearch },
+    { label: "Xotira", Icon: Brain, onClick: onOpenMemory },
+    { label: "Knowledge Base", Icon: FolderOpen, onClick: onOpenKnowledge },
+    { label: research ? "Research rejim: yoqilgan" : "Research rejim", Icon: Globe, onClick: () => onToggleResearch(!research), active: research },
+    { label: "Sozlamalar", Icon: Settings, onClick: onOpenSettings },
+  ];
+
+  // Collapsed desktop state: a slim icon rail that stays visible and expands on click.
+  const rail = (
+    <div className="flex h-full w-[60px] flex-col items-center gap-1 py-3" style={{ color: "var(--t-text)" }}>
+      <button
+        type="button"
+        onClick={onOpen}
+        className="mb-1 rounded-lg p-2 transition-colors hover:bg-white/10"
+        style={{ color: "var(--t-text-muted)" }}
+        aria-label="Panelni ochish"
+        title="Panelni ochish"
+      >
+        <PanelLeftOpen className="size-5" />
+      </button>
+      {railItems.map(({ label, Icon, onClick, primary, active }) => (
+        <button
+          key={label}
+          type="button"
+          onClick={onClick}
+          aria-label={label}
+          title={label}
+          aria-pressed={active}
+          className={cn("tt flex size-10 items-center justify-center rounded-xl transition-all hover:scale-105", !primary && "hover:bg-white/10")}
+          style={
+            primary
+              ? { background: "var(--t-primary)", color: "#fff", boxShadow: "0 0 16px color-mix(in srgb, var(--t-primary) 35%, transparent)" }
+              : {
+                  color: active ? "var(--t-primary)" : "var(--t-text-muted)",
+                  background: active ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : undefined,
+                }
+          }
+        >
+          <Icon className="size-[18px]" />
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        className="mt-auto rounded-full transition-transform hover:scale-105"
+        aria-label="Sozlamalarni ochish"
+        title={`${user.name} · ${plan.name}`}
+      >
+        {user.avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={user.avatarUrl} alt="" className="size-9 rounded-full object-cover" />
+        ) : (
+          <span className="flex size-9 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--t-primary)" }}>
+            {initials || "S"}
+          </span>
+        )}
+      </button>
+    </div>
+  );
+
   return (
     <>
-      {/* desktop */}
+      {/* desktop: full panel ↔ icon rail */}
       <motion.aside
         initial={false}
-        animate={{ width: open ? 264 : 0, opacity: open ? 1 : 0 }}
-        transition={{ duration: 0.3, ease: EASE }}
-        className="tt hidden h-full shrink-0 overflow-hidden border-r md:block"
+        animate={{ width: open ? 264 : 60 }}
+        transition={{ type: "spring", stiffness: 320, damping: 34, mass: 0.9 }}
+        className="tt relative hidden h-full shrink-0 overflow-hidden border-r md:block"
         style={{ background: "var(--t-sidebar)", borderColor: "var(--t-border)" }}
       >
-        <div className="h-full w-[264px]">{body}</div>
+        <motion.div
+          initial={false}
+          animate={{ opacity: open ? 1 : 0, x: open ? 0 : -16 }}
+          transition={{ duration: open ? 0.25 : 0.12, delay: open ? 0.08 : 0, ease: EASE }}
+          className="absolute inset-y-0 left-0 w-[264px]"
+          style={{ pointerEvents: open ? "auto" : "none" }}
+          aria-hidden={!open}
+          inert={!open}
+        >
+          {body}
+        </motion.div>
+        <motion.div
+          initial={false}
+          animate={{ opacity: open ? 0 : 1 }}
+          transition={{ duration: open ? 0.1 : 0.2, delay: open ? 0 : 0.1, ease: EASE }}
+          className="absolute inset-y-0 left-0"
+          style={{ pointerEvents: open ? "none" : "auto" }}
+          aria-hidden={open}
+          inert={open}
+        >
+          {rail}
+        </motion.div>
       </motion.aside>
 
       {/* mobile overlay */}

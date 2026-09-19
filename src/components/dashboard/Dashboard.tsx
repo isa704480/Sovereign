@@ -198,6 +198,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       >
         <Sidebar
           open={sidebarOpen}
+          onOpen={() => setSidebarOpen(true)}
           onClose={() => setSidebarOpen(false)}
           conversations={conversations}
           order={order}

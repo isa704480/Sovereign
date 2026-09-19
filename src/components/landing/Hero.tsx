@@ -22,7 +22,7 @@ const STATS = [
   { value: "< 50ms", label: "Blind Prompting kechikish", emphasize: false },
 ];
 
-export function Hero() {
+export function Hero({ signedIn = false }: { signedIn?: boolean }) {
   const [active, setActive] = useState(0);
 
   useEffect(() => {
@@ -77,10 +77,10 @@ export function Hero() {
             <div className="mt-9 flex flex-wrap items-center gap-4">
               <MagneticButton>
                 <Link
-                  href="/register"
+                  href={signedIn ? "/app" : "/register"}
                   className="group inline-flex h-12 items-center gap-2 rounded-2xl bg-primary px-6 text-base font-semibold text-white shadow-glow transition-colors hover:bg-primary-dark"
                 >
-                  Bepul boshlash
+                  {signedIn ? "Chatbotga qaytish" : "Bepul boshlash"}
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
               </MagneticButton>
