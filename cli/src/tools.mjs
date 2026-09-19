@@ -220,6 +220,14 @@ export async function runTool(name, args, confirm) {
   }
 }
 
+// The server caps a single message at 40k chars; a big cwd (e.g. the home folder)
+// can produce 50k+ of tree, so keep the overview short — the agent can list_dir more.
+const CONTEXT_MAX = 6_000;
+
 export function contextSummary() {
-  return `Joriy ish papkasi: ${process.cwd()}\nTuzilma:\n${tree(process.cwd()) || "(bo'sh)"}`;
+  let t = tree(process.cwd()) || "(bo'sh)";
+  if (t.length > CONTEXT_MAX) {
+    t = `${t.slice(0, CONTEXT_MAX).replace(/\n[^\n]*$/, "")}\n… (qisqartirildi — batafsil uchun list_dir ishlating)`;
+  }
+  return `Joriy ish papkasi: ${process.cwd()}\nTuzilma:\n${t}`;
 }

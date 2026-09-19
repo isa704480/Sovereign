@@ -1,6 +1,9 @@
 // SOVEREIGN CLI — Apple Liquid Glass adapted for terminal.
 // Zero dependencies. Restrained palette, hairline dividers, unified panels.
 
+import { createRequire } from "node:module";
+
+const { version: PKG_VERSION } = createRequire(import.meta.url)("../package.json");
 const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
 const wrap = (open, close) => (s) => (useColor ? `\x1b[${open}m${s}\x1b[${close}m` : String(s));
 
@@ -150,7 +153,7 @@ export function banner(config, enabledSkills = []) {
 
   const hero = heroLogo(width);
   const tagline = center(c.subtle("Terminaldagi AI koding agenti"), width);
-  const version = center(c.faint("v0.5 · SOVEREIGN"), width);
+  const version = center(c.faint(`v${PKG_VERSION} · SOVEREIGN`), width);
 
   const label = (t) => c.faint(t.toUpperCase());
   const kv = (k, v, tint = c.text) => label(k.padEnd(10)) + "  " + tint(v);

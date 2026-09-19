@@ -65,13 +65,31 @@ async function typeOut(text, onText) {
   }
 }
 
+// Server limits (/api/cli/chat): 60 messages, 40k chars per message.
+const TOOL_RESULT_MAX = 24_000;
+const HISTORY_MAX = 44;
+
+/**
+ * Keeps every system message plus the most recent turns, starting at a user
+ * message so no tool result is sent without the assistant call that produced it.
+ */
+function forServer(messages) {
+  const system = messages.filter((m) => m.role === "system");
+  const rest = messages.filter((m) => m.role !== "system");
+  if (rest.length <= HISTORY_MAX) return messages;
+  let tail = rest.slice(-HISTORY_MAX);
+  const firstUser = tail.findIndex((m) => m.role === "user");
+  if (firstUser > 0) tail = tail.slice(firstUser);
+  return [...system, ...tail];
+}
+
 /** One model round. Returns the assistant message + parsed tool calls. Streams text via onText. */
 async function runRound(messages, config, onText) {
   if (config.token) {
     const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
-      body: JSON.stringify({ messages, tools: TOOL_SCHEMA }),
+      body: JSON.stringify({ messages: forServer(messages), tools: TOOL_SCHEMA }),
     });
     if (!res.ok) {
       let m = `${res.status}`;
@@ -214,7 +232,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
           result = `XATO: ${err.message}`;
         }
       }
-      messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, 60_000) });
+      messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, TOOL_RESULT_MAX) });
     }
   }
   return { done: true };

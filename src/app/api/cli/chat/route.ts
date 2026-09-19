@@ -43,7 +43,7 @@ function endpointFor(r: Route): { url: string; auth: string } {
 // (response_format, logprobs, stream=false, top_p ...) uzatilishini bekor qiladi.
 const messageSchema = z.object({
   role: z.enum(["user", "assistant", "system", "tool"]),
-  content: z.union([z.string().max(30_000), z.array(z.any()).max(12), z.null()]).optional(),
+  content: z.union([z.string().max(40_000), z.array(z.any()).max(12), z.null()]).optional(),
   tool_call_id: z.string().max(200).optional(),
   tool_calls: z.array(z.any()).max(8).optional(),
   name: z.string().max(100).optional(),
@@ -57,7 +57,8 @@ const toolSchema = z.object({
   }),
 });
 const schema = z.object({
-  messages: z.array(messageSchema).min(1).max(20),
+  // An agent task is many tool round-trips (assistant call + tool result each).
+  messages: z.array(messageSchema).min(1).max(60),
   tools: z.array(toolSchema).max(8).optional(),
 }).strict();
 
@@ -91,9 +92,23 @@ export async function POST(req: Request) {
     return Response.json({ error: "Juda ko'p so'rov (IP)." }, { status: 429 });
   }
 
-  const json = await req.json().catch(() => null);
+  const raw = await req.text().catch(() => "");
+  // Cost-DoS cap on the whole payload (attachments are base64, so allow headroom).
+  if (raw.length > 1_500_000) {
+    return Response.json({ error: "So'rov juda katta. Suhbatni /clear qilib qayta urinib ko'ring." }, { status: 413 });
+  }
+  let json: unknown = null;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    /* handled by schema */
+  }
   const parsed = schema.safeParse(json);
-  if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const where = issue?.path.join(".") || "body";
+    return Response.json({ error: `Noto'g'ri so'rov (${where}: ${issue?.message ?? "format"})` }, { status: 400 });
+  }
 
   // Kamida bitta provider kaliti kerak.
   if (!process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
