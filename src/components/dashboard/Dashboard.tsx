@@ -53,11 +53,9 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     modelId,
     research,
     sidebarOpen,
-    dynamicTheme,
     setModel,
     setResearch,
     setSidebarOpen,
-    setDynamicTheme,
     newChat,
     select,
     remove,
@@ -95,14 +93,14 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const active = activeId ? conversations[activeId] : null;
   const messages = active?.messages ?? [];
   const model = resolveModel(modelId);
-  // Auto uses the SOVEREIGN theme (the per-answer model is shown in the message).
-  const theme = !dynamicTheme || modelId === AUTO_MODEL_ID ? MODEL_THEMES.sovereign : MODEL_THEMES[model.theme];
+  // Single UI: every model renders in the SOVEREIGN theme (the model is shown per message).
+  const theme = MODEL_THEMES.sovereign;
   const ctx = useMemo(() => ({ theme, model }), [theme, model]);
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant" && m.citations?.length);
   const lastUser = [...messages].reverse().find((m) => m.role === "user");
   const citations = lastAssistant?.citations ?? [];
-  const showSources = theme.layout.showCitations && citations.length > 0 && sourcesOpen;
+  const showSources = citations.length > 0 && sourcesOpen;
 
   const handleToggleResearch = useCallback(
     (on: boolean) => {
@@ -229,7 +227,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           <div
             className="tt pointer-events-none absolute inset-0 -z-10"
             style={{
-              background: `radial-gradient(70% 30% at 50% -5%, color-mix(in srgb, ${model.primary} 7%, transparent) 0%, transparent 60%)`,
+              background: "radial-gradient(70% 30% at 50% -5%, color-mix(in srgb, var(--t-primary) 7%, transparent) 0%, transparent 60%)",
             }}
           />
 
@@ -239,9 +237,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
             onModelChange={handleModelChange}
             plan={plan}
             onOpenSidebar={() => setSidebarOpen(true)}
-            dynamicTheme={dynamicTheme}
-            onToggleDynamicTheme={() => setDynamicTheme(!dynamicTheme)}
-            hasSources={theme.layout.showCitations && citations.length > 0}
+            hasSources={citations.length > 0}
             sourcesOpen={sourcesOpen}
             onToggleSources={() => setSourcesOpen((o) => !o)}
             onUpgrade={() => openPricing()}
@@ -313,8 +309,6 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           onClose={() => setSettingsOpen(false)}
           user={user}
           plan={plan.id}
-          dynamicTheme={dynamicTheme}
-          onToggleDynamicTheme={setDynamicTheme}
           onUpgrade={() => {
             setSettingsOpen(false);
             openPricing();

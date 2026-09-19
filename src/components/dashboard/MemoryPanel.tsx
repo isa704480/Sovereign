@@ -89,10 +89,13 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
                 role="switch"
                 aria-checked={enabled}
                 onClick={() => toggle(!enabled)}
-                className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+                className="relative h-6 w-11 shrink-0 rounded-full p-0 transition-colors"
                 style={{ background: enabled ? "var(--t-primary, #5B50F0)" : "color-mix(in srgb, var(--t-text, #fff) 18%, transparent)" }}
               >
-                <span className="absolute top-0.5 size-5 rounded-full bg-white transition-transform" style={{ transform: enabled ? "translateX(22px)" : "translateX(2px)" }} />
+                <span
+                  className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200"
+                  style={{ transform: enabled ? "translateX(20px)" : "translateX(0)" }}
+                />
               </button>
             </div>
 

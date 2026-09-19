@@ -67,8 +67,6 @@ interface ChatState {
   modelId: string;
   research: boolean;
   sidebarOpen: boolean;
-  /** "Model atmosferasi": re-skin the dashboard when the model changes. */
-  dynamicTheme: boolean;
   /** User-enabled SOVEREIGN skills (auto-detected ones are added per message). */
   enabledSkills: string[];
   /** Mask PII in the outgoing prompt (Blind Prompting). */
@@ -89,7 +87,6 @@ interface ChatState {
   setModel: (id: string) => void;
   setResearch: (on: boolean) => void;
   setSidebarOpen: (open: boolean) => void;
-  setDynamicTheme: (on: boolean) => void;
   toggleSkill: (id: string) => void;
   setBlindPrompting: (on: boolean) => void;
   setFontSize: (v: "sm" | "md" | "lg") => void;
@@ -127,10 +124,6 @@ export const useChat = create<ChatState>()(
       modelId: DEFAULT_MODEL_ID,
       research: false,
       sidebarOpen: true,
-      // Default: dynamicTheme YOQILGAN. Auto rejimda SOVEREIGN temasi ko'rinadi
-      // (Dashboard.tsx modelId === AUTO_MODEL_ID → SOVEREIGN qoidasi). Foydalanuvchi
-      // Claude/Gemini/ChatGPT chip'ini bosgach — o'sha model temasi.
-      dynamicTheme: true,
       enabledSkills: DEFAULT_ENABLED_SKILLS,
       blindPrompting: false,
       fontSize: "md",
@@ -166,7 +159,6 @@ export const useChat = create<ChatState>()(
       },
       setResearch: (research) => set({ research }),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
-      setDynamicTheme: (dynamicTheme) => set({ dynamicTheme }),
       toggleSkill: (id) =>
         set((s) => ({
           enabledSkills: s.enabledSkills.includes(id)
@@ -294,7 +286,6 @@ export const useChat = create<ChatState>()(
         modelId: s.modelId,
         research: s.research,
         sidebarOpen: s.sidebarOpen,
-        dynamicTheme: s.dynamicTheme,
         enabledSkills: s.enabledSkills,
         blindPrompting: s.blindPrompting,
       }),

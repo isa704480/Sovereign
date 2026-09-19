@@ -1,9 +1,8 @@
 "use client";
 
-import { Globe, Menu, Palette, PanelRight, Share2 } from "lucide-react";
+import { Globe, Menu, PanelRight, Share2 } from "lucide-react";
 import { HERO_DEMO_MODELS, RESEARCH_MODEL_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
-import { cn } from "@/lib/utils";
 import { CreditIndicator } from "./CreditIndicator";
 import { ModelSwitcher } from "./ModelSwitcher";
 import { useTheme } from "./theme-context";
@@ -14,8 +13,6 @@ interface ChatHeaderProps {
   onModelChange: (id: string) => void;
   plan: Plan;
   onOpenSidebar: () => void;
-  dynamicTheme: boolean;
-  onToggleDynamicTheme: () => void;
   hasSources: boolean;
   sourcesOpen: boolean;
   onToggleSources: () => void;
@@ -28,8 +25,6 @@ export function ChatHeader({
   onModelChange,
   plan,
   onOpenSidebar,
-  dynamicTheme,
-  onToggleDynamicTheme,
   hasSources,
   sourcesOpen,
   onToggleSources,
@@ -94,16 +89,6 @@ export function ChatHeader({
         <span className="mr-2 hidden max-w-[220px] truncate text-sm md:inline" style={{ color: "var(--t-text-muted)" }} title={title}>
           {title}
         </span>
-        <button
-          type="button"
-          onClick={onToggleDynamicTheme}
-          className={cn("rounded-lg p-2 transition-colors hover:bg-white/10")}
-          style={{ color: dynamicTheme ? model.primary : "var(--t-text-muted)" }}
-          title={dynamicTheme ? "Model atmosferasi: yoqilgan" : "Model atmosferasi: o'chirilgan (SOVEREIGN tema)"}
-          aria-pressed={dynamicTheme}
-        >
-          <Palette className="size-4" />
-        </button>
         {hasSources && (
           <button
             type="button"

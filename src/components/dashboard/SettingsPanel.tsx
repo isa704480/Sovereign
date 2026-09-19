@@ -14,8 +14,6 @@ interface SettingsPanelProps {
   onClose: () => void;
   user: { name: string; email: string; avatarUrl?: string | null };
   plan: string;
-  dynamicTheme: boolean;
-  onToggleDynamicTheme: (v: boolean) => void;
   onUpgrade: () => void;
 }
 
@@ -38,10 +36,14 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
       role="switch"
       aria-checked={on}
       onClick={() => onChange(!on)}
-      className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+      className="relative h-6 w-11 shrink-0 rounded-full p-0 transition-colors"
       style={{ background: on ? "var(--t-primary, #5B50F0)" : "color-mix(in srgb, var(--t-text,#fff) 18%, transparent)" }}
     >
-      <span className="absolute top-0.5 size-5 rounded-full bg-white transition-transform" style={{ transform: on ? "translateX(22px)" : "translateX(2px)" }} />
+      {/* left-0.5 pins the knob to the track; without it the button's centered content box shifts it out. */}
+      <span
+        className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200"
+        style={{ transform: on ? "translateX(20px)" : "translateX(0)" }}
+      />
     </button>
   );
 }
@@ -67,7 +69,7 @@ function Segmented<T extends string>({ value, options, onChange }: { value: T; o
   );
 }
 
-export function SettingsPanel({ open, onClose, user, plan, dynamicTheme, onToggleDynamicTheme, onUpgrade }: SettingsPanelProps) {
+export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: SettingsPanelProps) {
   const [, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -192,9 +194,6 @@ export function SettingsPanel({ open, onClose, user, plan, dynamicTheme, onToggl
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                   <Palette className="size-3.5" /> Ko&apos;rinish
                 </div>
-                <Row title="Model atmosferasi" desc="Model almashganda butun interfeys unga moslashadi.">
-                  <Toggle on={dynamicTheme} onChange={onToggleDynamicTheme} />
-                </Row>
                 <Row title="Matn o'lchami" desc="Chat matni katta-kichikligi.">
                   <Segmented
                     value={fontSize}
