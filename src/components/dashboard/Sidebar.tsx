@@ -2,6 +2,7 @@
 
 import { Brain, FolderOpen, Globe, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Search, Settings, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { MODEL_BY_ID } from "@/config/models";
@@ -97,7 +98,7 @@ export function Sidebar({
     <div className="flex h-full flex-col" style={{ color: "var(--t-text)" }}>
       {/* header */}
       <div className="flex items-center justify-between px-3 pb-2 pt-3">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2 rounded-lg transition-opacity hover:opacity-80" title="Bosh sahifa">
           <span
             className="flex size-7 items-center justify-center rounded-lg text-sm"
             style={{ background: `color-mix(in srgb, ${model.primary} 20%, transparent)`, color: model.primary }}
@@ -112,7 +113,7 @@ export function Sidebar({
               {theme.badge}
             </span>
           )}
-        </div>
+        </Link>
         <button type="button" onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} aria-label="Yopish">
           <PanelLeftClose className="size-4" />
         </button>

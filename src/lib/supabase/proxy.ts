@@ -23,6 +23,14 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
+  // If the OAuth redirect_to is not in Supabase's allow-list, Supabase falls back to
+  // the Site URL (the landing) with ?code=… — hand that code to the real callback.
+  if (request.nextUrl.pathname === "/" && (request.nextUrl.searchParams.has("code") || request.nextUrl.searchParams.has("error_description"))) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/auth/callback";
+    return NextResponse.redirect(url);
+  }
+
   const supabase = createServerClient(
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
