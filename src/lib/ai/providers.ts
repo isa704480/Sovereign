@@ -165,6 +165,7 @@ export function buildSystemPrompt(model: SovereignModel, research: boolean, extr
     "Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (asosan o'zbek tili).",
     "Javoblarni Markdown'da formatla: sarlavhalar, ro'yxatlar, kod bloklari (til ko'rsatilgan).",
     "Aniq, qisqa va foydali bo'l.",
+    GENERATIVE_UI,
     ANTI_HALLUCINATION,
   ];
   if (research || isResearchModel(model)) {
@@ -173,6 +174,24 @@ export function buildSystemPrompt(model: SovereignModel, research: boolean, extr
   if (extra) base.push(extra);
   return base.join(" ");
 }
+
+/**
+ * "Generative UI" — model javob ichida jonli komponent chiza oladi. Kod emas,
+ * faqat JSON spetsifikatsiyasi; uni Markdown.tsx GenerativeUI'ga uzatadi.
+ */
+export const GENERATIVE_UI = [
+  "JONLI KO'RINISH: raqam, taqqoslash, reja yoki ro'yxat javobni tushunarli qiladigan bo'lsa,",
+  "matn o'rniga ```sovereign-ui``` blokida FAQAT JSON yoz (izohsiz, bitta blok).",
+  "Ruxsat etilgan turlar:",
+  '1) {"type":"kpi","title":"...","items":[{"label":"...","value":"...","hint":"..."}]}',
+  '2) {"type":"chart","chart":"bar|line|area|pie","title":"...","xKey":"oy","series":[{"key":"savdo","label":"Savdo"}],"data":[{"oy":"Yan","savdo":120}]}',
+  '3) {"type":"table","title":"...","columns":["A","B"],"rows":[["1","2"]]}',
+  '4) {"type":"steps","title":"...","items":[{"title":"Qadam","detail":"izoh"}]}',
+  '5) {"type":"checklist","title":"...","items":["birinchi","ikkinchi"]}',
+  "Qoidalar: raqamlarni o'ylab topma — faqat foydalanuvchi bergan yoki manbadagi ma'lumot.",
+  "Ma'lumot yo'q bo'lsa jonli ko'rinish ishlatma. Blokdan oldin 1-2 gap izoh yoz.",
+  "Oddiy savolga (salom, qisqa ta'rif, kod) jonli ko'rinish KERAK EMAS.",
+].join(" ");
 
 /**
  * Faktual xatolarni (gallyusinatsiya) 30-50% kamaytiruvchi asosiy qoida.

@@ -5,6 +5,10 @@ import { memo, useMemo, useState, type ComponentProps } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { isRenderable, useArtifact } from "./artifact-context";
+import { GenerativeUI, parseGenUi } from "./GenerativeUI";
+
+/** Blocks the model uses to draw a component instead of printing JSON. */
+const GEN_UI_LANGS = new Set(["sovereign-ui", "sov-ui", "genui"]);
 
 function CodeBlock({ className, children }: { className?: string; children: string }) {
   const [copied, setCopied] = useState(false);
@@ -62,6 +66,16 @@ function CodeBlock({ className, children }: { className?: string; children: stri
   );
 }
 
+function GenUiPlaceholder() {
+  return (
+    <div
+      className="tt my-3 h-24 animate-pulse rounded-2xl border"
+      style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 4%, transparent)" }}
+      aria-label="Ko'rinish tayyorlanmoqda"
+    />
+  );
+}
+
 function withCitationLinks(content: string, citations?: string[]): string {
   if (!citations?.length) return content;
   // "[1]" → "[1](#cite-1)" so react-markdown turns it into a link we can style.
@@ -103,6 +117,13 @@ export const Markdown = memo(function Markdown({ content, citations }: MarkdownP
       code({ className, children, ...rest }: ComponentProps<"code">) {
         const raw = String(children ?? "").replace(/\n$/, "");
         const isBlock = /language-/.test(className ?? "") || raw.includes("\n");
+        const lang = /language-([\w-]+)/.exec(className ?? "")?.[1];
+        if (lang && GEN_UI_LANGS.has(lang)) {
+          const spec = parseGenUi(raw);
+          // Still streaming (or invalid) → show a placeholder, never raw JSON.
+          if (!spec) return <GenUiPlaceholder />;
+          return <GenerativeUI spec={spec} />;
+        }
         if (isBlock) return <CodeBlock className={className}>{raw}</CodeBlock>;
         return (
           <code className={className} {...rest}>
