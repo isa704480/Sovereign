@@ -49,7 +49,7 @@ const LLM7_FREE_MODEL = "mistral-Nemo-Instruct-2407";
  * 4) OpenAI direct — kuchli, ammo pullik
  * 5) OpenRouter — universal fallback
  */
-type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai" | "nvidia" | "llm7" | "tella" | "omniroute";
+type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai" | "nvidia" | "llm7" | "tella" | "omniroute" | "rsi";
 
 interface RouteCandidate {
   provider: Provider;
@@ -159,10 +159,37 @@ function omnirouteFirst(providerModel: string): { url: string; auth: string; mod
   };
 }
 
+/**
+ * RSI AI (rsiai.net) — arzon reseller. Faqat u qo'llaydigan qimmat modellarni
+ * shu orqali yo'naltiramiz (Opus 5/4.8, GPT-6/5.6, Fable 5). RSI_API_KEY yo'q
+ * bo'lsa yoki model ro'yxatda bo'lmasa — null (odatdagi yo'nalish ishlaydi).
+ */
+const RSI_MODELS: Record<string, string> = {
+  "anthropic/claude-opus-5": "claude-opus-5",
+  "anthropic/claude-opus-4.8": "claude-opus-4-8",
+  "anthropic/claude-fable-5.1": "claude-fable-5",
+  "openai/gpt-6-astra": "gpt-6-astra",
+  "openai/gpt-5.6-sol": "gpt-5.6-sol",
+  "openai/gpt-5.6-terra": "gpt-5.6-terra",
+};
+
+function rsiRoute(providerModel: string): { url: string; auth: string; model: string; provider: Provider } | null {
+  const key = process.env.RSI_API_KEY;
+  const base = process.env.RSI_BASE_URL;
+  if (!key || !base) return null;
+  const id = RSI_MODELS[providerModel];
+  if (!id) return null;
+  return { url: `${base.replace(/\/$/, "")}/chat/completions`, auth: key, model: id, provider: "rsi" };
+}
+
 function pickDirectRoute(
   providerModel: string,
   opts: { skipOmni?: boolean } = {},
 ): { url: string; auth: string; model: string; provider: Provider } | null {
+  if (!opts.skipOmni) {
+    const viaRsi = rsiRoute(providerModel);
+    if (viaRsi) return viaRsi;
+  }
   const viaOmni = opts.skipOmni ? null : omnirouteFirst(providerModel);
   if (viaOmni) return viaOmni;
   const candidates = DIRECT_ROUTES[providerModel];
@@ -542,7 +569,7 @@ async function* streamOpenRouter(
     }
     // OmniRoute (asosiy yo'l) tugagan/xato bergan bo'lsa — xuddi shu modelni
     // to'g'ridan-to'g'ri provayder yoki OpenRouter orqali qayta urinamiz.
-    if (direct?.provider === "omniroute" && !skipOmni) {
+    if ((direct?.provider === "omniroute" || direct?.provider === "rsi") && !skipOmni) {
       yield* streamOpenRouter(model, messages, opts, maxTokens, retried, continuation, true);
       return;
     }
