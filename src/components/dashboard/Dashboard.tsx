@@ -20,6 +20,7 @@ import { MemoryPanel } from "./MemoryPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { SkillsMarket } from "./SkillsMarket";
 import { CoworkPanel } from "./CoworkPanel";
+import { ConnectorsPanel } from "./ConnectorsPanel";
 import { CoworkProvider } from "./cowork-context";
 import { MessageList } from "./MessageList";
 import { PlanStatusBanner } from "./PlanStatusBanner";
@@ -80,6 +81,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const [kbOpen, setKbOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [coworkOpen, setCoworkOpen] = useState(false);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [shareState, setShareState] = useState<"idle" | "busy" | "done">("idle");
 
   /** Suhbatning matnli nusxasini ulashadi va havolani buferga oladi. */
@@ -285,6 +287,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           onOpenKnowledge={() => setKbOpen(true)}
           onOpenSkills={() => setSkillsOpen(true)}
           onOpenCowork={() => setCoworkOpen(true)}
+          onOpenConnectors={() => setConnectorsOpen(true)}
         />
 
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -372,6 +375,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
         <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
         <SkillsMarket open={skillsOpen} onClose={() => setSkillsOpen(false)} enabled={enabledSkills} onToggle={toggleSkill} />
         <CoworkPanel open={coworkOpen} onClose={() => setCoworkOpen(false)} />
+        <ConnectorsPanel open={connectorsOpen} onClose={() => setConnectorsOpen(false)} />
         <KnowledgePanel open={kbOpen} onClose={() => setKbOpen(false)} />
         <SettingsPanel
           open={settingsOpen}

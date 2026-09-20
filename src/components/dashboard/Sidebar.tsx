@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Settings, Trash2 } from "lucide-react";
+import { Brain, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Plug, Search, Sparkles, Settings, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
@@ -33,6 +33,7 @@ interface SidebarProps {
   onOpenKnowledge: () => void;
   onOpenSkills: () => void;
   onOpenCowork: () => void;
+  onOpenConnectors?: () => void;
 }
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -75,6 +76,7 @@ export function Sidebar({
   onOpenKnowledge,
   onOpenSkills,
   onOpenCowork,
+  onOpenConnectors,
 }: SidebarProps) {
   const { theme, model } = useTheme();
   const [q, setQ] = useState("");
@@ -394,6 +396,19 @@ export function Sidebar({
           >
             <Sparkles className="size-4" style={{ color: "var(--t-text-muted)" }} />
             <span className="flex-1 text-left">{t("skills")}</span>
+          </button>
+
+          <div style={{ height: 1, background: "var(--t-border)" }} />
+
+          {/* Ulanishlar (Connectors) */}
+          <button
+            type="button"
+            onClick={onOpenConnectors}
+            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+            style={{ color: "var(--t-text)" }}
+          >
+            <Plug className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <span className="flex-1 text-left">Ulanishlar</span>
           </button>
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
