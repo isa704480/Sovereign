@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Brain, FileText, FolderOpen, FolderTree, Globe, Loader2, Mic, Paperclip, Plus, ShieldCheck, Square, X } from "lucide-react";
+import { ArrowUp, Brain, ChevronDown, FileText, FolderOpen, FolderTree, Globe, Loader2, Mic, Paperclip, Plus, ShieldCheck, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   useCallback,
@@ -322,6 +322,55 @@ export function InputArea({
     </button>
   );
 
+  // Reference dizaynlardagi "Chat / Agent" — bizda "Chat / Cowork". Cowork = kompyuterdagi
+  // papka bilan ishlash rejimi; papka tanlansa faol bo'ladi.
+  const coworkActive = !!cowork.folder;
+  const modeToggle = (
+    <div
+      className="tt inline-flex shrink-0 items-center gap-0.5 rounded-full p-0.5 text-xs font-medium"
+      style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}
+    >
+      <button
+        type="button"
+        onClick={() => { if (coworkActive) cowork.clear(); }}
+        className="rounded-full px-2.5 py-1 transition-colors"
+        style={{ background: coworkActive ? "transparent" : "var(--t-surface)", color: coworkActive ? "var(--t-text-muted)" : "var(--t-text)" }}
+        title="Oddiy suhbat"
+      >
+        Chat
+      </button>
+      <button
+        type="button"
+        onClick={() => onOpenCowork?.()}
+        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 transition-colors"
+        style={{ background: coworkActive ? "var(--t-surface)" : "transparent", color: coworkActive ? "var(--t-accent)" : "var(--t-text-muted)" }}
+        title="Cowork — kompyuterdagi papka bilan ishlash"
+      >
+        <FolderTree className="size-3" /> Cowork
+      </button>
+    </div>
+  );
+
+  // Composer ichidagi model tanlagich — nomi + brend belgisi, mavjud ModelSwitcher'ni ochadi.
+  const modelChip = (
+    <button
+      type="button"
+      onClick={() => window.dispatchEvent(new Event("sovereign:open-model"))}
+      className="tt inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium transition-colors hover:bg-white/5"
+      style={{ color: "var(--t-text-muted)" }}
+      title="Model tanlash (Ctrl+K)"
+    >
+      <span
+        className="inline-flex size-4 items-center justify-center rounded-[5px] text-[10px] leading-none"
+        style={{ background: `color-mix(in srgb, ${model.primary} 22%, transparent)`, color: model.primary }}
+      >
+        {model.glyph}
+      </span>
+      <span className="max-w-[120px] truncate" style={{ color: "var(--t-text)" }}>{model.shortName}</span>
+      <ChevronDown className="size-3.5 opacity-70" />
+    </button>
+  );
+
   return (
     <div className={cn("mx-auto w-full max-w-3xl", className)}>
       <input ref={fileRef} type="file" accept={ACCEPT} multiple hidden onChange={onFiles} />
@@ -411,12 +460,7 @@ export function InputArea({
         onFocusCapture={(e) => (e.currentTarget.style.borderColor = "var(--t-primary)")}
         onBlurCapture={(e) => (e.currentTarget.style.borderColor = "var(--t-border)")}
       >
-        {isPill && (
-          <div className="mb-0.5 flex shrink-0 items-center">
-            {attachBtn}
-            {micBtn}
-          </div>
-        )}
+        {isPill && <div className="flex shrink-0 items-center self-center">{attachBtn}</div>}
 
         {isSearch && (
           <div className="mb-2 flex flex-wrap gap-1.5">
@@ -426,7 +470,7 @@ export function InputArea({
           </div>
         )}
 
-        <div className={cn("flex items-end gap-2", isPill && "flex-1")}>
+        <div className={cn("flex gap-2", isPill ? "flex-1 items-center" : "items-end")}>
           {!isPill && (
             <div className="flex shrink-0 items-center gap-0.5 pb-1">
               {attachBtn}
@@ -448,6 +492,14 @@ export function InputArea({
             )}
             style={{ color: "var(--t-text)" }}
           />
+
+          {isPill && (
+            <div className="flex shrink-0 items-center gap-1 self-center">
+              {modeToggle}
+              {modelChip}
+              {micBtn}
+            </div>
+          )}
 
           {isStreaming ? (
             <motion.button
@@ -552,15 +604,7 @@ export function InputArea({
                 )}
               </AnimatePresence>
             </div>
-            {cowork.folder && (
-              <Chip
-                active
-                icon={<FolderTree className="size-3.5" />}
-                label={cowork.folder.name}
-                onClick={onOpenCowork}
-                title="Cowork papkasi ochiq — @ yozib fayl tanlang"
-              />
-            )}
+            {modeToggle}
             <SkillPicker enabled={enabledSkills} onToggle={onToggleSkill} />
             <Chip
               active={research}
@@ -577,6 +621,7 @@ export function InputArea({
               title="Blind Prompting — ism, telefon, email va boshqa shaxsiy ma'lumotlarni AI ko'rmasligi uchun maskalash"
             />
             {/* Xotira va Tez javob — hozircha shipp qilinmagan; Apple: disabled affordances chiqarmaymiz */}
+            <div className="ml-auto">{modelChip}</div>
           </div>
         )}
       </div>
@@ -591,7 +636,16 @@ export function InputArea({
         <span>
           <kbd className="rounded border px-1 py-0.5" style={{ borderColor: "var(--t-border)" }}>↵</kbd> {t("send")}
         </span>
-        <span>{model.name} · {t("aiDisclaimer")}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-flex size-4 items-center justify-center rounded-[5px] text-[10px] leading-none"
+            style={{ background: `color-mix(in srgb, ${model.primary} 22%, transparent)`, color: model.primary }}
+            aria-hidden
+          >
+            {model.glyph}
+          </span>
+          {model.name} · {t("aiDisclaimer")}
+        </span>
       </div>
     </div>
   );

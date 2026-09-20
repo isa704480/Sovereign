@@ -128,7 +128,7 @@ export const MODEL_THEMES: Record<ModelTheme, ModelThemeSpec> = {
       userBubble: "#3A3A37",
       aiBubble: "transparent",
     },
-    layout: { aiBubble: false, userBubble: true, avatar: "glyph", input: "box", centeredEmptyInput: false, showCitations: false },
+    layout: { aiBubble: false, userBubble: true, avatar: "glyph", input: "box", centeredEmptyInput: true, showCitations: false },
   },
 
   chatgpt: {
@@ -184,7 +184,7 @@ export const MODEL_THEMES: Record<ModelTheme, ModelThemeSpec> = {
     fontDisplay: "'Google Sans', 'Product Sans', Roboto, " + SYSTEM,
     fontBody: "Roboto, " + SYSTEM,
     radius: 24,
-    inputRadius: 28,
+    inputRadius: 32,
     colors: {
       primary: "#4285F4",
       accent: "#A855F7",
@@ -200,7 +200,7 @@ export const MODEL_THEMES: Record<ModelTheme, ModelThemeSpec> = {
       aiBubble: "transparent",
       gradient: "linear-gradient(90deg, #4285F4 0%, #9B72CB 35%, #D96570 65%, #FBBC05 100%)",
     },
-    layout: { aiBubble: false, userBubble: true, avatar: "glyph", input: "pill", centeredEmptyInput: false, showCitations: false },
+    layout: { aiBubble: false, userBubble: true, avatar: "glyph", input: "pill", centeredEmptyInput: true, showCitations: false },
   },
 
   perplexity: {
