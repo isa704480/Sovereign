@@ -28,6 +28,12 @@ const OPENAI_BASE = "https://api.openai.com/v1";
 const CEREBRAS_BASE = "https://api.cerebras.ai/v1";
 const SAMBANOVA_BASE = "https://api.sambanova.ai/v1";
 const MISTRAL_BASE = "https://api.mistral.ai/v1";
+// Free tiers (awesome-free-llm-apis): NVIDIA NIM needs a free key; LLM7 works
+// anonymously, so it is the last-resort route when every other provider fails.
+const NVIDIA_BASE = "https://integrate.api.nvidia.com/v1";
+const LLM7_BASE = "https://api.llm7.io/v1";
+/** LLM7 free tier: no signup. A token only raises the rate limit. */
+const LLM7_FREE_MODEL = "mistral-Nemo-Instruct-2407";
 
 /**
  * Direct provider mapping — OpenRouter'ni chetlab tez va ishonchli endpointga
@@ -38,7 +44,7 @@ const MISTRAL_BASE = "https://api.mistral.ai/v1";
  * 4) OpenAI direct — kuchli, ammo pullik
  * 5) OpenRouter — universal fallback
  */
-type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai";
+type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai" | "nvidia" | "llm7";
 
 interface RouteCandidate {
   provider: Provider;
@@ -51,11 +57,14 @@ const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
     { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "sambanova", model: "Meta-Llama-3.3-70B-Instruct" },
+    { provider: "nvidia", model: "meta/llama-3.3-70b-instruct" },
   ],
   "meta-llama/llama-3.3-70b-instruct:free": [
     { provider: "groq", model: "llama-3.3-70b-versatile" },
     { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "sambanova", model: "Meta-Llama-3.3-70B-Instruct" },
+    { provider: "nvidia", model: "meta/llama-3.3-70b-instruct" },
+    { provider: "llm7", model: LLM7_FREE_MODEL },
   ],
   "meta-llama/llama-3.1-8b-instruct": [
     { provider: "groq", model: "llama-3.1-8b-instant" },
@@ -84,6 +93,7 @@ const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
   "deepseek/deepseek-r1-distill-llama-70b:free": [
     { provider: "sambanova", model: "DeepSeek-R1-Distill-Llama-70B" },
     { provider: "groq", model: "deepseek-r1-distill-llama-70b" },
+    { provider: "llm7", model: LLM7_FREE_MODEL },
   ],
 
   // OpenAI direct
@@ -97,6 +107,8 @@ function providerAvailable(p: Provider): boolean {
   if (p === "cerebras") return !!process.env.CEREBRAS_API_KEY;
   if (p === "sambanova") return !!process.env.SAMBANOVA_API_KEY;
   if (p === "mistral") return !!process.env.MISTRAL_API_KEY;
+  if (p === "nvidia") return !!process.env.NVIDIA_API_KEY;
+  if (p === "llm7") return true; // anonymous free tier
   return !!process.env.OPENAI_API_KEY;
 }
 
@@ -105,6 +117,8 @@ function providerEndpoint(p: Provider): { url: string; auth: string } {
   if (p === "cerebras") return { url: `${CEREBRAS_BASE}/chat/completions`, auth: process.env.CEREBRAS_API_KEY! };
   if (p === "sambanova") return { url: `${SAMBANOVA_BASE}/chat/completions`, auth: process.env.SAMBANOVA_API_KEY! };
   if (p === "mistral") return { url: `${MISTRAL_BASE}/chat/completions`, auth: process.env.MISTRAL_API_KEY! };
+  if (p === "nvidia") return { url: `${NVIDIA_BASE}/chat/completions`, auth: process.env.NVIDIA_API_KEY! };
+  if (p === "llm7") return { url: `${LLM7_BASE}/chat/completions`, auth: process.env.LLM7_API_KEY ?? "unused" };
   return { url: `${OPENAI_BASE}/chat/completions`, auth: process.env.OPENAI_API_KEY! };
 }
 
@@ -282,6 +296,51 @@ function withPromptCache(model: SovereignModel, messages: ChatMessageInput[]): C
   );
 }
 
+/**
+ * Anonymous free tier (LLM7). Yields text and returns true once it has produced
+ * output; returns false so the caller can surface its own error if it failed.
+ */
+async function* streamFreeFallback(
+  messages: ChatMessageInput[],
+  opts: StreamOptions,
+  maxTokens: number,
+): AsyncGenerator<StreamEvent, boolean> {
+  let res: Response;
+  try {
+    res = await fetch(`${LLM7_BASE}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.LLM7_API_KEY ?? "unused"}`,
+      },
+      body: JSON.stringify({
+        model: LLM7_FREE_MODEL,
+        messages: messages.map((m) => ({ role: m.role, content: textOf(m.content) })),
+        temperature: opts.temperature ?? 0.7,
+        max_tokens: Math.min(maxTokens, 2048),
+        stream: true,
+      }),
+      signal: opts.signal,
+    });
+  } catch {
+    return false;
+  }
+  if (!res.ok || !res.body) return false;
+
+  let produced = false;
+  for await (const chunk of readSse(res.body)) {
+    const c = chunk as OrChunk;
+    if (c.error?.message) return produced;
+    const text = c.choices?.[0]?.delta?.content;
+    if (text) {
+      produced = true;
+      yield { type: "text", text };
+    }
+  }
+  if (produced) yield { type: "done" };
+  return produced;
+}
+
 async function* streamOpenRouter(
   model: SovereignModel,
   messages: ChatMessageInput[],
@@ -341,6 +400,12 @@ async function* streamOpenRouter(
       const allowed = Math.max(256, Number(afford[1]) - 64);
       yield* streamOpenRouter(model, messages, opts, allowed, true);
       return;
+    }
+    // Last resort: the anonymous free tier, so the chat still answers when the
+    // paid/keyed providers are out of credit or rate-limited.
+    if (direct?.provider !== "llm7") {
+      const rescued = yield* streamFreeFallback(messages, opts, maxTokens);
+      if (rescued) return;
     }
     yield { type: "error", message };
     return;
