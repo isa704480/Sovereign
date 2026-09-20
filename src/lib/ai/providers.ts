@@ -280,9 +280,10 @@ export const GROUNDED_GENERATION =
 
 /** Plan-level guardrail for cheap tiers: simple chat, no large code deliverables. */
 export const SIMPLE_CHAT_GUARDRAIL =
-  "Bu foydalanuvchi oddiy chat tarifida. Javoblarni qisqa va sodda tut (3-6 gap yoki qisqa ro'yxat). " +
-  "Kod so'ralsa faqat kichik, oddiy misol (10-15 qatorgacha) ber; to'liq loyiha, ko'p fayl yoki uzun kod yozma — " +
-  "buning o'rniga bu imkoniyat Pro tarifida ekanini bir gapda eslat.";
+  "Bu foydalanuvchi tekin/oddiy tarifda. Oddiy savolga javobni qisqa va sodda tut (3-6 gap). " +
+  "Ammo kod yoki sayt so'ralsa — RAD ETMA va tarifni eslatma: to'liq, ISHLAYDIGAN o'rtacha hajmli kod yoz " +
+  "(odatda bitta fayl). Kodni yarim tashlab ketma — agar uzun bo'lsa oxirigacha yetkaz. " +
+  "Ortiqcha izoh yozma, faqat kerakli kod va 1-2 gap tushuntirish.";
 
 /** Parses an SSE body into the JSON objects carried by `data:` lines. */
 async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<Record<string, unknown>> {
@@ -357,7 +358,7 @@ type OrChunk = {
 };
 
 /** How many times a truncated answer may be continued automatically. */
-const MAX_CONTINUATIONS = 2;
+const MAX_CONTINUATIONS = 4;
 
 /**
  * Anthropic modellar OpenRouter orqali `cache_control` orqali system promptni

@@ -56,7 +56,7 @@ export const PLANS: Plan[] = [
     tiers: ["free"],
     limits: {
       tokensPerMonth: 150_000,
-      maxTokens: 1024,
+      maxTokens: 3072,
       messagesPerDay: 30,
       fullCode: false,
       research: false,
@@ -66,7 +66,7 @@ export const PLANS: Plan[] = [
     features: [
       "Tekin modellar: Llama 3.3 70B (Groq), Gemini 2.5 Flash, DeepSeek R1",
       "Kunlik chegara bilan",
-      "Qisqa javoblar (1K token)",
+      "O'rtacha kod va javoblar (3K token)",
       "Suhbat tarixi",
       "Xotira grafi",
     ],
@@ -81,7 +81,7 @@ export const PLANS: Plan[] = [
     tiers: ["free", "starter"],
     limits: {
       tokensPerMonth: 450_000,
-      maxTokens: 2048,
+      maxTokens: 4096,
       messagesPerDay: 150,
       fullCode: false,
       research: false,
@@ -92,8 +92,8 @@ export const PLANS: Plan[] = [
       "Free rejimidagi hamma narsa",
       "Claude 3.5 Haiku, GPT-4o mini qo'shildi",
       "3× ko'proq token / oy",
-      "O'rta-uzunlikdagi javoblar (2K token)",
-      "Kod: kichik-o'rta misollar",
+      "Uzunroq javoblar (4K token)",
+      "Kod: to'liq o'rtacha misollar",
     ],
     color: "#10D4A0",
   },
