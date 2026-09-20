@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AdminDashboard, type OnboardingStats } from "@/components/admin/AdminDashboard";
+import { AdminDashboard, type OnboardingStats, type ModelStats } from "@/components/admin/AdminDashboard";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Admin · SOVEREIGN" };
@@ -23,13 +23,15 @@ export default async function AdminPage() {
   }
 
   // Barcha analytics'larni parallel yuklaymiz
-  const [summary, daily, plans, recent, onboarding] = await Promise.all([
+  const [summary, daily, plans, recent, onboarding, models] = await Promise.all([
     supabase.rpc("admin_users_summary"),
     supabase.rpc("admin_daily_stats", { p_days: 30 }),
     supabase.rpc("admin_plan_distribution"),
     supabase.rpc("admin_recent_orders", { p_limit: 25 }),
     // 0020 migratsiyasi ishga tushmagan bo'lsa null keladi — panel "ma'lumot yo'q" ko'rsatadi.
     supabase.rpc("admin_onboarding_stats"),
+    // 0021 — qaysi model ko'p ishlatilgan va qanchalik yaxshi ishlagani.
+    supabase.rpc("admin_model_stats"),
   ]);
 
   return (
@@ -40,6 +42,7 @@ export default async function AdminPage() {
       plans={plans.data ?? []}
       recentOrders={recent.data ?? []}
       onboarding={(onboarding.data as OnboardingStats | null) ?? null}
+      models={(models.data as ModelStats | null) ?? null}
     />
   );
 }

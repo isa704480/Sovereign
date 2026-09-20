@@ -21,6 +21,7 @@ import {
   YAxis,
 } from "recharts";
 import { countryFlag, countryName } from "@/config/countries";
+import { AUTO_MODEL, AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { PLAN_BY_ID, type PlanId } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 
@@ -70,6 +71,23 @@ export interface OnboardingStats {
   signups_30d: number;
 }
 
+/** admin_model_stats() natijasi — model bo'yicha ishlatilish va sifat. */
+export interface ModelStats {
+  total_messages: number;
+  total_tokens: number;
+  active_models: number;
+  by_model: {
+    model_id: string;
+    messages: number;
+    users: number;
+    in_tokens: number;
+    out_tokens: number;
+    total_tokens: number;
+    avg_out: number;
+    last_used: string | null;
+  }[];
+}
+
 interface AdminDashboardProps {
   admin: { name: string; email: string };
   summary: Summary | null;
@@ -77,6 +95,7 @@ interface AdminDashboardProps {
   plans: PlanRow[];
   recentOrders: OrderRow[];
   onboarding?: OnboardingStats | null;
+  models?: ModelStats | null;
 }
 
 const AGE_LABEL: Record<string, string> = {
@@ -106,6 +125,13 @@ function fmtMoney(n: number) {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+/** Model id -> ko'rinadigan nom, belgi va rang (katalogdan). */
+function modelMeta(id: string): { name: string; glyph: string; color: string } {
+  if (id === AUTO_MODEL_ID) return { name: AUTO_MODEL.name, glyph: AUTO_MODEL.glyph, color: AUTO_MODEL.primary };
+  const m = MODEL_BY_ID[id];
+  return m ? { name: m.name, glyph: m.glyph, color: m.primary } : { name: id, glyph: "•", color: "#9BA3CC" };
+}
+
 function KPI({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -118,10 +144,24 @@ function KPI({ label, value, sub, color }: { label: string; value: string; sub?:
   );
 }
 
-export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onboarding }: AdminDashboardProps) {
+export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onboarding, models }: AdminDashboardProps) {
   const ageBars = (onboarding?.by_age ?? []).map((a) => ({ name: AGE_LABEL[a.age_group] ?? a.age_group, users: a.users }));
   const countryRows = onboarding?.by_country ?? [];
   const countryTotal = countryRows.reduce((acc, r) => acc + r.users, 0);
+  const modelRows = models?.by_model ?? [];
+  const modelTotal = models?.total_messages ?? modelRows.reduce((a, r) => a + r.messages, 0);
+  const usageBars = modelRows.slice(0, 8).map((r) => {
+    const meta = modelMeta(r.model_id);
+    return { name: meta.name, messages: r.messages, fill: meta.color };
+  });
+  const qualityBars = [...modelRows]
+    .filter((r) => r.avg_out > 0)
+    .sort((a, b) => b.avg_out - a.avg_out)
+    .slice(0, 8)
+    .map((r) => {
+      const meta = modelMeta(r.model_id);
+      return { name: meta.name, avg: r.avg_out, fill: meta.color };
+    });
   const daily30 = useMemo(() => {
     return [...daily].reverse().map((d) => ({
       ...d,
@@ -362,6 +402,131 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
             )}
           </section>
         </div>
+
+        {/* Modellar: ishlatilishi va sifati (messages jadvalidan) */}
+        <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-[11px] uppercase tracking-wider text-white/50">Modellar — ishlatilishi va sifati</div>
+            {models && (
+              <div className="text-xs text-white/50 tabular-nums">
+                {fmt(models.total_messages)} javob · {models.active_models} model · {fmt(models.total_tokens)} token
+              </div>
+            )}
+          </div>
+
+          {modelRows.length > 0 ? (
+            <>
+              <div className="mt-5 grid gap-6 lg:grid-cols-2">
+                <div>
+                  <div className="mb-2 text-sm text-white/70">Eng ko&apos;p ishlatilgan (javoblar soni)</div>
+                  <ResponsiveContainer width="100%" height={Math.max(180, usageBars.length * 34)}>
+                    <BarChart data={usageBars} layout="vertical" margin={{ left: 8, right: 16 }}>
+                      <XAxis type="number" hide />
+                      <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fill: "#9BA3CC" }} axisLine={false} tickLine={false} />
+                      <Tooltip
+                        cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                        contentStyle={{ background: "#0D1033", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }}
+                        labelStyle={{ color: "#EBEEFA" }}
+                        formatter={(v) => [fmt(Number(v)), "Javoblar"] as [string, string]}
+                      />
+                      <Bar dataKey="messages" radius={[0, 6, 6, 0]}>
+                        {usageBars.map((d, i) => (
+                          <Cell key={i} fill={d.fill} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-sm text-white/70">Yaxshi ishlayapti — o&apos;rtacha javob (token)</div>
+                  {qualityBars.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={Math.max(180, qualityBars.length * 34)}>
+                      <BarChart data={qualityBars} layout="vertical" margin={{ left: 8, right: 16 }}>
+                        <XAxis type="number" hide />
+                        <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fill: "#9BA3CC" }} axisLine={false} tickLine={false} />
+                        <Tooltip
+                          cursor={{ fill: "rgba(255,255,255,0.04)" }}
+                          contentStyle={{ background: "#0D1033", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }}
+                          labelStyle={{ color: "#EBEEFA" }}
+                          formatter={(v) => [fmt(Number(v)), "O'rt. token"] as [string, string]}
+                        />
+                        <Bar dataKey="avg" radius={[0, 6, 6, 0]}>
+                          {qualityBars.map((d, i) => (
+                            <Cell key={i} fill={d.fill} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <p className="text-sm text-white/40">Token ma&apos;lumoti yetarli emas.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6">
+                <div className="mb-2 text-sm text-white/70">Barcha modellar — to&apos;liq ro&apos;yxat</div>
+                <div className="overflow-x-auto rounded-xl border border-white/5">
+                  <table className="w-full text-sm">
+                    <thead className="bg-white/[0.02] text-[11px] uppercase tracking-wider text-white/50">
+                      <tr>
+                        <th className="p-3 text-left font-normal">Model</th>
+                        <th className="p-3 text-right font-normal">Javoblar</th>
+                        <th className="p-3 text-right font-normal">Ulush</th>
+                        <th className="p-3 text-right font-normal">Foydalanuvchi</th>
+                        <th className="p-3 text-right font-normal">O&apos;rt. javob</th>
+                        <th className="p-3 text-right font-normal">Jami token</th>
+                        <th className="p-3 text-right font-normal">Oxirgi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {modelRows.map((r) => {
+                        const meta = modelMeta(r.model_id);
+                        const share = modelTotal > 0 ? (r.messages / modelTotal) * 100 : 0;
+                        return (
+                          <tr key={r.model_id} className="hover:bg-white/[0.02]">
+                            <td className="p-3">
+                              <span className="inline-flex items-center gap-2">
+                                <span
+                                  className="inline-flex size-5 items-center justify-center rounded-[6px] text-[11px]"
+                                  style={{ background: `${meta.color}22`, color: meta.color }}
+                                >
+                                  {meta.glyph}
+                                </span>
+                                <span className="text-white/80">{meta.name}</span>
+                              </span>
+                            </td>
+                            <td className="p-3 text-right tabular-nums text-white/70">{fmt(r.messages)}</td>
+                            <td className="p-3 text-right tabular-nums">
+                              <span className="inline-flex items-center gap-2">
+                                <span className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-white/10 sm:block">
+                                  <span className="block h-full rounded-full" style={{ width: `${Math.min(100, share)}%`, background: meta.color }} />
+                                </span>
+                                <span className="text-white/60">{share.toFixed(1)}%</span>
+                              </span>
+                            </td>
+                            <td className="p-3 text-right tabular-nums text-white/60">{fmt(r.users)}</td>
+                            <td className="p-3 text-right tabular-nums text-white/60">{fmt(r.avg_out)}</td>
+                            <td className="p-3 text-right tabular-nums text-white/60">{fmt(r.total_tokens)}</td>
+                            <td className="p-3 text-right text-white/50 tabular-nums">
+                              {r.last_used ? new Date(r.last_used).toLocaleDateString("uz-UZ") : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="mt-4 text-sm text-white/50">
+              {models
+                ? "Hali model ishlatilmagan — suhbatlar boshlanganda bu yerda ko'rinadi."
+                : "Ma'lumot yo'q — 0021_admin_model_stats migratsiyasini ishga tushiring."}
+            </p>
+          )}
+        </section>
 
         {/* Oxirgi to'lovlar jadvali */}
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">

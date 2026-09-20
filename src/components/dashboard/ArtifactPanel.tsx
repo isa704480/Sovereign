@@ -4,7 +4,7 @@ import { Check, Code2, Copy, Download, Eye, RefreshCw, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { Markdown } from "./Markdown";
-import { isRenderable, type ArtifactPayload } from "./artifact-context";
+import { isRenderable, isReact, type ArtifactPayload } from "./artifact-context";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,29 @@ interface ArtifactPanelProps {
 // Live edit lets the user tweak the artifact and re-render immediately.
 const HTML_TABS = ["preview", "code"] as const;
 
+// JSX/TSX preview bootstrap (runs INSIDE the sandboxed iframe).
+// Babel transforms the code, then every bare `import "lib"` is rewritten to
+// https://esm.sh/lib so any npm library loads straight from the CDN — the user
+// never has to run `npm install`. React is pinned so all libs share one copy.
+const JSX_BOOT = [
+  "(function(){",
+  "var raw=document.getElementById('__src').textContent;",
+  "var CDN='https://esm.sh/';",
+  "function showErr(m){document.body.innerHTML=\"<pre style='color:#b00020;padding:16px;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace'>\"+((m&&(m.message||m))||'Xato')+\"</pre>\";}",
+  "window.addEventListener('error',function(e){showErr(e.message);});",
+  "window.addEventListener('unhandledrejection',function(e){showErr(e.reason&&(e.reason.message||e.reason));});",
+  "try{",
+  "var out=Babel.transform(raw,{filename:'app.tsx',presets:[['react',{runtime:'automatic'}],['typescript',{isTSX:true,allExtensions:true}]]}).code;",
+  "function pin(x){if(x==='react')return CDN+'react@18.3.1';if(x==='react-dom')return CDN+'react-dom@18.3.1?deps=react@18.3.1';if(x==='react-dom/client')return CDN+'react-dom@18.3.1/client?deps=react@18.3.1';if(x.indexOf('react/')===0)return CDN+'react@18.3.1/'+x.slice(6);return CDN+x+'?deps=react@18.3.1,react-dom@18.3.1';}",
+  "out=out.replace(/(from\\s*|import\\s*\\(?\\s*)([\"'])(?!https?:|\\.\\/|\\.\\.\\/|\\/)([^\"']+)(\\2)/g,function(m,p,q,spec){return p+q+pin(spec)+q;});",
+  "var boot='import { createElement as __ce } from \"'+CDN+'react@18.3.1\";\\nimport { createRoot as __cr } from \"'+CDN+'react-dom@18.3.1/client?deps=react@18.3.1\";\\n';",
+  "var tail=\"\\n;{var __A=(typeof App!=='undefined'&&App)||(typeof Component!=='undefined'&&Component)||(typeof Page!=='undefined'&&Page);if(!__A){throw new Error('Komponent topilmadi - App yoki Component deb nomlang, yoki export default qiling');}__cr(document.getElementById('root')).render(__ce(__A));}\";",
+  "var mod=boot+out+tail;",
+  "var sc=document.createElement('script');sc.type='module';sc.onerror=function(){showErr('Kutubxona yuklanmadi (internet yoki esm.sh)');};sc.textContent=mod;document.body.appendChild(sc);",
+  "}catch(e){showErr(e);}",
+  "})();",
+].join("");
+
 function toHtmlDoc(code: string, lang: string): string {
   const l = lang.toLowerCase();
   const isFullDoc = /<!doctype html|<html[\s>]/i.test(code);
@@ -23,35 +46,22 @@ function toHtmlDoc(code: string, lang: string): string {
     return `<!doctype html><meta charset="utf-8"><style>html,body{margin:0;height:100%;display:grid;place-items:center;background:#fff}svg{max-width:100%;max-height:100%}</style>${code}`;
   }
   if (l === "jsx" || l === "tsx" || l === "react") {
-    // JSX/TSX runs inside a sandboxed iframe with React, Babel and Tailwind
-    // preloaded. The user's code either exports (default) or defines a
-    // component named App / Component.
-    // Case-insensitive </script> escape — LLM `</SCRIPT>` yozsa ham break bo'lmasin.
+    // JSX/TSX runs in a sandboxed iframe. Babel compiles it and bare library
+    // imports are resolved from esm.sh, so libraries work without installing.
     const escaped = code.replace(/<\/script/gi, "<\\/script");
     return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
 <style>body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#fff;color:#1d1d1f}#root{min-height:100vh}</style>
 </head>
 <body>
 <div id="root"></div>
-<script type="text/babel" data-presets="typescript,react">
-try {
-${escaped}
-  const target = (typeof App !== "undefined" && App) || (typeof Component !== "undefined" && Component) || (typeof Page !== "undefined" && Page);
-  if (!target) throw new Error("Komponent topilmadi (App yoki Component nomi bilan e'lon qiling)");
-  const root = ReactDOM.createRoot(document.getElementById("root"));
-  root.render(React.createElement(target));
-} catch (e) {
-  document.body.innerHTML = "<pre style='color:#b00020;padding:16px;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace'>" + String(e.message || e) + "</pre>";
-}
-</script>
+<script type="text/plain" id="__src">${escaped}</script>
+<script>${JSX_BOOT}</script>
 </body>
 </html>`;
   }
@@ -187,7 +197,10 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
             key={reloadKey}
             title="Artifact preview"
             srcDoc={srcDoc}
-            sandbox="allow-scripts"
+            // React/kutubxonali kod ESM modul ishlatadi — u faqat allow-same-origin
+            // bilan yuklanadi (opaque origin'da native modul bloklanadi). HTML/SVG
+            // esa qat'iy sandbox'da qoladi.
+            sandbox={isReact(lang) ? "allow-scripts allow-same-origin" : "allow-scripts"}
             className="h-full w-full border-0 bg-white"
           />
         ) : (
