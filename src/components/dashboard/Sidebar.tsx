@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Plug, Search, Sparkles, Settings, Trash2 } from "lucide-react";
+import { Brain, ChevronDown, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LayoutGrid, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Plug, Search, Sparkles, Settings, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
@@ -79,6 +79,7 @@ export function Sidebar({
   onOpenConnectors,
 }: SidebarProps) {
   const { theme, model } = useTheme();
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [q, setQ] = useState("");
   const openSearch = useCallback(() => {
     onOpen();
@@ -348,77 +349,103 @@ export function Sidebar({
             background: "color-mix(in srgb, var(--t-text) 3%, transparent)",
           }}
         >
-          {/* Xotira */}
+          {/* Vositalar — bitta tugma; bosilganda hammasi ochiladi */}
           <button
             type="button"
-            onClick={onOpenMemory}
+            onClick={() => setToolsOpen((o) => !o)}
+            aria-expanded={toolsOpen}
             className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
             style={{ color: "var(--t-text)" }}
           >
-            <Brain className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">{t("memory")}</span>
+            <LayoutGrid className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <span className="flex-1 text-left">Vositalar</span>
+            <ChevronDown className="size-4 transition-transform" style={{ color: "var(--t-text-muted)", transform: toolsOpen ? "rotate(180deg)" : "none" }} />
           </button>
 
-          <div style={{ height: 1, background: "var(--t-border)" }} />
+          <AnimatePresence initial={false}>
+            {toolsOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.22, ease: EASE }}
+                style={{ overflow: "hidden" }}
+              >
+                <div style={{ height: 1, background: "var(--t-border)" }} />
+            {/* Xotira */}
+            <button
+              type="button"
+              onClick={onOpenMemory}
+              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              style={{ color: "var(--t-text)" }}
+            >
+              <Brain className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <span className="flex-1 text-left">{t("memory")}</span>
+            </button>
 
-          {/* Knowledge Base */}
-          <button
-            type="button"
-            onClick={onOpenKnowledge}
-            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
-            style={{ color: "var(--t-text)" }}
-          >
-            <FolderOpen className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">{t("knowledgeBase")}</span>
-          </button>
+            <div style={{ height: 1, background: "var(--t-border)" }} />
 
-          <div style={{ height: 1, background: "var(--t-border)" }} />
+            {/* Knowledge Base */}
+            <button
+              type="button"
+              onClick={onOpenKnowledge}
+              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              style={{ color: "var(--t-text)" }}
+            >
+              <FolderOpen className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <span className="flex-1 text-left">{t("knowledgeBase")}</span>
+            </button>
 
-          {/* Cowork — lokal papka */}
-          <button
-            type="button"
-            onClick={onOpenCowork}
-            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
-            style={{ color: "var(--t-text)" }}
-          >
-            <FolderTree className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">{t("coworkFolder")}</span>
-          </button>
+            <div style={{ height: 1, background: "var(--t-border)" }} />
 
-          <div style={{ height: 1, background: "var(--t-border)" }} />
+            {/* Cowork — lokal papka */}
+            <button
+              type="button"
+              onClick={onOpenCowork}
+              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              style={{ color: "var(--t-text)" }}
+            >
+              <FolderTree className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <span className="flex-1 text-left">{t("coworkFolder")}</span>
+            </button>
 
-          {/* Skills market */}
-          <button
-            type="button"
-            onClick={onOpenSkills}
-            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
-            style={{ color: "var(--t-text)" }}
-          >
-            <Sparkles className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">{t("skills")}</span>
-          </button>
+            <div style={{ height: 1, background: "var(--t-border)" }} />
 
-          <div style={{ height: 1, background: "var(--t-border)" }} />
+            {/* Skills market */}
+            <button
+              type="button"
+              onClick={onOpenSkills}
+              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              style={{ color: "var(--t-text)" }}
+            >
+              <Sparkles className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <span className="flex-1 text-left">{t("skills")}</span>
+            </button>
 
-          {/* Ulanishlar (Connectors) */}
-          <button
-            type="button"
-            onClick={onOpenConnectors}
-            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
-            style={{ color: "var(--t-text)" }}
-          >
-            <Plug className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">Ulanishlar</span>
-          </button>
+            <div style={{ height: 1, background: "var(--t-border)" }} />
 
-          <div style={{ height: 1, background: "var(--t-border)" }} />
+            {/* Ulanishlar (Connectors) */}
+            <button
+              type="button"
+              onClick={onOpenConnectors}
+              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              style={{ color: "var(--t-text)" }}
+            >
+              <Plug className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <span className="flex-1 text-left">Ulanishlar</span>
+            </button>
 
-          {/* Research rejim (toggle qatori) */}
-          <div className="flex items-center gap-2.5 px-3 py-2.5 text-sm" style={{ color: "var(--t-text)" }}>
-            <Globe className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1">{t("researchMode")}</span>
-            <Toggle on={research} onChange={onToggleResearch} label={t("researchMode")} />
-          </div>
+            <div style={{ height: 1, background: "var(--t-border)" }} />
+
+            {/* Research rejim (toggle qatori) */}
+            <div className="flex items-center gap-2.5 px-3 py-2.5 text-sm" style={{ color: "var(--t-text)" }}>
+              <Globe className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <span className="flex-1">{t("researchMode")}</span>
+              <Toggle on={research} onChange={onToggleResearch} label={t("researchMode")} />
+            </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
 
