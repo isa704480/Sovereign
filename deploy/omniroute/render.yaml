@@ -1,0 +1,54 @@
+# OmniRoute'ni Render'ga qo'yish (Fly.io o'rniga muqobil).
+# Dashboard -> New -> Blueprint -> shu repo -> deploy/omniroute/render.yaml
+#
+# DIQQAT: bepul tarif bu xizmat uchun yaramaydi — unda disk yo'q, SQLite bazasi
+# va API kalitlaringiz har qayta ishga tushganda o'chib ketadi.
+
+services:
+  - type: web
+    name: sovereign-omniroute
+    runtime: image
+    region: frankfurt
+    # 2GB RAM: OmniRoute Node ilovasi, 512MB (Starter) da siqilib qoladi.
+    plan: standard
+    image:
+      url: docker.io/diegosouzapw/omniroute:latest
+    healthCheckPath: /
+    disk:
+      name: omniroute-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      # PORT ni o'zimiz qo'ymaymiz — Render uni o'zi beradi, OmniRoute o'qiydi.
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /data
+      - key: AUTH_COOKIE_SECURE
+        value: "true"
+      # /v1 ga faqat kalit bilan kirish mumkin. Ochiq qoldirmang.
+      - key: REQUIRE_API_KEY
+        value: "true"
+      - key: ALLOW_API_KEY_REVEAL
+        value: "false"
+      - key: APP_LOG_TO_FILE
+        value: "false"
+      - key: CALL_LOG_RETENTION_DAYS
+        value: "3"
+      # Render o'zi tasodifiy qiymat yaratadi — qo'lda yozish shart emas.
+      - key: JWT_SECRET
+        generateValue: true
+      - key: API_KEY_SECRET
+        generateValue: true
+      - key: STORAGE_ENCRYPTION_KEY
+        generateValue: true
+      - key: OMNIROUTE_WS_BRIDGE_SECRET
+        generateValue: true
+      # Dashboard'ga birinchi kirish paroli — deploy paytida o'zingiz kiritasiz.
+      - key: INITIAL_PASSWORD
+        sync: false
+      # Deploy tugagach o'z manzilingizni yozing: https://<nom>.onrender.com
+      - key: NEXT_PUBLIC_BASE_URL
+        sync: false

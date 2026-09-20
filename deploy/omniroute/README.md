@@ -121,3 +121,29 @@ Modellar ro'yxati kelsa — tayyor.
   har kim sizning provayder kvotangizdan foydalanadi.
 - **Volume.** `omniroute_data` — SQLite bazasi va kalitlar shu yerda. O'chirsangiz
   sozlamalar yo'qoladi.
+
+---
+
+# Muqobil: Render'ga qo'yish
+
+`deploy/omniroute/render.yaml` tayyor. Render Dashboard → **New** → **Blueprint** →
+shu reponi tanlang → fayl yo'li `deploy/omniroute/render.yaml`.
+
+Deploy paytida ikkita qiymat so'raladi:
+- `INITIAL_PASSWORD` — dashboard'ga birinchi kirish paroli
+- `NEXT_PUBLIC_BASE_URL` — deploy tugagach `https://<nom>.onrender.com`
+
+Qolgan sirlarni Render o'zi tasodifiy yaratadi.
+
+## Render vs Fly.io
+
+| | Render (Standard) | Fly.io (shared-1x, 1GB) |
+|---|---|---|
+| Narx | $25/oy | ~$5–6/oy |
+| RAM | 2 GB | 1 GB |
+| Uxlash | yo'q (doim yoqiq) | so'rov bo'lmasa uxlaydi |
+| Disk | $0.25/GB/oy | volume narxi shunga yaqin |
+
+**Bepul tarif yaramaydi:** 512 MB RAM, **disk yo'q** (SQLite bazasi va API
+kalitlaringiz har restartda o'chadi), 15 daqiqa jimlikdan keyin uxlaydi va
+uyg'onishi ~1 daqiqa. Zaxira shlyuz uchun bu qabul qilib bo'lmas.
