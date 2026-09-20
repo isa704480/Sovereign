@@ -26,6 +26,29 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error && data.user) {
+      // Google connectorni ulash: provider_token'ni connector_accounts'ga saqlaymiz.
+      const connect = searchParams.get("connect");
+      if (connect && data.session?.provider_token) {
+        try {
+          await supabase.from("connector_accounts").upsert(
+            {
+              user_id: data.user.id,
+              connector_id: connect,
+              enabled: true,
+              config: {
+                oauth: true,
+                token: data.session.provider_token,
+                refresh: data.session.provider_refresh_token ?? null,
+                meta: data.user.email ?? "Google",
+              },
+            },
+            { onConflict: "user_id,connector_id" },
+          );
+        } catch {
+          // Ulash saqlanmasa ham kirishga xalaqit bermaymiz.
+        }
+        return NextResponse.redirect(`${base}/app`);
+      }
       const profile = await getProfile(supabase, data.user.id);
       return NextResponse.redirect(`${base}${postAuthPath(profile, next)}`);
     }

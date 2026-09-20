@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { redirect } from "next/navigation";
 import { CONNECTOR_BY_ID } from "@/config/connectors";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -142,4 +143,29 @@ export async function disconnectConnector(connectorId: string): Promise<Result> 
     .eq("user_id", s.user.id)
     .eq("connector_id", connectorId);
   return error ? { ok: false, error: error.message } : { ok: true };
+}
+
+/**
+ * Google connectorni ulash — qo'shimcha scope bilan OAuth boshlaydi. Callback
+ * provider_token'ni connector_accounts'ga saqlaydi. Google Cloud'da consent va
+ * scope sozlangan bo'lishi shart (sensitive scope'lar Google tekshiruvini talab qiladi).
+ */
+export async function connectGoogle(connectorId: string): Promise<{ ok: false; error: string } | never> {
+  const spec = CONNECTOR_BY_ID[connectorId];
+  if (!spec || spec.auth !== "oauth-google") return { ok: false, error: "Bu Google connector emas." };
+  const s = await session();
+  if (!s) return { ok: false, error: "Avval tizimga kiring." };
+  const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const scopes = ["openid", "email", "profile", ...(spec.scopes ?? [])].join(" ");
+  const { data, error } = await s.supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${site}/auth/callback?connect=${encodeURIComponent(connectorId)}&next=/app`,
+      scopes,
+      queryParams: { access_type: "offline", prompt: "consent" },
+    },
+  });
+  if (error) return { ok: false, error: error.message };
+  if (data.url) redirect(data.url);
+  return { ok: false, error: "OAuth havolasi olinmadi." };
 }

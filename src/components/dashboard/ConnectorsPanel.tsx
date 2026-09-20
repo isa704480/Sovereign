@@ -4,6 +4,7 @@ import { Check, Loader2, Plug, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import {
+  connectGoogle,
   connectToken,
   disconnectConnector,
   listConnectors,
@@ -195,11 +196,26 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                 </button>
                               )}
 
-                              {/* Google — hozircha Cloud sozlash talab qilinadi */}
-                              {isGoogle && (
-                                <div className="mt-2 rounded-lg px-2.5 py-1.5 text-[11px]" style={{ background: "color-mix(in srgb, var(--t-text) 5%, transparent)", color: "var(--t-text-muted)" }}>
-                                  Google Cloud&apos;da OAuth scope va consent sozlangach ulanadi{spec.sensitive ? " (Google tekshiruvi talab qilinadi)" : ""}.
+                              {/* Google — OAuth bilan ulash (Google Cloud sozlangan bo'lishi kerak) */}
+                              {isGoogle && !st.connected && (
+                                <div className="mt-2 flex flex-col gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => void connectGoogle(spec.id)}
+                                    className="self-start rounded-lg px-3 py-1.5 text-xs font-medium text-white"
+                                    style={{ background: "var(--t-primary, #5B50F0)" }}
+                                  >
+                                    Google bilan ulash
+                                  </button>
+                                  <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+                                    Google Cloud&apos;da OAuth scope va consent sozlangan bo&apos;lishi kerak{spec.sensitive ? " (Google tekshiruvi talab qilinadi)" : ""}.
+                                  </span>
                                 </div>
+                              )}
+                              {isGoogle && st.connected && (
+                                <button type="button" onClick={() => disconnect(spec)} className="mt-2 text-[11px] underline" style={{ color: "var(--t-text-muted)" }}>
+                                  Uzish
+                                </button>
                               )}
                             </div>
                           );
