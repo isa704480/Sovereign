@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deleteConversationAction } from "@/app/actions/chat";
+import { shareConversation } from "@/app/actions/share";
 import { AUTO_MODEL_ID, MODEL_BY_ID, DEFAULT_MODEL_ID, RESEARCH_MODEL_ID, resolveModel } from "@/config/models";
 import { MODEL_THEMES, themeVars } from "@/config/model-themes";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type PlanId } from "@/config/plans";
@@ -79,6 +80,56 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const [kbOpen, setKbOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
   const [coworkOpen, setCoworkOpen] = useState(false);
+  const [shareState, setShareState] = useState<"idle" | "busy" | "done">("idle");
+
+  /** Suhbatning matnli nusxasini ulashadi va havolani buferga oladi. */
+  const handleShare = useCallback(async () => {
+    const s = useChat.getState();
+    const conv = s.activeId ? s.conversations[s.activeId] : null;
+    if (!conv || !conv.messages.length) return;
+    setShareState("busy");
+    const res = await shareConversation({
+      title: conv.title,
+      modelId: conv.modelId,
+      messages: conv.messages
+        .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
+        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content, modelId: m.modelId ?? null, createdAt: m.createdAt })),
+    });
+    if (!res.ok) {
+      setShareState("idle");
+      window.alert(res.error);
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(res.url);
+    } catch {
+      window.prompt("Havola:", res.url);
+    }
+    setShareState("done");
+    setTimeout(() => setShareState("idle"), 2500);
+  }, []);
+
+  // Tezkor tugmalar: Ctrl+K model, Ctrl+N yangi suhbat, Ctrl+/ kiritish, Esc to'xtatish.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        window.dispatchEvent(new Event("sovereign:open-model"));
+      } else if (mod && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        useChat.getState().newChat();
+        inputRef.current?.focus();
+      } else if (mod && e.key === "/") {
+        e.preventDefault();
+        inputRef.current?.focus();
+      } else if (e.key === "Escape" && isStreaming) {
+        stop();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isStreaming, stop]);
   const artifactCtx = useMemo(
     () => ({ open: (a: ArtifactPayload) => setArtifact(a) }),
     [],
@@ -253,6 +304,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
             sourcesOpen={sourcesOpen}
             onToggleSources={() => setSourcesOpen((o) => !o)}
             onUpgrade={() => openPricing()}
+            onShare={messages.length ? handleShare : undefined}
+            shareState={shareState}
           />
 
           {/* Tarif expired/expiring_soon holatida chirali panel chiqadi */}

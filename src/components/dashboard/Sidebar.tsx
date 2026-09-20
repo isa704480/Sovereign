@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, FolderOpen, FolderTree, Globe, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Settings, Trash2 } from "lucide-react";
+import { Brain, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Settings, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
@@ -9,7 +9,7 @@ import { MODEL_BY_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { groupByDate, type Conversation } from "@/store/chat";
+import { groupByDate, useChat, type Conversation } from "@/store/chat";
 import { useTheme } from "./theme-context";
 
 interface SidebarProps {
@@ -84,11 +84,37 @@ export function Sidebar({
     setTimeout(() => document.querySelector<HTMLInputElement>("aside [data-sidebar-search]")?.focus(), 260);
   }, [onOpen]);
 
-  const filteredOrder = useMemo(() => {
+  // Loyihalar — store'dan to'g'ridan-to'g'ri (prop zanjiri uzun bo'lib ketmasin).
+  const projects = useChat((s) => s.projects);
+  const activeProjectId = useChat((s) => s.activeProjectId);
+  const createProject = useChat((s) => s.createProject);
+  const updateProject = useChat((s) => s.updateProject);
+  const deleteProject = useChat((s) => s.deleteProject);
+  const setActiveProject = useChat((s) => s.setActiveProject);
+  const moveToProject = useChat((s) => s.moveToProject);
+  const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
+  const [newProject, setNewProject] = useState<string | null>(null);
+  const [showInstructions, setShowInstructions] = useState(false);
+
+  // Qidiruv: sarlavha YOKI xabar matni bo'yicha; matndan topilsa parcha ko'rsatiladi.
+  const { filteredOrder, snippets } = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return order;
-    return order.filter((id) => conversations[id]?.title.toLowerCase().includes(needle));
-  }, [q, order, conversations]);
+    const scoped = activeProjectId ? order.filter((id) => conversations[id]?.projectId === activeProjectId) : order;
+    if (!needle) return { filteredOrder: scoped, snippets: {} as Record<string, string> };
+    const snippets: Record<string, string> = {};
+    const hits = scoped.filter((id) => {
+      const c = conversations[id];
+      if (!c) return false;
+      if (c.title.toLowerCase().includes(needle)) return true;
+      const m = c.messages.find((x) => typeof x.content === "string" && x.content.toLowerCase().includes(needle));
+      if (!m) return false;
+      const text = m.content;
+      const at = text.toLowerCase().indexOf(needle);
+      snippets[id] = `…${text.slice(Math.max(0, at - 28), at + needle.length + 40).replace(/\s+/g, " ")}…`;
+      return true;
+    });
+    return { filteredOrder: hits, snippets };
+  }, [q, order, conversations, activeProjectId]);
 
   const groups = useMemo(() => groupByDate(filteredOrder, conversations), [filteredOrder, conversations]);
   const initials = user.name
@@ -147,6 +173,104 @@ export function Sidebar({
         </label>
       </div>
 
+      {/* Loyihalar */}
+      <div className="mt-3 px-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>Loyihalar</span>
+          <button
+            type="button"
+            onClick={() => setNewProject("")}
+            className="rounded-md p-1 transition-colors hover:bg-white/10"
+            style={{ color: "var(--t-text-muted)" }}
+            aria-label="Yangi loyiha"
+            title="Yangi loyiha"
+          >
+            <FolderPlus className="size-3.5" />
+          </button>
+        </div>
+        {newProject !== null && (
+          <input
+            autoFocus
+            value={newProject}
+            onChange={(e) => setNewProject(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && newProject.trim()) {
+                createProject(newProject);
+                setNewProject(null);
+              }
+              if (e.key === "Escape") setNewProject(null);
+            }}
+            onBlur={() => setNewProject(null)}
+            placeholder="Loyiha nomi ↵"
+            className="tt mt-1.5 w-full border bg-transparent px-2.5 py-1.5 text-sm outline-none"
+            style={{ borderColor: "var(--t-primary)", borderRadius: "var(--t-radius)" }}
+          />
+        )}
+        {projects.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {projects.map((p) => {
+              const on = p.id === activeProjectId;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setActiveProject(on ? null : p.id)}
+                  className="tt inline-flex h-7 max-w-full items-center gap-1 rounded-full border px-2.5 text-xs transition-colors"
+                  style={{
+                    borderColor: on ? "var(--t-primary)" : "var(--t-border)",
+                    background: on ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : "transparent",
+                    color: on ? "var(--t-accent)" : "var(--t-text-muted)",
+                  }}
+                  title={on ? "Loyihadan chiqish" : "Loyihani ochish"}
+                >
+                  <Folder className="size-3" />
+                  <span className="truncate">{p.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {activeProject && (
+          <div className="tt mt-2 border" style={{ borderColor: "var(--t-border)", borderRadius: "var(--t-radius)" }}>
+            <button
+              type="button"
+              onClick={() => setShowInstructions((v) => !v)}
+              className="flex w-full items-center justify-between px-2.5 py-1.5 text-xs"
+              style={{ color: "var(--t-text-muted)" }}
+            >
+              <span>Loyiha ko&apos;rsatmasi{activeProject.instructions ? " · bor" : ""}</span>
+              <span>{showInstructions ? "▾" : "▸"}</span>
+            </button>
+            {showInstructions && (
+              <div className="px-2.5 pb-2">
+                <textarea
+                  value={activeProject.instructions}
+                  onChange={(e) => updateProject(activeProject.id, { instructions: e.target.value })}
+                  placeholder="Masalan: Bu loyiha Next.js 16 va Tailwind v4. Har doim TypeScript'da yoz."
+                  rows={3}
+                  maxLength={4000}
+                  className="w-full resize-none bg-transparent text-xs leading-relaxed outline-none placeholder:opacity-50"
+                  style={{ color: "var(--t-text)" }}
+                />
+                <div className="mt-1 flex items-center justify-between text-[10px]" style={{ color: "var(--t-text-muted)" }}>
+                  <span>Shu loyihadagi har suhbatga qo&apos;shiladi</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm(`"${activeProject.name}" loyihasi o'chirilsinmi? Suhbatlar qoladi.`)) deleteProject(activeProject.id);
+                    }}
+                    className="hover:underline"
+                    style={{ color: "var(--error, #EF4444)" }}
+                  >
+                    O&apos;chirish
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* list */}
       <div className="mt-3 flex-1 overflow-y-auto px-2">
         {groups.length === 0 && (
@@ -176,8 +300,25 @@ export function Sidebar({
                     }}
                   >
                     <span className="size-2 shrink-0 rounded-full" style={{ background: m?.primary ?? "var(--t-primary)" }} />
-                    <span className="truncate pr-6">{c.title}</span>
+                    <span className="min-w-0 flex-1 pr-10">
+                      <span className="block truncate">{c.title}</span>
+                      {snippets[id] && (
+                        <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>{snippets[id]}</span>
+                      )}
+                    </span>
                   </button>
+                  {projects.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => moveToProject(id, c.projectId ? null : activeProjectId ?? projects[0].id)}
+                      className="absolute right-8 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
+                      style={{ color: c.projectId ? "var(--t-accent)" : "var(--t-text-muted)" }}
+                      aria-label={c.projectId ? "Loyihadan chiqarish" : "Loyihaga qo'shish"}
+                      title={c.projectId ? "Loyihadan chiqarish" : `Loyihaga qo'shish: ${(activeProject ?? projects[0]).name}`}
+                    >
+                      <Folder className="size-3.5" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => onDelete(id)}

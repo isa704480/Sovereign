@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe, Menu, PanelRight, Share2 } from "lucide-react";
+import { Check, Globe, Menu, PanelRight, Share2 } from "lucide-react";
 import { HERO_DEMO_MODELS, RESEARCH_MODEL_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
 import { CreditIndicator } from "./CreditIndicator";
@@ -17,6 +17,9 @@ interface ChatHeaderProps {
   sourcesOpen: boolean;
   onToggleSources: () => void;
   onUpgrade: () => void;
+  /** Suhbatni havola bilan ulashish; suhbat bo'sh bo'lsa berilmaydi. */
+  onShare?: () => void;
+  shareState?: "idle" | "busy" | "done";
 }
 
 export function ChatHeader({
@@ -29,6 +32,8 @@ export function ChatHeader({
   sourcesOpen,
   onToggleSources,
   onUpgrade,
+  onShare,
+  shareState = "idle",
 }: ChatHeaderProps) {
   const { model } = useTheme();
   const quick = [...HERO_DEMO_MODELS.slice(0, 3)];
@@ -103,11 +108,15 @@ export function ChatHeader({
         )}
         <button
           type="button"
-          className="rounded-lg p-2 transition-colors hover:bg-white/10"
-          style={{ color: "var(--t-text-muted)" }}
-          title="Ulashish (tez orada)"
+          onClick={onShare}
+          disabled={!onShare || shareState === "busy"}
+          className="inline-flex items-center gap-1.5 rounded-lg p-2 text-xs transition-colors hover:bg-white/10 disabled:opacity-50"
+          style={{ color: shareState === "done" ? "var(--t-accent)" : "var(--t-text-muted)" }}
+          title="Suhbatni havola bilan ulashish"
+          aria-label="Ulashish"
         >
-          <Share2 className="size-4" />
+          {shareState === "done" ? <Check className="size-4" /> : <Share2 className="size-4" />}
+          {shareState === "done" && <span className="hidden sm:inline">Havola nusxalandi</span>}
         </button>
       </div>
     </header>

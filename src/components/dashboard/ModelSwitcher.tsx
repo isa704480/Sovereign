@@ -41,6 +41,13 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
   const { model: themeModel } = useTheme();
   const model = value === AUTO_MODEL_ID ? AUTO_MODEL : resolveModel(value) ?? themeModel;
   const [open, setOpen] = useState(false);
+
+  // Ctrl+K (Dashboard) shu hodisani yuboradi — menyu ochiladi.
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener("sovereign:open-model", onOpen);
+    return () => window.removeEventListener("sovereign:open-model", onOpen);
+  }, []);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

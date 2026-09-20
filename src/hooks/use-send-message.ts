@@ -7,7 +7,16 @@ import { mask } from "@/lib/ai/blind-prompting";
 import { detectImageIntent } from "@/lib/chat/image-intent";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
-import { CUSTOM_SKILL_PREFIX, useChat, uuid, type ChatMessage } from "@/store/chat";
+import { CUSTOM_SKILL_PREFIX, useChat, uuid, type ChatMessage, type Project } from "@/store/chat";
+
+/** Cowork papka ro'yxati + loyiha ko'rsatmasi — bitta kontekst matni (server 6000 belgi qabul qiladi). */
+function buildContext(cowork: string | null, project?: Project): string | undefined {
+  const parts: string[] = [];
+  if (project?.instructions.trim()) parts.push(`LOYIHA "${project.name}" KO'RSATMALARI (har javobda amal qil):\n${project.instructions.trim()}`);
+  if (cowork) parts.push(cowork);
+  const text = parts.join("\n\n");
+  return text ? text.slice(0, 6000) : undefined;
+}
 
 /**
  * Maps stored messages to the API wire format. When Blind Prompting is on,
@@ -91,7 +100,7 @@ export function useSendMessage() {
           .slice(0, 3)
           .map((k) => ({ name: k.name, instructions: k.instructions })),
         docIds,
-        context: state0.coworkOutline ?? undefined,
+        context: buildContext(state0.coworkOutline, state0.projects.find((p) => p.id === conv.projectId)),
         messages: wire,
         signal: controller.signal,
         onEvent: (ev) => {

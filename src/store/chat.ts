@@ -71,6 +71,17 @@ export interface Conversation {
   createdAt: string;
   updatedAt: string;
   messages: ChatMessage[];
+  /** Loyiha (papka) — bo'lmasa umumiy ro'yxatda. */
+  projectId?: string | null;
+}
+
+/** Loyiha: suhbatlar papkasi + shu loyihadagi har bir suhbatga qo'shiladigan ko'rsatma. */
+export interface Project {
+  id: string;
+  name: string;
+  /** System promptga qo'shiladi: "bu loyiha Next.js 16, o'zbek tilida javob ber" kabi. */
+  instructions: string;
+  createdAt: string;
 }
 
 interface ChatState {
@@ -89,6 +100,9 @@ interface ChatState {
   blindPrompting: boolean;
   /** File list of the opened Cowork folder, sent with each request (names only). */
   coworkOutline: string | null;
+  /** Loyihalar va hozir ochiq turgan loyiha (yangi suhbat shu loyihaga tushadi). */
+  projects: Project[];
+  activeProjectId: string | null;
   /** Chat matn o'lchami. */
   fontSize: "sm" | "md" | "lg";
   /** Xabar zichligi. */
@@ -110,6 +124,11 @@ interface ChatState {
   removeCustomSkill: (id: string) => void;
   setBlindPrompting: (on: boolean) => void;
   setCoworkOutline: (text: string | null) => void;
+  createProject: (name: string) => string;
+  updateProject: (id: string, patch: Partial<Pick<Project, "name" | "instructions">>) => void;
+  deleteProject: (id: string) => void;
+  setActiveProject: (id: string | null) => void;
+  moveToProject: (conversationId: string, projectId: string | null) => void;
   setFontSize: (v: "sm" | "md" | "lg") => void;
   setDensity: (v: "compact" | "comfortable") => void;
   setEnterToSend: (on: boolean) => void;
@@ -149,6 +168,8 @@ export const useChat = create<ChatState>()(
       customSkills: [],
       blindPrompting: false,
       coworkOutline: null,
+      projects: [],
+      activeProjectId: null,
       fontSize: "md",
       density: "comfortable",
       enterToSend: true,
@@ -191,6 +212,39 @@ export const useChat = create<ChatState>()(
       setBlindPrompting: (blindPrompting) => set({ blindPrompting }),
       setCoworkOutline: (coworkOutline) => set({ coworkOutline }),
 
+      createProject: (name) => {
+        const id = uuid();
+        set((s) => ({
+          projects: [...s.projects, { id, name: name.trim().slice(0, 60) || "Loyiha", instructions: "", createdAt: now() }],
+          activeProjectId: id,
+        }));
+        return id;
+      },
+      updateProject: (id, patch) =>
+        set((s) => ({
+          projects: s.projects.map((p) =>
+            p.id === id
+              ? { ...p, ...patch, name: (patch.name ?? p.name).slice(0, 60), instructions: (patch.instructions ?? p.instructions).slice(0, 4000) }
+              : p,
+          ),
+        })),
+      deleteProject: (id) =>
+        set((s) => ({
+          projects: s.projects.filter((p) => p.id !== id),
+          activeProjectId: s.activeProjectId === id ? null : s.activeProjectId,
+          // Suhbatlar o'chmaydi — umumiy ro'yxatga qaytadi.
+          conversations: Object.fromEntries(
+            Object.entries(s.conversations).map(([cid, c]) => [cid, c.projectId === id ? { ...c, projectId: null } : c]),
+          ),
+        })),
+      setActiveProject: (activeProjectId) => set({ activeProjectId, activeId: null }),
+      moveToProject: (conversationId, projectId) =>
+        set((s) => {
+          const c = s.conversations[conversationId];
+          if (!c) return {};
+          return { conversations: { ...s.conversations, [conversationId]: { ...c, projectId } } };
+        }),
+
       addCustomSkill: ({ name, instructions }) => {
         const id = uuid().slice(0, 8);
         set((s) => ({
@@ -219,6 +273,8 @@ export const useChat = create<ChatState>()(
           createdAt: now(),
           updatedAt: now(),
           messages: [],
+          // Loyiha ochiq bo'lsa yangi suhbat shu loyihaga tushadi.
+          projectId: get().activeProjectId,
         };
         set((s) => ({
           conversations: { ...s.conversations, [c.id]: c },
@@ -325,6 +381,8 @@ export const useChat = create<ChatState>()(
         sidebarOpen: s.sidebarOpen,
         enabledSkills: s.enabledSkills,
         customSkills: s.customSkills,
+        projects: s.projects,
+        activeProjectId: s.activeProjectId,
         blindPrompting: s.blindPrompting,
       }),
     },
