@@ -14,6 +14,8 @@ export interface StreamChatOptions {
   context?: string;
   /** Interfeys tili — AI shu tilda javob beradi (foydalanuvchi boshqa tilda yozmasa). */
   lang?: string;
+  /** Agent rejimi (dasturchi/tadqiqotchi/...) — maxsus ko'rsatma beradi. */
+  agentMode?: string;
   /** content is a string, or a multimodal array (text + image parts). */
   messages: { role: "user" | "assistant" | "system"; content: unknown }[];
   signal?: AbortSignal;
@@ -29,6 +31,7 @@ export async function streamChat({
   customSkills,
   context,
   lang,
+  agentMode,
   messages,
   signal,
   onEvent,
@@ -44,6 +47,7 @@ export async function streamChat({
       customSkills: customSkills ?? [],
       context: context ?? "",
       lang: lang ?? "uz",
+      agentMode: agentMode ?? "general",
       messages,
     }),
     signal,

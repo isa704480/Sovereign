@@ -102,6 +102,7 @@ export function useSendMessage() {
           .map((k) => ({ name: k.name, instructions: k.instructions })),
         docIds,
         lang: state0.lang,
+        agentMode: state0.agentMode,
         context: buildContext(state0.coworkOutline, state0.projects.find((p) => p.id === conv.projectId)),
         messages: wire,
         signal: controller.signal,

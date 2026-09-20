@@ -6,6 +6,7 @@ import { persist } from "zustand/middleware";
 import { AUTO_MODEL_ID, DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
 import type { Attachment } from "@/lib/chat/attachments";
+import { DEFAULT_AGENT_MODE } from "@/config/agent-modes";
 import { DEFAULT_LANG, translate, type Lang, type TKey } from "@/lib/i18n";
 
 /** Komponentlarda: const t = useT(); t("newChat") */
@@ -127,6 +128,8 @@ interface ChatState {
   /** Interfeys va AI javoblari tili. */
   lang: Lang;
   setLang: (lang: Lang) => void;
+  agentMode: string;
+  setAgentMode: (id: string) => void;
 
   setModel: (id: string) => void;
   setResearch: (on: boolean) => void;
@@ -190,6 +193,8 @@ export const useChat = create<ChatState>()(
       autoScroll: true,
       lang: DEFAULT_LANG,
       setLang: (lang) => set({ lang }),
+      agentMode: DEFAULT_AGENT_MODE,
+      setAgentMode: (agentMode) => set({ agentMode }),
 
       setFontSize: (fontSize) => set({ fontSize }),
       setDensity: (density) => set({ density }),
@@ -398,6 +403,7 @@ export const useChat = create<ChatState>()(
         projects: s.projects,
         activeProjectId: s.activeProjectId,
         lang: s.lang,
+        agentMode: s.agentMode,
         blindPrompting: s.blindPrompting,
       }),
     },

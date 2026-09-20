@@ -16,7 +16,8 @@ import { EASE } from "@/lib/motion";
 import { listKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { attachmentGlyph, processFile, type Attachment } from "@/lib/chat/attachments";
 import { matchFiles, type CoworkFile } from "@/lib/cowork/folder";
-import { useT } from "@/store/chat";
+import { useChat, useT } from "@/store/chat";
+import { AGENT_MODES, AGENT_MODE_BY_ID } from "@/config/agent-modes";
 import { useCowork } from "./cowork-context";
 import { useSpeech } from "@/hooks/use-speech";
 import { cn } from "@/lib/utils";
@@ -125,10 +126,24 @@ export function InputArea({
 
   const cowork = useCowork();
   const t = useT();
+  const agentMode = useChat((s) => s.agentMode);
+  const setAgentMode = useChat((s) => s.setAgentMode);
+  const [modeMenu, setModeMenu] = useState(false);
+  const modeRef = useRef<HTMLDivElement>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   const plusRef = useRef<HTMLDivElement>(null);
   // Event handler sifatida (useCallback) — render paytida ref o'qilmaydi.
   const attachFromMenu = useCallback(() => fileRef.current?.click(), []);
+
+  // Agent rejimi menyusi tashqariga bosilsa yopiladi.
+  useEffect(() => {
+    if (!modeMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (modeRef.current && !modeRef.current.contains(e.target as Node)) setModeMenu(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [modeMenu]);
 
   // Tashqariga bosilsa yoki Esc bo'lsa "+" menyusi yopiladi.
   useEffect(() => {
@@ -371,6 +386,50 @@ export function InputArea({
     </button>
   );
 
+  // Agent rejimi tanlagich — "vazifa ber, agent bajaradi" (dasturchi/tadqiqotchi/...).
+  const cur = AGENT_MODE_BY_ID[agentMode] ?? AGENT_MODES[0];
+  const modeChip = (
+    <div className="relative" ref={modeRef}>
+      <button
+        type="button"
+        onClick={() => setModeMenu((o) => !o)}
+        aria-expanded={modeMenu}
+        className="tt inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors hover:bg-white/5"
+        style={{ borderColor: cur.id !== "general" ? "var(--t-primary)" : "var(--t-border)", color: cur.id !== "general" ? "var(--t-accent)" : "var(--t-text-muted)" }}
+        title="Agent rejimi"
+      >
+        <span>{cur.glyph}</span>
+        <span className="max-w-[90px] truncate">{cur.name}</span>
+        <ChevronDown className="size-3 opacity-70" />
+      </button>
+      {modeMenu && (
+        <div
+          className="tt absolute bottom-full left-0 z-30 mb-2 w-60 overflow-hidden rounded-[18px] border"
+          style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.45)" }}
+        >
+          {AGENT_MODES.map((m, i) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => {
+                setAgentMode(m.id);
+                setModeMenu(false);
+              }}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-white/5"
+              style={{ background: m.id === agentMode ? "color-mix(in srgb, var(--t-primary) 14%, transparent)" : "transparent", borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)" }}
+            >
+              <span className="text-base">{m.glyph}</span>
+              <span className="min-w-0">
+                <span className="block text-sm" style={{ color: "var(--t-text)" }}>{m.name}</span>
+                <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>{m.description}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className={cn("mx-auto w-full max-w-3xl", className)}>
       <input ref={fileRef} type="file" accept={ACCEPT} multiple hidden onChange={onFiles} />
@@ -495,6 +554,7 @@ export function InputArea({
 
           {isPill && (
             <div className="flex shrink-0 items-center gap-1 self-center">
+              {modeChip}
               {modeToggle}
               {modelChip}
               {micBtn}
@@ -604,6 +664,7 @@ export function InputArea({
                 )}
               </AnimatePresence>
             </div>
+            {modeChip}
             {modeToggle}
             <SkillPicker enabled={enabledSkills} onToggle={onToggleSkill} />
             <Chip

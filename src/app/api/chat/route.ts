@@ -12,6 +12,7 @@ import { planRouteLLM } from "@/lib/ai/router";
 import { AUTO_MODEL_ID, MODEL_BY_ID, resolveModel } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
+import { AGENT_MODE_BY_ID } from "@/config/agent-modes";
 import { getMemories, memoryPrompt } from "@/lib/ai/memory";
 import { fetchMentionedDocs, knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
 import { extractUrls, readPages } from "@/lib/ai/web-read";
@@ -60,6 +61,7 @@ const bodySchema = z.object({
   context: z.string().max(6000).optional().default(""),
   /** Interfeys tili — javob shu tilda (foydalanuvchi boshqa tilda yozmasa). */
   lang: z.enum(["uz", "uz-cyrl", "ru", "en"]).optional().default("uz"),
+  agentMode: z.string().max(40).optional().default("general"),
   messages: z
     .array(
       z.object({
@@ -139,14 +141,17 @@ export async function POST(req: Request) {
 
   const {
     modelId,
-    research,
+    research: reqResearch,
     skills: enabledSkills,
     messages,
     docIds,
     customSkills,
     context: coworkContext,
     lang,
+    agentMode,
   } = parsed.data;
+  const mode = AGENT_MODE_BY_ID[agentMode];
+  const research = reqResearch || !!mode?.autoResearch;
   const langText = `JAVOB TILI: foydalanuvchi boshqa tilda yozmasa, ${LANG_FOR_AI[lang]} javob ber.`;
   const isAuto = modelId === AUTO_MODEL_ID;
   if (!isAuto && !MODEL_BY_ID[modelId]) return Response.json({ error: "Noma'lum model" }, { status: 400 });
@@ -317,6 +322,7 @@ export async function POST(req: Request) {
               ? `ULANGAN SERVICE MA'LUMOTLARI (connector natijalari — javobda ishlat):
 ${connectorContext}`
               : "",
+            step.kind === "answer" && mode?.prompt ? mode.prompt : "",
           ]
             .filter(Boolean)
             .join("\n\n");
