@@ -7,6 +7,16 @@ import { AUTO_MODEL_ID, DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
 import type { Attachment } from "@/lib/chat/attachments";
 
+/** A skill the user wrote in the Skills market; kept on this device. */
+export interface CustomSkill {
+  id: string;
+  name: string;
+  instructions: string;
+}
+
+/** Custom skill ids carry this prefix so they never collide with catalog ids. */
+export const CUSTOM_SKILL_PREFIX = "custom:";
+
 export interface RouteInfo {
   reason: string;
   steps: { modelId: string; kind: string; purpose: string }[];
@@ -69,6 +79,8 @@ interface ChatState {
   sidebarOpen: boolean;
   /** User-enabled SOVEREIGN skills (auto-detected ones are added per message). */
   enabledSkills: string[];
+  /** Skills the user wrote themselves; ids are prefixed with CUSTOM_SKILL_PREFIX. */
+  customSkills: CustomSkill[];
   /** Mask PII in the outgoing prompt (Blind Prompting). */
   blindPrompting: boolean;
   /** Chat matn o'lchami. */
@@ -88,6 +100,8 @@ interface ChatState {
   setResearch: (on: boolean) => void;
   setSidebarOpen: (open: boolean) => void;
   toggleSkill: (id: string) => void;
+  addCustomSkill: (skill: { name: string; instructions: string }) => string;
+  removeCustomSkill: (id: string) => void;
   setBlindPrompting: (on: boolean) => void;
   setFontSize: (v: "sm" | "md" | "lg") => void;
   setDensity: (v: "compact" | "comfortable") => void;
@@ -125,6 +139,7 @@ export const useChat = create<ChatState>()(
       research: false,
       sidebarOpen: true,
       enabledSkills: DEFAULT_ENABLED_SKILLS,
+      customSkills: [],
       blindPrompting: false,
       fontSize: "md",
       density: "comfortable",
@@ -166,6 +181,19 @@ export const useChat = create<ChatState>()(
             : [...s.enabledSkills, id],
         })),
       setBlindPrompting: (blindPrompting) => set({ blindPrompting }),
+
+      addCustomSkill: ({ name, instructions }) => {
+        const id = uuid().slice(0, 8);
+        set((s) => ({
+          customSkills: [...s.customSkills, { id, name: name.slice(0, 40), instructions: instructions.slice(0, 2000) }].slice(-20),
+        }));
+        return id;
+      },
+      removeCustomSkill: (id) =>
+        set((s) => ({
+          customSkills: s.customSkills.filter((k) => k.id !== id),
+          enabledSkills: s.enabledSkills.filter((x) => x !== `${CUSTOM_SKILL_PREFIX}${id}`),
+        })),
 
       newChat: () => set({ activeId: null }),
       select: (id) => {
@@ -287,6 +315,7 @@ export const useChat = create<ChatState>()(
         research: s.research,
         sidebarOpen: s.sidebarOpen,
         enabledSkills: s.enabledSkills,
+        customSkills: s.customSkills,
         blindPrompting: s.blindPrompting,
       }),
     },

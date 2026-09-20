@@ -40,6 +40,12 @@ const bodySchema = z.object({
   skills: z.array(z.string().max(64)).max(12).optional().default([]),
   /** Knowledge-base documents the user referenced with "@name". */
   docIds: z.array(z.uuid()).max(4).optional().default([]),
+  /** Skills the user wrote themselves (stored on their device, sent per request). */
+  customSkills: z
+    .array(z.object({ name: z.string().max(40), instructions: z.string().max(2000) }))
+    .max(3)
+    .optional()
+    .default([]),
   messages: z
     .array(
       z.object({
@@ -114,7 +120,7 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
 
-  const { modelId, research, skills: enabledSkills, messages, docIds } = parsed.data;
+  const { modelId, research, skills: enabledSkills, messages, docIds, customSkills } = parsed.data;
   const isAuto = modelId === AUTO_MODEL_ID;
   if (!isAuto && !MODEL_BY_ID[modelId]) return Response.json({ error: "Noma'lum model" }, { status: 400 });
 
@@ -134,7 +140,11 @@ export async function POST(req: Request) {
   const lastText = lastUser ? textOf(lastUser) : "";
   const { authed, plan, usedToday, memoryText, knowledgeText } = await resolveEntitlement(lastText, docIds);
   const activeSkills = resolveActiveSkills(enabledSkills, lastText);
-  const skillText = skillsPrompt(activeSkills);
+  const customText = customSkills
+    .filter((s) => s.name.trim() && s.instructions.trim())
+    .map((s) => `SKILL "${s.name}":\n${s.instructions}`)
+    .join("\n\n");
+  const skillText = [skillsPrompt(activeSkills), customText].filter(Boolean).join("\n\n");
 
   // Auth majburiy (prod'da Supabase sozlangan bo'lsa) — anonim cost-DoS ni to'sish.
   if (!authed && isSupabaseConfigured()) {

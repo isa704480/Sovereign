@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Keyboard, LogOut, Palette, Settings, ShieldAlert, Sparkles, Sun, Type, X, Zap } from "lucide-react";
+import {Download, Keyboard, LogOut, Palette, Settings, ShieldAlert, Sparkles, X} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState, useTransition } from "react";
 import { signOut } from "@/app/actions/auth";

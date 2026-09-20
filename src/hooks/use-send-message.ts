@@ -7,7 +7,7 @@ import { mask } from "@/lib/ai/blind-prompting";
 import { detectImageIntent } from "@/lib/chat/image-intent";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
-import { useChat, uuid, type ChatMessage } from "@/store/chat";
+import { CUSTOM_SKILL_PREFIX, useChat, uuid, type ChatMessage } from "@/store/chat";
 
 /**
  * Maps stored messages to the API wire format. When Blind Prompting is on,
@@ -85,6 +85,11 @@ export function useSendMessage() {
         modelId: conv.modelId,
         research: conv.research,
         skills: state0.enabledSkills,
+        // Only the custom skills the user switched on travel with the request.
+        customSkills: state0.customSkills
+          .filter((k) => state0.enabledSkills.includes(`${CUSTOM_SKILL_PREFIX}${k.id}`))
+          .slice(0, 3)
+          .map((k) => ({ name: k.name, instructions: k.instructions })),
         docIds,
         messages: wire,
         signal: controller.signal,

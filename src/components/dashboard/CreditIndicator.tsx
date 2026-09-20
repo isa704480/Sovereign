@@ -2,7 +2,7 @@
 
 import { Zap } from "lucide-react";
 import { useEffect, useState } from "react";
-import { creditLevel, CREDIT_COLOR, CREDIT_LABEL, PLAN_BY_ID, type Plan } from "@/config/plans";
+import {creditLevel, CREDIT_COLOR, CREDIT_LABEL, type Plan} from "@/config/plans";
 
 interface CreditIndicatorProps {
   plan: Plan;

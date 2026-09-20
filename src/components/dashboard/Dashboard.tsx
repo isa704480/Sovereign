@@ -17,6 +17,7 @@ import { InputArea, type InputAreaHandle } from "./InputArea";
 import { KnowledgePanel } from "./KnowledgePanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { SettingsPanel } from "./SettingsPanel";
+import { SkillsMarket } from "./SkillsMarket";
 import { MessageList } from "./MessageList";
 import { PlanStatusBanner } from "./PlanStatusBanner";
 import { Sidebar } from "./Sidebar";
@@ -74,6 +75,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const [memoryEnabled, setMemoryEnabled] = useState(memoryInit);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const artifactCtx = useMemo(
     () => ({ open: (a: ArtifactPayload) => setArtifact(a) }),
     [],
@@ -221,6 +223,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           onOpenMemory={() => setMemoryOpen(true)}
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenKnowledge={() => setKbOpen(true)}
+          onOpenSkills={() => setSkillsOpen(true)}
         />
 
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -304,6 +307,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           suggestedPlan={pricing.suggested}
         />
         <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
+        <SkillsMarket open={skillsOpen} onClose={() => setSkillsOpen(false)} enabled={enabledSkills} onToggle={toggleSkill} />
         <KnowledgePanel open={kbOpen} onClose={() => setKbOpen(false)} />
         <SettingsPanel
           open={settingsOpen}
