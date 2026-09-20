@@ -16,23 +16,39 @@ export function MessageList({ messages, onRegenerate, onEdit }: MessageListProps
   const tts = useTTS();
   const bottom = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
+  // "Pastga biriktirilgan" — faqat shu holatda oqim davomida avto-scroll qilamiz.
+  // Foydalanuvchi yuqoriga scroll qilsa false bo'ladi va u erkin o'qiy oladi;
+  // yana tubiga qaytsa avto-scroll tiklanadi.
+  const pinned = useRef(true);
   const last = messages[messages.length - 1];
   const lastLen = last?.content.length ?? 0;
 
-  // Auto-scroll while streaming unless the user scrolled up.
+  // Foydalanuvchining haqiqiy scroll harakatini kuzatamiz (token vaqtida qayta
+  // hisoblamaymiz — shu sabab avval yuqoriga chiqolmasdi).
   useEffect(() => {
     const el = container.current;
     if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
-    if (nearBottom) bottom.current?.scrollIntoView({ block: "end" });
+    const onScroll = () => {
+      pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // Oqim davomida pastga ergashamiz — faqat foydalanuvchi tubida bo'lsa.
+  useEffect(() => {
+    if (pinned.current) bottom.current?.scrollIntoView({ block: "end" });
   }, [messages.length, lastLen]);
 
-  // Foydalanuvchi yuqorida o'qib turib yangi xabar yuborsa — qayerda bo'lishidan
-  // qat'i nazar pastga tushamiz: o'z savolini va kelayotgan javobni ko'rsin.
+  // Foydalanuvchi yangi xabar yuborsa — qayerda bo'lishidan qat'i nazar pastga
+  // tushamiz: o'z savolini va kelayotgan javobni ko'rsin.
   const lastId = last?.id;
   const lastRole = last?.role;
   useEffect(() => {
-    if (lastRole === "user") bottom.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    if (lastRole === "user") {
+      pinned.current = true;
+      bottom.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    }
   }, [lastId, lastRole]);
 
   return (
