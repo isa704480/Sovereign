@@ -282,7 +282,7 @@ export async function POST(req: Request) {
               if (enabled.length) {
                 const answerStep = steps.find((s) => s.kind === "answer") ?? steps[steps.length - 1];
                 const pm = resolveModel(answerStep.modelId).providerModel;
-                const ctx = await runConnectorTools({ providerModel: pm, messages, enabled, signal: req.signal });
+                const ctx = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: pm, messages, enabled, signal: req.signal });
                 if (ctx) connectorContext = ctx;
               }
             }
