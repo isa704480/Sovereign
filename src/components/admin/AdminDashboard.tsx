@@ -20,6 +20,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { countryFlag, countryName } from "@/config/countries";
 import { PLAN_BY_ID, type PlanId } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 
@@ -58,13 +59,34 @@ interface Summary {
   paying_users: number;
 }
 
+/** admin_onboarding_stats() natijasi — davlatlar va yosh guruhlari. */
+export interface OnboardingStats {
+  total_users: number;
+  with_country: number;
+  with_age: number;
+  avg_age: number | null;
+  by_country: { country: string; users: number }[];
+  by_age: { age_group: string; users: number }[];
+  signups_30d: number;
+}
+
 interface AdminDashboardProps {
   admin: { name: string; email: string };
   summary: Summary | null;
   daily: DailyStat[];
   plans: PlanRow[];
   recentOrders: OrderRow[];
+  onboarding?: OnboardingStats | null;
 }
+
+const AGE_LABEL: Record<string, string> = {
+  u18: "18 gacha",
+  "18-24": "18–24",
+  "25-34": "25–34",
+  "35-44": "35–44",
+  "45-54": "45–54",
+  "55+": "55+",
+};
 
 const PLAN_COLORS: Record<string, string> = {
   free: "#9BA3CC",
@@ -96,7 +118,10 @@ function KPI({ label, value, sub, color }: { label: string; value: string; sub?:
   );
 }
 
-export function AdminDashboard({ admin, summary, daily, plans, recentOrders }: AdminDashboardProps) {
+export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onboarding }: AdminDashboardProps) {
+  const ageBars = (onboarding?.by_age ?? []).map((a) => ({ name: AGE_LABEL[a.age_group] ?? a.age_group, users: a.users }));
+  const countryRows = onboarding?.by_country ?? [];
+  const countryTotal = countryRows.reduce((acc, r) => acc + r.users, 0);
   const daily30 = useMemo(() => {
     return [...daily].reverse().map((d) => ({
       ...d,
@@ -269,10 +294,79 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders }: A
           </section>
         </div>
 
+        {/* Auditoriya: yosh va davlat (onboarding'dan) */}
+        <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
+            <div className="text-[11px] uppercase tracking-wider text-white/50">Yosh taqsimoti</div>
+            {onboarding ? (
+              <>
+                <div className="mt-2 flex items-baseline gap-2">
+                  <span className="text-3xl font-semibold tabular-nums">{onboarding.avg_age ?? "—"}</span>
+                  <span className="text-xs text-white/50">o&apos;rtacha yosh · {onboarding.with_age} ta javob</span>
+                </div>
+                <div className="mt-4 h-48">
+                  <ResponsiveContainer>
+                    <BarChart data={ageBars}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#22243A" />
+                      <XAxis dataKey="name" stroke="#6E7191" fontSize={11} />
+                      <YAxis stroke="#6E7191" fontSize={11} allowDecimals={false} />
+                      <Tooltip contentStyle={{ background: "#0A0B12", border: "1px solid #22243A", borderRadius: 12, fontSize: 12 }} />
+                      <Bar dataKey="users" name="Foydalanuvchi" fill="#5B50F0" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            ) : (
+              <p className="mt-3 text-sm text-white/50">Ma&apos;lumot yo&apos;q — 0020 migratsiyasini ishga tushiring.</p>
+            )}
+          </section>
+
+          <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 lg:col-span-2">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="text-[11px] uppercase tracking-wider text-white/50">Davlatlar bo&apos;yicha ro&apos;yxatdan o&apos;tganlar</div>
+              <div className="text-xs text-white/50 tabular-nums">
+                {countryRows.length} davlat · {countryTotal} foydalanuvchi
+                {onboarding ? ` · oxirgi 30 kun: ${onboarding.signups_30d}` : ""}
+              </div>
+            </div>
+            {countryRows.length ? (
+              <div className="max-h-72 overflow-y-auto rounded-xl border border-white/5">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0 bg-[#0A0B12] text-[11px] uppercase tracking-wider text-white/40">
+                    <tr>
+                      <th className="px-3 py-2 text-left">#</th>
+                      <th className="px-3 py-2 text-left">Davlat</th>
+                      <th className="px-3 py-2 text-right">Foydalanuvchi</th>
+                      <th className="px-3 py-2 text-right">Ulush</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {countryRows.map((r, i) => (
+                      <tr key={r.country} className="border-t border-white/5">
+                        <td className="px-3 py-2 tabular-nums text-white/40">{i + 1}</td>
+                        <td className="px-3 py-2">
+                          {countryFlag(r.country)} {countryName(r.country, "uz")}{" "}
+                          <span className="text-white/40">{r.country}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">{r.users}</td>
+                        <td className="px-3 py-2 text-right tabular-nums text-white/60">
+                          {countryTotal ? Math.round((r.users / countryTotal) * 100) : 0}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-sm text-white/50">Hali davlat tanlagan foydalanuvchi yo&apos;q.</p>
+            )}
+          </section>
+        </div>
+
         {/* Oxirgi to'lovlar jadvali */}
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
           <div className="mb-4 flex items-center justify-between">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">Oxirgi to'lovlar</div>
+            <div className="text-[11px] uppercase tracking-wider text-white/50">Oxirgi to&apos;lovlar</div>
             <div className="text-xs text-white/50 tabular-nums">{recentOrders.length} yozuv</div>
           </div>
           <div className="overflow-hidden rounded-xl border border-white/5">
@@ -290,7 +384,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders }: A
                 {recentOrders.length === 0 && (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-white/40">
-                      Hozircha to'lovlar yo'q
+                      Hozircha to&apos;lovlar yo&apos;q
                     </td>
                   </tr>
                 )}

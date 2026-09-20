@@ -111,7 +111,7 @@ export function stepIsValid(s: OnboardingAnswers, step: number): boolean {
     case 5:
       return (s.ageGroup ?? "").length > 0;
     case 6:
-      return s.country === "other" ? (s.otherCountry ?? "").trim().length > 0 : (s.country ?? "").length > 0;
+      return /^[A-Z]{2}$/.test(s.country ?? "");
     default:
       return false;
   }

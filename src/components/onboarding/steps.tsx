@@ -2,10 +2,11 @@
 
 import { Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { countryFlag, countryName, searchCountries } from "@/config/countries";
+import { useChat } from "@/store/chat";
 import {
   AGE_GROUPS,
-  COUNTRIES,
   EXPERIENCE_ZONES,
   INDUSTRIES,
   LANGUAGES,
@@ -174,29 +175,41 @@ export function StepAge() {
 
 export function StepCountry() {
   const country = useOnboarding((s) => s.country ?? "");
-  const other = useOnboarding((s) => s.otherCountry ?? "");
   const setCountry = useOnboarding((s) => s.setCountry);
-  const setOtherCountry = useOnboarding((s) => s.setOtherCountry);
-  const otherOpen = country === "other";
+  const lang = useChat((s) => s.lang);
+  const [q, setQ] = useState("");
+  // Barcha 259 ta davlat: bo'sh qidiruvda mintaqa uchun mashhurlari, yozganda hammasidan izlanadi.
+  const shown = useMemo(() => {
+    const list = searchCountries(q, lang);
+    return country && !list.includes(country) ? [country, ...list] : list;
+  }, [q, lang, country]);
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Davlat">
-        {COUNTRIES.map((o) => (
-          <Chip key={o.id} emoji={o.emoji} label={o.label} selected={country === o.id} onToggle={() => setCountry(o.id)} />
+      <Input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        placeholder="Davlat nomini yozing — masalan: Ger, Kor, Emi"
+        aria-label="Davlat qidirish"
+        className="mb-3 h-11 rounded-xl"
+      />
+      <div className="flex max-h-[260px] flex-wrap gap-2 overflow-y-auto pr-1" role="radiogroup" aria-label="Davlat">
+        {shown.map((code) => (
+          <Chip
+            key={code}
+            emoji={countryFlag(code)}
+            label={countryName(code, lang)}
+            selected={country === code}
+            onToggle={() => setCountry(country === code ? "" : code)}
+          />
         ))}
-        <button
-          type="button"
-          onClick={() => setCountry(otherOpen ? "" : "other")}
-          className={cn(
-            "inline-flex h-10 items-center gap-1.5 rounded-full border border-dashed px-4 text-sm transition-colors",
-            otherOpen ? "border-primary text-primary-soft" : "border-[var(--border-strong)] text-text-muted hover:text-text-primary",
-          )}
-        >
-          <Plus className="size-4" /> Boshqa davlat
-        </button>
+        {shown.length === 0 && <p className="py-4 text-sm text-text-muted">Topilmadi — boshqacha yozib ko&apos;ring.</p>}
       </div>
-      <OtherInput open={otherOpen} value={other} placeholder="Davlat nomini yozing" onChange={setOtherCountry} />
+      {country && (
+        <p className="mt-3 text-xs text-text-muted">
+          Tanlandi: {countryFlag(country)} {countryName(country, lang)}
+        </p>
+      )}
     </div>
   );
 }
