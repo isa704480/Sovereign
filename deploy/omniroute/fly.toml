@@ -1,0 +1,44 @@
+# OmniRoute AI gateway on Fly.io — SOVEREIGN uchun zaxira shlyuz.
+# Deploy: cd deploy/omniroute && fly launch --copy-config --no-deploy && fly deploy
+# Batafsil: deploy/omniroute/README.md
+
+app = "sovereign-omniroute"
+primary_region = "fra"
+
+[build]
+  image = "diegosouzapw/omniroute:latest"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "20128"
+  API_HOST = "0.0.0.0"
+  # SQLite va kalitlar shu volume ichida qoladi (pastdagi [[mounts]]).
+  DATA_DIR = "/data"
+  # HTTPS orqasida ishlayapmiz — cookie faqat secure bo'lsin.
+  AUTH_COOKIE_SECURE = "true"
+  # /v1 ga faqat API kalit bilan kirish mumkin. Ochiq qoldirmang.
+  REQUIRE_API_KEY = "true"
+  ALLOW_API_KEY_REVEAL = "false"
+  # Loglar volume'ni to'ldirmasin — Fly log'lari yetarli.
+  APP_LOG_TO_FILE = "false"
+  APP_LOG_FORMAT = "json"
+  CALL_LOG_RETENTION_DAYS = "3"
+  BASE_URL = "http://127.0.0.1:20128"
+  # fly launch app nomini o'zgartirsa, buni ham o'zgartiring:
+  NEXT_PUBLIC_BASE_URL = "https://sovereign-omniroute.fly.dev"
+
+[http_service]
+  internal_port = 20128
+  force_https = true
+  # So'rov kelmasa mashina uxlaydi (pul tejaladi), so'rov kelsa o'zi uyg'onadi.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[mounts]]
+  source = "omniroute_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

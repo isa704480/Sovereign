@@ -1,0 +1,123 @@
+# OmniRoute'ni Fly.io'ga qo'yish
+
+OmniRoute — bitta manzil orqasida 350+ provayderni (150+ tekin) birlashtiruvchi
+shlyuz. SOVEREIGN uni **zaxira** sifatida ishlatadi: asosiy provayderlar
+ishlamay qolsa, so'rov shu yerga tushadi.
+
+Bu papkadagi `fly.toml` tayyor — faqat quyidagi qadamlarni bajaring.
+
+---
+
+## 1. flyctl o'rnatish (Windows PowerShell)
+
+```powershell
+iwr https://fly.io/install.ps1 -useb | iex
+```
+
+Terminalni qaytadan oching, keyin:
+
+```bash
+fly auth login
+```
+
+## 2. Ilovani yaratish
+
+```bash
+cd D:\My_apps\Sovereign\deploy\omniroute
+fly launch --copy-config --no-deploy
+```
+
+Savollarga javob:
+
+| Savol | Javob |
+|---|---|
+| App name | `sovereign-omniroute` (band bo'lsa boshqa nom — keyin 4-qadamga qarang) |
+| Region | `fra` (Frankfurt — O'zbekistonga eng yaqin tez region) |
+| Postgres / Redis kerakmi | **Yo'q** |
+| Deploy now | **Yo'q** |
+
+## 3. Sirlarni yaratish va o'rnatish
+
+Har bir qiymat tasodifiy bo'lishi shart. Nusxa olib, bittalab bajaring:
+
+```bash
+fly secrets set JWT_SECRET=$(openssl rand -base64 48)
+fly secrets set API_KEY_SECRET=$(openssl rand -hex 32)
+fly secrets set STORAGE_ENCRYPTION_KEY=$(openssl rand -hex 32)
+fly secrets set OMNIROUTE_WS_BRIDGE_SECRET=$(openssl rand -hex 32)
+fly secrets set INITIAL_PASSWORD='<kuchli-parol-yozing>'
+```
+
+Windows'da `openssl` bo'lmasa, PowerShell'da:
+
+```powershell
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+va chiqqan qiymatni qo'lda qo'ying:
+
+```bash
+fly secrets set API_KEY_SECRET=chiqqan_qiymat
+```
+
+> `INITIAL_PASSWORD` — dashboard'ga birinchi kirish paroli. `CHANGEME` qoldirmang.
+
+## 4. Agar app nomi boshqa bo'lsa
+
+`fly.toml` ichida ikki joyni tahrirlang:
+
+```toml
+app = "sizning-nom"
+NEXT_PUBLIC_BASE_URL = "https://sizning-nom.fly.dev"
+```
+
+## 5. Deploy
+
+```bash
+fly deploy
+fly open
+```
+
+Brauzerda dashboard ochiladi. Kiring (parol — `INITIAL_PASSWORD`).
+
+## 6. API kalit yaratish
+
+Dashboard → **Endpoints** → **Create API key**. Kalitni nusxa oling
+(`ci_live_...` ko'rinishida).
+
+> Chatda yoki boshqa joyda ochilgan kalitni darhol o'chirib, yangisini yarating.
+
+## 7. SOVEREIGN'ga ulash
+
+Vercel → Settings → Environment Variables (Secret, Production + Preview):
+
+```
+OMNIROUTE_BASE_URL = https://sovereign-omniroute.fly.dev/v1
+OMNIROUTE_API_KEY  = ci_live_...
+OMNIROUTE_MODEL    = auto
+```
+
+Keyin **Redeploy**. Shundan so'ng zaxira tartibi:
+Experiential → **OmniRoute** → boshqa shlyuz → LLM7.
+
+## 8. Tekshirish
+
+```bash
+curl https://sovereign-omniroute.fly.dev/v1/models -H "Authorization: Bearer ci_live_..."
+```
+
+Modellar ro'yxati kelsa — tayyor.
+
+---
+
+## Bilib qo'ying
+
+- **Pul.** Fly.io endi bepul tarif bermaydi: karta biriktirish so'raladi. Bu
+  konfiguratsiya eng kichik mashinani ishlatadi va so'rov bo'lmasa uxlaydi,
+  shuning uchun xarajat oyiga bir necha dollar atrofida bo'ladi.
+- **Birinchi so'rov sekin.** Mashina uxlab qolgan bo'lsa, uyg'onishi 1–3 soniya
+  oladi. Zaxira shlyuz uchun bu muammo emas.
+- **`REQUIRE_API_KEY=true`** ataylab yoqilgan. Busiz `/v1` manzilingizni topgan
+  har kim sizning provayder kvotangizdan foydalanadi.
+- **Volume.** `omniroute_data` — SQLite bazasi va kalitlar shu yerda. O'chirsangiz
+  sozlamalar yo'qoladi.
