@@ -9,13 +9,14 @@ import {
 import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
 import { verifyAnswer } from "@/lib/ai/verifier";
 import { planRouteLLM } from "@/lib/ai/router";
-import { AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
+import { AUTO_MODEL_ID, MODEL_BY_ID, resolveModel } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
 import { getMemories, memoryPrompt } from "@/lib/ai/memory";
 import { fetchMentionedDocs, knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
 import { extractUrls, readPages } from "@/lib/ai/web-read";
 import { captureSample } from "@/lib/ai/training";
+import { getEnabledConnectors, runConnectorTools } from "@/lib/ai/connector-tools";
 import { LANG_FOR_AI } from "@/lib/i18n";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -268,6 +269,28 @@ export async function POST(req: Request) {
 
         let researchContext = "";
         let cacheableAnswer = "";
+
+        // Connector tool bosqichi — AI ulangan Figma/GitHub'dan ma'lumot oladi,
+        // natija javob konteksti sifatida qo'shiladi (streaming'ga tegmaydi).
+        let connectorContext = "";
+        try {
+          if (isSupabaseConfigured()) {
+            const sbc = await createClient();
+            const { data: { user: cu } } = await sbc.auth.getUser();
+            if (cu) {
+              const enabled = await getEnabledConnectors(sbc, cu.id);
+              if (enabled.length) {
+                const answerStep = steps.find((s) => s.kind === "answer") ?? steps[steps.length - 1];
+                const pm = resolveModel(answerStep.modelId).providerModel;
+                const ctx = await runConnectorTools({ providerModel: pm, messages, enabled, signal: req.signal });
+                if (ctx) connectorContext = ctx;
+              }
+            }
+          }
+        } catch {
+          // Connector ishlamasa javob baribir davom etadi.
+        }
+
         for (let i = 0; i < steps.length; i++) {
           const step = steps[i];
           if (isAuto || steps.length > 1) send({ type: "step", modelId: step.modelId, kind: step.kind, purpose: step.purpose, index: i });
@@ -290,6 +313,10 @@ export async function POST(req: Request) {
             memoryText,
             skillText,
             plan.limits.fullCode ? "" : SIMPLE_CHAT_GUARDRAIL,
+            step.kind === "answer" && connectorContext
+              ? `ULANGAN SERVICE MA'LUMOTLARI (connector natijalari — javobda ishlat):
+${connectorContext}`
+              : "",
           ]
             .filter(Boolean)
             .join("\n\n");
