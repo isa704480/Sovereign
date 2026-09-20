@@ -316,48 +316,98 @@ function withPromptCache(model: SovereignModel, messages: ChatMessageInput[]): C
 }
 
 /**
- * Anonymous free tier (LLM7). Yields text and returns true once it has produced
- * output; returns false so the caller can surface its own error if it failed.
+ * OpenAI-compatible gateways used when the primary providers fail. Each one is
+ * enabled only by its env key, so nothing is sent anywhere the operator did not
+ * configure. Order matters: the first configured gateway is tried first.
+ */
+function fallbackTargets(): { name: string; url: string; auth: string; model: string }[] {
+  const out: { name: string; url: string; auth: string; model: string }[] = [];
+
+  // Experiential Labs — zero-markup gateway (platform.experientiallabs.ai).
+  if (process.env.EXPERIENTIAL_API_KEY) {
+    out.push({
+      name: "experiential",
+      url: "https://api.experientiallabs.ai/v1/chat/completions",
+      auth: process.env.EXPERIENTIAL_API_KEY,
+      model: process.env.EXPERIENTIAL_MODEL ?? "claude-3-haiku",
+    });
+  }
+  // Self-hosted OmniRoute instance (npm i -g omniroute). Key optional.
+  if (process.env.OMNIROUTE_BASE_URL) {
+    out.push({
+      name: "omniroute",
+      url: `${process.env.OMNIROUTE_BASE_URL.replace(/\/$/, "")}/chat/completions`,
+      auth: process.env.OMNIROUTE_API_KEY ?? "unused",
+      model: process.env.OMNIROUTE_MODEL ?? "auto",
+    });
+  }
+  // Any other OpenAI-compatible gateway, configured by URL + key.
+  if (process.env.GATEWAY_BASE_URL && process.env.GATEWAY_API_KEY) {
+    out.push({
+      name: "gateway",
+      url: `${process.env.GATEWAY_BASE_URL.replace(/\/$/, "")}/chat/completions`,
+      auth: process.env.GATEWAY_API_KEY,
+      model: process.env.GATEWAY_MODEL ?? "auto",
+    });
+  }
+  // Anonymous free tier — always available, so it goes last.
+  out.push({
+    name: "llm7",
+    url: `${LLM7_BASE}/chat/completions`,
+    auth: process.env.LLM7_API_KEY ?? "unused",
+    model: LLM7_FREE_MODEL,
+  });
+  return out;
+}
+
+/**
+ * Tries each configured fallback gateway in turn. Yields text and returns true
+ * once one produced output; returns false so the caller can surface its own
+ * error when they all fail.
  */
 async function* streamFreeFallback(
   messages: ChatMessageInput[],
   opts: StreamOptions,
   maxTokens: number,
 ): AsyncGenerator<StreamEvent, boolean> {
-  let res: Response;
-  try {
-    res = await fetch(`${LLM7_BASE}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.LLM7_API_KEY ?? "unused"}`,
-      },
-      body: JSON.stringify({
-        model: LLM7_FREE_MODEL,
-        messages: messages.map((m) => ({ role: m.role, content: textOf(m.content) })),
-        temperature: opts.temperature ?? 0.7,
-        max_tokens: Math.min(maxTokens, 2048),
-        stream: true,
-      }),
-      signal: opts.signal,
-    });
-  } catch {
-    return false;
-  }
-  if (!res.ok || !res.body) return false;
+  const plain = messages.map((m) => ({ role: m.role, content: textOf(m.content) }));
 
-  let produced = false;
-  for await (const chunk of readSse(res.body)) {
-    const c = chunk as OrChunk;
-    if (c.error?.message) return produced;
-    const text = c.choices?.[0]?.delta?.content;
-    if (text) {
-      produced = true;
-      yield { type: "text", text };
+  for (const target of fallbackTargets()) {
+    let res: Response;
+    try {
+      res = await fetch(target.url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${target.auth}` },
+        body: JSON.stringify({
+          model: target.model,
+          messages: plain,
+          temperature: opts.temperature ?? 0.7,
+          max_tokens: Math.min(maxTokens, 2048),
+          stream: true,
+        }),
+        signal: opts.signal,
+      });
+    } catch {
+      continue; // network error — try the next gateway
+    }
+    if (!res.ok || !res.body) continue;
+
+    let produced = false;
+    for await (const chunk of readSse(res.body)) {
+      const c = chunk as OrChunk;
+      if (c.error?.message) break;
+      const text = c.choices?.[0]?.delta?.content;
+      if (text) {
+        produced = true;
+        yield { type: "text", text };
+      }
+    }
+    if (produced) {
+      yield { type: "done" };
+      return true;
     }
   }
-  if (produced) yield { type: "done" };
-  return produced;
+  return false;
 }
 
 async function* streamOpenRouter(

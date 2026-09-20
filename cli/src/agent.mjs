@@ -238,6 +238,92 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
   return { done: true };
 }
 
+/** Bitta javob — vositalarsiz, oqimsiz. Parallel rejim uchun. */
+async function askOnce(messages, config, maxTokens = 900) {
+  if (config.token) {
+    const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+      body: JSON.stringify({ messages: forServer(messages) }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `${res.status}`);
+    const { message } = await res.json();
+    return message?.content ?? "";
+  }
+  const res = await fetch(OPENROUTER, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.openrouterKey}`,
+      "HTTP-Referer": "https://sovhq.vercel.app",
+      "X-Title": "SOVEREIGN CLI",
+    },
+    body: JSON.stringify({ model: config.model, messages, temperature: 0.8, max_tokens: maxTokens }),
+  });
+  if (!res.ok) throw new Error(JSON.parse(await res.text()).error?.message ?? `${res.status}`);
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? "";
+}
+
+/**
+ * Parallel rejim: bitta vazifani bir nechta mustaqil "ishchi" bir vaqtda
+ * ko'rib chiqadi, keyin natijalar bitta yechimga birlashtiriladi. Ishchilar
+ * fayl yozmaydi (vositalarsiz) — shuning uchun bir-birining ishini buzmaydi.
+ */
+export async function swarm({ task, count, config, onProgress }) {
+  const n = Math.max(2, Math.min(8, count || 3));
+  const angles = [
+    "eng sodda va tez yechim",
+    "eng ishonchli, chegara holatlarini hisobga olgan yechim",
+    "eng tejamkor (kam kod, kam bog'liqlik) yechim",
+    "xavfsizlik nuqtai nazaridan yechim",
+    "kengaytiriladigan arxitektura nuqtai nazaridan yechim",
+    "eng tezkor ishlash (performance) nuqtai nazaridan yechim",
+    "test qilish oson bo'lgan yechim",
+    "yangi boshlovchi tushunadigan yechim",
+  ];
+
+  const workers = Array.from({ length: n }, (_, i) =>
+    askOnce(
+      [
+        { role: "system", content: `Sen SOVEREIGN ishchi #${i + 1}san. Yondashuv: ${angles[i % angles.length]}. Qisqa va aniq yoz (maks 250 so'z).` },
+        { role: "user", content: task },
+      ],
+      config,
+      700,
+    )
+      .then((text) => {
+        onProgress?.(i, true);
+        return { i, text };
+      })
+      .catch((err) => {
+        onProgress?.(i, false, err.message);
+        return { i, text: "", error: err.message };
+      }),
+  );
+
+  const results = await Promise.all(workers);
+  const good = results.filter((r) => r.text.trim());
+  if (!good.length) return { error: results[0]?.error ?? "Hech bir ishchi javob bermadi" };
+
+  const merged = await askOnce(
+    [
+      {
+        role: "system",
+        content:
+          "Sen SOVEREIGN bosh muhandisisan. Quyida bir vazifa bo'yicha bir nechta mustaqil yechim bor. " +
+          "Ularni tahlil qil, eng yaxshi g'oyalarni birlashtirib YAGONA yakuniy yechim ber. " +
+          "Qaysi ishchidan nima olganingni bir qatorda ayt.",
+      },
+      { role: "user", content: `VAZIFA: ${task}\n\n${good.map((r) => `--- ISHCHI #${r.i + 1} ---\n${r.text}`).join("\n\n")}` },
+    ],
+    config,
+    1200,
+  ).catch((err) => `Birlashtirishda xato: ${err.message}`);
+
+  return { results: good, merged };
+}
+
 export function initialMessages() {
   return [
     { role: "system", content: SYSTEM },

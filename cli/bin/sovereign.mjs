@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import readline from "node:readline";
 import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
-import { agentTurn, initialMessages } from "../src/agent.mjs";
+import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
 import { login } from "../src/login.mjs";
 import { printModels, resolveModelId } from "../src/models.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
-import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu } from "../src/ui.mjs";
+import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu, spinner } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
 import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
 import { countTurns, listSessions, loadSession, rewind, saveSession } from "../src/sessions.mjs";
@@ -13,12 +13,20 @@ import { countTurns, listSessions, loadSession, rewind, saveSession } from "../s
 const rawArgs = process.argv.slice(2);
 const AUTO_YES = rawArgs.includes("--yes") || rawArgs.includes("-y");
 
+/**
+ * VIBE rejim — `sov` deb chaqirilganda (yoki --vibe bilan) yoqiladi: kodni
+ * faqat AI yozadi, fayl yaratish/o'zgartirish har safar so'ralmaydi. Xavfli
+ * terminal buyruqlari baribir tasdiq so'raydi — bu chegara hech qachon ochilmaydi.
+ */
+const invokedAs = (process.argv[1] ?? "").split(/[\\/]/).pop()?.replace(/\.(mjs|js)$/, "") ?? "";
+const vibe = { on: invokedAs === "sov" || rawArgs.includes("--vibe") };
+
 // -f <path> / --file <path> collects local files to attach to the first turn.
 const attachFiles = [];
 const args = [];
 for (let i = 0; i < rawArgs.length; i++) {
   const a = rawArgs[i];
-  if (a === "--yes" || a === "-y") continue;
+  if (a === "--yes" || a === "-y" || a === "--vibe") continue;
   if (a === "-f" || a === "--file") {
     const p = rawArgs[++i];
     if (p) attachFiles.push(p);
@@ -63,7 +71,7 @@ async function askRequired(rl, q, tries = 4) {
 
 async function confirmer(rl) {
   return async (question, forcePrompt = false) => {
-    if (AUTO_YES && !forcePrompt) {
+    if ((AUTO_YES || vibe.on) && !forcePrompt) {
       console.log(`  ${c.amber("?")} ${question} ${c.green("auto-yes")}`);
       return true;
     }
@@ -202,8 +210,8 @@ async function repl() {
   }
 
   clearScreen();
-  console.log(banner(config, [...enabledSkills]));
-  console.log(hintBar(config, pending.length));
+  console.log(banner(config, [...enabledSkills], vibe.on));
+  console.log(hintBar(config, pending.length, vibe.on));
 
   // Plan expired/expiring notice
   if (config.planState === "expired") {
@@ -323,6 +331,54 @@ async function repl() {
     if (input === "/fork") {
       sessionId = saveSession({ messages, model: config.model });
       say(`${c.emerald("⑂")} ${c.dim("Yangi sessiya:")} ${c.white(sessionId)} ${c.dim("— eski suhbat o'zgarishsiz qoldi.")}`);
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Parallel rejim: bir vazifa, bir nechta ishchi ──
+    if (input.startsWith("/swarm")) {
+      const rest = input.slice(6).trim();
+      const m = /^(\d+)\s+([\s\S]+)$/.exec(rest);
+      const count = m ? Number(m[1]) : 3;
+      const task = m ? m[2] : rest;
+      if (!task) {
+        say(c.dim("Foydalanish: /swarm 4 <vazifa>  — 2 dan 8 gacha ishchi bir vaqtda ishlaydi"));
+        rewritePrompt();
+        continue;
+      }
+      const spin = spinner(`${Math.min(8, Math.max(2, count))} ta ishchi ishlayapti...`);
+      const res = await swarm({
+        task,
+        count,
+        config,
+        onProgress: (i, ok, err) => {
+          spin.stop();
+          say(ok ? `  ${c.emerald("●")} ishchi #${i + 1} ${c.dim("tayyor")}` : `  ${c.red("✕")} ishchi #${i + 1} ${c.dim(err ?? "")}`);
+        },
+      });
+      spin.stop();
+      if (res.error) {
+        say(c.red(`Xato: ${res.error}`));
+      } else {
+        say("");
+        say(c.accent("◆ YAKUNIY YECHIM"));
+        console.log(res.merged.replace(/^/gm, G + "  "));
+        say("");
+        messages.push({ role: "user", content: task });
+        messages.push({ role: "assistant", content: res.merged });
+      }
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Vibe rejim ──
+    if (input === "/vibe") {
+      vibe.on = !vibe.on;
+      say(
+        vibe.on
+          ? `${c.emerald("◆ VIBE")} ${c.dim("yoqildi — kodni AI yozadi, fayllar uchun tasdiq so'ralmaydi.")}`
+          : `${c.amber("○ VIBE")} ${c.dim("o'chirildi — har bir o'zgarish tasdiqlanadi.")}`,
+      );
       rewritePrompt();
       continue;
     }

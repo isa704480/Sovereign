@@ -147,7 +147,7 @@ export function logo() {
  * Welcome banner — Apple-style unified surface.
  * One panel, hairline dividers between sections. Grayscale hierarchy.
  */
-export function banner(config, enabledSkills = []) {
+export function banner(config, enabledSkills = [], vibeOn = false) {
   const g = G();
   const width = Math.min(termWidth() - g.length * 2, 82);
 
@@ -165,11 +165,14 @@ export function banner(config, enabledSkills = []) {
   const cwd = kv("DIR    ", process.cwd(), c.subtle);
   const skills = kv("SKILLS ", enabledSkills.length ? enabledSkills.join(" · ") : "—", c.subtle);
   const help = kv("MENU   ", "yozing /", c.subtle);
+  const mode = vibeOn
+    ? kv("REJIM  ", "vibe · kodni AI yozadi", c.ok)
+    : kv("REJIM  ", "oddiy · har o'zgarish tasdiqlanadi", c.subtle);
 
   const p = panel(
     [
       [...hero, "", tagline, version],
-      [source, cwd, skills, help],
+      [source, cwd, skills, mode, help],
     ],
     { width },
   );
@@ -180,12 +183,13 @@ export function banner(config, enabledSkills = []) {
 /**
  * Bottom hint bar — Apple system bar aesthetic. Small caps, dim, single accent.
  */
-export function hintBar(config, pendingCount = 0) {
+export function hintBar(config, pendingCount = 0, vibeOn = false) {
   const g = G();
   const dot = c.accent("•");
   const model = config?.token ? "auto" : (config?.model || "openai/gpt-4o-mini");
   const parts = [
     c.subtle(model),
+    vibeOn ? c.ok("vibe") : null,
     pendingCount ? c.warn("📎 " + pendingCount) : null,
     c.faint("/ menu"),
     c.faint("tab autocomplete"),

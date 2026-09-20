@@ -29,6 +29,9 @@ export const SLASH_COMMANDS = [
   { cmd: "/rewind",   desc: "Oxirgi savolni qaytarish — /rewind [n]" },
   { cmd: "/fork",     desc: "Joriy suhbatdan yangi shox ochish" },
 
+  { cmd: "/vibe",     desc: "Vibe rejim — kodni faqat AI yozadi" },
+  { cmd: "/swarm",    desc: "Parallel ishchilar — /swarm 4 <vazifa>" },
+
   { cmd: "/model",    desc: "Modelni tanlash — /model <id>" },
   { cmd: "/models",   desc: "Barcha modellar ro'yxati" },
 
