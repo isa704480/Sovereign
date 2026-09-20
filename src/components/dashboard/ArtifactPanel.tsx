@@ -4,7 +4,7 @@ import { Check, Code2, Copy, Download, Eye, RefreshCw, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { Markdown } from "./Markdown";
-import type { ArtifactPayload } from "./artifact-context";
+import { isRenderable, type ArtifactPayload } from "./artifact-context";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +61,26 @@ ${escaped}
 }
 
 function extOf(lang: string): string {
-  const map: Record<string, string> = { html: "html", svg: "svg", markdown: "md", md: "md", xml: "xml" };
+  const map: Record<string, string> = {
+    html: "html",
+    svg: "svg",
+    markdown: "md",
+    md: "md",
+    xml: "xml",
+    css: "css",
+    js: "js",
+    javascript: "js",
+    ts: "ts",
+    typescript: "ts",
+    jsx: "jsx",
+    tsx: "tsx",
+    python: "py",
+    py: "py",
+    json: "json",
+    sql: "sql",
+    bash: "sh",
+    sh: "sh",
+  };
   return map[lang.toLowerCase()] ?? "txt";
 }
 
@@ -69,9 +88,11 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
   const { lang, title } = artifact;
   const l = lang.toLowerCase();
   const isMarkdown = l === "markdown" || l === "md";
+  // CSS/JS/Python kabi tillarni jonli ko_rsatib bo_lmaydi - faqat kod ko_rinadi.
+  const canPreview = !isMarkdown && isRenderable(lang);
   // Panel is keyed by content in the parent, so state resets on a new artifact.
   const [code, setCode] = useState(artifact.code);
-  const [tab, setTab] = useState<(typeof HTML_TABS)[number]>("preview");
+  const [tab, setTab] = useState<(typeof HTML_TABS)[number]>(isRenderable(lang) ? "preview" : "code");
   const [copied, setCopied] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -103,8 +124,10 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: 32, opacity: 0 }}
       transition={{ duration: 0.3, ease: EASE }}
-      className="tt hidden w-[46%] max-w-[720px] shrink-0 flex-col border-l lg:flex"
-      style={{ background: "var(--t-surface)", borderColor: "var(--t-border)" }}
+      // Kichik ekranda to'liq ekran qatlami, kattasida yon panel — aks holda
+      // "Ochish" bosilganda hech narsa ko'rinmay qolardi.
+      className="tt fixed inset-0 z-50 flex w-full flex-col border-l lg:relative lg:z-auto lg:w-[46%] lg:max-w-[720px] lg:shrink-0"
+      style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}
     >
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2.5" style={{ borderColor: "var(--t-border)" }}>
         <div className="flex min-w-0 items-center gap-2">
@@ -117,7 +140,7 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
         </div>
 
         <div className="flex items-center gap-1">
-          {!isMarkdown && (
+          {canPreview && (
             <div className="mr-1 flex rounded-lg p-0.5" style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}>
               {HTML_TABS.map((t) => (
                 <button
@@ -137,7 +160,7 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
               ))}
             </div>
           )}
-          {!isMarkdown && tab === "preview" && (
+          {canPreview && tab === "preview" && (
             <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title="Yangilash">
               <RefreshCw className="size-4" />
             </button>
@@ -159,7 +182,7 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
           <div className="h-full overflow-y-auto px-6 py-6">
             <Markdown content={code} />
           </div>
-        ) : tab === "preview" ? (
+        ) : canPreview && tab === "preview" ? (
           <iframe
             key={reloadKey}
             title="Artifact preview"

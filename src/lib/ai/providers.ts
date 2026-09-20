@@ -315,9 +315,12 @@ async function errorMessage(res: Response): Promise<string> {
 /* ------------------------------------------------------------------ */
 
 type OrChunk = {
-  choices?: { delta?: { content?: string } }[];
+  choices?: { delta?: { content?: string }; finish_reason?: string | null }[];
   error?: { message?: string };
 };
+
+/** How many times a truncated answer may be continued automatically. */
+const MAX_CONTINUATIONS = 2;
 
 /**
  * Anthropic modellar OpenRouter orqali `cache_control` orqali system promptni
@@ -442,6 +445,7 @@ async function* streamOpenRouter(
   opts: StreamOptions,
   maxTokens: number,
   retried = false,
+  continuation = 0,
 ): AsyncGenerator<StreamEvent> {
   const cached = withPromptCache(model, messages);
   const direct = pickDirectRoute(model.providerModel);
@@ -506,14 +510,45 @@ async function* streamOpenRouter(
     return;
   }
 
+  let produced = "";
+  let finish: string | null = null;
   for await (const chunk of readSse(res.body)) {
     const c = chunk as OrChunk;
     if (c.error?.message) {
       yield { type: "error", message: c.error.message };
       return;
     }
-    const text = c.choices?.[0]?.delta?.content;
-    if (text) yield { type: "text", text };
+    const choice = c.choices?.[0];
+    if (choice?.finish_reason) finish = choice.finish_reason;
+    const text = choice?.delta?.content;
+    if (text) {
+      produced += text;
+      yield { type: "text", text };
+    }
+  }
+
+  // Uzun kod yoki maqola max_tokens ga urilsa javob yarim qoladi. Foydalanuvchini
+  // "davom et" deb yozishga majburlamay, o'zimiz davom ettiramiz.
+  if (finish === "length" && produced.trim() && continuation < MAX_CONTINUATIONS) {
+    yield* streamOpenRouter(
+      model,
+      [
+        ...messages,
+        { role: "assistant", content: produced },
+        {
+          role: "user",
+          content:
+            "Javobing token chegarasiga yetib yarim uzilib qoldi. AYNAN uzilgan belgidan davom ettir. " +
+            "Salomlashma, oldingi qismni takrorlama, izoh yozma — to'g'ridan-to'g'ri davomini yoz. " +
+            "Kod blokining o'rtasida uzilgan bo'lsang, yangi ``` ochma — kodning davomini yoz.",
+        },
+      ],
+      opts,
+      maxTokens,
+      retried,
+      continuation + 1,
+    );
+    return;
   }
   yield { type: "done" };
 }

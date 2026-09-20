@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, PanelRightOpen } from "lucide-react";
+import { Check, Copy, FileCode2, PanelRightOpen } from "lucide-react";
 import { memo, useMemo, useState, type ComponentProps } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -9,6 +9,97 @@ import { GenerativeUI, parseGenUi } from "./GenerativeUI";
 
 /** Blocks the model uses to draw a component instead of printing JSON. */
 const GEN_UI_LANGS = new Set(["sovereign-ui", "sov-ui", "genui"]);
+
+/** Uzun kod chatni bosib ketmasin — bir qatorli fayl kartasi ko'rinadi. */
+const FILE_CARD_CHARS = 900;
+const FILE_CARD_LINES = 22;
+
+const DEFAULT_NAME: Record<string, string> = {
+  html: "index.html",
+  css: "styles.css",
+  js: "app.js",
+  javascript: "app.js",
+  ts: "app.ts",
+  typescript: "app.ts",
+  jsx: "App.jsx",
+  tsx: "App.tsx",
+  react: "App.jsx",
+  python: "main.py",
+  py: "main.py",
+  json: "data.json",
+  sql: "query.sql",
+  svg: "image.svg",
+  md: "README.md",
+  markdown: "README.md",
+  bash: "script.sh",
+  sh: "script.sh",
+};
+
+// Modelning o'zi yozgan fayl nomini oladi: "// index.html", "<!-- a.html -->",
+// yoki CSS izohi ichidagi nom. Topilmasa — til bo'yicha standart nom.
+function fileNameOf(code: string, lang: string): string {
+  const head = code.slice(0, 200);
+  const named =
+    /(?:^|\n)\s*(?:\/\/|#|<!--|\/\*)\s*([\w.-]+\.[a-z]{2,4})\b/i.exec(head)?.[1] ??
+    /(?:^|\n)\s*([\w-]+\.(?:html|css|js|ts|tsx|jsx|py|json|sql|md|sh))\s*(?:-->|\*\/)?\s*(?:\n|$)/i.exec(head)?.[1];
+  return named ?? DEFAULT_NAME[lang.toLowerCase()] ?? `kod.${lang.toLowerCase() || "txt"}`;
+}
+
+function FileCard({ code, lang }: { code: string; lang: string }) {
+  const artifact = useArtifact();
+  const [copied, setCopied] = useState(false);
+  const lines = code.split("\n").length;
+  const name = fileNameOf(code, lang);
+  const canPreview = isRenderable(lang);
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      /* clipboard blocked */
+    }
+  }
+
+  return (
+    <div
+      className="tt my-3 flex items-center gap-3 rounded-[14px] border p-3 transition-colors hover:bg-white/5"
+      style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}
+    >
+      <span
+        className="grid size-10 shrink-0 place-items-center rounded-xl"
+        style={{ background: "color-mix(in srgb, var(--warning, #F59E0B) 18%, transparent)", color: "var(--warning, #F59E0B)" }}
+      >
+        <FileCode2 className="size-5" />
+      </span>
+      <button type="button" onClick={() => artifact.open({ code, lang, title: name })} className="min-w-0 flex-1 text-left">
+        <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>{name}</span>
+        <span className="nums block text-xs" style={{ color: "var(--t-text-muted)" }}>
+          {lines} qator · {(code.length / 1024).toFixed(1)} KB
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={copy}
+        className="rounded-lg p-2 transition-colors hover:bg-white/10"
+        style={{ color: "var(--t-text-muted)" }}
+        title="Nusxa olish"
+        aria-label="Nusxa olish"
+      >
+        {copied ? <Check className="size-4" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-4" />}
+      </button>
+      <button
+        type="button"
+        onClick={() => artifact.open({ code, lang, title: name })}
+        className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
+        style={{ background: "var(--t-primary)" }}
+      >
+        {canPreview ? "Ochish" : "Kodni ko'rish"}
+      </button>
+    </div>
+  );
+}
 
 function CodeBlock({ className, children }: { className?: string; children: string }) {
   const [copied, setCopied] = useState(false);
@@ -124,7 +215,12 @@ export const Markdown = memo(function Markdown({ content, citations }: MarkdownP
           if (!spec) return <GenUiPlaceholder />;
           return <GenerativeUI spec={spec} />;
         }
-        if (isBlock) return <CodeBlock className={className}>{raw}</CodeBlock>;
+        if (isBlock) {
+          // Katta fayl chat oqimini bosib ketmasin: karta ko'rsatamiz, kod yon panelda.
+          const long = raw.length > FILE_CARD_CHARS || raw.split("\n").length > FILE_CARD_LINES;
+          if (long) return <FileCard code={raw} lang={lang ?? "text"} />;
+          return <CodeBlock className={className}>{raw}</CodeBlock>;
+        }
         return (
           <code className={className} {...rest}>
             {children}
