@@ -1,6 +1,6 @@
 {
   "name": "@islombekrrr/sov-cli",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "SOVEREIGN AI — terminaldagi AI koding agenti. `sovereign` deb yozing.",
   "type": "module",
   "bin": {
@@ -15,7 +15,14 @@
     "src",
     "README.md"
   ],
-  "keywords": ["ai", "cli", "agent", "coding", "sovereign", "openrouter"],
+  "keywords": [
+    "ai",
+    "cli",
+    "agent",
+    "coding",
+    "sovereign",
+    "openrouter"
+  ],
   "publishConfig": {
     "access": "public"
   },

@@ -179,7 +179,13 @@ async function repl() {
     const hits = SLASH_NAMES.filter((n) => n.startsWith(line));
     return [hits.length ? hits.map((h) => h + " ") : SLASH_NAMES.map((h) => h + " "), line];
   };
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, completer });
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    completer,
+    // Standart "> " o'rniga o'zimizniki (repl boshlanganda yangilanadi).
+    prompt: `${gutter()}${c.accent("❯")} `,
+  });
 
   let config = await ensureAuth(rl);
   let messages = initialMessages();
@@ -245,15 +251,22 @@ async function repl() {
     : () => {};
 
   // Apple-style prompt: minimal single chevron, restrained color.
+  // MUHIM: promptni readline'ning o'ziga beramiz. Aks holda u har qayta
+  // chizishda (Enter, Tab, terminal o'lchami) o'zining standart "> " ini
+  // chap chetga yozib, gutter va ❯ belgisini yo'qotadi.
   const G = gutter();
   const promptStr = () =>
+    G +
     (pending.length ? `${c.warn("📎 " + pending.length)}  ` : "") +
     `${c.accent("❯")} `;
 
-  const rewritePrompt = () => process.stdout.write(G + promptStr());
+  const rewritePrompt = () => {
+    rl.setPrompt(promptStr());
+    rl.prompt();
+  };
   const say = (line) => console.log(G + line);
 
-  process.stdout.write(G + promptStr());
+  rewritePrompt();
 
   for await (const raw of rl) {
     const input = raw.trim();
