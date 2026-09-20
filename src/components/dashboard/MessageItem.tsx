@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, Copy, Globe, Pencil, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, Copy, Globe, Lightbulb, Pencil, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
@@ -43,6 +43,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
     setEditing(false);
     if (text && text !== message.content) onEdit?.(message.id, text);
   }
+  const [showReasoning, setShowReasoning] = useState(false);
   const isUser = message.role === "user";
   const model = (message.modelId && MODEL_BY_ID[message.modelId]) || activeModel;
   const streaming = message.status === "streaming";
@@ -233,6 +234,21 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             )}
           </div>
         )}
+
+        {message.reasoning ? (
+          <div className="mb-3 overflow-hidden rounded-xl border" style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}>
+            <button type="button" onClick={() => setShowReasoning((o) => !o)} className="flex w-full items-center gap-2 px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>
+              <Lightbulb className="size-3.5" style={{ color: "var(--t-accent)" }} />
+              <span className="flex-1 text-left font-medium">O&apos;ylash jarayoni{streaming && !message.content ? "..." : ""}</span>
+              <ChevronDown className="size-3.5 transition-transform" style={{ transform: showReasoning ? "rotate(180deg)" : "none" }} />
+            </button>
+            {showReasoning && (
+              <div className="max-h-64 overflow-y-auto whitespace-pre-wrap px-3 pb-3 text-[12px] leading-relaxed" style={{ color: "var(--t-text-muted)" }}>
+                {message.reasoning}
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {message.reading?.length ? (
           <div

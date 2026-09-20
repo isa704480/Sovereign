@@ -81,6 +81,7 @@ export function useSendMessage() {
     setStreaming(true);
 
     let text = "";
+    let reasoning = "";
     let citations: string[] | undefined;
     let skills: string[] | undefined;
     let failed: string | null = null;
@@ -110,6 +111,9 @@ export function useSendMessage() {
             text += ev.text;
             const shown = hasMask ? applyTokenMap(text, tokenMap) : text;
             s.updateMessage(conversationId, assistant.id, { content: shown });
+          } else if (ev.type === "reasoning") {
+            reasoning += ev.text;
+            s.updateMessage(conversationId, assistant.id, { reasoning });
           } else if (ev.type === "citations") {
             citations = ev.citations;
             s.updateMessage(conversationId, assistant.id, { citations });

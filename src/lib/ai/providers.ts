@@ -12,6 +12,7 @@ export interface ChatMessageInput {
 
 export type StreamEvent =
   | { type: "text"; text: string }
+  | { type: "reasoning"; text: string }
   | { type: "citations"; citations: string[] }
   | { type: "skills"; skills: string[] }
   | { type: "route"; reason: string; steps: { modelId: string; kind: string; purpose: string }[] }
@@ -353,7 +354,7 @@ async function errorMessage(res: Response): Promise<string> {
 /* ------------------------------------------------------------------ */
 
 type OrChunk = {
-  choices?: { delta?: { content?: string }; finish_reason?: string | null }[];
+  choices?: { delta?: { content?: string; reasoning?: string; reasoning_content?: string }; finish_reason?: string | null }[];
   error?: { message?: string };
 };
 
@@ -557,6 +558,37 @@ async function* streamOpenRouter(
 
   let produced = "";
   let finish: string | null = null;
+  // <think>...</think> ni javobdan ajratib "reasoning" sifatida chiqaramiz
+  // (tag ikki chunk orasida bo'linsa ham ishlaydi — oxirgi bir necha belgini ushlaymiz).
+  let thinking = false;
+  let pending = "";
+  function* splitThink(flush = false): Generator<StreamEvent> {
+    for (;;) {
+      if (!thinking) {
+        const i = pending.indexOf("<think>");
+        if (i === -1) {
+          const keep = flush ? 0 : 7;
+          const safe = pending.length > keep ? pending.slice(0, pending.length - keep) : "";
+          if (safe) { produced += safe; yield { type: "text", text: safe }; pending = pending.slice(safe.length); }
+          break;
+        }
+        if (i > 0) { const t = pending.slice(0, i); produced += t; yield { type: "text", text: t }; }
+        pending = pending.slice(i + 7);
+        thinking = true;
+      } else {
+        const j = pending.indexOf("</think>");
+        if (j === -1) {
+          const keep = flush ? 0 : 8;
+          const safe = pending.length > keep ? pending.slice(0, pending.length - keep) : "";
+          if (safe) { yield { type: "reasoning", text: safe }; pending = pending.slice(safe.length); }
+          break;
+        }
+        if (j > 0) yield { type: "reasoning", text: pending.slice(0, j) };
+        pending = pending.slice(j + 8);
+        thinking = false;
+      }
+    }
+  }
   for await (const chunk of readSse(res.body)) {
     const c = chunk as OrChunk;
     if (c.error?.message) {
@@ -565,12 +597,15 @@ async function* streamOpenRouter(
     }
     const choice = c.choices?.[0];
     if (choice?.finish_reason) finish = choice.finish_reason;
+    const reason = choice?.delta?.reasoning ?? choice?.delta?.reasoning_content;
+    if (reason) yield { type: "reasoning", text: reason };
     const text = choice?.delta?.content;
     if (text) {
-      produced += text;
-      yield { type: "text", text };
+      pending += text;
+      yield* splitThink();
     }
   }
+  if (pending) yield* splitThink(true);
 
   // Uzun kod yoki maqola max_tokens ga urilsa javob yarim qoladi. Foydalanuvchini
   // "davom et" deb yozishga majburlamay, o'zimiz davom ettiramiz.

@@ -53,6 +53,8 @@ export interface ChatMessage {
   skills?: string[];
   /** User attachments (images / files) shown with the message and sent to the model. */
   attachments?: Attachment[];
+  /** Model o'ylash jarayoni (reasoning) — javobdan alohida. */
+  reasoning?: string;
   /** Auto-mode routing decision shown above the answer. */
   route?: RouteInfo;
   /** Ids of models actually used (Auto pipeline). */
