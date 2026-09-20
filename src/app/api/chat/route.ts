@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { GROUNDED_GENERATION, SIMPLE_CHAT_GUARDRAIL, streamCompletion, type StreamEvent } from "@/lib/ai/providers";
+import {
+  fallbackModelIds,
+  GROUNDED_GENERATION,
+  SIMPLE_CHAT_GUARDRAIL,
+  streamCompletion,
+  type StreamEvent,
+} from "@/lib/ai/providers";
 import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
 import { verifyAnswer } from "@/lib/ai/verifier";
 import { planRouteLLM } from "@/lib/ai/router";
@@ -8,6 +14,7 @@ import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
 import { getMemories, memoryPrompt } from "@/lib/ai/memory";
 import { fetchMentionedDocs, knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
+import { extractUrls, readPages } from "@/lib/ai/web-read";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -185,10 +192,13 @@ export async function POST(req: Request) {
 
   // Semantic cache: faqat oddiy savol (RAG/xotira/attach yo'q, research emas)
   // — foydalanuvchi savoli o'xshash bo'lsa modelga bormay javob qaytariladi.
+  // Havolali savol keshlanmaydi — sahifa mazmuni o'zgarib turadi.
+  const urls = extractUrls(lastText);
   const canCache =
     isSupabaseConfigured() &&
     !research &&
     !isAuto &&
+    urls.length === 0 &&
     !knowledgeText &&
     !memoryText &&
     typeof lastUser === "string" &&
@@ -224,6 +234,16 @@ export async function POST(req: Request) {
           }
         }
 
+        // Havola yuborilgan bo'lsa — sahifani o'qib, kontekstga qo'shamiz.
+        let webContext = "";
+        if (urls.length) {
+          send({ type: "reading", urls });
+          const { pages, prompt } = await readPages(urls);
+          webContext = prompt;
+          if (pages.length) send({ type: "citations", citations: pages.map((p) => p.url) });
+          else send({ type: "text", text: `_(Sahifani ocha olmadim: ${urls.join(", ")})_\n\n` });
+        }
+
         let researchContext = "";
         let cacheableAnswer = "";
         for (let i = 0; i < steps.length; i++) {
@@ -240,6 +260,7 @@ export async function POST(req: Request) {
           }
 
           const extra = [
+            webContext,
             knowledgeText,
             knowledgeText ? GROUNDED_GENERATION : "",
             memoryText,
@@ -249,18 +270,40 @@ export async function POST(req: Request) {
             .filter(Boolean)
             .join("\n\n");
           let stepText = "";
-          for await (const ev of streamCompletion({
-            modelId: step.modelId,
-            research: step.kind === "research",
-            messages: stepMessages,
-            maxTokens: plan.limits.maxTokens,
-            extraSystem: extra || undefined,
-            signal: req.signal,
-          })) {
-            if (ev.type === "done") break;
-            if (ev.type === "text") stepText += ev.text;
-            // Separate visible sections when a second step begins.
-            send(ev);
+          // Model band yoki krediti tugagan bo'lsa — javobsiz qoldirmay, ruxsat
+          // etilgan boshqa modelga o'tamiz va buni foydalanuvchiga aytamiz.
+          const candidates = [
+            step.modelId,
+            ...fallbackModelIds(step.modelId, (tier) => planAllowsTier(plan, tier)),
+          ];
+          for (let ci = 0; ci < candidates.length; ci++) {
+            const candidate = candidates[ci];
+            let failure = "";
+            for await (const ev of streamCompletion({
+              modelId: candidate,
+              research: step.kind === "research",
+              messages: stepMessages,
+              maxTokens: plan.limits.maxTokens,
+              extraSystem: extra || undefined,
+              signal: req.signal,
+            })) {
+              if (ev.type === "done") break;
+              if (ev.type === "error") {
+                failure = ev.message;
+                break;
+              }
+              if (ev.type === "text") stepText += ev.text;
+              // Separate visible sections when a second step begins.
+              send(ev);
+            }
+            if (!failure) break;
+            const next = candidates[ci + 1];
+            if (!next || stepText) {
+              // Nothing left to try (or we already showed part of an answer).
+              send({ type: "error", message: failure });
+              break;
+            }
+            send({ type: "switch", from: candidate, to: next, reason: failure });
           }
           if (step.kind === "research") {
             researchContext = stepText;

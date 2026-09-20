@@ -17,6 +17,10 @@ export type StreamEvent =
   | { type: "route"; reason: string; steps: { modelId: string; kind: string; purpose: string }[] }
   | { type: "step"; modelId: string; kind: string; purpose: string; index: number }
   | { type: "cache"; model: string; similarity: number }
+  /** The server is fetching pages the user linked to. */
+  | { type: "reading"; urls: string[] }
+  /** A model/provider failed and the answer continues on another model. */
+  | { type: "switch"; from: string; to: string; reason: string }
   | { type: "verifier"; issues: { fact: string; verdict: "correct" | "suspicious" | "unverifiable"; note?: string }[] }
   | { type: "error"; message: string }
   | { type: "done" };
@@ -157,6 +161,28 @@ export function hasKeyFor(model: SovereignModel): boolean {
   // Agar direct provider (Groq/Cerebras/SambaNova/Mistral/OpenAI) bor bo'lsa, OpenRouter shart emas.
   if (pickDirectRoute(model.providerModel)) return true;
   return !!process.env.OPENROUTER_API_KEY;
+}
+
+/**
+ * Stand-ins for a model that just failed: same kind of model, a tier the plan
+ * allows, and a provider we actually hold a key for. Ordered cheapest-first so
+ * a rate-limited flagship falls back to something that will answer.
+ */
+export function fallbackModelIds(
+  modelId: string,
+  tierAllowed: (tier: SovereignModel["tier"]) => boolean,
+  limit = 2,
+): string[] {
+  const failed = MODEL_BY_ID[modelId];
+  if (!failed) return [];
+  const rank: Record<string, number> = { free: 0, basic: 1, pro: 2, ultra: 3 };
+  return MODELS.filter((m) => m.id !== modelId)
+    .filter((m) => (m.category === "research") === (failed.category === "research"))
+    .filter((m) => tierAllowed(m.tier))
+    .filter((m) => hasKeyFor(m))
+    .sort((a, b) => (rank[a.tier] ?? 9) - (rank[b.tier] ?? 9))
+    .slice(0, limit)
+    .map((m) => m.id);
 }
 
 export function buildSystemPrompt(model: SovereignModel, research: boolean, extra?: string): string {

@@ -113,6 +113,14 @@ export function useSendMessage() {
           } else if (ev.type === "step") {
             // Show which model is active for the current pipeline step.
             s.updateMessage(conversationId, assistant.id, { modelId: ev.modelId });
+          } else if (ev.type === "reading") {
+            s.updateMessage(conversationId, assistant.id, { reading: ev.urls });
+          } else if (ev.type === "switch") {
+            const prev = s.conversations[conversationId]?.messages.find((m) => m.id === assistant.id)?.switched ?? [];
+            s.updateMessage(conversationId, assistant.id, {
+              switched: [...prev, { from: ev.from, to: ev.to, reason: ev.reason }],
+              modelId: ev.to,
+            });
           } else if (ev.type === "cache") {
             s.updateMessage(conversationId, assistant.id, {
               cache: { model: ev.model, similarity: ev.similarity },

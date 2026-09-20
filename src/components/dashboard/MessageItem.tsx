@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, Copy, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
+import { AlertTriangle, Check, Copy, Globe, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
@@ -168,6 +168,30 @@ export function MessageItem({ message, isLast, onRegenerate, tts }: MessageItemP
             )}
           </div>
         )}
+
+        {message.reading?.length ? (
+          <div
+            className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]"
+            style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
+            title={message.reading.join("\n")}
+          >
+            <Globe className="size-3" style={{ color: "var(--t-accent)" }} />
+            {message.reading.length === 1 ? "Sahifa o'qildi" : `${message.reading.length} sahifa o'qildi`}
+          </div>
+        ) : null}
+
+        {message.switched?.length ? (
+          <div
+            className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]"
+            style={{ borderColor: "var(--warning, #F59E0B)55", color: "var(--t-text-muted)" }}
+            title={message.switched.map((s) => `${s.from} → ${s.to}: ${s.reason}`).join("\n")}
+          >
+            <RefreshCw className="size-3" style={{ color: "var(--warning, #F59E0B)" }} />
+            Model almashtirildi ·{" "}
+            {MODEL_BY_ID[message.switched[message.switched.length - 1].to]?.shortName ??
+              message.switched[message.switched.length - 1].to}
+          </div>
+        ) : null}
 
         {message.cache && (
           <div

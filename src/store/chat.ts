@@ -52,6 +52,10 @@ export interface ChatMessage {
   usedModels?: string[];
   /** Semantic-cache hit (javob keshdan qaytarilgan bo'lsa). */
   cache?: CacheInfo;
+  /** Sahifalar — model javob berishdan oldin o'qib chiqqan havolalar. */
+  reading?: string[];
+  /** Model band bo'lgani uchun avtomatik almashtirilgan yo'nalishlar. */
+  switched?: { from: string; to: string; reason: string }[];
   /** Verifier tomonidan topilgan shubhali faktlar. */
   verifier?: VerifierIssue[];
   createdAt: string;
