@@ -6,6 +6,8 @@ import { useEffect, useState, useTransition } from "react";
 import { clearMemories, deleteMemory, listMemories, setMemoryEnabled } from "@/app/actions/memory";
 import type { MemoryNode } from "@/lib/ai/memory";
 import { EASE_OUT_EXPO } from "@/lib/motion";
+import { useT } from "@/store/chat";
+import type { TKey } from "@/lib/i18n";
 
 interface MemoryPanelProps {
   open: boolean;
@@ -14,9 +16,10 @@ interface MemoryPanelProps {
   onEnabledChange: (v: boolean) => void;
 }
 
-const KIND_LABEL: Record<string, string> = { fact: "Fakt", preference: "Afzallik", project: "Loyiha", person: "Shaxs" };
+const KIND_LABEL: Record<string, TKey> = { fact: "memoryKindFact", preference: "memoryKindPreference", project: "memoryKindProject", person: "memoryKindPerson" };
 
 export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryPanelProps) {
+  const t = useT();
   const [items, setItems] = useState<MemoryNode[] | null>(null);
   const [, startTransition] = useTransition();
 
@@ -71,18 +74,18 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <div className="flex items-center gap-2">
                 <Brain className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
-                <span className="font-display text-lg font-bold">Xotira</span>
-                {items && <span className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{items.length} tugun</span>}
+                <span className="font-display text-lg font-bold">{t("memory")}</span>
+                {items && <span className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{items.length} {t("memoryNodes")}</span>}
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Yopish" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                 <X className="size-5" />
               </button>
             </div>
 
             <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid var(--t-border, rgba(255,255,255,0.1))" }}>
               <div>
-                <div className="text-sm font-medium">AI sizni eslab qolsinmi?</div>
-                <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>Ism, loyiha va uslubingizni suhbatlar orasida eslaydi.</div>
+                <div className="text-sm font-medium">{t("memoryQuestion")}</div>
+                <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t("memoryQuestionDesc")}</div>
               </div>
               <button
                 type="button"
@@ -106,7 +109,7 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
                 </div>
               ) : items.length === 0 ? (
                 <div className="px-3 py-10 text-center text-sm" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  Hali xotira yo&apos;q. Suhbatlashsangiz, AI muhim faktlarni eslab qoladi.
+                  {t("memoryEmpty")}
                 </div>
               ) : (
                 <ul className="space-y-1.5">
@@ -117,10 +120,10 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
                       style={{ background: "color-mix(in srgb, var(--t-text,#fff) 4%, transparent)" }}
                     >
                       <span className="mt-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "color-mix(in srgb, var(--t-primary,#5B50F0) 18%, transparent)", color: "var(--t-accent,#7C6FF7)" }}>
-                        {KIND_LABEL[m.kind] ?? m.kind}
+                        {KIND_LABEL[m.kind] ? t(KIND_LABEL[m.kind]) : m.kind}
                       </span>
                       <span className="min-w-0 flex-1 text-sm">{m.content}</span>
-                      <button type="button" onClick={() => remove(m.id)} className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100" aria-label="O'chirish" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                      <button type="button" onClick={() => remove(m.id)} className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100" aria-label={t("delete")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                         <Trash2 className="size-3.5" />
                       </button>
                     </li>
@@ -132,7 +135,7 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
             {items && items.length > 0 && (
               <div className="border-t px-5 py-3" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
                 <button type="button" onClick={clearAll} className="text-xs font-medium" style={{ color: "var(--error, #EF4444)" }}>
-                  Barcha xotirani o&apos;chirish
+                  {t("memoryClearAll")}
                 </button>
               </div>
             )}

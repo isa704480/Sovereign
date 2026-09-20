@@ -3,6 +3,7 @@
 import { Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import {creditLevel, CREDIT_COLOR, CREDIT_LABEL, type Plan} from "@/config/plans";
+import { useT } from "@/store/chat";
 
 interface CreditIndicatorProps {
   plan: Plan;
@@ -16,6 +17,7 @@ interface CreditIndicatorProps {
  * - Foydalanuvchi qancha token qolganini bila olmaydi (business decision)
  */
 export function CreditIndicator({ plan, onUpgrade }: CreditIndicatorProps) {
+  const t = useT();
   const [ratio, setRatio] = useState<number>(0);
   const [loaded, setLoaded] = useState(false);
 
@@ -79,7 +81,7 @@ export function CreditIndicator({ plan, onUpgrade }: CreditIndicatorProps) {
           className="text-xs font-medium hover:underline"
           style={{ color }}
         >
-          Yangilash →
+          {t("refresh")} →
         </button>
       )}
     </div>

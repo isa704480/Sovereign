@@ -7,6 +7,7 @@ import { AUTO_MODEL, AUTO_MODEL_ID, MODELS, MODEL_GROUPS, isModelVisible, resolv
 import { planAllowsTier, type Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { useT } from "@/store/chat";
 import { useTheme } from "./theme-context";
 
 interface ModelSwitcherProps {
@@ -38,6 +39,7 @@ function Bars({ model }: { model: SovereignModel }) {
 }
 
 export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherProps) {
+  const t = useT();
   const { model: themeModel } = useTheme();
   const model = value === AUTO_MODEL_ID ? AUTO_MODEL : resolveModel(value) ?? themeModel;
   const [open, setOpen] = useState(false);
@@ -101,7 +103,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
             style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", borderRadius: 16 }}
             role="listbox"
           >
-            <div className="px-2 pb-2 pt-1 text-xs font-semibold" style={{ color: "var(--t-text)" }}>Model tanlang</div>
+            <div className="px-2 pb-2 pt-1 text-xs font-semibold" style={{ color: "var(--t-text)" }}>{t("selectModel")}</div>
 
             {/* Auto — smart routing */}
             <button
@@ -119,9 +121,9 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <span className="text-sm font-medium" style={{ color: "var(--t-text)" }}>SOVEREIGN Auto</span>
-                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(91,80,240,0.2)", color: "#7C6FF7" }}>Aqlli</span>
+                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(91,80,240,0.2)", color: "#7C6FF7" }}>{t("autoSmart")}</span>
                 </span>
-                <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>Savolga mos modelni o&apos;zi tanlaydi</span>
+                <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>{t("autoModelDesc")}</span>
               </span>
               {value === AUTO_MODEL_ID && <Check className="mt-1 size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
             </button>
@@ -161,7 +163,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                           locked && "opacity-55",
                         )}
                         style={active ? { background: `color-mix(in srgb, ${m.primary} 14%, transparent)` } : undefined}
-                        title={locked ? "Bu model yuqoriroq tarifda ochiladi" : undefined}
+                        title={locked ? t("lockedModel") : undefined}
                       >
                         <span
                           className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-base"

@@ -239,7 +239,7 @@ export function Sidebar({
               className="flex w-full items-center justify-between px-2.5 py-1.5 text-xs"
               style={{ color: "var(--t-text-muted)" }}
             >
-              <span>Loyiha ko&apos;rsatmasi{activeProject.instructions ? " · bor" : ""}</span>
+              <span>{t("projectInstructions")}{activeProject.instructions ? ` · ${t("present")}` : ""}</span>
               <span>{showInstructions ? "▾" : "▸"}</span>
             </button>
             {showInstructions && (
@@ -247,14 +247,14 @@ export function Sidebar({
                 <textarea
                   value={activeProject.instructions}
                   onChange={(e) => updateProject(activeProject.id, { instructions: e.target.value })}
-                  placeholder="Masalan: Bu loyiha Next.js 16 va Tailwind v4. Har doim TypeScript'da yoz."
+                  placeholder={t("projectInstrHint")}
                   rows={3}
                   maxLength={4000}
                   className="w-full resize-none bg-transparent text-xs leading-relaxed outline-none placeholder:opacity-50"
                   style={{ color: "var(--t-text)" }}
                 />
                 <div className="mt-1 flex items-center justify-between text-[10px]" style={{ color: "var(--t-text-muted)" }}>
-                  <span>Shu loyihadagi har suhbatga qo&apos;shiladi</span>
+                  <span>{t("projectAppliesNote")}</span>
                   <button
                     type="button"
                     onClick={() => {
@@ -263,7 +263,7 @@ export function Sidebar({
                     className="hover:underline"
                     style={{ color: "var(--error, #EF4444)" }}
                   >
-                    O&apos;chirish
+                    {t("delete")}
                   </button>
                 </div>
               </div>
@@ -282,7 +282,7 @@ export function Sidebar({
         {groups.map((g) => (
           <div key={g.label} className="mb-3">
             <div className="px-3 pb-1 text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
-              {g.label}
+              {t(g.label)}
             </div>
             {g.ids.map((id) => {
               const c = conversations[id];
@@ -481,14 +481,14 @@ export function Sidebar({
   );
 
   const railItems = [
-    { label: "Yangi suhbat", Icon: MessageSquarePlus, onClick: onNew, primary: true },
-    { label: "Suhbatlarni qidirish", Icon: Search, onClick: openSearch },
-    { label: "Xotira", Icon: Brain, onClick: onOpenMemory },
-    { label: "Skills", Icon: Sparkles, onClick: onOpenSkills },
-    { label: "Cowork papka", Icon: FolderTree, onClick: onOpenCowork },
-    { label: "Knowledge Base", Icon: FolderOpen, onClick: onOpenKnowledge },
-    { label: research ? "Research rejim: yoqilgan" : "Research rejim", Icon: Globe, onClick: () => onToggleResearch(!research), active: research },
-    { label: "Sozlamalar", Icon: Settings, onClick: onOpenSettings },
+    { label: t("newChat"), Icon: MessageSquarePlus, onClick: onNew, primary: true },
+    { label: t("searchChats"), Icon: Search, onClick: openSearch },
+    { label: t("memory"), Icon: Brain, onClick: onOpenMemory },
+    { label: t("skills"), Icon: Sparkles, onClick: onOpenSkills },
+    { label: t("coworkFolder"), Icon: FolderTree, onClick: onOpenCowork },
+    { label: t("knowledgeBase"), Icon: FolderOpen, onClick: onOpenKnowledge },
+    { label: t("researchMode"), Icon: Globe, onClick: () => onToggleResearch(!research), active: research },
+    { label: t("settings"), Icon: Settings, onClick: onOpenSettings },
   ];
 
   // Collapsed desktop state: a slim icon rail that stays visible and expands on click.

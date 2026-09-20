@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { SKILLS, SKILL_CATEGORY_LABEL, type SkillCategory } from "@/config/skills";
 import { EASE } from "@/lib/motion";
+import { useT } from "@/store/chat";
 import { cn } from "@/lib/utils";
 
 interface SkillPickerProps {
@@ -15,6 +16,7 @@ interface SkillPickerProps {
 const ORDER: SkillCategory[] = ["design", "code", "security", "writing", "data"];
 
 export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const count = enabled.length;
@@ -74,7 +76,7 @@ export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
             <div className="px-2 pb-1 pt-1">
               <div className="text-xs font-semibold" style={{ color: "var(--t-text)" }}>SOVEREIGN Skills</div>
               <p className="mt-0.5 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-                Ekspert rejimlar. Yoqilganlar har javobga qo&apos;shiladi; mos so&apos;rovlar avtomatik ham faollashadi.
+                {t("skillPickerSubtitle")}
               </p>
             </div>
 

@@ -2,7 +2,8 @@
 
 import { ChevronDown, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { useState } from "react";
-import type { VerifierIssue } from "@/store/chat";
+import { useT, type VerifierIssue } from "@/store/chat";
+import type { TKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 interface VerifierPanelProps {
@@ -11,17 +12,17 @@ interface VerifierPanelProps {
 
 const VERDICT_META = {
   correct: {
-    label: "To'g'ri",
+    labelKey: "verdictCorrect" as TKey,
     color: "#22c55e",
     Icon: ShieldCheck,
   },
   suspicious: {
-    label: "Shubhali",
+    labelKey: "verdictSuspicious" as TKey,
     color: "#f59e0b",
     Icon: ShieldAlert,
   },
   unverifiable: {
-    label: "Tekshirib bo'lmaydi",
+    labelKey: "verdictUnverifiable" as TKey,
     color: "#94a3b8",
     Icon: ShieldQuestion,
   },
@@ -33,12 +34,13 @@ const VERDICT_META = {
  * mumkin — bu gallyusinatsiyani ochiq qilib qo'yadi.
  */
 export function VerifierPanel({ issues }: VerifierPanelProps) {
+  const t = useT();
   const suspicious = issues.filter((i) => i.verdict === "suspicious");
   const [open, setOpen] = useState(suspicious.length > 0);
 
   const summary = suspicious.length
-    ? `${suspicious.length} ta shubhali fakt`
-    : `${issues.length} ta da'vo tekshirildi`;
+    ? `${suspicious.length} ${t("suspiciousFacts")}`
+    : `${issues.length} ${t("claimsChecked")}`;
 
   const badgeColor = suspicious.length ? "#f59e0b" : "#22c55e";
 
@@ -54,7 +56,7 @@ export function VerifierPanel({ issues }: VerifierPanelProps) {
       >
         <span className="flex items-center gap-1.5 font-medium" style={{ color: badgeColor }}>
           {suspicious.length ? <ShieldAlert className="size-3.5" /> : <ShieldCheck className="size-3.5" />}
-          Fakt-tekshirish · {summary}
+          {t("factCheck")} · {summary}
         </span>
         <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} style={{ color: "var(--t-text-muted)" }} />
       </button>
@@ -70,7 +72,7 @@ export function VerifierPanel({ issues }: VerifierPanelProps) {
                   <div style={{ color: "var(--t-text)" }}>{issue.fact}</div>
                   {issue.note && (
                     <div className="mt-0.5" style={{ color: "var(--t-text-muted)" }}>
-                      {meta.label} — {issue.note}
+                      {t(meta.labelKey)} — {issue.note}
                     </div>
                   )}
                 </div>

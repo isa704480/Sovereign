@@ -4,7 +4,7 @@ import { Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { countryFlag, countryName, searchCountries } from "@/config/countries";
-import { useChat } from "@/store/chat";
+import { useChat, useT } from "@/store/chat";
 import {
   AGE_GROUPS,
   EXPERIENCE_ZONES,
@@ -77,6 +77,7 @@ function OtherInput({
 }
 
 export function StepIndustry() {
+  const t = useT();
   const industries = useOnboarding((s) => s.industries);
   const other = useOnboarding((s) => s.otherIndustry ?? "");
   const toggle = useOnboarding((s) => s.toggle);
@@ -90,7 +91,7 @@ export function StepIndustry() {
           <Chip key={o.id} label={o.label} selected={industries.includes(o.id)} onToggle={() => toggle("industries", o.id)} />
         ))}
         <Chip
-          label={otherOpen ? "Boshqa" : "Boshqa ..."}
+          label={otherOpen ? t("onbOther") : t("onbOtherDots")}
           selected={otherOpen}
           onToggle={() => {
             if (otherOpen) setOther("otherIndustry", "");
@@ -98,7 +99,7 @@ export function StepIndustry() {
           }}
         />
       </div>
-      <OtherInput open={otherOpen} value={other} placeholder="Sohangizni yozing" onChange={(v) => setOther("otherIndustry", v)} />
+      <OtherInput open={otherOpen} value={other} placeholder={t("onbIndustryPlaceholder")} onChange={(v) => setOther("otherIndustry", v)} />
     </div>
   );
 }
@@ -123,6 +124,7 @@ export function StepPriorities() {
 }
 
 export function StepLanguages() {
+  const t = useT();
   const languages = useOnboarding((s) => s.languages);
   const other = useOnboarding((s) => s.otherLanguage ?? "");
   const toggle = useOnboarding((s) => s.toggle);
@@ -146,10 +148,10 @@ export function StepLanguages() {
             otherOpen ? "border-primary text-primary-soft" : "border-[var(--border-strong)] text-text-muted hover:text-text-primary",
           )}
         >
-          <Plus className="size-4" /> Boshqa qo&apos;shish
+          <Plus className="size-4" /> {t("onbAddOther")}
         </button>
       </div>
-      <OtherInput open={otherOpen} value={other} placeholder="Masalan: Turk, Koreys" onChange={(v) => setOther("otherLanguage", v)} />
+      <OtherInput open={otherOpen} value={other} placeholder={t("onbLangPlaceholder")} onChange={(v) => setOther("otherLanguage", v)} />
     </div>
   );
 }
@@ -174,6 +176,7 @@ export function StepAge() {
 }
 
 export function StepCountry() {
+  const t = useT();
   const country = useOnboarding((s) => s.country ?? "");
   const setCountry = useOnboarding((s) => s.setCountry);
   const lang = useChat((s) => s.lang);
@@ -189,7 +192,7 @@ export function StepCountry() {
       <Input
         value={q}
         onChange={(e) => setQ(e.target.value)}
-        placeholder="Davlat nomini yozing — masalan: Ger, Kor, Emi"
+        placeholder={t("onbCountryPlaceholder")}
         aria-label="Davlat qidirish"
         className="mb-3 h-11 rounded-xl"
       />
@@ -203,11 +206,11 @@ export function StepCountry() {
             onToggle={() => setCountry(country === code ? "" : code)}
           />
         ))}
-        {shown.length === 0 && <p className="py-4 text-sm text-text-muted">Topilmadi — boshqacha yozib ko&apos;ring.</p>}
+        {shown.length === 0 && <p className="py-4 text-sm text-text-muted">{t("onbCountryEmpty")}</p>}
       </div>
       {country && (
         <p className="mt-3 text-xs text-text-muted">
-          Tanlandi: {countryFlag(country)} {countryName(country, lang)}
+          {t("onbSelected")}: {countryFlag(country)} {countryName(country, lang)}
         </p>
       )}
     </div>
@@ -215,6 +218,7 @@ export function StepCountry() {
 }
 
 export function StepExperience() {
+  const t = useT();
   const experience = useOnboarding((s) => s.experience);
   const setExperience = useOnboarding((s) => s.setExperience);
   const zone = experienceZone(experience);
@@ -233,8 +237,8 @@ export function StepExperience() {
         />
       </div>
       <div className="mt-3 flex justify-between text-xs text-text-muted">
-        <span>Birinchi marta</span>
-        <span>Har kuni</span>
+        <span>{t("onbFirstTime")}</span>
+        <span>{t("onbEveryDay")}</span>
       </div>
 
       <div className="mt-6 grid grid-cols-3 gap-2">

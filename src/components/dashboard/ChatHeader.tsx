@@ -50,7 +50,7 @@ export function ChatHeader({
         onClick={onOpenSidebar}
         className="rounded-lg p-2 transition-colors hover:bg-white/10 md:hidden"
         style={{ color: "var(--t-text-muted)" }}
-        aria-label="Menyu"
+        aria-label={t("menu")}
       >
         <Menu className="size-5" />
       </button>
@@ -102,7 +102,7 @@ export function ChatHeader({
             onClick={onToggleSources}
             className="hidden rounded-lg p-2 transition-colors hover:bg-white/10 lg:block"
             style={{ color: sourcesOpen ? model.primary : "var(--t-text-muted)" }}
-            title="Manbalar paneli"
+            title={t("sourcesPanel")}
             aria-pressed={sourcesOpen}
           >
             <PanelRight className="size-4" />

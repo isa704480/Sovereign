@@ -6,7 +6,7 @@ import { useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
 import { SKILL_BY_ID } from "@/config/skills";
 import { attachmentGlyph } from "@/lib/chat/attachments";
-import type { ChatMessage } from "@/store/chat";
+import { useT, type ChatMessage } from "@/store/chat";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./Markdown";
@@ -33,6 +33,7 @@ function timeLabel(iso: string) {
 
 export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: MessageItemProps) {
   const { theme, model: activeModel } = useTheme();
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -129,7 +130,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
               />
               <div className="mt-1.5 flex justify-end gap-2 text-xs">
                 <button type="button" onClick={() => setEditing(false)} className="rounded-lg px-2.5 py-1" style={{ color: "var(--t-text-muted)" }}>
-                  Bekor
+                  {t("cancel")}
                 </button>
                 <button
                   type="button"
@@ -137,7 +138,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
                   className="rounded-lg px-2.5 py-1 font-semibold text-white"
                   style={{ background: "var(--t-primary)" }}
                 >
-                  Yuborish ↵
+                  {t("send")} ↵
                 </button>
               </div>
             </div>
@@ -164,7 +165,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
               style={{ color: "var(--t-text-muted)" }}
             >
               <span className="mr-1 text-[11px]">{timeLabel(message.createdAt)}</span>
-              <button type="button" onClick={copy} className="rounded-md p-1 hover:bg-white/10" title="Nusxa olish" aria-label="Nusxa olish">
+              <button type="button" onClick={copy} className="rounded-md p-1 hover:bg-white/10" title={t("copy")} aria-label={t("copy")}>
                 {copied ? <Check className="size-3.5" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-3.5" />}
               </button>
               {onEdit && (
@@ -175,8 +176,8 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
                     setEditing(true);
                   }}
                   className="rounded-md p-1 hover:bg-white/10"
-                  title="Tahrirlab qayta yuborish"
-                  aria-label="Tahrirlash"
+                  title={t("edit")}
+                  aria-label={t("edit")}
                 >
                   <Pencil className="size-3.5" />
                 </button>
@@ -240,7 +241,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             title={message.reading.join("\n")}
           >
             <Globe className="size-3" style={{ color: "var(--t-accent)" }} />
-            {message.reading.length === 1 ? "Sahifa o'qildi" : `${message.reading.length} sahifa o'qildi`}
+            {message.reading.length === 1 ? t("pageRead") : `${message.reading.length} ${t("pagesRead")}`}
           </div>
         ) : null}
 
@@ -251,7 +252,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             title={message.switched.map((s) => `${s.from} → ${s.to}: ${s.reason}`).join("\n")}
           >
             <RefreshCw className="size-3" style={{ color: "var(--warning, #F59E0B)" }} />
-            Model almashtirildi ·{" "}
+            {t("modelSwitched")} ·{" "}
             {MODEL_BY_ID[message.switched[message.switched.length - 1].to]?.shortName ??
               message.switched[message.switched.length - 1].to}
           </div>
@@ -264,14 +265,14 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             title={`Semantik keshdan (${Math.round(message.cache.similarity * 100)}% o'xshash) — arzon va tez`}
           >
             <Zap className="size-3" style={{ color: "var(--t-accent)" }} />
-            Keshdan · {Math.round(message.cache.similarity * 100)}% mos
+            {t("fromCache")} · {Math.round(message.cache.similarity * 100)}% {t("cacheMatch")}
           </div>
         )}
 
         {theme.layout.showCitations && (
           <div className="mb-2 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--t-text-muted)" }}>
-            <span style={{ color: model.primary }}>{model.glyph}</span> Javob
-            {message.citations?.length ? <span>· {message.citations.length} manba</span> : null}
+            <span style={{ color: model.primary }}>{model.glyph}</span> {t("answer")}
+            {message.citations?.length ? <span>· {message.citations.length} {t("sourceWord")}</span> : null}
           </div>
         )}
 
@@ -290,7 +291,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
           {failed ? (
             <div className="flex items-start gap-2 text-sm" style={{ color: "var(--error)" }}>
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-              <span>{message.error ?? "Javob olishda xato yuz berdi."}</span>
+              <span>{message.error ?? t("answerError")}</span>
             </div>
           ) : message.content ? (
             <>
@@ -360,7 +361,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             )}
             style={{ color: "var(--t-text-muted)" }}
           >
-            <button type="button" onClick={copy} className="rounded-md p-1.5 hover:bg-white/10" title="Nusxa olish">
+            <button type="button" onClick={copy} className="rounded-md p-1.5 hover:bg-white/10" title={t("copy")}>
               {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
             </button>
             {tts && (
@@ -368,21 +369,21 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
                 type="button"
                 onClick={tts.onToggle}
                 className="rounded-md p-1.5 hover:bg-white/10"
-                title={tts.speaking ? "To'xtatish" : "Ovozda o'qish"}
+                title={tts.speaking ? t("stop") : t("readAloud")}
                 style={tts.speaking ? { color: model.primary } : undefined}
               >
                 {tts.speaking ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
               </button>
             )}
             {isLast && onRegenerate && (
-              <button type="button" onClick={onRegenerate} className="rounded-md p-1.5 hover:bg-white/10" title="Qayta yaratish">
+              <button type="button" onClick={onRegenerate} className="rounded-md p-1.5 hover:bg-white/10" title={t("regenerate")}>
                 <RefreshCw className="size-3.5" />
               </button>
             )}
-            <button type="button" className="rounded-md p-1.5 hover:bg-white/10" title="Foydali">
+            <button type="button" className="rounded-md p-1.5 hover:bg-white/10" title={t("helpful")}>
               <ThumbsUp className="size-3.5" />
             </button>
-            <button type="button" className="rounded-md p-1.5 hover:bg-white/10" title="Foydasiz">
+            <button type="button" className="rounded-md p-1.5 hover:bg-white/10" title={t("notHelpful")}>
               <ThumbsDown className="size-3.5" />
             </button>
             <span className="ml-2 hidden sm:inline">{model.name}</span>

@@ -1,11 +1,13 @@
 "use client";
 
 import { motion } from "motion/react";
+import { useT } from "@/store/chat";
 import { useTheme } from "./theme-context";
 
 /** Model-specific "thinking" indicator (DESIGN.md Ekran 5/6). */
 export function TypingIndicator() {
   const { theme, model } = useTheme();
+  const t = useT();
 
   if (theme.id === "chatgpt") {
     return (
@@ -14,7 +16,7 @@ export function TypingIndicator() {
         style={{ background: "var(--t-text)" }}
         animate={{ opacity: [1, 0.2, 1] }}
         transition={{ duration: 1, repeat: Infinity }}
-        aria-label="Yozmoqda"
+        aria-label={t("typing")}
       />
     );
   }
@@ -28,7 +30,7 @@ export function TypingIndicator() {
           animate={{ rotate: 360 }}
           transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
         />
-        🌐 Internetdan qidirmoqda...
+        🌐 {t("searchingWeb")}
       </span>
     );
   }
@@ -40,7 +42,7 @@ export function TypingIndicator() {
         style={{ color: model.primary }}
         animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.05, 0.9] }}
         transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
-        aria-label="Yozmoqda"
+        aria-label={t("typing")}
       >
         ✦
       </motion.span>
@@ -51,7 +53,7 @@ export function TypingIndicator() {
     theme.id === "gemini" ? ["#4285F4", "#9B72CB", "#D96570"] : [model.primary, model.primary, model.primary];
 
   return (
-    <span className="inline-flex items-center gap-1.5" aria-label="Yozmoqda">
+    <span className="inline-flex items-center gap-1.5" aria-label={t("typing")}>
       {colors.map((c, i) => (
         <motion.span
           key={i}

@@ -3,6 +3,8 @@
 import { ExternalLink, Globe, X } from "lucide-react";
 import { motion } from "motion/react";
 import { EASE } from "@/lib/motion";
+import { useT } from "@/store/chat";
+import type { TKey } from "@/lib/i18n";
 
 interface SourcesPanelProps {
   citations: string[];
@@ -19,16 +21,17 @@ function hostOf(url: string) {
   }
 }
 
-function ago(iso?: string) {
+function ago(iso: string | undefined, t: (key: TKey) => string) {
   if (!iso) return "";
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());
   const m = Math.round(diff / 60000);
-  if (m < 1) return "hozirgina";
-  if (m < 60) return `${m} daqiqa oldin`;
-  return `${Math.round(m / 60)} soat oldin`;
+  if (m < 1) return t("justNow");
+  if (m < 60) return `${m} ${t("minutesAgo")}`;
+  return `${Math.round(m / 60)} ${t("hoursAgo")}`;
 }
 
 export function SourcesPanel({ citations, query, updatedAt, onClose }: SourcesPanelProps) {
+  const t = useT();
   return (
     <motion.aside
       initial={{ x: 24, opacity: 0 }}
@@ -40,9 +43,9 @@ export function SourcesPanel({ citations, query, updatedAt, onClose }: SourcesPa
     >
       <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: "1px solid var(--t-border)" }}>
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
-          <Globe className="size-3.5" style={{ color: "var(--t-primary)" }} /> Manbalar
+          <Globe className="size-3.5" style={{ color: "var(--t-primary)" }} /> {t("sources")}
         </div>
-        <button type="button" onClick={onClose} className="rounded-md p-1 hover:bg-white/10" aria-label="Yopish">
+        <button type="button" onClick={onClose} className="rounded-md p-1 hover:bg-white/10" aria-label={t("close")}>
           <X className="size-4" />
         </button>
       </div>
@@ -80,13 +83,13 @@ export function SourcesPanel({ citations, query, updatedAt, onClose }: SourcesPa
       <div className="space-y-2 px-4 py-3 text-xs" style={{ borderTop: "1px solid var(--t-border)", color: "var(--t-text-muted)" }}>
         {query && (
           <div>
-            <div className="mb-0.5 uppercase tracking-wider">Qidiruv so&apos;zi</div>
+            <div className="mb-0.5 uppercase tracking-wider">{t("searchQuery")}</div>
             <div className="line-clamp-2" style={{ color: "var(--t-text)" }}>
               &ldquo;{query}&rdquo;
             </div>
           </div>
         )}
-        {updatedAt && <div>Oxirgi yangilash: {ago(updatedAt)}</div>}
+        {updatedAt && <div>{t("lastUpdate")}: {ago(updatedAt, t)}</div>}
       </div>
     </motion.aside>
   );

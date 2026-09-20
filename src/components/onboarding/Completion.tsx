@@ -9,6 +9,7 @@ import { MODEL_BY_ID } from "@/config/models";
 import { BurstScene } from "@/components/three/scenes";
 import { MagneticButton } from "@/components/motion/MagneticButton";
 import { EASE, EASE_OUT_EXPO, spring } from "@/lib/motion";
+import { useT } from "@/store/chat";
 
 interface CompletionProps {
   modelId: string;
@@ -17,6 +18,7 @@ interface CompletionProps {
 }
 
 export function Completion({ modelId, reason, onEnter }: CompletionProps) {
+  const t = useT();
   const router = useRouter();
   const model = MODEL_BY_ID[modelId] ?? MODEL_BY_ID["claude-sonnet-4-5"];
   const [line, setLine] = useState(0);
@@ -56,7 +58,7 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
         transition={{ duration: 0.5, ease: EASE_OUT_EXPO, delay: 0.3 }}
         className="font-display relative mt-6 text-2xl font-extrabold text-text-primary sm:text-3xl"
       >
-        Ajoyib! Sozlamalaringiz tayyor
+        {t("onbComplete")}
       </motion.h2>
 
       <div className="relative mt-6 min-h-[28px]">
@@ -89,7 +91,7 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
                   {model.glyph}
                 </span>
                 <div>
-                  <div className="text-xs text-text-muted">Siz uchun tavsiya</div>
+                  <div className="text-xs text-text-muted">{t("onbRecommendation")}</div>
                   <div className="font-display text-base font-bold text-text-primary">{model.name}</div>
                 </div>
               </div>
@@ -116,7 +118,7 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
                 }}
                 className="group inline-flex h-12 items-center gap-2 rounded-2xl bg-primary px-6 text-base font-semibold text-white shadow-glow transition-colors hover:bg-primary-dark"
               >
-                SOVEREIGN&apos;ga kirish
+                {t("onbEnter")}
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
               </button>
             </MagneticButton>

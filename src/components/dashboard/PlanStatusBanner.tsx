@@ -4,6 +4,7 @@ import { AlertCircle, Clock, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { EASE } from "@/lib/motion";
+import { useT } from "@/store/chat";
 
 interface PlanStatusBannerProps {
   planState: "free" | "active" | "expiring_soon" | "expired";
@@ -17,6 +18,7 @@ interface PlanStatusBannerProps {
  * expiring_soon holatida ko'rinadi. Free/active — hech narsa chiqarmaydi.
  */
 export function PlanStatusBanner({ planState, daysLeft, planName, onUpgrade }: PlanStatusBannerProps) {
+  const t = useT();
   const [dismissed, setDismissed] = useState(false);
 
   if (dismissed) return null;
@@ -26,12 +28,12 @@ export function PlanStatusBanner({ planState, daysLeft, planName, onUpgrade }: P
   const color = isExpired ? "#EB5A64" : "#F5AA3C";
 
   const label = isExpired
-    ? `${planName || "Tarifingiz"} muddati tugagan`
+    ? `${planName || t("yourPlan")} ${t("planExpiredSuffix")}`
     : daysLeft === 0
-      ? "Tarif bugun tugaydi"
-      : `Tarif ${daysLeft} kundan keyin tugaydi`;
+      ? t("planExpiresToday")
+      : `${t("planExpiresInPrefix")} ${daysLeft} ${t("planExpiresInSuffix")}`;
 
-  const cta = isExpired ? "Qayta yoqish" : "Yangilash";
+  const cta = isExpired ? t("reactivate") : t("refresh");
 
   return (
     <motion.div
@@ -59,9 +61,7 @@ export function PlanStatusBanner({ planState, daysLeft, planName, onUpgrade }: P
             {label}
           </div>
           <div className="text-xs" style={{ color: "var(--t-text-muted)" }}>
-            {isExpired
-              ? "Free tarifga tushdingiz. Muddatni qayta yoqish uchun tarifni tanlang."
-              : "Muddat tugagach avtomatik Free tarifga tushasiz."}
+            {isExpired ? t("planExpiredDesc") : t("planExpiringDesc")}
           </div>
         </div>
 
@@ -81,7 +81,7 @@ export function PlanStatusBanner({ planState, daysLeft, planName, onUpgrade }: P
           type="button"
           onClick={() => setDismissed(true)}
           className="rounded-full p-1.5 opacity-60 hover:opacity-100"
-          aria-label="Yopish"
+          aria-label={t("close")}
           style={{ color: "var(--t-text-muted)" }}
         >
           <X className="size-4" />

@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { matchFiles } from "@/lib/cowork/folder";
 import { EASE_OUT_EXPO } from "@/lib/motion";
+import { useT } from "@/store/chat";
 import { useCowork } from "./cowork-context";
 
 interface CoworkPanelProps {
@@ -13,6 +14,7 @@ interface CoworkPanelProps {
 }
 
 export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
+  const t = useT();
   const { folder, supported, open: pick, openFromInput, clear, shareOutline, setShareOutline } = useCowork();
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -57,7 +59,7 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                 <FolderOpen className="size-5" style={{ color: "var(--t-accent)" }} />
                 <span className="font-display text-lg font-bold">Cowork</span>
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Yopish" style={{ color: "var(--t-text-muted)" }}>
+              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
                 <X className="size-5" />
               </button>
             </div>
@@ -66,9 +68,9 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
               {!folder ? (
                 <div className="py-6 text-center">
                   <p className="text-sm" style={{ color: "var(--t-text-muted)" }}>
-                    Kompyuteringizdagi papkani oching — AI fayllarni o&apos;zi ko&apos;radi.
+                    {t("coworkIntro1")}
                     <br />
-                    Rasmni ham qo&apos;lda yuklamaysiz: chatda <span style={{ color: "var(--t-accent)" }}>@rasm.png</span> deb yozasiz.
+                    {t("coworkIntro2a")} <span style={{ color: "var(--t-accent)" }}>@rasm.png</span> {t("coworkIntro2b")}
                   </p>
                   <div className="mt-5 flex flex-col items-center gap-2">
                     {supported ? (
@@ -78,7 +80,7 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                         className="rounded-xl px-4 py-2 text-sm font-semibold text-white"
                         style={{ background: "var(--t-primary)" }}
                       >
-                        Papkani tanlash
+                        {t("coworkPickFolder")}
                       </button>
                     ) : (
                       <>
@@ -88,10 +90,10 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                           className="rounded-xl px-4 py-2 text-sm font-semibold text-white"
                           style={{ background: "var(--t-primary)" }}
                         >
-                          Papkani tanlash
+                          {t("coworkPickFolder")}
                         </button>
                         <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-                          Brauzeringiz jonli papkani qo&apos;llamaydi — nusxasi olinadi. Chrome yoki Edge to&apos;liq ishlaydi.
+                          {t("coworkNoLiveFolder")}
                         </span>
                       </>
                     )}
@@ -107,7 +109,7 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                   </div>
                   <p className="mx-auto mt-6 flex max-w-sm items-start gap-2 rounded-xl border p-3 text-left text-[11px]" style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}>
                     <Info className="mt-0.5 size-3.5 shrink-0" />
-                    Papka serverga yuklanmaydi. Faqat siz biriktirgan fayl AI&apos;ga boradi.
+                    {t("coworkPrivacyNote")}
                   </p>
                 </div>
               ) : (
@@ -116,7 +118,7 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold">{folder.name}</div>
                       <div className="nums text-xs" style={{ color: "var(--t-text-muted)" }}>
-                        {folder.files.length} fayl{folder.snapshot ? " · nusxa" : ""}
+                        {folder.files.length} {t("coworkFilesSuffix")}{folder.snapshot ? ` · ${t("coworkCopyLabel")}` : ""}
                       </div>
                     </div>
                     <button
@@ -125,7 +127,7 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                       className="rounded-lg border px-3 py-1.5 text-xs"
                       style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
                     >
-                      Yopish
+                      {t("close")}
                     </button>
                   </div>
 
@@ -134,7 +136,7 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
-                      placeholder="Fayl qidirish"
+                      placeholder={t("searchFile")}
                       className="w-full bg-transparent text-sm outline-none placeholder:opacity-60"
                     />
                   </label>
@@ -148,9 +150,9 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                     style={{ borderColor: shareOutline ? "var(--t-primary)" : "var(--t-border)" }}
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-medium">AI fayl ro&apos;yxatini ko&apos;rsin</span>
+                      <span className="block text-sm font-medium">{t("coworkShowOutline")}</span>
                       <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>
-                        Faqat nomlar yuboriladi — mazmun emas. AI kerakli faylni o&apos;zi so&apos;raydi.
+                        {t("coworkShowOutlineDesc")}
                       </span>
                     </span>
                     <span
@@ -187,12 +189,12 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                       </li>
                     ))}
                     {!shown.length && (
-                      <li className="py-6 text-center text-sm" style={{ color: "var(--t-text-muted)" }}>Topilmadi</li>
+                      <li className="py-6 text-center text-sm" style={{ color: "var(--t-text-muted)" }}>{t("notFound")}</li>
                     )}
                   </ul>
 
                   <p className="mt-4 text-center text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-                    Chatda <span style={{ color: "var(--t-accent)" }}>@</span> yozib fayl nomini tanlang — AI o&apos;sha faylni ko&apos;radi.
+                    {t("coworkAtHint_a")} <span style={{ color: "var(--t-accent)" }}>@</span> {t("coworkAtHint_b")}
                   </p>
                 </>
               )}

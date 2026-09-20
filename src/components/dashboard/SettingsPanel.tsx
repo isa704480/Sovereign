@@ -116,7 +116,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
   }, [open, onClose]);
 
   function exportData() {
-    setMsg("Tayyorlanmoqda...");
+    setMsg(t("preparing"));
     startTransition(async () => {
       const res = await exportMyData();
       if (!res.ok) {
@@ -130,7 +130,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
       a.download = "sovereign-export.json";
       a.click();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      setMsg("Yuklab olindi.");
+      setMsg(t("downloaded"));
     });
   }
 
@@ -176,7 +176,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                 <Settings className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
                 <span className="font-display text-lg font-bold">{t("settings")}</span>
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Yopish" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                 <X className="size-5" />
               </button>
             </div>
@@ -198,11 +198,11 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
               </div>
 
               <div className="border-t py-1" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
-                <div className="pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>Tarif</div>
-                <Row title={`${planName} tarif`} desc="Ko'proq model va imkoniyatlar uchun oshiring.">
+                <div className="pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t("plan")}</div>
+                <Row title={`${planName} ${t("planWord")}`} desc={t("planUpgradeDesc")}>
                   {plan !== "ultra" && (
                     <button type="button" onClick={onUpgrade} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "var(--t-primary, #5B50F0)" }}>
-                      <Sparkles className="size-3.5" /> Oshirish
+                      <Sparkles className="size-3.5" /> {t("upgrade")}
                     </button>
                   )}
                 </Row>
@@ -210,7 +210,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
 
               <div className="border-t py-1" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  <Palette className="size-3.5" /> Ko&apos;rinish
+                  <Palette className="size-3.5" /> {t("appearance")}
                 </div>
                 <Row title={t("language")} desc={t("languageHint")}>
                   <Segmented
@@ -219,7 +219,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                     onChange={setLang}
                   />
                 </Row>
-                <Row title="Matn o'lchami" desc="Chat matni katta-kichikligi.">
+                <Row title={t("fontSizeTitle")} desc={t("fontSizeDesc")}>
                   <Segmented
                     value={fontSize}
                     options={[
@@ -230,50 +230,50 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                     onChange={setFontSize}
                   />
                 </Row>
-                <Row title="Zichlik" desc="Xabarlar orasidagi masofa.">
+                <Row title={t("densityTitle")} desc={t("densityDesc")}>
                   <Segmented
                     value={density}
                     options={[
-                      { value: "compact", label: "Zich" },
-                      { value: "comfortable", label: "Bo'sh" },
+                      { value: "compact", label: t("densityCompact") },
+                      { value: "comfortable", label: t("densityComfortable") },
                     ]}
                     onChange={setDensity}
                   />
                 </Row>
-                <Row title="Animatsiyani kamaytirish" desc="Kichikroq harakatlar, batarey uchun.">
+                <Row title={t("reducedMotionTitle")} desc={t("reducedMotionDesc")}>
                   <Toggle on={reducedMotion} onChange={setReducedMotion} />
                 </Row>
               </div>
 
               <div className="border-t py-1" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  <Keyboard className="size-3.5" /> Chat xatti-harakati
+                  <Keyboard className="size-3.5" /> {t("chatBehavior")}
                 </div>
-                <Row title="Enter — yuborish" desc="O'chirilganda Ctrl+Enter bilan yuboriladi.">
+                <Row title={t("enterToSendTitle")} desc={t("enterToSendDesc")}>
                   <Toggle on={enterToSend} onChange={setEnterToSend} />
                 </Row>
-                <Row title="Streaming tezligi" desc="Naturali — bo'lakli; Darhol — butun javob birga.">
+                <Row title={t("streamingTitle")} desc={t("streamingDesc")}>
                   <Segmented
                     value={streamingSpeed}
                     options={[
-                      { value: "natural", label: "Natural" },
-                      { value: "instant", label: "Darhol" },
+                      { value: "natural", label: t("streamingNatural") },
+                      { value: "instant", label: t("streamingInstant") },
                     ]}
                     onChange={setStreamingSpeed}
                   />
                 </Row>
-                <Row title="Avto-scroll" desc="Javob kelganda pastga o'zi tushadi.">
+                <Row title={t("autoScrollTitle")} desc={t("autoScrollDesc")}>
                   <Toggle on={autoScroll} onChange={setAutoScroll} />
                 </Row>
               </div>
 
               <div className="border-t py-1" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  <ShieldAlert className="size-3.5" /> Ma&apos;lumotlar va maxfiylik
+                  <ShieldAlert className="size-3.5" /> {t("dataPrivacy")}
                 </div>
                 <Row
-                  title="Tella 2 ni o'rgatish"
-                  desc="Savol-javoblaringiz o'z modelimizni yaxshilashda ishlatiladi. Fayl, bilim bazasi va maxfiy rejim hech qachon olinmaydi."
+                  title={t("trainingTitle")}
+                  desc={t("trainingDesc")}
                 >
                   <Toggle
                     on={trainingOptIn}
@@ -285,14 +285,14 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                     }}
                   />
                 </Row>
-                <Row title="Ma'lumotlarni eksport" desc="Barcha suhbat, xotira va profil — JSON (GDPR).">
+                <Row title={t("exportTitle")} desc={t("exportDesc")}>
                   <button type="button" onClick={exportData} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
-                    <Download className="size-3.5" /> Eksport
+                    <Download className="size-3.5" /> {t("exportBtn")}
                   </button>
                 </Row>
-                <Row title="Barcha ma'lumotni o'chirish" desc="Suhbatlar va xotira butunlay o'chiriladi.">
+                <Row title={t("deleteAllTitle")} desc={t("deleteAllDesc")}>
                   <button type="button" onClick={deleteData} className="rounded-lg border px-3 py-1.5 text-xs font-medium" style={{ borderColor: confirmDelete ? "var(--error,#EF4444)" : "var(--t-border, rgba(255,255,255,0.1))", color: "var(--error,#EF4444)" }}>
-                    {confirmDelete ? "Tasdiqlash — o'chirish" : "O'chirish"}
+                    {confirmDelete ? t("confirmDelete") : t("delete")}
                   </button>
                 </Row>
                 {msg && <p className="pb-2 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{msg}</p>}

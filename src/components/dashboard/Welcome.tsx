@@ -101,7 +101,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
           <div className="flex items-center justify-center gap-3">
             <span className="text-4xl" style={{ color: model.primary }}>✦</span>
             <h1 className="t-display text-3xl font-medium md:text-4xl" style={{ color: "var(--t-text)" }}>
-              Salom, {userName}
+              {tr("hello")}, {userName}
             </h1>
           </div>
           <p className="mt-3 text-sm" style={{ color: "var(--t-text-muted)" }}>

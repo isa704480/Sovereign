@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { SKILLS, SKILL_CATEGORY_LABEL, type SkillCategory } from "@/config/skills";
 import { EASE_OUT_EXPO } from "@/lib/motion";
-import { CUSTOM_SKILL_PREFIX, useChat, type CustomSkill } from "@/store/chat";
+import { CUSTOM_SKILL_PREFIX, useChat, useT, type CustomSkill } from "@/store/chat";
 
 interface SkillsMarketProps {
   open: boolean;
@@ -15,7 +15,6 @@ interface SkillsMarketProps {
 }
 
 const CATEGORIES: (SkillCategory | "all" | "mine")[] = ["all", "design", "code", "security", "writing", "data", "mine"];
-const CATEGORY_TITLE: Record<string, string> = { ...SKILL_CATEGORY_LABEL, all: "Barchasi", mine: "Mening skillarim" };
 
 /** First lines of the skill prompt — enough to judge what it will do. */
 function summarize(prompt: string): string[] {
@@ -41,6 +40,9 @@ function Toggle({ on }: { on: boolean }) {
 }
 
 export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketProps) {
+  const t = useT();
+  const catLabel = (k: (typeof CATEGORIES)[number]) =>
+    k === "all" ? t("catAll") : k === "mine" ? t("catMine") : SKILL_CATEGORY_LABEL[k] ?? k;
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
     const mine = customSkills.map((s: CustomSkill) => ({
       id: `${CUSTOM_SKILL_PREFIX}${s.id}`,
       name: s.name,
-      description: "Siz yaratgan skill",
+      description: t("skillCustomDesc"),
       glyph: "✻",
       color: "#10D4A0",
       category: "mine",
@@ -83,7 +85,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
     return [...built, ...mine]
       .filter((s) => cat === "all" || s.category === cat)
       .filter((s) => !needle || `${s.name} ${s.description}`.toLowerCase().includes(needle));
-  }, [q, cat, customSkills]);
+  }, [q, cat, customSkills, t]);
 
   function saveDraft() {
     const name = draft.name.trim().slice(0, 40);
@@ -127,9 +129,9 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
               <div className="flex items-center gap-2">
                 <Sparkles className="size-5" style={{ color: "var(--t-accent)" }} />
                 <span className="font-display text-lg font-bold">Skills</span>
-                <span className="text-xs" style={{ color: "var(--t-text-muted)" }}>{enabled.length} yoqilgan</span>
+                <span className="text-xs" style={{ color: "var(--t-text-muted)" }}>{enabled.length} {t("skillsEnabled")}</span>
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Yopish" style={{ color: "var(--t-text-muted)" }}>
+              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
                 <X className="size-5" />
               </button>
             </div>
@@ -140,7 +142,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                 <input
                   value={q}
                   onChange={(e) => setQ(e.target.value)}
-                  placeholder="Skill qidirish"
+                  placeholder={t("skillsSearch")}
                   className="w-full bg-transparent text-sm outline-none placeholder:opacity-60"
                 />
               </label>
@@ -157,7 +159,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                       color: cat === k ? "var(--t-accent)" : "var(--t-text-muted)",
                     }}
                   >
-                    {CATEGORY_TITLE[k] ?? k}
+                    {catLabel(k)}
                   </button>
                 ))}
               </div>
@@ -165,7 +167,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               {items.length === 0 && (
-                <p className="py-8 text-center text-sm" style={{ color: "var(--t-text-muted)" }}>Hech narsa topilmadi</p>
+                <p className="py-8 text-center text-sm" style={{ color: "var(--t-text-muted)" }}>{t("nothingFound")}</p>
               )}
 
               {/* One panel, hairline rows — not a pile of bordered cards. */}
@@ -203,7 +205,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                           onClick={() => removeCustomSkill(s.id.slice(CUSTOM_SKILL_PREFIX.length))}
                           className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
                           style={{ color: "var(--t-text-muted)" }}
-                          aria-label="O'chirish"
+                          aria-label={t("delete")}
                         >
                           <Trash2 className="size-4" />
                         </button>
@@ -241,7 +243,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                   <input
                     value={draft.name}
                     onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                    placeholder="Skill nomi (masalan: Huquqiy tahlil)"
+                    placeholder={t("skillNamePlaceholder")}
                     maxLength={40}
                     className="w-full rounded-lg border bg-transparent px-3 py-2 text-sm outline-none"
                     style={{ borderColor: "var(--t-border)" }}
@@ -249,7 +251,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                   <textarea
                     value={draft.instructions}
                     onChange={(e) => setDraft((d) => ({ ...d, instructions: e.target.value }))}
-                    placeholder="AI shu skill yoqilganda nimaga amal qilsin? Aniq qoidalar yozing."
+                    placeholder={t("skillInstrPlaceholder")}
                     maxLength={2000}
                     rows={5}
                     className="mt-2 w-full resize-none rounded-lg border bg-transparent px-3 py-2 text-sm outline-none"
@@ -259,7 +261,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                     <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>{draft.instructions.length}/2000</span>
                     <div className="flex gap-2">
                       <button type="button" onClick={() => setCreating(false)} className="rounded-lg border px-3 py-1.5 text-xs" style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}>
-                        Bekor
+                        {t("cancel")}
                       </button>
                       <button
                         type="button"
@@ -268,7 +270,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                         className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
                         style={{ background: "var(--t-primary)" }}
                       >
-                        Saqlash
+                        {t("save")}
                       </button>
                     </div>
                   </div>
@@ -280,7 +282,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                   className="mt-3 flex w-full items-center justify-center gap-2 rounded-[18px] border border-dashed py-3 text-sm transition-colors hover:bg-white/5"
                   style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
                 >
-                  <Plus className="size-4" /> O&apos;z skilingizni yarating
+                  <Plus className="size-4" /> {t("createSkill")}
                 </button>
               )}
             </div>

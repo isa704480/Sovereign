@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { Markdown } from "./Markdown";
 import { isRenderable, isReact, type ArtifactPayload } from "./artifact-context";
 import { EASE } from "@/lib/motion";
+import { useT } from "@/store/chat";
 import { cn } from "@/lib/utils";
 
 interface ArtifactPanelProps {
@@ -95,6 +96,7 @@ function extOf(lang: string): string {
 }
 
 export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
+  const t = useT();
   const { lang, title } = artifact;
   const l = lang.toLowerCase();
   const isMarkdown = l === "markdown" || l === "md";
@@ -145,43 +147,43 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
             {isMarkdown ? "📄" : l === "svg" ? "✦" : "◎"}
           </span>
           <span className="truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>
-            {title || (isMarkdown ? "Hujjat" : l === "svg" ? "SVG rasm" : "Sayt")}
+            {title || (isMarkdown ? t("artifactDocument") : l === "svg" ? t("artifactSvg") : t("artifactSite"))}
           </span>
         </div>
 
         <div className="flex items-center gap-1">
           {canPreview && (
             <div className="mr-1 flex rounded-lg p-0.5" style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}>
-              {HTML_TABS.map((t) => (
+              {HTML_TABS.map((tab2) => (
                 <button
-                  key={t}
+                  key={tab2}
                   type="button"
-                  onClick={() => setTab(t)}
+                  onClick={() => setTab(tab2)}
                   className={cn("inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors")}
                   style={{
-                    background: tab === t ? "var(--t-surface)" : "transparent",
-                    color: tab === t ? "var(--t-text)" : "var(--t-text-muted)",
-                    boxShadow: tab === t ? "0 1px 2px rgba(0,0,0,0.2)" : undefined,
+                    background: tab === tab2 ? "var(--t-surface)" : "transparent",
+                    color: tab === tab2 ? "var(--t-text)" : "var(--t-text-muted)",
+                    boxShadow: tab === tab2 ? "0 1px 2px rgba(0,0,0,0.2)" : undefined,
                   }}
                 >
-                  {t === "preview" ? <Eye className="size-3.5" /> : <Code2 className="size-3.5" />}
-                  {t === "preview" ? "Ko'rinish" : "Tahrir"}
+                  {tab2 === "preview" ? <Eye className="size-3.5" /> : <Code2 className="size-3.5" />}
+                  {tab2 === "preview" ? t("view") : t("editTab")}
                 </button>
               ))}
             </div>
           )}
           {canPreview && tab === "preview" && (
-            <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title="Yangilash">
+            <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title={t("refresh")}>
               <RefreshCw className="size-4" />
             </button>
           )}
-          <button type="button" onClick={copy} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title="Nusxa olish">
+          <button type="button" onClick={copy} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title={t("copy")}>
             {copied ? <Check className="size-4" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-4" />}
           </button>
-          <button type="button" onClick={download} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title="Yuklab olish">
+          <button type="button" onClick={download} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title={t("download")}>
             <Download className="size-4" />
           </button>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} aria-label="Yopish">
+          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")}>
             <X className="size-4" />
           </button>
         </div>
@@ -216,8 +218,8 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
               className="flex items-center justify-between border-t px-3 py-1.5 text-[11px]"
               style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
             >
-              <span>Tahrir qilinganda Ko&apos;rinish o&apos;z-o&apos;zidan yangilanadi</span>
-              <span>{code.length} belgi</span>
+              <span>{t("artifactAutoUpdate")}</span>
+              <span>{code.length} {t("artifactChars")}</span>
             </div>
           </div>
         )}

@@ -422,11 +422,12 @@ export function groupByDate(order: string[], conversations: Record<string, Conve
   const week = new Date(today);
   week.setDate(today.getDate() - 7);
 
-  const groups: { label: string; ids: string[] }[] = [
-    { label: "Bugun", ids: [] },
-    { label: "Kecha", ids: [] },
-    { label: "Bu hafta", ids: [] },
-    { label: "Oldinroq", ids: [] },
+  // Labels are TKey ids; the sidebar translates them via t().
+  const groups: { label: TKey; ids: string[] }[] = [
+    { label: "dateToday", ids: [] },
+    { label: "dateYesterday", ids: [] },
+    { label: "dateThisWeek", ids: [] },
+    { label: "dateEarlier", ids: [] },
   ];
   for (const id of order) {
     const c = conversations[id];

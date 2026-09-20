@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useTransition, type ChangeEvent } from "re
 import { deleteKnowledge, listKnowledge, uploadKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { processFile } from "@/lib/chat/attachments";
 import { EASE_OUT_EXPO } from "@/lib/motion";
+import { useT } from "@/store/chat";
 
 interface KnowledgePanelProps {
   open: boolean;
@@ -21,6 +22,7 @@ function fmtSize(n: number) {
 }
 
 export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
+  const t = useT();
   const [items, setItems] = useState<KbDoc[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -103,10 +105,10 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
             >
               <div className="flex items-center gap-2">
                 <FolderOpen className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
-                <span className="font-display text-lg font-bold">Knowledge Base</span>
+                <span className="font-display text-lg font-bold">{t("knowledgeBase")}</span>
                 {items && (
                   <span className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                    {items.length} hujjat
+                    {items.length} {t("kbDocs")}
                   </span>
                 )}
               </div>
@@ -114,7 +116,7 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
                 type="button"
                 onClick={onClose}
                 className="rounded-lg p-1.5 hover:bg-white/10"
-                aria-label="Yopish"
+                aria-label={t("close")}
                 style={{ color: "var(--t-text-muted, #9BA3CC)" }}
               >
                 <X className="size-5" />
@@ -123,7 +125,7 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
 
             <div className="px-5 pb-2 pt-4">
               <p className="text-sm" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                Hujjatlaringizni (PDF, matn, kod) yuklang. AI shu ma&apos;lumotlar asosida javob beradi.
+                {t("kbIntro")}
               </p>
               <input ref={fileRef} type="file" accept={ACCEPT} multiple hidden onChange={onFiles} />
               <button
@@ -134,7 +136,7 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
                 style={{ background: "var(--t-primary, #5B50F0)" }}
               >
                 {busy ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
-                {busy ? `Yuklanmoqda: ${busy}` : "Fayl yuklash"}
+                {busy ? `${t("kbUploading")}: ${busy}` : t("kbUpload")}
               </button>
               {error && (
                 <p className="mt-2 text-sm" style={{ color: "var(--error, #EF4444)" }}>
@@ -156,7 +158,7 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
                 </div>
               ) : items.length === 0 ? (
                 <div className="px-3 py-8 text-center text-sm" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  Hali hujjatlar yo&apos;q. Yuqoridan fayl yuklang.
+                  {t("kbEmpty")}
                 </div>
               ) : (
                 <ul className="space-y-1.5">
@@ -171,14 +173,14 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
                         <div className="truncate text-sm font-medium">{d.name}</div>
                         <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                           {fmtSize(d.size)}
-                          {d.status === "processing" ? " · indekslanyapti" : d.status === "error" ? " · xato" : ""}
+                          {d.status === "processing" ? ` · ${t("kbIndexing")}` : d.status === "error" ? ` · ${t("kbErrorState")}` : ""}
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => remove(d.id)}
                         className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
-                        aria-label="O'chirish"
+                        aria-label={t("delete")}
                         style={{ color: "var(--t-text-muted, #9BA3CC)" }}
                       >
                         <Trash2 className="size-3.5" />

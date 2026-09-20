@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import { slideStep } from "@/lib/motion";
+import { useT } from "@/store/chat";
 import { cn } from "@/lib/utils";
 
 interface StepShellProps {
@@ -33,6 +34,7 @@ export function StepShell({
   onBack,
   children,
 }: StepShellProps) {
+  const t = useT();
   return (
     <motion.div
       custom={direction}
@@ -55,7 +57,7 @@ export function StepShell({
           disabled={!canBack || pending}
           className="inline-flex h-11 items-center gap-2 rounded-xl px-3 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:invisible"
         >
-          <ArrowLeft className="size-4" /> Orqaga
+          <ArrowLeft className="size-4" /> {t("onbBack")}
         </button>
         <motion.button
           type="button"
@@ -69,7 +71,7 @@ export function StepShell({
           )}
         >
           {pending && <Loader2 className="size-4 animate-spin" />}
-          {isLast ? "Yakunlash" : "Keyingisi"}
+          {isLast ? t("onbFinish") : t("onbNext")}
           {!pending && <ArrowRight className="size-4" />}
         </motion.button>
       </div>
