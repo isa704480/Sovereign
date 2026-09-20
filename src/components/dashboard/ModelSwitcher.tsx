@@ -3,7 +3,7 @@
 import { Check, ChevronDown, Lock } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { AUTO_MODEL, AUTO_MODEL_ID, MODELS, MODEL_GROUPS, resolveModel, type SovereignModel } from "@/config/models";
+import { AUTO_MODEL, AUTO_MODEL_ID, MODELS, MODEL_GROUPS, isModelVisible, resolveModel, type SovereignModel } from "@/config/models";
 import { planAllowsTier, type Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -120,7 +120,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
             </button>
 
             {MODEL_GROUPS.map((g) => {
-              const items = MODELS.filter((m) => m.tier === g.tier);
+              const items = MODELS.filter((m) => m.tier === g.tier && isModelVisible(m));
               if (!items.length) return null;
               const unlocked = planAllowsTier(plan, g.tier);
               return (

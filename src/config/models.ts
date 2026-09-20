@@ -303,6 +303,32 @@ const FLAGSHIP: SovereignModel[] = [
     demo: { user: "", ai: "" },
   },
   {
+    // O'zimizning model: Qwen2.5 asosidagi Tella 2 (Ollama yoki vLLM'da).
+    // TELLA_BASE_URL sozlanmagan bo'lsa ro'yxatda ko'rinmaydi (config/models filtri).
+    id: "tella-2",
+    name: "Tella 2",
+    shortName: "Tella",
+    provider: "SOVEREIGN",
+    theme: "sovereign",
+    cost: "free",
+    category: "free",
+    tier: "free",
+    providerModel: "tella-2",
+    price: "O'zimizniki",
+    glyph: "⬢",
+    tagline: "O'z serverimizdagi model",
+    description: "Qwen2.5 asosida, o'z ma'lumotlarimizda moslashtiriladi. Ma'lumot tashqariga chiqmaydi.",
+    primary: "#10D4A0",
+    accent: "#34E3B6",
+    bg: "#060812",
+    capabilities: [
+      { label: "Maxfiy", score: 5 },
+      { label: "Kod", score: 4 },
+      { label: "O'zbekcha", score: 5 },
+    ],
+    demo: { user: "", ai: "" },
+  },
+  {
     id: "llama-3.3-free",
     name: "Llama 3.3 70B",
     shortName: "Llama",
@@ -477,6 +503,15 @@ export const MODELS: SovereignModel[] = [...FLAGSHIP, ...EXTRA_MODELS];
 export const MODEL_BY_ID: Record<string, SovereignModel> = Object.fromEntries(
   MODELS.map((m) => [m.id, m]),
 );
+
+/**
+ * Tella 2 — o'z serverimizdagi model. Server ko'tarilmagan bo'lsa ro'yxatda
+ * ko'rinmaydi, aks holda foydalanuvchi tanlab, xato oladi.
+ */
+export function isModelVisible(m: SovereignModel): boolean {
+  if (m.id === "tella-2") return process.env.NEXT_PUBLIC_TELLA_ENABLED === "1";
+  return true;
+}
 
 /** Models shown on the landing showcase (the six flagship ones). */
 export const SHOWCASE_MODELS = MODELS.filter((m) => m.demo.user.length > 0);

@@ -4,7 +4,12 @@ import {Download, Keyboard, LogOut, Palette, Settings, ShieldAlert, Sparkles, X}
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState, useTransition } from "react";
 import { signOut } from "@/app/actions/auth";
-import { deleteMyData, exportMyData } from "@/app/actions/account";
+import {
+  deleteMyData,
+  exportMyData,
+  getTrainingOptIn,
+  setTrainingOptIn as saveTrainingOptIn,
+} from "@/app/actions/account";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { useChat } from "@/store/chat";
@@ -90,11 +95,20 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
   const autoScroll = useChat((s) => s.autoScroll);
   const setAutoScroll = useChat((s) => s.setAutoScroll);
 
+  const [trainingOptIn, setTrainingOptIn] = useState(true);
+
   useEffect(() => {
     if (!open) return;
+    let alive = true;
+    getTrainingOptIn()
+      .then((v) => alive && setTrainingOptIn(v))
+      .catch(() => {});
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => {
+      alive = false;
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open, onClose]);
 
   function exportData() {
@@ -246,6 +260,20 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                   <ShieldAlert className="size-3.5" /> Ma&apos;lumotlar va maxfiylik
                 </div>
+                <Row
+                  title="Tella 2 ni o'rgatish"
+                  desc="Savol-javoblaringiz o'z modelimizni yaxshilashda ishlatiladi. Fayl, bilim bazasi va maxfiy rejim hech qachon olinmaydi."
+                >
+                  <Toggle
+                    on={trainingOptIn}
+                    onChange={(v) => {
+                      setTrainingOptIn(v);
+                      startTransition(async () => {
+                        await saveTrainingOptIn(v);
+                      });
+                    }}
+                  />
+                </Row>
                 <Row title="Ma'lumotlarni eksport" desc="Barcha suhbat, xotira va profil — JSON (GDPR).">
                   <button type="button" onClick={exportData} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
                     <Download className="size-3.5" /> Eksport

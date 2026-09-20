@@ -48,3 +48,22 @@ export async function deleteMyData(): Promise<{ ok: boolean }> {
   ]);
   return { ok: true };
 }
+
+/**
+ * "Javoblarim Tella 2 ni o'rgatishda ishlatilsin" sozlamasi.
+ * O'chirilsa, bu foydalanuvchining savol-javoblari trening bazasiga tushmaydi.
+ */
+export async function setTrainingOptIn(enabled: boolean): Promise<{ ok: boolean }> {
+  const s = await session();
+  if (!s) return { ok: false };
+  const { error } = await s.supabase.from("profiles").update({ training_opt_in: enabled }).eq("id", s.user.id);
+  return { ok: !error };
+}
+
+/** Joriy holat — sozlamalar panelini to'ldirish uchun. */
+export async function getTrainingOptIn(): Promise<boolean> {
+  const s = await session();
+  if (!s) return false;
+  const { data } = await s.supabase.from("profiles").select("training_opt_in").eq("id", s.user.id).maybeSingle();
+  return (data as { training_opt_in?: boolean } | null)?.training_opt_in !== false;
+}

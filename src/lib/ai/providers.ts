@@ -48,7 +48,7 @@ const LLM7_FREE_MODEL = "mistral-Nemo-Instruct-2407";
  * 4) OpenAI direct — kuchli, ammo pullik
  * 5) OpenRouter — universal fallback
  */
-type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai" | "nvidia" | "llm7";
+type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai" | "nvidia" | "llm7" | "tella";
 
 interface RouteCandidate {
   provider: Provider;
@@ -56,6 +56,9 @@ interface RouteCandidate {
 }
 
 const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
+  // Tella 2 — faqat o'z serverimiz. Zaxirasi yo'q: boshqa provayderga yuborsak
+  // "o'zimizniki" degani yolg'on bo'lardi.
+  "tella-2": [{ provider: "tella", model: process.env.TELLA_MODEL ?? "tella2" }],
   // Llama 3.3 70B — Groq → Cerebras → SambaNova (barchada bor)
   "meta-llama/llama-3.3-70b-instruct": [
     { provider: "groq", model: "llama-3.3-70b-versatile" },
@@ -112,6 +115,8 @@ function providerAvailable(p: Provider): boolean {
   if (p === "sambanova") return !!process.env.SAMBANOVA_API_KEY;
   if (p === "mistral") return !!process.env.MISTRAL_API_KEY;
   if (p === "nvidia") return !!process.env.NVIDIA_API_KEY;
+  // Tella — o'z serverimizdagi model (Ollama/vLLM). Manzil yo'q bo'lsa mavjud emas.
+  if (p === "tella") return !!process.env.TELLA_BASE_URL;
   if (p === "llm7") return true; // anonymous free tier
   return !!process.env.OPENAI_API_KEY;
 }
@@ -122,6 +127,13 @@ function providerEndpoint(p: Provider): { url: string; auth: string } {
   if (p === "sambanova") return { url: `${SAMBANOVA_BASE}/chat/completions`, auth: process.env.SAMBANOVA_API_KEY! };
   if (p === "mistral") return { url: `${MISTRAL_BASE}/chat/completions`, auth: process.env.MISTRAL_API_KEY! };
   if (p === "nvidia") return { url: `${NVIDIA_BASE}/chat/completions`, auth: process.env.NVIDIA_API_KEY! };
+  if (p === "tella") {
+    return {
+      url: `${process.env.TELLA_BASE_URL!.replace(/\/$/, "")}/chat/completions`,
+      // Ollama kalit talab qilmaydi; vLLM/proxy orqasida bo'lsa kalit qo'yiladi.
+      auth: process.env.TELLA_API_KEY ?? "ollama",
+    };
+  }
   if (p === "llm7") return { url: `${LLM7_BASE}/chat/completions`, auth: process.env.LLM7_API_KEY ?? "unused" };
   return { url: `${OPENAI_BASE}/chat/completions`, auth: process.env.OPENAI_API_KEY! };
 }

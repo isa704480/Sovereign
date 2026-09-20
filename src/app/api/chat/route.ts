@@ -15,6 +15,7 @@ import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
 import { getMemories, memoryPrompt } from "@/lib/ai/memory";
 import { fetchMentionedDocs, knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
 import { extractUrls, readPages } from "@/lib/ai/web-read";
+import { captureSample } from "@/lib/ai/training";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -74,17 +75,18 @@ async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
   usedToday: number;
   memoryText: string;
   knowledgeText: string;
+  trainingOptIn: boolean;
 }> {
   if (!isSupabaseConfigured()) {
     // Local development-only: Supabase sozlanmagan bo'lsa demo rejim.
-    return { authed: false, plan: PLAN_BY_ID.ultra, usedToday: 0, memoryText: "", knowledgeText: "" };
+    return { authed: false, plan: PLAN_BY_ID.ultra, usedToday: 0, memoryText: "", knowledgeText: "", trainingOptIn: false };
   }
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { authed: false, plan: PLAN_BY_ID.free, usedToday: 0, memoryText: "", knowledgeText: "" };
+    return { authed: false, plan: PLAN_BY_ID.free, usedToday: 0, memoryText: "", knowledgeText: "", trainingOptIn: false };
   }
   const profile = await getProfile(supabase, user.id);
   // Migration 0010 dan keyin messages_today() argumentsiz — auth.uid()'ni ishlatadi.
@@ -103,6 +105,8 @@ async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
     usedToday: typeof used === "number" ? used : 0,
     memoryText,
     knowledgeText,
+    // Ustunsiz (eski) bazada ham xavfsiz: faqat aniq false bo'lsa o'chiq.
+    trainingOptIn: profile?.training_opt_in !== false,
   };
 }
 
@@ -155,7 +159,10 @@ export async function POST(req: Request) {
   // Skills (user-enabled ∪ auto-detected).
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
   const lastText = lastUser ? textOf(lastUser) : "";
-  const { authed, plan, usedToday, memoryText, knowledgeText } = await resolveEntitlement(lastText, docIds);
+  const { authed, plan, usedToday, memoryText, knowledgeText, trainingOptIn } = await resolveEntitlement(
+    lastText,
+    docIds,
+  );
   const activeSkills = resolveActiveSkills(enabledSkills, lastText);
   const customText = customSkills
     .filter((s) => s.name.trim() && s.instructions.trim())
@@ -351,6 +358,18 @@ export async function POST(req: Request) {
           } catch {
             /* jim */
           }
+        }
+
+        // Tella 2 uchun trening namunasi (distillation). Maxfiy manbali
+        // suhbatlar va rozilik bermaganlar training.ts ichida rad etiladi.
+        if (cacheableAnswer && typeof lastUser === "string") {
+          void captureSample({
+            question: lastText,
+            answer: cacheableAnswer,
+            model: steps[steps.length - 1]?.modelId ?? modelId,
+            hasPrivateContext: Boolean(docIds.length || coworkContext || knowledgeText),
+            optedIn: trainingOptIn,
+          });
         }
 
         // Verifier: uzun faktual javoblarni haiku bilan tekshirish.

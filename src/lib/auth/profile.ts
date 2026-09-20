@@ -12,13 +12,15 @@ export interface Profile {
   plan: PlanId;
   plan_expires_at: string | null;
   memory_enabled: boolean;
+  /** Javoblarim Tella 2 ni o'rgatishda ishlatilsinmi. */
+  training_opt_in: boolean;
 }
 
 export async function getProfile(supabase: SupabaseClient, userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from("profiles")
     .select(
-      "id, email, full_name, avatar_url, onboarding, onboarding_completed, default_model, plan, plan_expires_at, memory_enabled",
+      "id, email, full_name, avatar_url, onboarding, onboarding_completed, default_model, plan, plan_expires_at, memory_enabled, training_opt_in",
     )
     .eq("id", userId)
     .maybeSingle();
