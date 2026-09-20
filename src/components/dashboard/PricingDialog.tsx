@@ -115,10 +115,15 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
             transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
             className={cn(
-              "tt relative max-h-[92vh] w-full overflow-y-auto rounded-3xl border p-6 shadow-lg transition-[max-width] duration-300 md:p-8",
+              "tt relative max-h-[92vh] w-full overflow-y-auto rounded-[22px] border p-6 transition-[max-width] duration-300 md:p-8",
               plan ? "max-w-xl" : "max-w-5xl",
             )}
-            style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
+            style={{
+              background: "var(--t-surface, #0D1033)",
+              borderColor: "var(--t-border, rgba(255,255,255,0.1))",
+              color: "var(--t-text, #F0F2FF)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.35), 0 30px 80px rgba(0,0,0,0.55)",
+            }}
           >
             <button
               type="button"
@@ -144,7 +149,9 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     <p className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: "var(--t-accent, #7C6FF7)" }}>
                       Tariflar
                     </p>
-                    <h2 className="t-display mt-2 text-2xl font-extrabold md:text-3xl">O&apos;zingizga mos rejani tanlang</h2>
+                    <h2 className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em] md:text-3xl">
+                      O&apos;zingizga mos rejani tanlang
+                    </h2>
                     {reason && (
                       <p className="mx-auto mt-3 max-w-xl rounded-xl px-4 py-2 text-sm" style={{ background: "rgba(245,158,11,0.12)", color: "#F59E0B" }}>
                         {reason}
@@ -177,7 +184,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             </span>
                           )}
                           <div className="text-sm font-semibold" style={{ color: p.color }}>{p.name}</div>
-                          <div className="t-display mt-1 text-3xl font-extrabold">
+                          <div className="t-display nums mt-1 text-3xl font-extrabold tracking-[-0.02em]">
                             {p.price === 0 ? "0" : `$${p.price}`}
                             <span className="text-sm font-normal" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>/oy</span>
                           </div>
@@ -237,10 +244,16 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                   <p className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: plan.color }}>
                     {plan.name} · ${plan.price}/oy
                   </p>
-                  <h2 className="t-display mt-2 text-2xl font-extrabold">To&apos;lov usulini tanlang</h2>
+                  <h2 className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em]">To&apos;lov usulini tanlang</h2>
 
-                  <div role="radiogroup" aria-label="To'lov usuli" className="mt-6 space-y-3">
-                    {METHODS.map(({ id, title, sub, note, Icon }) => {
+                  {/* Two siblings → one panel, hairline between them. */}
+                  <div
+                    role="radiogroup"
+                    aria-label="To'lov usuli"
+                    className="tt mt-6 overflow-hidden"
+                    style={{ border: "1px solid var(--t-border)", borderRadius: 18 }}
+                  >
+                    {METHODS.map(({ id, title, sub, note, Icon }, idx) => {
                       const busy = loading === id;
                       return (
                         <button
@@ -251,11 +264,14 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           disabled={!!loading}
                           onClick={() => pay(id)}
                           className={cn(
-                            "group flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition-all",
-                            "hover:-translate-y-0.5 hover:bg-white/5 disabled:cursor-default disabled:hover:translate-y-0",
+                            "group flex w-full items-center gap-4 p-4 text-left transition-colors",
+                            "hover:bg-white/5 disabled:cursor-default",
                             loading && !busy && "opacity-40",
                           )}
-                          style={{ borderColor: busy ? plan.color : "var(--t-border, rgba(255,255,255,0.1))" }}
+                          style={{
+                            borderTop: idx === 0 ? "none" : "1px solid var(--border-subtle)",
+                            background: busy ? "color-mix(in srgb, var(--t-primary) 10%, transparent)" : undefined,
+                          }}
                         >
                           <span
                             className="grid size-12 shrink-0 place-items-center rounded-xl"
@@ -268,7 +284,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             <span className="block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{sub}</span>
                             <span className="mt-1 block text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{note}</span>
                           </span>
-                          <span className="text-sm font-semibold" style={{ color: plan.color }}>${plan.price}</span>
+                          <span className="nums text-sm font-semibold" style={{ color: plan.color }}>${plan.price}</span>
                         </button>
                       );
                     })}

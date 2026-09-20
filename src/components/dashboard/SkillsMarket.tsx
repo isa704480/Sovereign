@@ -114,8 +114,14 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[88vh] w-full max-w-2xl flex-col rounded-3xl border shadow-lg"
-            style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border)", color: "var(--t-text)" }}
+            className="tt flex max-h-[88vh] w-full max-w-2xl flex-col rounded-[22px] border"
+            style={{
+              background: "var(--t-surface, #0D1033)",
+              borderColor: "var(--t-border)",
+              color: "var(--t-text)",
+              // Overlay depth: two layers, never one hard shadow.
+              boxShadow: "0 2px 8px rgba(0,0,0,0.35), 0 30px 80px rgba(0,0,0,0.55)",
+            }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border)" }}>
               <div className="flex items-center gap-2">
@@ -157,16 +163,29 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               {items.length === 0 && (
                 <p className="py-8 text-center text-sm" style={{ color: "var(--t-text-muted)" }}>Hech narsa topilmadi</p>
               )}
 
-              {items.map((s) => {
+              {/* One panel, hairline rows — not a pile of bordered cards. */}
+              <div
+                className="tt overflow-hidden"
+                style={{
+                  border: items.length ? "1px solid var(--t-border)" : "none",
+                  borderRadius: 18,
+                  background: "color-mix(in srgb, var(--t-text) 3%, transparent)",
+                }}
+              >
+              {items.map((s, idx) => {
                 const on = enabled.includes(s.id);
                 const isOpen = expanded === s.id;
                 return (
-                  <div key={s.id} className="tt rounded-2xl border" style={{ borderColor: on ? s.color : "var(--t-border)" }}>
+                  <div
+                    key={s.id}
+                    className="tt"
+                    style={{ borderTop: idx === 0 ? "none" : "1px solid var(--border-subtle)" }}
+                  >
                     <div className="flex items-center gap-3 p-3">
                       <span
                         className="grid size-9 shrink-0 place-items-center rounded-xl text-base"
@@ -215,9 +234,10 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                   </div>
                 );
               })}
+              </div>
 
               {creating ? (
-                <div className="tt rounded-2xl border p-3" style={{ borderColor: "var(--t-border)" }}>
+                <div className="tt mt-3 rounded-[18px] border p-3" style={{ borderColor: "var(--t-border)" }}>
                   <input
                     value={draft.name}
                     onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
@@ -257,7 +277,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                 <button
                   type="button"
                   onClick={() => setCreating(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed py-3 text-sm transition-colors hover:bg-white/5"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-[18px] border border-dashed py-3 text-sm transition-colors hover:bg-white/5"
                   style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
                 >
                   <Plus className="size-4" /> O&apos;z skilingizni yarating

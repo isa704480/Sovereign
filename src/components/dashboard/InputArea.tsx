@@ -331,8 +331,12 @@ export function InputArea({
         <div
           role="listbox"
           aria-label="Bilim bazasi hujjatlari"
-          className="tt mb-2 overflow-hidden rounded-2xl border shadow-lg"
-          style={{ background: "var(--t-surface)", borderColor: "var(--t-border)" }}
+          className="tt mb-2 overflow-hidden rounded-[18px] border"
+          style={{
+            background: "var(--t-surface)",
+            borderColor: "var(--t-border)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.45)",
+          }}
         >
           <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
             {cowork.folder ? `${cowork.folder.name} · bilim bazasi` : "Bilim bazasi"}
@@ -346,7 +350,10 @@ export function InputArea({
               onMouseEnter={() => setMentionIdx(i)}
               onClick={() => pickMention(m)}
               className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors"
-              style={{ background: i === mentionIdx ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : "transparent" }}
+              style={{
+                background: i === mentionIdx ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : "transparent",
+                borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)",
+              }}
             >
               {m.kind === "file" ? (
                 <FolderOpen className="size-4 shrink-0" style={{ color: "var(--t-accent)" }} />

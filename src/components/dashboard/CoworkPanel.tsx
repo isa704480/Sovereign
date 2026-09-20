@@ -44,8 +44,13 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[88vh] w-full max-w-xl flex-col rounded-3xl border shadow-lg"
-            style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border)", color: "var(--t-text)" }}
+            className="tt flex max-h-[88vh] w-full max-w-xl flex-col rounded-[22px] border"
+            style={{
+              background: "var(--t-surface, #0D1033)",
+              borderColor: "var(--t-border)",
+              color: "var(--t-text)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.35), 0 30px 80px rgba(0,0,0,0.55)",
+            }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border)" }}>
               <div className="flex items-center gap-2">
@@ -110,7 +115,7 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                   <div className="mb-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold">{folder.name}</div>
-                      <div className="text-xs" style={{ color: "var(--t-text-muted)" }}>
+                      <div className="nums text-xs" style={{ color: "var(--t-text-muted)" }}>
                         {folder.files.length} fayl{folder.snapshot ? " · nusxa" : ""}
                       </div>
                     </div>
@@ -159,12 +164,23 @@ export function CoworkPanel({ open, onClose }: CoworkPanelProps) {
                     </span>
                   </button>
 
-                  <ul className="space-y-1">
-                    {shown.map((f) => (
+                  {/* One panel with hairline rows — the file list is a single surface. */}
+                  <ul
+                    className="tt overflow-hidden"
+                    style={{
+                      border: "1px solid var(--t-border)",
+                      borderRadius: 18,
+                      background: "color-mix(in srgb, var(--t-text) 3%, transparent)",
+                    }}
+                  >
+                    {shown.map((f, i) => (
                       <li
                         key={f.path}
-                        className="truncate rounded-lg px-2 py-1.5 font-mono text-xs"
-                        style={{ color: "var(--t-text-muted)" }}
+                        className="truncate px-3 py-2 font-mono text-xs"
+                        style={{
+                          color: "var(--t-text-muted)",
+                          borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)",
+                        }}
                         title={f.path}
                       >
                         {f.path}

@@ -239,7 +239,7 @@ export function GenerativeUI({ spec }: { spec: GenUiSpec }) {
           {spec.items.map((it) => (
             <div key={it.label} className="rounded-xl border p-3" style={{ borderColor: "var(--t-border)" }}>
               <div className="text-xs" style={{ color: "var(--t-text-muted)" }}>{it.label}</div>
-              <div className="mt-1 text-xl font-extrabold" style={{ color: "var(--t-text)" }}>{it.value}</div>
+              <div className="nums mt-1 text-xl font-extrabold tracking-[-0.02em]" style={{ color: "var(--t-text)" }}>{it.value}</div>
               {it.hint && <div className="mt-0.5 text-[11px]" style={{ color: "var(--t-text-muted)" }}>{it.hint}</div>}
             </div>
           ))}
@@ -278,7 +278,7 @@ export function GenerativeUI({ spec }: { spec: GenUiSpec }) {
               {spec.rows.map((r, i) => (
                 <tr key={i} style={{ borderTop: "1px solid var(--t-border)" }}>
                   {r.map((cell, j) => (
-                    <td key={j} className="px-2 py-1.5" style={{ color: "var(--t-text)" }}>{cell}</td>
+                    <td key={j} className="nums px-2 py-1.5" style={{ color: "var(--t-text)" }}>{cell}</td>
                   ))}
                 </tr>
               ))}
