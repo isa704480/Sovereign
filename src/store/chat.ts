@@ -87,6 +87,8 @@ interface ChatState {
   customSkills: CustomSkill[];
   /** Mask PII in the outgoing prompt (Blind Prompting). */
   blindPrompting: boolean;
+  /** File list of the opened Cowork folder, sent with each request (names only). */
+  coworkOutline: string | null;
   /** Chat matn o'lchami. */
   fontSize: "sm" | "md" | "lg";
   /** Xabar zichligi. */
@@ -107,6 +109,7 @@ interface ChatState {
   addCustomSkill: (skill: { name: string; instructions: string }) => string;
   removeCustomSkill: (id: string) => void;
   setBlindPrompting: (on: boolean) => void;
+  setCoworkOutline: (text: string | null) => void;
   setFontSize: (v: "sm" | "md" | "lg") => void;
   setDensity: (v: "compact" | "comfortable") => void;
   setEnterToSend: (on: boolean) => void;
@@ -145,6 +148,7 @@ export const useChat = create<ChatState>()(
       enabledSkills: DEFAULT_ENABLED_SKILLS,
       customSkills: [],
       blindPrompting: false,
+      coworkOutline: null,
       fontSize: "md",
       density: "comfortable",
       enterToSend: true,
@@ -185,6 +189,7 @@ export const useChat = create<ChatState>()(
             : [...s.enabledSkills, id],
         })),
       setBlindPrompting: (blindPrompting) => set({ blindPrompting }),
+      setCoworkOutline: (coworkOutline) => set({ coworkOutline }),
 
       addCustomSkill: ({ name, instructions }) => {
         const id = uuid().slice(0, 8);

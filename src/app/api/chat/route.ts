@@ -53,6 +53,8 @@ const bodySchema = z.object({
     .max(3)
     .optional()
     .default([]),
+  /** Cowork folder outline (file names only) so the model knows what it may ask for. */
+  context: z.string().max(6000).optional().default(""),
   messages: z
     .array(
       z.object({
@@ -127,7 +129,15 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
 
-  const { modelId, research, skills: enabledSkills, messages, docIds, customSkills } = parsed.data;
+  const {
+    modelId,
+    research,
+    skills: enabledSkills,
+    messages,
+    docIds,
+    customSkills,
+    context: coworkContext,
+  } = parsed.data;
   const isAuto = modelId === AUTO_MODEL_ID;
   if (!isAuto && !MODEL_BY_ID[modelId]) return Response.json({ error: "Noma'lum model" }, { status: 400 });
 
@@ -261,6 +271,7 @@ export async function POST(req: Request) {
 
           const extra = [
             webContext,
+            coworkContext,
             knowledgeText,
             knowledgeText ? GROUNDED_GENERATION : "",
             memoryText,

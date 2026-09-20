@@ -18,6 +18,8 @@ import { KnowledgePanel } from "./KnowledgePanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { SettingsPanel } from "./SettingsPanel";
 import { SkillsMarket } from "./SkillsMarket";
+import { CoworkPanel } from "./CoworkPanel";
+import { CoworkProvider } from "./cowork-context";
 import { MessageList } from "./MessageList";
 import { PlanStatusBanner } from "./PlanStatusBanner";
 import { Sidebar } from "./Sidebar";
@@ -76,6 +78,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
+  const [coworkOpen, setCoworkOpen] = useState(false);
   const artifactCtx = useMemo(
     () => ({ open: (a: ArtifactPayload) => setArtifact(a) }),
     [],
@@ -192,6 +195,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
 
   return (
     <ThemeProvider value={ctx}>
+      <CoworkProvider>
       <ArtifactProvider value={artifactCtx}>
       <div
         className="theme-root tt flex h-svh w-full overflow-hidden"
@@ -224,6 +228,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           onOpenSettings={() => setSettingsOpen(true)}
           onOpenKnowledge={() => setKbOpen(true)}
           onOpenSkills={() => setSkillsOpen(true)}
+          onOpenCowork={() => setCoworkOpen(true)}
         />
 
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -308,6 +313,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
         />
         <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
         <SkillsMarket open={skillsOpen} onClose={() => setSkillsOpen(false)} enabled={enabledSkills} onToggle={toggleSkill} />
+        <CoworkPanel open={coworkOpen} onClose={() => setCoworkOpen(false)} />
         <KnowledgePanel open={kbOpen} onClose={() => setKbOpen(false)} />
         <SettingsPanel
           open={settingsOpen}
@@ -321,6 +327,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
         />
       </div>
       </ArtifactProvider>
+      </CoworkProvider>
     </ThemeProvider>
   );
 }

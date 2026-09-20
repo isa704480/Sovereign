@@ -10,6 +10,8 @@ export interface StreamChatOptions {
   docIds?: string[];
   /** Enabled skills the user wrote themselves — they live only on the device. */
   customSkills?: { name: string; instructions: string }[];
+  /** Extra context, e.g. the Cowork folder's file list (names only). */
+  context?: string;
   /** content is a string, or a multimodal array (text + image parts). */
   messages: { role: "user" | "assistant" | "system"; content: unknown }[];
   signal?: AbortSignal;
@@ -17,7 +19,17 @@ export interface StreamChatOptions {
 }
 
 /** Calls POST /api/chat and forwards SSE events to `onEvent`. */
-export async function streamChat({ modelId, research, skills, docIds, customSkills, messages, signal, onEvent }: StreamChatOptions) {
+export async function streamChat({
+  modelId,
+  research,
+  skills,
+  docIds,
+  customSkills,
+  context,
+  messages,
+  signal,
+  onEvent,
+}: StreamChatOptions) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -27,6 +39,7 @@ export async function streamChat({ modelId, research, skills, docIds, customSkil
       skills: skills ?? [],
       docIds: docIds ?? [],
       customSkills: customSkills ?? [],
+      context: context ?? "",
       messages,
     }),
     signal,

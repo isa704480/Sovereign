@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, FileText, Globe, Loader2, Mic, Paperclip, ShieldCheck, Square, X } from "lucide-react";
+import { ArrowUp, FileText, FolderOpen, Globe, Loader2, Mic, Paperclip, ShieldCheck, Square, X } from "lucide-react";
 import { motion } from "motion/react";
 import {
   useCallback,
@@ -13,6 +13,8 @@ import {
 } from "react";
 import { listKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { attachmentGlyph, processFile, type Attachment } from "@/lib/chat/attachments";
+import { matchFiles, type CoworkFile } from "@/lib/cowork/folder";
+import { useCowork } from "./cowork-context";
 import { useSpeech } from "@/hooks/use-speech";
 import { cn } from "@/lib/utils";
 import { SkillPicker } from "./SkillPicker";
@@ -40,6 +42,11 @@ interface InputAreaProps {
 }
 
 const ACCEPT = "image/*,application/pdf,audio/*,video/*,text/*,.md,.json,.csv,.js,.ts,.tsx,.py,.html,.css";
+
+/** One row of the "@" menu: a knowledge-base document or a local Cowork file. */
+type MentionItem =
+  | { kind: "doc"; id: string; label: string; doc: KbDoc }
+  | { kind: "file"; id: string; label: string; file: CoworkFile };
 
 function Chip({
   active,
@@ -106,10 +113,18 @@ export function InputArea({
   const [mentionIdx, setMentionIdx] = useState(0);
   const [mentioned, setMentioned] = useState<{ id: string; label: string }[]>([]);
 
-  const matches = (docs ?? [])
+  const cowork = useCowork();
+
+  // Mention list = knowledge-base documents + files from the opened Cowork folder.
+  const docMatches = (docs ?? [])
     .filter((d) => d.status === "ready")
     .filter((d) => !mention || d.name.toLowerCase().includes(mention.toLowerCase()))
-    .slice(0, 6);
+    .slice(0, 5);
+  const fileMatches = cowork.folder ? matchFiles(cowork.folder.files, mention ?? "", 6) : [];
+  const matches: MentionItem[] = [
+    ...fileMatches.map((f) => ({ kind: "file" as const, id: `file:${f.path}`, label: f.path, file: f })),
+    ...docMatches.map((d) => ({ kind: "doc" as const, id: d.id, label: d.name, doc: d })),
+  ];
   const mentionOpen = mention !== null && matches.length > 0;
 
   const speech = useSpeech((t) => {
@@ -160,18 +175,31 @@ export function InputArea({
     }
   }
 
-  /** Replaces the half-typed "@query" with the picked document's name. */
-  function pickMention(doc: KbDoc) {
+  /** Replaces the half-typed "@query" with the picked document or local file. */
+  function pickMention(item: MentionItem) {
     const ta = taRef.current;
     const caret = ta?.selectionStart ?? value.length;
     const before = value.slice(0, caret).replace(/@[^\s@]{0,40}$/, "");
-    const label = doc.name.replace(/\s+/g, "_");
+    const label = item.label.replace(/\s+/g, "_");
     const after = value.slice(caret);
     // One space after the mention — not two when the caret already sits before one.
     const next = `${before}@${label}${/^\s/.test(after) ? "" : " "}${after}`;
     setValue(next);
     setMention(null);
-    setMentioned((prev) => (prev.some((p) => p.id === doc.id) ? prev : [...prev, { id: doc.id, label }]));
+
+    if (item.kind === "doc") {
+      setMentioned((prev) => (prev.some((p) => p.id === item.id) ? prev : [...prev, { id: item.id, label }]));
+    } else {
+      // Cowork file: read it from disk now and attach it like any upload.
+      setBusy(true);
+      item.file
+        .getFile()
+        .then(processFile)
+        .then((att) => setAttachments((prev) => (prev.some((a) => a.name === att.name) ? prev : [...prev, att])))
+        .catch((err) => setFileError(err instanceof Error ? err.message : "Fayl o'qilmadi"))
+        .finally(() => setBusy(false));
+    }
+
     requestAnimationFrame(() => {
       const pos = before.length + label.length + 1 + (/^\s/.test(after) ? 0 : 1);
       ta?.focus();
@@ -307,21 +335,28 @@ export function InputArea({
           style={{ background: "var(--t-surface)", borderColor: "var(--t-border)" }}
         >
           <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
-            Bilim bazasi
+            {cowork.folder ? `${cowork.folder.name} · bilim bazasi` : "Bilim bazasi"}
           </div>
-          {matches.map((d, i) => (
+          {matches.map((m, i) => (
             <button
-              key={d.id}
+              key={m.id}
               type="button"
               role="option"
               aria-selected={i === mentionIdx}
               onMouseEnter={() => setMentionIdx(i)}
-              onClick={() => pickMention(d)}
+              onClick={() => pickMention(m)}
               className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors"
               style={{ background: i === mentionIdx ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : "transparent" }}
             >
-              <FileText className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
-              <span className="min-w-0 flex-1 truncate" style={{ color: "var(--t-text)" }}>{d.name}</span>
+              {m.kind === "file" ? (
+                <FolderOpen className="size-4 shrink-0" style={{ color: "var(--t-accent)" }} />
+              ) : (
+                <FileText className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
+              )}
+              <span className="min-w-0 flex-1 truncate" style={{ color: "var(--t-text)" }}>{m.label}</span>
+              <span className="shrink-0 text-[10px] uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
+                {m.kind === "file" ? "Cowork" : "KB"}
+              </span>
             </button>
           ))}
           <div className="px-3 pb-2 pt-1 text-[11px]" style={{ color: "var(--t-text-muted)" }}>

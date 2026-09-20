@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, FolderOpen, Globe, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Settings, Trash2 } from "lucide-react";
+import { Brain, FolderOpen, FolderTree, Globe, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Search, Sparkles, Settings, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
@@ -32,6 +32,7 @@ interface SidebarProps {
   onOpenSettings: () => void;
   onOpenKnowledge: () => void;
   onOpenSkills: () => void;
+  onOpenCowork: () => void;
 }
 
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
@@ -73,6 +74,7 @@ export function Sidebar({
   onOpenSettings,
   onOpenKnowledge,
   onOpenSkills,
+  onOpenCowork,
 }: SidebarProps) {
   const { theme, model } = useTheme();
   const [q, setQ] = useState("");
@@ -228,6 +230,19 @@ export function Sidebar({
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
 
+          {/* Cowork — lokal papka */}
+          <button
+            type="button"
+            onClick={onOpenCowork}
+            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+            style={{ color: "var(--t-text)" }}
+          >
+            <FolderTree className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <span className="flex-1 text-left">Cowork papka</span>
+          </button>
+
+          <div style={{ height: 1, background: "var(--t-border)" }} />
+
           {/* Skills market */}
           <button
             type="button"
@@ -328,6 +343,7 @@ export function Sidebar({
     { label: "Suhbatlarni qidirish", Icon: Search, onClick: openSearch },
     { label: "Xotira", Icon: Brain, onClick: onOpenMemory },
     { label: "Skills", Icon: Sparkles, onClick: onOpenSkills },
+    { label: "Cowork papka", Icon: FolderTree, onClick: onOpenCowork },
     { label: "Knowledge Base", Icon: FolderOpen, onClick: onOpenKnowledge },
     { label: research ? "Research rejim: yoqilgan" : "Research rejim", Icon: Globe, onClick: () => onToggleResearch(!research), active: research },
     { label: "Sozlamalar", Icon: Settings, onClick: onOpenSettings },

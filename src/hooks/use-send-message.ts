@@ -91,6 +91,7 @@ export function useSendMessage() {
           .slice(0, 3)
           .map((k) => ({ name: k.name, instructions: k.instructions })),
         docIds,
+        context: state0.coworkOutline ?? undefined,
         messages: wire,
         signal: controller.signal,
         onEvent: (ev) => {
