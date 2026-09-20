@@ -1,5 +1,41 @@
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { basename, extname } from "node:path";
+
+/**
+ * "@yo'l" eslatmalari: matndagi @ bilan boshlangan va haqiqatan mavjud bo'lgan
+ * fayllarni qaytaradi. Mavjud bo'lmagani (masalan email) oddiy matn bo'lib qoladi.
+ */
+export function collectMentions(text) {
+  const out = [];
+  for (const m of text.matchAll(/(?:^|\s)@([^\s@]{1,200})/g)) {
+    const p = m[1].replace(/[.,;:)]+$/, "");
+    try {
+      if (existsSync(p) && statSync(p).isFile() && !out.includes(p)) out.push(p);
+    } catch {
+      /* o'qib bo'lmadi — o'tkazib yuboramiz */
+    }
+  }
+  return out.slice(0, 5);
+}
+
+/** Tab-to'ldirish uchun: `@` dan keyingi bo'lakka mos fayl va papka yo'llari. */
+export function completeMention(token) {
+  const q = token.slice(1);
+  const slash = Math.max(q.lastIndexOf("/"), q.lastIndexOf("\\"));
+  const dir = slash >= 0 ? q.slice(0, slash + 1) : "";
+  const prefix = slash >= 0 ? q.slice(slash + 1) : q;
+  let entries = [];
+  try {
+    entries = readdirSync(dir || ".", { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((e) => !e.name.startsWith(".") && e.name !== "node_modules")
+    .filter((e) => e.name.toLowerCase().startsWith(prefix.toLowerCase()))
+    .slice(0, 40)
+    .map((e) => `@${dir}${e.name}${e.isDirectory() ? "/" : " "}`);
+}
 
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
 const TEXT_EXT = new Set([
@@ -28,7 +64,7 @@ function mimeOf(ext) {
  * text blocks. PDFs are read as text via pdf-parse if available; otherwise
  * their bytes are wrapped in a data URL and left for the model to skip.
  */
-export async function readAttachment(path) {
+export async function readAttachment(path, { maxChars = 40_000 } = {}) {
   if (!existsSync(path)) throw new Error(`Fayl topilmadi: ${path}`);
   const st = statSync(path);
   if (!st.isFile()) throw new Error(`Fayl emas: ${path}`);
@@ -47,7 +83,7 @@ export async function readAttachment(path) {
   }
   if (TEXT_EXT.has(ext)) {
     if (st.size > 2 * 1024 * 1024) throw new Error(`Matn fayli juda katta (max 2MB): ${path}`);
-    const text = readFileSync(path, "utf8").slice(0, 40_000);
+    const text = readFileSync(path, "utf8").slice(0, maxChars);
     return {
       kind: "text",
       part: { type: "text", text: `[FAYL: ${name}]\n${text}\n[/FAYL]` },
@@ -62,7 +98,7 @@ export async function readAttachment(path) {
       if (mod) {
         const buf = readFileSync(path);
         const data = await (mod.default || mod)(buf);
-        const text = (data.text || "").slice(0, 40_000);
+        const text = (data.text || "").slice(0, maxChars);
         return {
           kind: "text",
           part: { type: "text", text: `[PDF: ${name}]\n${text}\n[/PDF]` },

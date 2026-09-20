@@ -21,8 +21,13 @@ export const SKILL_IDS = SKILLS.map((s) => s.id);
 export const SLASH_COMMANDS = [
   { cmd: "/help",     desc: "Buyruqlar menyusi" },
   { cmd: "/clear",    desc: "Suhbat tarixini tozalash" },
-  { cmd: "/attach",   desc: "Fayl biriktirish — /attach <yo'l>" },
+  { cmd: "/attach",   desc: "Fayl biriktirish — /attach <yo'l> yoki @yo'l" },
   { cmd: "/detach",   desc: "Barcha biriktirilganlarni bekor qilish" },
+
+  { cmd: "/sessions", desc: "Saqlangan suhbatlar ro'yxati" },
+  { cmd: "/resume",   desc: "Suhbatni davom ettirish — /resume <id>" },
+  { cmd: "/rewind",   desc: "Oxirgi savolni qaytarish — /rewind [n]" },
+  { cmd: "/fork",     desc: "Joriy suhbatdan yangi shox ochish" },
 
   { cmd: "/model",    desc: "Modelni tanlash — /model <id>" },
   { cmd: "/models",   desc: "Barcha modellar ro'yxati" },

@@ -4,10 +4,11 @@ import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from ".
 import { agentTurn, initialMessages } from "../src/agent.mjs";
 import { login } from "../src/login.mjs";
 import { printModels, resolveModelId } from "../src/models.mjs";
-import { readAttachment } from "../src/files.mjs";
+import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
 import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
+import { countTurns, listSessions, loadSession, rewind, saveSession } from "../src/sessions.mjs";
 
 const rawArgs = process.argv.slice(2);
 const AUTO_YES = rawArgs.includes("--yes") || rawArgs.includes("-y");
@@ -163,6 +164,9 @@ async function repl() {
   // Tab autocomplete for slash commands. Boshi `/` bo'lsa mos keladiganlarni
   // qaytaradi; bo'sh bo'lsa hamma buyruqni.
   const completer = (line) => {
+    // "@" bilan boshlangan oxirgi bo'lak — fayl yo'li to'ldiriladi.
+    const token = line.split(/\s+/).pop() ?? "";
+    if (token.startsWith("@")) return [completeMention(token), token];
     if (!line.startsWith("/")) return [[], line];
     const hits = SLASH_NAMES.filter((n) => n.startsWith(line));
     return [hits.length ? hits.map((h) => h + " ") : SLASH_NAMES.map((h) => h + " "), line];
@@ -171,6 +175,7 @@ async function repl() {
 
   let config = await ensureAuth(rl);
   let messages = initialMessages();
+  let sessionId = null; // birinchi javobdan keyin yaratiladi
   const pending = []; // paths queued via /attach for the next user message
   const enabledSkills = new Set(config.enabledSkills || ["ui-ux-pro-max", "clean-code"]);
 
@@ -262,7 +267,62 @@ async function repl() {
     // ── Suhbatni tozalash ──
     if (input === "/clear") {
       messages = initialMessages();
+      sessionId = null; // yangi suhbat — yangi sessiya fayli
       say(c.dim("Suhbat tozalandi."));
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Sessiyalar ro'yxati ──
+    if (input === "/sessions") {
+      const list = listSessions();
+      if (!list.length) {
+        say(c.dim("Saqlangan sessiya yo'q."));
+      } else {
+        for (const s of list.slice(0, 15)) {
+          const when = String(s.updatedAt).slice(0, 16).replace("T", " ");
+          const here = s.id === sessionId ? c.emerald(" ●") : "  ";
+          say(`${here} ${c.white(s.id)}  ${c.dim(when)}  ${c.dim(`${s.turns} savol`)}  ${s.title}`);
+        }
+        say(c.dim("Davom ettirish: /resume <id>"));
+      }
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Sessiyani davom ettirish ──
+    if (input.startsWith("/resume")) {
+      const id = input.slice(7).trim();
+      const data = id ? loadSession(id) : null;
+      if (!id) {
+        say(c.dim("Foydalanish: /resume <id>  (/sessions bilan ro'yxatni ko'ring)"));
+      } else if (!data) {
+        say(c.red(`Sessiya topilmadi: ${id}`));
+      } else {
+        messages = data.messages;
+        sessionId = data.id;
+        say(`${c.emerald("●")} ${c.dim("Davom etyapmiz:")} ${data.title} ${c.dim(`(${countTurns(messages)} savol)`)}`);
+      }
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Orqaga qaytish (oxirgi savol(lar)ni olib tashlash) ──
+    if (input.startsWith("/rewind")) {
+      const n = Math.max(1, Number(input.slice(7).trim()) || 1);
+      const before = countTurns(messages);
+      messages = rewind(messages, n);
+      const after = countTurns(messages);
+      say(c.dim(`↶ ${before - after} ta savol olib tashlandi (${after} qoldi).`));
+      if (sessionId) sessionId = saveSession({ id: sessionId, messages, model: config.model });
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Shoxlash: joriy holatdan yangi sessiya ──
+    if (input === "/fork") {
+      sessionId = saveSession({ messages, model: config.model });
+      say(`${c.emerald("⑂")} ${c.dim("Yangi sessiya:")} ${c.white(sessionId)} ${c.dim("— eski suhbat o'zgarishsiz qoldi.")}`);
       rewritePrompt();
       continue;
     }
@@ -421,6 +481,18 @@ async function repl() {
     }
 
     // ── Oddiy xabar → agentga uzatish ──
+    // "@fayl" eslatmalari — matndagi mavjud yo'llar avtomatik biriktiriladi.
+    const mentions = collectMentions(input);
+    for (const p of mentions) {
+      try {
+        // Eslatmalar qisqaroq kesiladi — bir nechta fayl kontekstni to'ldirmasin.
+        const att = await readAttachment(p, { maxChars: 12_000 });
+        pending.push({ path: p, part: att.part });
+        say(`  ${att.label} ${c.dim("biriktirildi")}`);
+      } catch (err) {
+        say(`  ${c.red("✕")} ${p}: ${c.dim(err.message)}`);
+      }
+    }
     if (pending.length) {
       const parts = pending.map((x) => x.part);
       parts.push({ type: "text", text: input });
@@ -439,6 +511,7 @@ async function repl() {
     }
     const { error } = await agentTurn({ messages, config, confirm });
     if (error) console.log(G + c.red(`Xato: ${error}\n`));
+    sessionId = saveSession({ id: sessionId, messages, model: config.model });
     rewritePrompt();
   }
 
