@@ -13,6 +13,9 @@ const answersSchema = z.object({
   languages: z.array(z.string()),
   otherLanguage: z.string().max(80).optional().default(""),
   experience: z.number().min(0).max(100),
+  ageGroup: z.string().max(10).optional().default(""),
+  country: z.string().max(10).optional().default(""),
+  otherCountry: z.string().max(60).optional().default(""),
 });
 
 export type OnboardingResult =

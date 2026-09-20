@@ -99,7 +99,18 @@ yoqish/o'chirish. Pastda **o'z skilingizni** yozishingiz mumkin (nom + qoidalar)
 
 ---
 
-## 7. Provayderlar va zaxira zanjiri
+## 7. Provayderlar: OmniRoute asosiy, qolgani zaxira
+
+OmniRoute (Railway) sozlangan bo'lsa, **tekin/arzon modellar avval unga boradi** — u o'zi
+ulangan provayderlar (Groq, Gemini, Mistral, OpenRouter…) orasida kvotaga qarab almashtiradi.
+OmniRoute xato bersa, xuddi shu model to'g'ridan-to'g'ri provayder orqali qayta uriniladi,
+keyin boshqa modelga, oxirida kalitsiz LLM7 ga o'tiladi. Flagman modellar (Claude/GPT)
+OmniRoute'ga yuborilmaydi: uning "auto" tanlovi ularni pullik yo'l orqali yuborib xarajatni oshiradi.
+
+`OMNIROUTE_MODEL=auto/gemini` — sinovda ishlagan tanlov. `auto`, `auto/cheap`, `auto/best-free`
+yaroqsiz yoki qimmat bo'lib chiqdi.
+
+## 7a. Zaxira zanjiri
 
 Asosiy yo'nalish ishlamay qolsa, tartib bilan quyidagilarga o'tiladi. Har biri
 faqat `.env` da kaliti bo'lsa ishlaydi:
@@ -149,3 +160,18 @@ OMNIROUTE_API_KEY=...
 
 Vibe rejimda ham **xavfli terminal buyruqlari tasdiq so'raydi** — bu chegara
 ataylab ochilmagan.
+
+
+---
+
+## 9. Til (i18n)
+
+Sozlamalar → **Til** yoki lending'dagi tanlagich: O'zbekcha (lotin), Ўзбекча (кирилл),
+Русский, English. Tanlov brauzerda saqlanadi; interfeys asosiy matnlari va **AI javob tili**
+shunga o'tadi (foydalanuvchi boshqa tilda yozsa, AI o'sha tilda javob beradi).
+Yangi til qo'shish: `src/lib/i18n.ts` — bitta lug'at, bitta ustun.
+
+## 10. Onboarding
+
+7 qadam: maqsad, soha, ustuvorlik, tillar, tajriba, **yosh guruhi**, **davlat**.
+Yosh va davlat `profiles.onboarding` JSON ichida saqlanadi (`ageGroup`, `country`, `otherCountry`).

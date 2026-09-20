@@ -16,6 +16,7 @@ import { getMemories, memoryPrompt } from "@/lib/ai/memory";
 import { fetchMentionedDocs, knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
 import { extractUrls, readPages } from "@/lib/ai/web-read";
 import { captureSample } from "@/lib/ai/training";
+import { LANG_FOR_AI } from "@/lib/i18n";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -56,6 +57,8 @@ const bodySchema = z.object({
     .default([]),
   /** Cowork folder outline (file names only) so the model knows what it may ask for. */
   context: z.string().max(6000).optional().default(""),
+  /** Interfeys tili — javob shu tilda (foydalanuvchi boshqa tilda yozmasa). */
+  lang: z.enum(["uz", "uz-cyrl", "ru", "en"]).optional().default("uz"),
   messages: z
     .array(
       z.object({
@@ -141,7 +144,9 @@ export async function POST(req: Request) {
     docIds,
     customSkills,
     context: coworkContext,
+    lang,
   } = parsed.data;
+  const langText = `JAVOB TILI: foydalanuvchi boshqa tilda yozmasa, ${LANG_FOR_AI[lang]} javob ber.`;
   const isAuto = modelId === AUTO_MODEL_ID;
   if (!isAuto && !MODEL_BY_ID[modelId]) return Response.json({ error: "Noma'lum model" }, { status: 400 });
 
@@ -277,6 +282,7 @@ export async function POST(req: Request) {
           }
 
           const extra = [
+            langText,
             webContext,
             coworkContext,
             knowledgeText,

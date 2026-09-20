@@ -16,6 +16,7 @@ import { EASE } from "@/lib/motion";
 import { listKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { attachmentGlyph, processFile, type Attachment } from "@/lib/chat/attachments";
 import { matchFiles, type CoworkFile } from "@/lib/cowork/folder";
+import { useT } from "@/store/chat";
 import { useCowork } from "./cowork-context";
 import { useSpeech } from "@/hooks/use-speech";
 import { cn } from "@/lib/utils";
@@ -123,6 +124,7 @@ export function InputArea({
   const [mentioned, setMentioned] = useState<{ id: string; label: string }[]>([]);
 
   const cowork = useCowork();
+  const t = useT();
   const [plusOpen, setPlusOpen] = useState(false);
   const plusRef = useRef<HTMLDivElement>(null);
   // Event handler sifatida (useCallback) — render paytida ref o'qilmaydi.
@@ -437,7 +439,7 @@ export function InputArea({
             value={value}
             onChange={onChangeText}
             onKeyDown={onKeyDown}
-            placeholder={speech.listening ? "Tinglayapman..." : theme.placeholder}
+            placeholder={speech.listening ? "..." : t("typeMessage")}
             rows={1}
             autoFocus={autoFocus}
             className={cn(
@@ -485,7 +487,7 @@ export function InputArea({
                 type="button"
                 onClick={() => setPlusOpen((o) => !o)}
                 aria-expanded={plusOpen}
-                aria-label="Manba qo'shish"
+                aria-label={t("addSource")}
                 className="tt inline-flex size-8 items-center justify-center rounded-full border transition-transform"
                 style={{
                   borderColor: plusOpen ? "var(--t-primary)" : "var(--t-border)",
@@ -514,14 +516,14 @@ export function InputArea({
                       [
                         {
                           id: "cowork",
-                          label: cowork.folder ? `Cowork · ${cowork.folder.name}` : "Cowork papka",
+                          label: cowork.folder ? `Cowork · ${cowork.folder.name}` : t("coworkFolder"),
                           hint: cowork.folder ? `${cowork.folder.files.length} fayl · @ bilan tanlang` : "Kompyuterdagi papka — fayl tanlash shart emas",
                           Icon: FolderTree,
                           enabled: !!onOpenCowork,
                         },
-                        { id: "file", label: "Fayl biriktirish", hint: "Rasm, PDF, matn, kod", Icon: Paperclip, enabled: true },
-                        { id: "kb", label: "Bilim bazasi", hint: "Hujjatlar — @ bilan chaqiriladi", Icon: FolderOpen, enabled: !!onOpenKnowledge },
-                        { id: "memory", label: "Xotira", hint: "AI sizni eslab qoladi", Icon: Brain, enabled: !!onOpenMemory },
+                        { id: "file", label: t("attachFile"), hint: "Rasm, PDF, matn, kod", Icon: Paperclip, enabled: true },
+                        { id: "kb", label: t("knowledgeBase"), hint: "Hujjatlar — @ bilan chaqiriladi", Icon: FolderOpen, enabled: !!onOpenKnowledge },
+                        { id: "memory", label: t("memory"), hint: "AI sizni eslab qoladi", Icon: Brain, enabled: !!onOpenMemory },
                       ] as const
                     ).map(({ id, label, hint, Icon, enabled }, i) => (
                       <button
@@ -563,14 +565,14 @@ export function InputArea({
             <Chip
               active={research}
               icon={<Globe className="size-3.5" />}
-              label="Research rejim"
+              label={t("researchMode")}
               onClick={() => onToggleResearch(!research)}
               title="Perplexity orqali internet tadqiqoti"
             />
             <Chip
               active={blindPrompting}
               icon={<ShieldCheck className="size-3.5" />}
-              label="Maxfiy rejim"
+              label={t("privateMode")}
               onClick={() => onToggleBlindPrompting(!blindPrompting)}
               title="Blind Prompting — ism, telefon, email va boshqa shaxsiy ma'lumotlarni AI ko'rmasligi uchun maskalash"
             />
@@ -587,9 +589,9 @@ export function InputArea({
 
       <div className="mt-2 hidden justify-center gap-4 text-[11px] sm:flex" style={{ color: "var(--t-text-muted)" }}>
         <span>
-          <kbd className="rounded border px-1 py-0.5" style={{ borderColor: "var(--t-border)" }}>↵</kbd> Yuborish
+          <kbd className="rounded border px-1 py-0.5" style={{ borderColor: "var(--t-border)" }}>↵</kbd> {t("send")}
         </span>
-        <span>{model.name} · AI xato qilishi mumkin, muhim ma&apos;lumotlarni tekshiring.</span>
+        <span>{model.name} · {t("aiDisclaimer")}</span>
       </div>
     </div>
   );

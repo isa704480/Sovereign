@@ -14,6 +14,9 @@ interface OnboardingState extends OnboardingAnswers {
   toggle: (field: "purposes" | "industries" | "priorities" | "languages", id: string) => void;
   setOther: (field: "otherIndustry" | "otherLanguage", value: string) => void;
   setExperience: (value: number) => void;
+  setAgeGroup: (id: string) => void;
+  setCountry: (id: string) => void;
+  setOtherCountry: (value: string) => void;
   next: () => void;
   back: () => void;
   goTo: (step: number) => void;
@@ -30,6 +33,9 @@ const initial: OnboardingAnswers & { step: number; direction: 1 | -1 } = {
   languages: ["uz"],
   otherLanguage: "",
   experience: 50,
+  ageGroup: "",
+  country: "",
+  otherCountry: "",
 };
 
 export const useOnboarding = create<OnboardingState>()(
@@ -45,6 +51,9 @@ export const useOnboarding = create<OnboardingState>()(
         }),
       setOther: (field, value) => set({ [field]: value } as Partial<OnboardingState>),
       setExperience: (experience) => set({ experience }),
+      setAgeGroup: (ageGroup) => set({ ageGroup }),
+      setCountry: (country) => set((s) => ({ country, otherCountry: country === "other" ? s.otherCountry : "" })),
+      setOtherCountry: (otherCountry) => set({ otherCountry }),
       next: () => set((s) => ({ step: Math.min(s.step + 1, TOTAL_STEPS), direction: 1 })),
       back: () => set((s) => ({ step: Math.max(s.step - 1, 0), direction: -1 })),
       goTo: (step) =>
@@ -66,6 +75,9 @@ export const useOnboarding = create<OnboardingState>()(
         languages: s.languages,
         otherLanguage: s.otherLanguage,
         experience: s.experience,
+        ageGroup: s.ageGroup,
+        country: s.country,
+        otherCountry: s.otherCountry,
       }),
     },
   ),
@@ -96,6 +108,10 @@ export function stepIsValid(s: OnboardingAnswers, step: number): boolean {
       return s.languages.length > 0 || (s.otherLanguage ?? "").trim().length > 0;
     case 4:
       return true;
+    case 5:
+      return (s.ageGroup ?? "").length > 0;
+    case 6:
+      return s.country === "other" ? (s.otherCountry ?? "").trim().length > 0 : (s.country ?? "").length > 0;
     default:
       return false;
   }

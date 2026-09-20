@@ -9,6 +9,11 @@ export interface OnboardingAnswers {
   otherLanguage?: string;
   /** 0..100 */
   experience: number;
+  /** AGE_GROUPS id — "" bo'lsa tanlanmagan. */
+  ageGroup?: string;
+  /** ISO davlat kodi (masalan "UZ") yoki "other". */
+  country?: string;
+  otherCountry?: string;
 }
 
 export interface Recommendation {

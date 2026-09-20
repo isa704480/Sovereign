@@ -12,6 +12,8 @@ export interface StreamChatOptions {
   customSkills?: { name: string; instructions: string }[];
   /** Extra context, e.g. the Cowork folder's file list (names only). */
   context?: string;
+  /** Interfeys tili — AI shu tilda javob beradi (foydalanuvchi boshqa tilda yozmasa). */
+  lang?: string;
   /** content is a string, or a multimodal array (text + image parts). */
   messages: { role: "user" | "assistant" | "system"; content: unknown }[];
   signal?: AbortSignal;
@@ -26,6 +28,7 @@ export async function streamChat({
   docIds,
   customSkills,
   context,
+  lang,
   messages,
   signal,
   onEvent,
@@ -40,6 +43,7 @@ export async function streamChat({
       docIds: docIds ?? [],
       customSkills: customSkills ?? [],
       context: context ?? "",
+      lang: lang ?? "uz",
       messages,
     }),
     signal,

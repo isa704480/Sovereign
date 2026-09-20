@@ -100,6 +100,7 @@ export function useSendMessage() {
           .slice(0, 3)
           .map((k) => ({ name: k.name, instructions: k.instructions })),
         docIds,
+        lang: state0.lang,
         context: buildContext(state0.coworkOutline, state0.projects.find((p) => p.id === conv.projectId)),
         messages: wire,
         signal: controller.signal,

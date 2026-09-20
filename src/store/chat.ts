@@ -6,6 +6,13 @@ import { persist } from "zustand/middleware";
 import { AUTO_MODEL_ID, DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
 import type { Attachment } from "@/lib/chat/attachments";
+import { DEFAULT_LANG, translate, type Lang, type TKey } from "@/lib/i18n";
+
+/** Komponentlarda: const t = useT(); t("newChat") */
+export function useT(): (key: TKey) => string {
+  const lang = useChat((s) => s.lang);
+  return (key) => translate(lang, key);
+}
 
 /** A skill the user wrote in the Skills market; kept on this device. */
 export interface CustomSkill {
@@ -115,6 +122,9 @@ interface ChatState {
   reducedMotion: boolean;
   /** Suhbat javobi kelganda avtomatik pastga scroll. */
   autoScroll: boolean;
+  /** Interfeys va AI javoblari tili. */
+  lang: Lang;
+  setLang: (lang: Lang) => void;
 
   setModel: (id: string) => void;
   setResearch: (on: boolean) => void;
@@ -176,6 +186,8 @@ export const useChat = create<ChatState>()(
       streamingSpeed: "natural",
       reducedMotion: false,
       autoScroll: true,
+      lang: DEFAULT_LANG,
+      setLang: (lang) => set({ lang }),
 
       setFontSize: (fontSize) => set({ fontSize }),
       setDensity: (density) => set({ density }),
@@ -383,6 +395,7 @@ export const useChat = create<ChatState>()(
         customSkills: s.customSkills,
         projects: s.projects,
         activeProjectId: s.activeProjectId,
+        lang: s.lang,
         blindPrompting: s.blindPrompting,
       }),
     },

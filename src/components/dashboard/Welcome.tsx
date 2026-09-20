@@ -6,6 +6,7 @@ import { EASE_OUT_EXPO } from "@/lib/motion";
 import { LogoMark } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme-context";
+import { useT } from "@/store/chat";
 
 interface WelcomeProps {
   userName: string;
@@ -79,6 +80,7 @@ function Suggestions({
 export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
   const { theme, model } = useTheme();
   const t = theme.id;
+  const tr = useT();
 
   const wrap = (children: ReactNode, className?: string) => (
     <motion.div
@@ -103,7 +105,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
             </h1>
           </div>
           <p className="mt-3 text-sm" style={{ color: "var(--t-text-muted)" }}>
-            {theme.subGreeting}
+            {tr("subGreeting")}
           </p>
         </div>
         {input}
@@ -124,7 +126,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
             ⬡
           </div>
           <h1 className="mt-5 text-2xl font-semibold md:text-3xl" style={{ color: "var(--t-text)" }}>
-            {theme.greeting}
+            {tr("greeting")}
           </h1>
         </div>
         {input}
@@ -138,10 +140,10 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
       <>
         <div className="w-full max-w-2xl">
           <h1 className="t-display t-gradient-text text-4xl font-medium md:text-5xl">
-            {theme.greeting} {userName}
+            {tr("greeting")} {userName}
           </h1>
           <p className="t-display mt-1 text-3xl md:text-4xl" style={{ color: "var(--t-text-muted)" }}>
-            {theme.subGreeting}
+            {tr("subGreeting")}
           </p>
         </div>
         {input}
@@ -172,7 +174,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
             {theme.wordmark}
           </span>
         </div>
-        <p className="-mt-4 text-sm" style={{ color: "var(--t-text-muted)" }}>{theme.greeting}</p>
+        <p className="-mt-4 text-sm" style={{ color: "var(--t-text-muted)" }}>{tr("greeting")}</p>
         {input}
         <Suggestions items={theme.suggestions} onPick={onSuggestion} variant="list" />
       </>,
@@ -190,9 +192,9 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
             ))}
           </div>
           <h1 className="t-display mt-5 text-3xl font-semibold md:text-4xl" style={{ color: "var(--t-text)" }}>
-            {theme.greeting}
+            {tr("greeting")}
           </h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--t-text-muted)" }}>{theme.subGreeting}</p>
+          <p className="mt-2 text-sm" style={{ color: "var(--t-text-muted)" }}>{tr("subGreeting")}</p>
         </div>
         {input}
         <Suggestions items={theme.suggestions} onPick={onSuggestion} variant="cards" />
@@ -206,9 +208,9 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
         <div className="text-center">
           <div className="text-5xl">🦙</div>
           <h1 className="t-display mt-4 text-3xl font-semibold md:text-4xl" style={{ color: "var(--t-text)" }}>
-            {theme.greeting}
+            {tr("greeting")}
           </h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--t-text-muted)" }}>{theme.subGreeting}</p>
+          <p className="mt-2 text-sm" style={{ color: "var(--t-text-muted)" }}>{tr("subGreeting")}</p>
           <span
             className="mt-3 inline-block rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wider"
             style={{ background: "color-mix(in srgb, var(--t-primary) 22%, transparent)", color: "var(--t-accent)" }}
@@ -228,9 +230,9 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
       <div className="text-center">
         <LogoMark size={56} className="mx-auto" />
         <h1 className="t-display mt-5 text-3xl font-extrabold md:text-4xl" style={{ color: "var(--t-text)" }}>
-          {theme.greeting}
+          {tr("greeting")}
         </h1>
-        <p className="mt-2 text-sm" style={{ color: "var(--t-text-muted)" }}>{theme.subGreeting}</p>
+        <p className="mt-2 text-sm" style={{ color: "var(--t-text-muted)" }}>{tr("subGreeting")}</p>
       </div>
       {input}
       <Suggestions items={theme.suggestions} onPick={onSuggestion} variant="cards" />

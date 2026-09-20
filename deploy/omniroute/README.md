@@ -163,3 +163,17 @@ Shunda 15 daqiqalik jimlik hech qachon bo'lmaydi va xizmat uxlamaydi.
 texnik ishlarda qayta ishga tushirsa, dashboard'da yaratgan API kalitlaringiz va
 ulangan provayderlar o'chib ketadi — qaytadan sozlash kerak bo'ladi. Shu sababli
 bepul tarif faqat "ishlaydimi-yo'qmi" sinovi uchun.
+
+---
+
+# Railway'da real tajriba (2026-09)
+
+- `railway.toml` **qabul qilinmaydi** (eskirgan). Healthcheck'ni dashboard/API'dan qo'ying:
+  Settings → Deploy → Healthcheck Path: `/healthz` (`/` login'ga yo'naltirib FAILED beradi).
+- Volume `/data` root egaligida ulanadi → `RAILWAY_RUN_UID=0` shart, aks holda `EACCES`.
+- Railway `PORT` (odatda 8080) ni o'zi beradi — domen target porti shu bo'lsin.
+- Xotira 1 GB chegaraga yaqinlashadi → `OMNIROUTE_MEMORY_MB=448`.
+- **Kalitsiz "free" provayderlar (OpenCode, Felo) ishlamadi.** OmniRoute faqat o'z provayder
+  kalitlaringiz ulanganda foydali: Dashboard → Providers (yoki `POST /api/providers`).
+- Model tanlovi: `auto/gemini` ishladi; `auto`/`auto/cheap` pullik Claude Opus'ga yuboradi,
+  `auto/best-free` yaroqsiz modelni tanlaydi.

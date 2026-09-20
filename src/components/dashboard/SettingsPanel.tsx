@@ -12,7 +12,8 @@ import {
 } from "@/app/actions/account";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { EASE_OUT_EXPO } from "@/lib/motion";
-import { useChat } from "@/store/chat";
+import { LANGS } from "@/lib/i18n";
+import { useChat, useT } from "@/store/chat";
 
 interface SettingsPanelProps {
   open: boolean;
@@ -94,6 +95,9 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
   const setReducedMotion = useChat((s) => s.setReducedMotion);
   const autoScroll = useChat((s) => s.autoScroll);
   const setAutoScroll = useChat((s) => s.setAutoScroll);
+  const lang = useChat((s) => s.lang);
+  const setLang = useChat((s) => s.setLang);
+  const t = useT();
 
   const [trainingOptIn, setTrainingOptIn] = useState(true);
 
@@ -170,7 +174,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <div className="flex items-center gap-2">
                 <Settings className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
-                <span className="font-display text-lg font-bold">Sozlamalar</span>
+                <span className="font-display text-lg font-bold">{t("settings")}</span>
               </div>
               <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Yopish" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                 <X className="size-5" />
@@ -208,6 +212,13 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                   <Palette className="size-3.5" /> Ko&apos;rinish
                 </div>
+                <Row title={t("language")} desc={t("languageHint")}>
+                  <Segmented
+                    value={lang}
+                    options={LANGS.map((l) => ({ value: l.id, label: l.short }))}
+                    onChange={setLang}
+                  />
+                </Row>
                 <Row title="Matn o'lchami" desc="Chat matni katta-kichikligi.">
                   <Segmented
                     value={fontSize}
@@ -291,7 +302,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
             <div className="border-t px-5 py-3" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <form action={signOut}>
                 <button type="submit" className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  <LogOut className="size-4" /> Hisobdan chiqish
+                  <LogOut className="size-4" /> {t("logout")}
                 </button>
               </form>
             </div>

@@ -48,7 +48,7 @@ const LLM7_FREE_MODEL = "mistral-Nemo-Instruct-2407";
  * 4) OpenAI direct — kuchli, ammo pullik
  * 5) OpenRouter — universal fallback
  */
-type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai" | "nvidia" | "llm7" | "tella";
+type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai" | "nvidia" | "llm7" | "tella" | "omniroute";
 
 interface RouteCandidate {
   provider: Provider;
@@ -138,7 +138,32 @@ function providerEndpoint(p: Provider): { url: string; auth: string } {
   return { url: `${OPENAI_BASE}/chat/completions`, auth: process.env.OPENAI_API_KEY! };
 }
 
-function pickDirectRoute(providerModel: string): { url: string; auth: string; model: string; provider: Provider } | null {
+/**
+ * OmniRoute ASOSIY yo'l: sozlangan bo'lsa, tekin/arzon modellar avval unga boradi
+ * (u o'zi provayderlar orasida kvotaga qarab almashtiradi). Xato bersa — chat
+ * route odatdagi zanjirga o'tadi (to'g'ridan-to'g'ri provayderlar, keyin LLM7).
+ * Flagman modellar (Claude/GPT) bunga kirmaydi: OmniRoute "auto" ularni pullik
+ * OpenRouter orqali yuborib, xarajatni oshirishi sinovda ko'rindi.
+ */
+function omnirouteFirst(providerModel: string): { url: string; auth: string; model: string; provider: Provider } | null {
+  const base = process.env.OMNIROUTE_BASE_URL;
+  if (!base || !process.env.OMNIROUTE_API_KEY) return null;
+  const cheap = providerModel.endsWith(":free") || /llama|mistral-small|gemini.*flash|deepseek/i.test(providerModel);
+  if (!cheap) return null;
+  return {
+    url: `${base.replace(/\/$/, "")}/chat/completions`,
+    auth: process.env.OMNIROUTE_API_KEY,
+    model: process.env.OMNIROUTE_MODEL ?? "auto/gemini",
+    provider: "omniroute",
+  };
+}
+
+function pickDirectRoute(
+  providerModel: string,
+  opts: { skipOmni?: boolean } = {},
+): { url: string; auth: string; model: string; provider: Provider } | null {
+  const viaOmni = opts.skipOmni ? null : omnirouteFirst(providerModel);
+  if (viaOmni) return viaOmni;
   const candidates = DIRECT_ROUTES[providerModel];
   if (!candidates) return null;
   for (const c of candidates) {
@@ -458,9 +483,10 @@ async function* streamOpenRouter(
   maxTokens: number,
   retried = false,
   continuation = 0,
+  skipOmni = false,
 ): AsyncGenerator<StreamEvent> {
   const cached = withPromptCache(model, messages);
-  const direct = pickDirectRoute(model.providerModel);
+  const direct = pickDirectRoute(model.providerModel, { skipOmni });
 
   // Direct route ishlatiladigan bo'lsa uni ishlatamiz — Groq / OpenAI direct
   // OpenRouter proxysidan tezroq va ishonchliroq.
@@ -509,7 +535,13 @@ async function* streamOpenRouter(
     const afford = /can only afford (\d+)/i.exec(message);
     if (afford && !retried) {
       const allowed = Math.max(256, Number(afford[1]) - 64);
-      yield* streamOpenRouter(model, messages, opts, allowed, true);
+      yield* streamOpenRouter(model, messages, opts, allowed, true, continuation, skipOmni);
+      return;
+    }
+    // OmniRoute (asosiy yo'l) tugagan/xato bergan bo'lsa — xuddi shu modelni
+    // to'g'ridan-to'g'ri provayder yoki OpenRouter orqali qayta urinamiz.
+    if (direct?.provider === "omniroute" && !skipOmni) {
+      yield* streamOpenRouter(model, messages, opts, maxTokens, retried, continuation, true);
       return;
     }
     // Last resort: the anonymous free tier, so the chat still answers when the
@@ -559,6 +591,7 @@ async function* streamOpenRouter(
       maxTokens,
       retried,
       continuation + 1,
+      skipOmni,
     );
     return;
   }

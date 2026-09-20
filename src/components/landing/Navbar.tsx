@@ -6,17 +6,22 @@ import { Menu, MessageSquare, X } from "lucide-react";
 import { useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
+import { LANGS, type Lang } from "@/lib/i18n";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { useChat, useT } from "@/store/chat";
 
 const NAV = [
-  { href: "#features", label: "Imkoniyatlar" },
-  { href: "#models", label: "Modellar" },
-  { href: "#pricing", label: "Narxlar" },
-  { href: "#privacy", label: "Maxfiylik" },
-];
+  { href: "#features", key: "navFeatures" },
+  { href: "#models", key: "navModels" },
+  { href: "#pricing", key: "navPricing" },
+  { href: "#privacy", key: "navPrivacy" },
+] as const;
 
 export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
+  const t = useT();
+  const lang = useChat((s) => s.lang);
+  const setLang = useChat((s) => s.setLang);
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -45,25 +50,38 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
               href={n.href}
               className="rounded-lg px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
             >
-              {n.label}
+              {t(n.key)}
             </a>
           ))}
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
+          {/* Til tanlash — brauzerda saqlanadi, chat ham shu tilda javob beradi. */}
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value as Lang)}
+            aria-label={t("language")}
+            className="h-9 rounded-lg border border-border bg-transparent px-2 text-sm text-text-secondary outline-none"
+          >
+            {LANGS.map((l) => (
+              <option key={l.id} value={l.id} className="bg-bg-base">
+                {l.short}
+              </option>
+            ))}
+          </select>
           {signedIn ? (
             <Button asChild className="h-9 rounded-xl bg-primary px-4 text-white shadow-glow hover:bg-primary-dark">
               <Link href="/app">
-                <MessageSquare className="size-4" /> Chatbotga qaytish
+                <MessageSquare className="size-4" /> {t("backToChat")}
               </Link>
             </Button>
           ) : (
             <>
               <Button asChild variant="ghost" className="h-9 px-3 text-text-secondary hover:text-text-primary">
-                <Link href="/login">Kirish</Link>
+                <Link href="/login">{t("login")}</Link>
               </Button>
               <Button asChild className="h-9 rounded-xl bg-primary px-4 text-white shadow-glow hover:bg-primary-dark">
-                <Link href="/register">Bepul boshlash</Link>
+                <Link href="/register">{t("startFree")}</Link>
               </Button>
             </>
           )}
@@ -95,24 +113,39 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
                 onClick={() => setOpen(false)}
                 className="block rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-hover hover:text-text-primary"
               >
-                {n.label}
+                {t(n.key)}
               </a>
             ))}
+            <div className="mt-2 flex gap-1.5 border-t border-border pt-3">
+              {LANGS.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  onClick={() => setLang(l.id)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs",
+                    lang === l.id ? "border-primary text-primary-soft" : "border-border text-text-muted",
+                  )}
+                >
+                  {l.short}
+                </button>
+              ))}
+            </div>
             {signedIn ? (
               <div className="mt-2 border-t border-border pt-3">
                 <Button asChild className="h-10 w-full rounded-xl bg-primary text-white hover:bg-primary-dark">
                   <Link href="/app">
-                    <MessageSquare className="size-4" /> Chatbotga qaytish
+                    <MessageSquare className="size-4" /> {t("backToChat")}
                   </Link>
                 </Button>
               </div>
             ) : (
               <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-3">
                 <Button asChild variant="outline" className="h-10 rounded-xl">
-                  <Link href="/login">Kirish</Link>
+                  <Link href="/login">{t("login")}</Link>
                 </Button>
                 <Button asChild className="h-10 rounded-xl bg-primary text-white hover:bg-primary-dark">
-                  <Link href="/register">Boshlash</Link>
+                  <Link href="/register">{t("startFree")}</Link>
                 </Button>
               </div>
             )}

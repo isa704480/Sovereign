@@ -9,9 +9,9 @@ import { stepIsValid, useOnboarding, useOnboardingHydrated } from "@/store/onboa
 import { Completion } from "./Completion";
 import { ProgressBar } from "./ProgressBar";
 import { StepShell } from "./StepShell";
-import { StepExperience, StepIndustry, StepLanguages, StepPriorities, StepPurpose } from "./steps";
+import { StepAge, StepCountry, StepExperience, StepIndustry, StepLanguages, StepPriorities, StepPurpose } from "./steps";
 
-const STEP_COMPONENTS = [StepPurpose, StepIndustry, StepPriorities, StepLanguages, StepExperience];
+const STEP_COMPONENTS = [StepPurpose, StepIndustry, StepPriorities, StepLanguages, StepExperience, StepAge, StepCountry];
 
 export function OnboardingFlow() {
   const hydrated = useOnboardingHydrated();
@@ -42,6 +42,9 @@ export function OnboardingFlow() {
         languages: state.languages,
         otherLanguage: state.otherLanguage ?? "",
         experience: state.experience,
+        ageGroup: state.ageGroup ?? "",
+        country: state.country ?? "",
+        otherCountry: state.otherCountry ?? "",
       });
       if (!res.ok) {
         setError(res.error);

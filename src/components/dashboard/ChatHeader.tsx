@@ -3,6 +3,7 @@
 import { Check, Globe, Menu, PanelRight, Share2 } from "lucide-react";
 import { HERO_DEMO_MODELS, RESEARCH_MODEL_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
+import { useT } from "@/store/chat";
 import { CreditIndicator } from "./CreditIndicator";
 import { ModelSwitcher } from "./ModelSwitcher";
 import { useTheme } from "./theme-context";
@@ -36,6 +37,7 @@ export function ChatHeader({
   shareState = "idle",
 }: ChatHeaderProps) {
   const { model } = useTheme();
+  const t = useT();
   const quick = [...HERO_DEMO_MODELS.slice(0, 3)];
 
   return (
@@ -112,11 +114,11 @@ export function ChatHeader({
           disabled={!onShare || shareState === "busy"}
           className="inline-flex items-center gap-1.5 rounded-lg p-2 text-xs transition-colors hover:bg-white/10 disabled:opacity-50"
           style={{ color: shareState === "done" ? "var(--t-accent)" : "var(--t-text-muted)" }}
-          title="Suhbatni havola bilan ulashish"
-          aria-label="Ulashish"
+          title={t("share")}
+          aria-label={t("share")}
         >
           {shareState === "done" ? <Check className="size-4" /> : <Share2 className="size-4" />}
-          {shareState === "done" && <span className="hidden sm:inline">Havola nusxalandi</span>}
+          {shareState === "done" && <span className="hidden sm:inline">{t("linkCopied")}</span>}
         </button>
       </div>
     </header>

@@ -4,6 +4,8 @@ import { Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useState } from "react";
 import {
+  AGE_GROUPS,
+  COUNTRIES,
   EXPERIENCE_ZONES,
   INDUSTRIES,
   LANGUAGES,
@@ -147,6 +149,54 @@ export function StepLanguages() {
         </button>
       </div>
       <OtherInput open={otherOpen} value={other} placeholder="Masalan: Turk, Koreys" onChange={(v) => setOther("otherLanguage", v)} />
+    </div>
+  );
+}
+
+export function StepAge() {
+  const ageGroup = useOnboarding((s) => s.ageGroup ?? "");
+  const setAgeGroup = useOnboarding((s) => s.setAgeGroup);
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Yosh guruhi">
+      {AGE_GROUPS.map((o) => (
+        <OptionCard
+          key={o.id}
+          emoji={o.emoji}
+          label={o.label}
+          description={o.description}
+          selected={ageGroup === o.id}
+          onToggle={() => setAgeGroup(o.id)}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function StepCountry() {
+  const country = useOnboarding((s) => s.country ?? "");
+  const other = useOnboarding((s) => s.otherCountry ?? "");
+  const setCountry = useOnboarding((s) => s.setCountry);
+  const setOtherCountry = useOnboarding((s) => s.setOtherCountry);
+  const otherOpen = country === "other";
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Davlat">
+        {COUNTRIES.map((o) => (
+          <Chip key={o.id} emoji={o.emoji} label={o.label} selected={country === o.id} onToggle={() => setCountry(o.id)} />
+        ))}
+        <button
+          type="button"
+          onClick={() => setCountry(otherOpen ? "" : "other")}
+          className={cn(
+            "inline-flex h-10 items-center gap-1.5 rounded-full border border-dashed px-4 text-sm transition-colors",
+            otherOpen ? "border-primary text-primary-soft" : "border-[var(--border-strong)] text-text-muted hover:text-text-primary",
+          )}
+        >
+          <Plus className="size-4" /> Boshqa davlat
+        </button>
+      </div>
+      <OtherInput open={otherOpen} value={other} placeholder="Davlat nomini yozing" onChange={setOtherCountry} />
     </div>
   );
 }

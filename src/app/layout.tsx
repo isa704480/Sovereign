@@ -58,6 +58,8 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+import { LangSync } from "@/components/LangSync";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
@@ -66,6 +68,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-bg-base text-text-primary">
+        <LangSync />
         {children}
       </body>
     </html>

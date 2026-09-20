@@ -45,6 +45,32 @@ export const LANGUAGES: OnboardingOption[] = [
   { id: "ar", emoji: "🇸🇦", label: "Arab" },
 ];
 
+/** Yosh guruhlari — aniq son so'ramaymiz, javob uslubini moslash uchun yetarli. */
+export const AGE_GROUPS: OnboardingOption[] = [
+  { id: "u18", emoji: "🎒", label: "18 gacha", description: "Maktab, kollej" },
+  { id: "18-24", emoji: "🎓", label: "18–24", description: "Talaba, yosh mutaxassis" },
+  { id: "25-34", emoji: "💼", label: "25–34" },
+  { id: "35-44", emoji: "🏢", label: "35–44" },
+  { id: "45-54", emoji: "📚", label: "45–54" },
+  { id: "55+", emoji: "🌿", label: "55 va undan katta" },
+];
+
+/** Davlatlar — mintaqa asosiylari birinchi, qolgani "Boshqa" orqali. */
+export const COUNTRIES: OnboardingOption[] = [
+  { id: "UZ", emoji: "🇺🇿", label: "O'zbekiston" },
+  { id: "KZ", emoji: "🇰🇿", label: "Qozog'iston" },
+  { id: "KG", emoji: "🇰🇬", label: "Qirg'iziston" },
+  { id: "TJ", emoji: "🇹🇯", label: "Tojikiston" },
+  { id: "TM", emoji: "🇹🇲", label: "Turkmaniston" },
+  { id: "RU", emoji: "🇷🇺", label: "Rossiya" },
+  { id: "TR", emoji: "🇹🇷", label: "Turkiya" },
+  { id: "KR", emoji: "🇰🇷", label: "Koreya" },
+  { id: "AE", emoji: "🇦🇪", label: "BAA" },
+  { id: "US", emoji: "🇺🇸", label: "AQSH" },
+  { id: "DE", emoji: "🇩🇪", label: "Germaniya" },
+  { id: "GB", emoji: "🇬🇧", label: "Buyuk Britaniya" },
+];
+
 export interface ExperienceZone {
   /** inclusive lower bound, 0..100 */
   from: number;
@@ -93,6 +119,18 @@ export const ONBOARDING_STEPS = [
     number: "05",
     title: "AI bilan qancha vaqt ishlagansiz?",
     subtitle: "Interfeys murakkabligini shunga moslaymiz",
+  },
+  {
+    id: "age",
+    number: "06",
+    title: "Yoshingiz qaysi guruhda?",
+    subtitle: "Javoblar ohangi va misollar shunga moslanadi",
+  },
+  {
+    id: "country",
+    number: "07",
+    title: "Qaysi davlatdansiz?",
+    subtitle: "Mahalliy qonun, valyuta va vaqt mintaqasini hisobga olamiz",
   },
 ] as const;
 

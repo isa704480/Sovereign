@@ -9,7 +9,7 @@ import { MODEL_BY_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { groupByDate, useChat, type Conversation } from "@/store/chat";
+import { groupByDate, useChat, useT, type Conversation } from "@/store/chat";
 import { useTheme } from "./theme-context";
 
 interface SidebarProps {
@@ -85,6 +85,7 @@ export function Sidebar({
   }, [onOpen]);
 
   // Loyihalar — store'dan to'g'ridan-to'g'ri (prop zanjiri uzun bo'lib ketmasin).
+  const t = useT();
   const projects = useChat((s) => s.projects);
   const activeProjectId = useChat((s) => s.activeProjectId);
   const createProject = useChat((s) => s.createProject);
@@ -156,7 +157,7 @@ export function Sidebar({
           className="tt flex w-full items-center gap-2 px-3 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
           style={{ background: model.primary, borderRadius: "var(--t-radius)", boxShadow: `0 0 20px color-mix(in srgb, ${model.primary} 35%, transparent)` }}
         >
-          <MessageSquarePlus className="size-4" /> Yangi suhbat
+          <MessageSquarePlus className="size-4" /> {t("newChat")}
         </button>
         <label
           className="tt mt-2 flex items-center gap-2 border px-2.5 py-2 text-sm"
@@ -167,7 +168,7 @@ export function Sidebar({
             data-sidebar-search
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Suhbatlarni qidirish"
+            placeholder={t("searchChats")}
             className="w-full bg-transparent text-sm outline-none placeholder:opacity-60"
           />
         </label>
@@ -176,7 +177,7 @@ export function Sidebar({
       {/* Loyihalar */}
       <div className="mt-3 px-3">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>Loyihalar</span>
+          <span className="text-[11px] font-medium uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>{t("projects")}</span>
           <button
             type="button"
             onClick={() => setNewProject("")}
@@ -201,7 +202,7 @@ export function Sidebar({
               if (e.key === "Escape") setNewProject(null);
             }}
             onBlur={() => setNewProject(null)}
-            placeholder="Loyiha nomi ↵"
+            placeholder={t("projectName")}
             className="tt mt-1.5 w-full border bg-transparent px-2.5 py-1.5 text-sm outline-none"
             style={{ borderColor: "var(--t-primary)", borderRadius: "var(--t-radius)" }}
           />
@@ -275,7 +276,7 @@ export function Sidebar({
       <div className="mt-3 flex-1 overflow-y-auto px-2">
         {groups.length === 0 && (
           <p className="px-3 py-6 text-center text-xs" style={{ color: "var(--t-text-muted)" }}>
-            {q ? "Hech narsa topilmadi" : "Hali suhbatlar yo'q"}
+            {q ? t("nothingFound") : t("noChats")}
           </p>
         )}
         {groups.map((g) => (
@@ -353,7 +354,7 @@ export function Sidebar({
             style={{ color: "var(--t-text)" }}
           >
             <Brain className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">Xotira</span>
+            <span className="flex-1 text-left">{t("memory")}</span>
           </button>
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
@@ -366,7 +367,7 @@ export function Sidebar({
             style={{ color: "var(--t-text)" }}
           >
             <FolderOpen className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">Knowledge Base</span>
+            <span className="flex-1 text-left">{t("knowledgeBase")}</span>
           </button>
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
@@ -379,7 +380,7 @@ export function Sidebar({
             style={{ color: "var(--t-text)" }}
           >
             <FolderTree className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">Cowork papka</span>
+            <span className="flex-1 text-left">{t("coworkFolder")}</span>
           </button>
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
@@ -392,7 +393,7 @@ export function Sidebar({
             style={{ color: "var(--t-text)" }}
           >
             <Sparkles className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">Skills</span>
+            <span className="flex-1 text-left">{t("skills")}</span>
           </button>
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
@@ -400,8 +401,8 @@ export function Sidebar({
           {/* Research rejim (toggle qatori) */}
           <div className="flex items-center gap-2.5 px-3 py-2.5 text-sm" style={{ color: "var(--t-text)" }}>
             <Globe className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1">Research rejim</span>
-            <Toggle on={research} onChange={onToggleResearch} label="Research rejim" />
+            <span className="flex-1">{t("researchMode")}</span>
+            <Toggle on={research} onChange={onToggleResearch} label={t("researchMode")} />
           </div>
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
@@ -414,7 +415,7 @@ export function Sidebar({
             style={{ color: "var(--t-text)" }}
           >
             <Settings className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">Sozlamalar</span>
+            <span className="flex-1 text-left">{t("settings")}</span>
           </button>
 
           <div style={{ height: 1, background: "var(--t-border)" }} />
@@ -456,9 +457,9 @@ export function Sidebar({
                 onClick={onUpgrade}
                 className="tt shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
                 style={{ color: model.accent }}
-                title="Tarifni oshirish"
+                title={t("upgrade")}
               >
-                Upgrade →
+                {t("upgrade")} →
               </button>
             )}
 

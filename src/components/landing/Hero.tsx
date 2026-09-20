@@ -10,6 +10,7 @@ import { MagneticButton } from "@/components/motion/MagneticButton";
 import { CoreScene, StarFieldScene } from "@/components/three/scenes";
 import { ModelSwitcherDemo } from "./ModelSwitcherDemo";
 import { EASE_OUT_EXPO } from "@/lib/motion";
+import { useT } from "@/store/chat";
 
 const CYCLE_MS = 3600;
 
@@ -23,6 +24,7 @@ const STATS = [
 ];
 
 export function Hero({ signedIn = false }: { signedIn?: boolean }) {
+  const t = useT();
   const [active, setActive] = useState(0);
 
   useEffect(() => {
@@ -80,7 +82,7 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
                   href={signedIn ? "/app" : "/register"}
                   className="group inline-flex h-12 items-center gap-2 rounded-2xl bg-primary px-6 text-base font-semibold text-white shadow-glow transition-colors hover:bg-primary-dark"
                 >
-                  {signedIn ? "Chatbotga qaytish" : "Bepul boshlash"}
+                  {signedIn ? t("backToChat") : t("startFree")}
                   <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
                 </Link>
               </MagneticButton>
