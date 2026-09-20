@@ -1,9 +1,10 @@
 "use client";
 
-import { ArrowUp, FileText, FolderOpen, Globe, Loader2, Mic, Paperclip, ShieldCheck, Square, X } from "lucide-react";
-import { motion } from "motion/react";
+import { ArrowUp, Brain, FileText, FolderOpen, FolderTree, Globe, Loader2, Mic, Paperclip, Plus, ShieldCheck, Square, X } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import {
   useCallback,
+  useEffect,
   useImperativeHandle,
   useRef,
   useState,
@@ -11,6 +12,7 @@ import {
   type KeyboardEvent,
   type Ref,
 } from "react";
+import { EASE } from "@/lib/motion";
 import { listKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { attachmentGlyph, processFile, type Attachment } from "@/lib/chat/attachments";
 import { matchFiles, type CoworkFile } from "@/lib/cowork/folder";
@@ -39,6 +41,10 @@ interface InputAreaProps {
   ref?: Ref<InputAreaHandle>;
   autoFocus?: boolean;
   className?: string;
+  /** "+" menyusi: qo'shimcha manbalar. Berilmasa o'sha band o'chiq turadi. */
+  onOpenCowork?: () => void;
+  onOpenKnowledge?: () => void;
+  onOpenMemory?: () => void;
 }
 
 const ACCEPT = "image/*,application/pdf,audio/*,video/*,text/*,.md,.json,.csv,.js,.ts,.tsx,.py,.html,.css";
@@ -98,6 +104,9 @@ export function InputArea({
   ref,
   autoFocus,
   className,
+  onOpenCowork,
+  onOpenKnowledge,
+  onOpenMemory,
 }: InputAreaProps) {
   const { theme, model } = useTheme();
   const [value, setValue] = useState("");
@@ -114,6 +123,25 @@ export function InputArea({
   const [mentioned, setMentioned] = useState<{ id: string; label: string }[]>([]);
 
   const cowork = useCowork();
+  const [plusOpen, setPlusOpen] = useState(false);
+  const plusRef = useRef<HTMLDivElement>(null);
+  // Event handler sifatida (useCallback) — render paytida ref o'qilmaydi.
+  const attachFromMenu = useCallback(() => fileRef.current?.click(), []);
+
+  // Tashqariga bosilsa yoki Esc bo'lsa "+" menyusi yopiladi.
+  useEffect(() => {
+    if (!plusOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (plusRef.current && !plusRef.current.contains(e.target as Node)) setPlusOpen(false);
+    };
+    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && setPlusOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [plusOpen]);
 
   // Mention list = knowledge-base documents + files from the opened Cowork folder.
   const docMatches = (docs ?? [])
@@ -451,6 +479,86 @@ export function InputArea({
 
         {!isPill && !isSearch && (
           <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {/* "+" — qo'shimcha manbalar: Cowork papka, fayl, bilim bazasi, xotira. */}
+            <div ref={plusRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setPlusOpen((o) => !o)}
+                aria-expanded={plusOpen}
+                aria-label="Manba qo'shish"
+                className="tt inline-flex size-8 items-center justify-center rounded-full border transition-transform"
+                style={{
+                  borderColor: plusOpen ? "var(--t-primary)" : "var(--t-border)",
+                  color: plusOpen ? "var(--t-accent)" : "var(--t-text-muted)",
+                  transform: plusOpen ? "rotate(45deg)" : "none",
+                }}
+              >
+                <Plus className="size-4" />
+              </button>
+              <AnimatePresence>
+                {plusOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                    transition={{ duration: 0.18, ease: EASE }}
+                    className="tt absolute bottom-full left-0 z-30 mb-2 w-60 overflow-hidden rounded-[18px] border"
+                    style={{
+                      background: "var(--t-surface)",
+                      borderColor: "var(--t-border)",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.45)",
+                    }}
+                    role="menu"
+                  >
+                    {(
+                      [
+                        {
+                          id: "cowork",
+                          label: cowork.folder ? `Cowork · ${cowork.folder.name}` : "Cowork papka",
+                          hint: cowork.folder ? `${cowork.folder.files.length} fayl · @ bilan tanlang` : "Kompyuterdagi papka — fayl tanlash shart emas",
+                          Icon: FolderTree,
+                          enabled: !!onOpenCowork,
+                        },
+                        { id: "file", label: "Fayl biriktirish", hint: "Rasm, PDF, matn, kod", Icon: Paperclip, enabled: true },
+                        { id: "kb", label: "Bilim bazasi", hint: "Hujjatlar — @ bilan chaqiriladi", Icon: FolderOpen, enabled: !!onOpenKnowledge },
+                        { id: "memory", label: "Xotira", hint: "AI sizni eslab qoladi", Icon: Brain, enabled: !!onOpenMemory },
+                      ] as const
+                    ).map(({ id, label, hint, Icon, enabled }, i) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="menuitem"
+                        disabled={!enabled}
+                        onClick={() => {
+                          setPlusOpen(false);
+                          if (id === "cowork") onOpenCowork?.();
+                          else if (id === "file") attachFromMenu();
+                          else if (id === "kb") onOpenKnowledge?.();
+                          else onOpenMemory?.();
+                        }}
+                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/5 disabled:opacity-40"
+                        style={{ borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)" }}
+                      >
+                        <Icon className="size-4 shrink-0" style={{ color: "var(--t-accent)" }} />
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm" style={{ color: "var(--t-text)" }}>{label}</span>
+                          <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>{hint}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            {cowork.folder && (
+              <Chip
+                active
+                icon={<FolderTree className="size-3.5" />}
+                label={cowork.folder.name}
+                onClick={onOpenCowork}
+                title="Cowork papkasi ochiq — @ yozib fayl tanlang"
+              />
+            )}
             <SkillPicker enabled={enabledSkills} onToggle={onToggleSkill} />
             <Chip
               active={research}

@@ -68,7 +68,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     blindPrompting,
     setBlindPrompting,
   } = useChat();
-  const { send, regenerate, stop, isStreaming } = useSendMessage();
+  const { send, regenerate, editAndResend, stop, isStreaming } = useSendMessage();
   const inputRef = useRef<InputAreaHandle>(null);
   const seededRef = useRef(false);
   const [sourcesOpen, setSourcesOpen] = useState(true);
@@ -185,6 +185,9 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       onToggleSkill={toggleSkill}
       blindPrompting={blindPrompting}
       onToggleBlindPrompting={setBlindPrompting}
+      onOpenCowork={() => setCoworkOpen(true)}
+      onOpenKnowledge={() => setKbOpen(true)}
+      onOpenMemory={() => setMemoryOpen(true)}
       ref={inputRef}
       autoFocus
     />
@@ -274,7 +277,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
                   />
                 </AnimatePresence>
               ) : (
-                <MessageList messages={messages} onRegenerate={regenerate} />
+                <MessageList messages={messages} onRegenerate={regenerate} onEdit={editAndResend} />
               )}
 
               {!centered && (

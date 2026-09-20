@@ -275,7 +275,31 @@ export function useSendMessage() {
     await run(id, history);
   }, [run]);
 
+  /**
+   * Foydalanuvchi o'z xabarini tahrirladi: o'sha xabardan keyingi hamma narsa
+   * o'chiriladi, matn almashtiriladi va javob qaytadan olinadi (ChatGPT kabi).
+   */
+  const editAndResend = useCallback(
+    async (messageId: string, text: string) => {
+      const state = useChat.getState();
+      const id = state.activeId;
+      if (!id) return;
+      const conv = state.conversations[id];
+      const idx = conv?.messages.findIndex((m) => m.id === messageId) ?? -1;
+      if (!conv || idx < 0 || conv.messages[idx].role !== "user") return;
+      const clean = text.trim();
+      if (!clean) return;
+      abortRef.current?.abort();
+      const history = [...conv.messages.slice(0, idx), { ...conv.messages[idx], content: clean }];
+      useChat.setState((s) => ({
+        conversations: { ...s.conversations, [id]: { ...conv, messages: history, updatedAt: new Date().toISOString() } },
+      }));
+      await run(id, history);
+    },
+    [run],
+  );
+
   const stop = useCallback(() => abortRef.current?.abort(), []);
 
-  return { send, regenerate, stop, isStreaming };
+  return { send, regenerate, editAndResend, stop, isStreaming };
 }

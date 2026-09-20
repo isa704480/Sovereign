@@ -1,0 +1,48 @@
+# OmniRoute — Render BEPUL tarifda (faqat sinov uchun).
+# Dashboard -> New -> Blueprint -> shu repo -> deploy/omniroute/render-free.yaml
+#
+# Bepul tarif chegaralari (buni bilib turing):
+#   • 512 MB RAM, 0.1 CPU
+#   • DISK YO'Q: sozlamalar va API kalitlar har restart/redeploy'da o'chadi
+#   • 15 daqiqa jimlikdan keyin uxlaydi -> tashqi ping bilan uyg'oq tutiladi
+#     (cron-job.org, UptimeRobot: har 5 daqiqada GET https://<nom>.onrender.com/)
+#   • oyiga 750 soat — bitta xizmat uchun yetadi
+# Barqaror ishlashi uchun render.yaml (Standard + disk) dan foydalaning.
+
+services:
+  - type: web
+    name: sovereign-omniroute
+    runtime: image
+    region: frankfurt
+    plan: free
+    image:
+      url: docker.io/diegosouzapw/omniroute:latest
+    healthCheckPath: /
+    envVars:
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: NODE_ENV
+        value: production
+      - key: AUTH_COOKIE_SECURE
+        value: "true"
+      - key: REQUIRE_API_KEY
+        value: "true"
+      - key: ALLOW_API_KEY_REVEAL
+        value: "false"
+      - key: APP_LOG_TO_FILE
+        value: "false"
+      # 512 MB mashina uchun Node heap'ini kichraytiramiz.
+      - key: OMNIROUTE_MEMORY_MB
+        value: "384"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: API_KEY_SECRET
+        generateValue: true
+      - key: STORAGE_ENCRYPTION_KEY
+        generateValue: true
+      - key: OMNIROUTE_WS_BRIDGE_SECRET
+        generateValue: true
+      - key: INITIAL_PASSWORD
+        sync: false
+      - key: NEXT_PUBLIC_BASE_URL
+        sync: false

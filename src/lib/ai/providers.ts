@@ -688,6 +688,12 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
   }
 
   if (!hasKeyFor(model)) {
+    // Production'da soxta javob berib bo'lmaydi — xato qaytaramiz, shunda
+    // chat route boshqa (sozlangan) modelga o'zi o'tadi. Mock faqat dev/preview.
+    if (process.env.NODE_ENV === "production") {
+      yield { type: "error", message: `${model.name} hozircha ulanmagan.` };
+      return;
+    }
     yield* mockStream(model, opts.messages);
     return;
   }

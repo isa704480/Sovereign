@@ -147,3 +147,19 @@ Qolgan sirlarni Render o'zi tasodifiy yaratadi.
 **Bepul tarif yaramaydi:** 512 MB RAM, **disk yo'q** (SQLite bazasi va API
 kalitlaringiz har restartda o'chadi), 15 daqiqa jimlikdan keyin uxlaydi va
 uyg'onishi ~1 daqiqa. Zaxira shlyuz uchun bu qabul qilib bo'lmas.
+
+## Bepul tarifda sinab ko'rish
+
+`deploy/omniroute/render-free.yaml` — bepul tarif uchun variant. Uxlab qolmasligi
+uchun tashqi ping kerak (Vercel Hobby cron'i har daqiqa ishlay olmaydi):
+
+1. [cron-job.org](https://cron-job.org) (bepul, 1 daqiqagacha) yoki
+   [UptimeRobot](https://uptimerobot.com) (bepul, 5 daqiqa) da hisob oching.
+2. Yangi job: `GET https://sovereign-omniroute.onrender.com/` — har 5 daqiqada.
+
+Shunda 15 daqiqalik jimlik hech qachon bo'lmaydi va xizmat uxlamaydi.
+
+**Lekin disk yo'qligi hal bo'lmaydi:** Render bepul xizmatni redeploy yoki
+texnik ishlarda qayta ishga tushirsa, dashboard'da yaratgan API kalitlaringiz va
+ulangan provayderlar o'chib ketadi — qaytadan sozlash kerak bo'ladi. Shu sababli
+bepul tarif faqat "ishlaydimi-yo'qmi" sinovi uchun.

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, Copy, Globe, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
+import { AlertTriangle, Check, Copy, Globe, Pencil, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
@@ -19,6 +19,7 @@ interface MessageItemProps {
   message: ChatMessage;
   isLast: boolean;
   onRegenerate?: () => void;
+  onEdit?: (messageId: string, text: string) => void;
   tts?: { speaking: boolean; onToggle: () => void };
 }
 
@@ -30,9 +31,17 @@ function timeLabel(iso: string) {
   }
 }
 
-export function MessageItem({ message, isLast, onRegenerate, tts }: MessageItemProps) {
+export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: MessageItemProps) {
   const { theme, model: activeModel } = useTheme();
   const [copied, setCopied] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  function submitEdit() {
+    const text = draft.trim();
+    setEditing(false);
+    if (text && text !== message.content) onEdit?.(message.id, text);
+  }
   const isUser = message.role === "user";
   const model = (message.modelId && MODEL_BY_ID[message.modelId]) || activeModel;
   const streaming = message.status === "streaming";
@@ -101,24 +110,79 @@ export function MessageItem({ message, isLast, onRegenerate, tts }: MessageItemP
               )}
             </div>
           ) : null}
-          {message.content && (
+          {editing ? (
+            <div className="w-full min-w-[280px]">
+              <textarea
+                autoFocus
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    e.preventDefault();
+                    submitEdit();
+                  }
+                  if (e.key === "Escape") setEditing(false);
+                }}
+                rows={Math.min(8, Math.max(2, draft.split("\n").length))}
+                className="tt w-full resize-none rounded-2xl border px-4 py-2.5 text-[15px] leading-relaxed outline-none"
+                style={{ background: "var(--t-user-bubble)", color: "var(--t-text)", borderColor: "var(--t-primary)" }}
+              />
+              <div className="mt-1.5 flex justify-end gap-2 text-xs">
+                <button type="button" onClick={() => setEditing(false)} className="rounded-lg px-2.5 py-1" style={{ color: "var(--t-text-muted)" }}>
+                  Bekor
+                </button>
+                <button
+                  type="button"
+                  onClick={submitEdit}
+                  className="rounded-lg px-2.5 py-1 font-semibold text-white"
+                  style={{ background: "var(--t-primary)" }}
+                >
+                  Yuborish ↵
+                </button>
+              </div>
+            </div>
+          ) : (
+            message.content && (
+              <div
+                className="tt whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-relaxed"
+                style={{
+                  background: "var(--t-user-bubble)",
+                  color: "var(--t-text)",
+                  borderRadius:
+                    theme.id === "chatgpt" || theme.id === "gemini"
+                      ? "var(--t-input-radius)"
+                      : "18px 18px 4px 18px",
+                }}
+              >
+                {message.content}
+              </div>
+            )
+          )}
+          {!editing && (
             <div
-              className="tt whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-relaxed"
-              style={{
-                background: "var(--t-user-bubble)",
-                color: "var(--t-text)",
-                borderRadius:
-                  theme.id === "chatgpt" || theme.id === "gemini"
-                    ? "var(--t-input-radius)"
-                    : "18px 18px 4px 18px",
-              }}
+              className="flex items-center gap-0.5 pr-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+              style={{ color: "var(--t-text-muted)" }}
             >
-              {message.content}
+              <span className="mr-1 text-[11px]">{timeLabel(message.createdAt)}</span>
+              <button type="button" onClick={copy} className="rounded-md p-1 hover:bg-white/10" title="Nusxa olish" aria-label="Nusxa olish">
+                {copied ? <Check className="size-3.5" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-3.5" />}
+              </button>
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraft(message.content);
+                    setEditing(true);
+                  }}
+                  className="rounded-md p-1 hover:bg-white/10"
+                  title="Tahrirlab qayta yuborish"
+                  aria-label="Tahrirlash"
+                >
+                  <Pencil className="size-3.5" />
+                </button>
+              )}
             </div>
           )}
-          <span className="pr-1 text-[11px] opacity-0 transition-opacity group-hover:opacity-100" style={{ color: "var(--t-text-muted)" }}>
-            {timeLabel(message.createdAt)}
-          </span>
         </div>
       </motion.div>
     );
