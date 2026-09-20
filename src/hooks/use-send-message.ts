@@ -52,7 +52,7 @@ export function useSendMessage() {
   const [isStreaming, setStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
-  const run = useCallback(async (conversationId: string, history: ChatMessage[]) => {
+  const run = useCallback(async (conversationId: string, history: ChatMessage[], docIds?: string[]) => {
     const state = useChat.getState();
     const conv = state.conversations[conversationId];
     if (!conv) return;
@@ -85,6 +85,7 @@ export function useSendMessage() {
         modelId: conv.modelId,
         research: conv.research,
         skills: state0.enabledSkills,
+        docIds,
         messages: wire,
         signal: controller.signal,
         onEvent: (ev) => {
@@ -181,7 +182,7 @@ export function useSendMessage() {
   }, []);
 
   const send = useCallback(
-    async (text: string, attachments?: Attachment[]) => {
+    async (text: string, attachments?: Attachment[], docIds?: string[]) => {
       const state = useChat.getState();
       let conversationId = state.activeId;
       if (!conversationId || !state.conversations[conversationId]) {
@@ -238,7 +239,7 @@ export function useSendMessage() {
       }
 
       const history = useChat.getState().conversations[conversationId]?.messages ?? [user];
-      await run(conversationId, history);
+      await run(conversationId, history, docIds);
     },
     [run],
   );

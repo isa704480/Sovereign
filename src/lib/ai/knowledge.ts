@@ -29,6 +29,49 @@ export async function retrieveKnowledge(
   return ((data as KbHit[] | null) ?? []).filter((h) => h.similarity > 0.3);
 }
 
+/**
+ * Chunks of documents the user explicitly referenced with "@name". No embedding
+ * step: the mention already says which document matters. RLS on kb_chunks keeps
+ * this to the caller's own documents.
+ */
+export async function fetchMentionedDocs(
+  supabase: SupabaseClient,
+  docIds: string[],
+  chunksPerDoc = 8,
+): Promise<KbHit[]> {
+  if (!docIds.length) return [];
+  const { data, error } = await supabase
+    .from("kb_chunks")
+    .select("document_id, chunk_index, content, kb_documents!inner(name)")
+    .in("document_id", docIds.slice(0, 4))
+    .order("document_id")
+    .order("chunk_index")
+    .limit(chunksPerDoc * 4);
+  if (error || !data) return [];
+
+  const perDoc = new Map<string, number>();
+  const hits: KbHit[] = [];
+  for (const row of data as unknown as {
+    document_id: string;
+    chunk_index: number;
+    content: string;
+    kb_documents: { name: string } | { name: string }[];
+  }[]) {
+    const seen = perDoc.get(row.document_id) ?? 0;
+    if (seen >= chunksPerDoc) continue;
+    perDoc.set(row.document_id, seen + 1);
+    const doc = Array.isArray(row.kb_documents) ? row.kb_documents[0] : row.kb_documents;
+    hits.push({
+      document_id: row.document_id,
+      document_name: doc?.name ?? "hujjat",
+      chunk_index: row.chunk_index,
+      content: row.content,
+      similarity: 1,
+    });
+  }
+  return hits;
+}
+
 /** System-prompt block that grounds the answer in the KB hits. */
 export function knowledgePrompt(hits: KbHit[]): string {
   if (!hits.length) return "";

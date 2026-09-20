@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Brain, Globe, Loader2, Mic, Paperclip, ShieldCheck, Square, X, Zap } from "lucide-react";
+import { ArrowUp, FileText, Globe, Loader2, Mic, Paperclip, ShieldCheck, Square, X } from "lucide-react";
 import { motion } from "motion/react";
 import {
   useCallback,
@@ -11,6 +11,7 @@ import {
   type KeyboardEvent,
   type Ref,
 } from "react";
+import { listKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { attachmentGlyph, processFile, type Attachment } from "@/lib/chat/attachments";
 import { useSpeech } from "@/hooks/use-speech";
 import { cn } from "@/lib/utils";
@@ -24,7 +25,7 @@ export interface InputAreaHandle {
 }
 
 interface InputAreaProps {
-  onSend: (text: string, attachments?: Attachment[]) => void;
+  onSend: (text: string, attachments?: Attachment[], docIds?: string[]) => void;
   onStop?: () => void;
   isStreaming: boolean;
   research: boolean;
@@ -99,6 +100,18 @@ export function InputArea({
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // "@hujjat" mentions — reference a knowledge-base document in the prompt.
+  const [docs, setDocs] = useState<KbDoc[] | null>(null);
+  const [mention, setMention] = useState<string | null>(null);
+  const [mentionIdx, setMentionIdx] = useState(0);
+  const [mentioned, setMentioned] = useState<{ id: string; label: string }[]>([]);
+
+  const matches = (docs ?? [])
+    .filter((d) => d.status === "ready")
+    .filter((d) => !mention || d.name.toLowerCase().includes(mention.toLowerCase()))
+    .slice(0, 6);
+  const mentionOpen = mention !== null && matches.length > 0;
+
   const speech = useSpeech((t) => {
     setValue(t);
     taRef.current?.focus();
@@ -122,12 +135,73 @@ export function InputArea({
     const text = value.trim();
     if ((!text && attachments.length === 0) || isStreaming || busy) return;
     if (speech.listening) speech.stop();
-    onSend(text, attachments.length ? attachments : undefined);
+    // Only send mentions the user did not delete again.
+    const docIds = mentioned.filter((m) => text.includes(`@${m.label}`)).map((m) => m.id);
+    onSend(text, attachments.length ? attachments : undefined, docIds.length ? docIds : undefined);
     setValue("");
     setAttachments([]);
-  }, [value, attachments, isStreaming, busy, onSend, speech]);
+    setMentioned([]);
+    setMention(null);
+  }, [value, attachments, isStreaming, busy, onSend, speech, mentioned]);
+
+  /** Loads the document list once, the first time "@" is typed. */
+  function onChangeText(e: ChangeEvent<HTMLTextAreaElement>) {
+    const next = e.target.value;
+    setValue(next);
+    const upToCaret = next.slice(0, e.target.selectionStart ?? next.length);
+    const m = /(?:^|\s)@([^\s@]{0,40})$/.exec(upToCaret);
+    setMention(m ? m[1] : null);
+    setMentionIdx(0);
+    if (m && docs === null) {
+      setDocs([]);
+      listKnowledge()
+        .then(setDocs)
+        .catch(() => setDocs([]));
+    }
+  }
+
+  /** Replaces the half-typed "@query" with the picked document's name. */
+  function pickMention(doc: KbDoc) {
+    const ta = taRef.current;
+    const caret = ta?.selectionStart ?? value.length;
+    const before = value.slice(0, caret).replace(/@[^\s@]{0,40}$/, "");
+    const label = doc.name.replace(/\s+/g, "_");
+    const after = value.slice(caret);
+    // One space after the mention — not two when the caret already sits before one.
+    const next = `${before}@${label}${/^\s/.test(after) ? "" : " "}${after}`;
+    setValue(next);
+    setMention(null);
+    setMentioned((prev) => (prev.some((p) => p.id === doc.id) ? prev : [...prev, { id: doc.id, label }]));
+    requestAnimationFrame(() => {
+      const pos = before.length + label.length + 1 + (/^\s/.test(after) ? 0 : 1);
+      ta?.focus();
+      ta?.setSelectionRange(pos, pos);
+    });
+  }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionOpen) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIdx((i) => (i + 1) % matches.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIdx((i) => (i - 1 + matches.length) % matches.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        pickMention(matches[mentionIdx]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setMention(null);
+        return;
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       submit();
@@ -225,6 +299,37 @@ export function InputArea({
         </div>
       )}
 
+      {mentionOpen && (
+        <div
+          role="listbox"
+          aria-label="Bilim bazasi hujjatlari"
+          className="tt mb-2 overflow-hidden rounded-2xl border shadow-lg"
+          style={{ background: "var(--t-surface)", borderColor: "var(--t-border)" }}
+        >
+          <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
+            Bilim bazasi
+          </div>
+          {matches.map((d, i) => (
+            <button
+              key={d.id}
+              type="button"
+              role="option"
+              aria-selected={i === mentionIdx}
+              onMouseEnter={() => setMentionIdx(i)}
+              onClick={() => pickMention(d)}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors"
+              style={{ background: i === mentionIdx ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : "transparent" }}
+            >
+              <FileText className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
+              <span className="min-w-0 flex-1 truncate" style={{ color: "var(--t-text)" }}>{d.name}</span>
+            </button>
+          ))}
+          <div className="px-3 pb-2 pt-1 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+            ↑↓ tanlash · ↵ qo&apos;shish · Esc yopish
+          </div>
+        </div>
+      )}
+
       <div
         className={cn(
           "tt relative border shadow-md focus-within:shadow-lg",
@@ -260,7 +365,7 @@ export function InputArea({
           <textarea
             ref={taRef}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={onChangeText}
             onKeyDown={onKeyDown}
             placeholder={speech.listening ? "Tinglayapman..." : theme.placeholder}
             rows={1}

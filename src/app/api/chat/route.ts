@@ -7,7 +7,7 @@ import { AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
 import { getMemories, memoryPrompt } from "@/lib/ai/memory";
-import { knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
+import { fetchMentionedDocs, knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -38,6 +38,8 @@ const bodySchema = z.object({
   modelId: z.string().min(1).max(100),
   research: z.boolean().optional().default(false),
   skills: z.array(z.string().max(64)).max(12).optional().default([]),
+  /** Knowledge-base documents the user referenced with "@name". */
+  docIds: z.array(z.uuid()).max(4).optional().default([]),
   messages: z
     .array(
       z.object({
@@ -51,7 +53,7 @@ const bodySchema = z.object({
 
 const UPGRADE = "[upgrade]";
 
-async function resolveEntitlement(lastText: string): Promise<{
+async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
   authed: boolean;
   plan: Plan;
   usedToday: number;
@@ -73,9 +75,13 @@ async function resolveEntitlement(lastText: string): Promise<{
   // Migration 0010 dan keyin messages_today() argumentsiz — auth.uid()'ni ishlatadi.
   const { data: used } = await supabase.rpc("messages_today");
   const memoryText = profile?.memory_enabled === false ? "" : memoryPrompt(await getMemories(supabase, user.id));
-  const knowledgeText = lastText
-    ? knowledgePrompt(await retrieveKnowledge(supabase, user.id, lastText, 6))
-    : "";
+  // "@hujjat" mentions win over similarity search: the user named the source.
+  const hits = docIds.length
+    ? await fetchMentionedDocs(supabase, docIds)
+    : lastText
+      ? await retrieveKnowledge(supabase, user.id, lastText, 6)
+      : [];
+  const knowledgeText = knowledgePrompt(hits);
   return {
     authed: true,
     plan: effectivePlan(profile),
@@ -108,7 +114,7 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
 
-  const { modelId, research, skills: enabledSkills, messages } = parsed.data;
+  const { modelId, research, skills: enabledSkills, messages, docIds } = parsed.data;
   const isAuto = modelId === AUTO_MODEL_ID;
   if (!isAuto && !MODEL_BY_ID[modelId]) return Response.json({ error: "Noma'lum model" }, { status: 400 });
 
@@ -126,7 +132,7 @@ export async function POST(req: Request) {
   // Skills (user-enabled ∪ auto-detected).
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
   const lastText = lastUser ? textOf(lastUser) : "";
-  const { authed, plan, usedToday, memoryText, knowledgeText } = await resolveEntitlement(lastText);
+  const { authed, plan, usedToday, memoryText, knowledgeText } = await resolveEntitlement(lastText, docIds);
   const activeSkills = resolveActiveSkills(enabledSkills, lastText);
   const skillText = skillsPrompt(activeSkills);
 

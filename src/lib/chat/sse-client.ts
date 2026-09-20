@@ -6,6 +6,8 @@ export interface StreamChatOptions {
   modelId: string;
   research: boolean;
   skills?: string[];
+  /** Knowledge-base documents referenced with "@name" in the prompt. */
+  docIds?: string[];
   /** content is a string, or a multimodal array (text + image parts). */
   messages: { role: "user" | "assistant" | "system"; content: unknown }[];
   signal?: AbortSignal;
@@ -13,11 +15,11 @@ export interface StreamChatOptions {
 }
 
 /** Calls POST /api/chat and forwards SSE events to `onEvent`. */
-export async function streamChat({ modelId, research, skills, messages, signal, onEvent }: StreamChatOptions) {
+export async function streamChat({ modelId, research, skills, docIds, messages, signal, onEvent }: StreamChatOptions) {
   const res = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ modelId, research, skills: skills ?? [], messages }),
+    body: JSON.stringify({ modelId, research, skills: skills ?? [], docIds: docIds ?? [], messages }),
     signal,
   });
 
