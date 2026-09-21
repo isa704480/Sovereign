@@ -31,7 +31,7 @@ function pickToolProvider(providerModel: string): { url: string; auth: string; m
     return { url: `${ob.replace(/\/$/, "")}/chat/completions`, auth: ok, model: process.env.OMNIROUTE_MODEL ?? "auto/gemini", referer: false };
   }
   if (process.env.GROQ_API_KEY) {
-    return { url: "https://api.groq.com/openai/v1/chat/completions", auth: process.env.GROQ_API_KEY, model: "llama-3.3-70b-versatile", referer: false };
+    return { url: "https://api.groq.com/openai/v1/chat/completions", auth: process.env.GROQ_API_KEY, model: "openai/gpt-oss-120b", referer: false };
   }
   return null;
 }

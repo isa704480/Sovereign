@@ -62,20 +62,20 @@ const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
   "tella-2": [{ provider: "tella", model: process.env.TELLA_MODEL ?? "tella2" }],
   // Llama 3.3 70B — Groq → Cerebras → SambaNova (barchada bor)
   "meta-llama/llama-3.3-70b-instruct": [
-    { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "groq", model: "openai/gpt-oss-120b" },
     { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "sambanova", model: "Meta-Llama-3.3-70B-Instruct" },
     { provider: "nvidia", model: "meta/llama-3.3-70b-instruct" },
   ],
   "meta-llama/llama-3.3-70b-instruct:free": [
-    { provider: "groq", model: "llama-3.3-70b-versatile" },
+    { provider: "groq", model: "openai/gpt-oss-120b" },
     { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "sambanova", model: "Meta-Llama-3.3-70B-Instruct" },
     { provider: "nvidia", model: "meta/llama-3.3-70b-instruct" },
     { provider: "llm7", model: LLM7_FREE_MODEL },
   ],
   "meta-llama/llama-3.1-8b-instruct": [
-    { provider: "groq", model: "llama-3.1-8b-instant" },
+    { provider: "groq", model: "openai/gpt-oss-20b" },
     { provider: "cerebras", model: "llama3.1-8b" },
   ],
   // Llama 3.1 405B — faqat SambaNova va Cerebras da bor
@@ -84,8 +84,8 @@ const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
     { provider: "cerebras", model: "llama3.1-405b" },
   ],
   // Qwen Coder
-  "qwen/qwen-2.5-coder-32b-instruct": [
-    { provider: "groq", model: "qwen-2.5-coder-32b" },
+  "qwen/openai/gpt-oss-120b-instruct": [
+    { provider: "groq", model: "openai/gpt-oss-120b" },
     { provider: "cerebras", model: "qwen-3-32b" },
   ],
   // Mistral direct — kod, umumiy va Codestral (kod uchun mutaxassis)
@@ -94,13 +94,13 @@ const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
   "mistralai/codestral-latest": [{ provider: "mistral", model: "codestral-latest" }],
   "mistralai/pixtral-large": [{ provider: "mistral", model: "pixtral-large-latest" }],
   // DeepSeek R1 — SambaNova eng tez
-  "deepseek/deepseek-r1-distill-llama-70b": [
+  "deepseek/openai/gpt-oss-120b": [
     { provider: "sambanova", model: "DeepSeek-R1-Distill-Llama-70B" },
-    { provider: "groq", model: "deepseek-r1-distill-llama-70b" },
+    { provider: "groq", model: "openai/gpt-oss-120b" },
   ],
-  "deepseek/deepseek-r1-distill-llama-70b:free": [
+  "deepseek/openai/gpt-oss-120b:free": [
     { provider: "sambanova", model: "DeepSeek-R1-Distill-Llama-70B" },
-    { provider: "groq", model: "deepseek-r1-distill-llama-70b" },
+    { provider: "groq", model: "openai/gpt-oss-120b" },
     { provider: "llm7", model: LLM7_FREE_MODEL },
   ],
 

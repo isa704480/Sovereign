@@ -23,13 +23,13 @@ function pickRoute(plan: string): Route {
   const hasOpenAI = !!process.env.OPENAI_API_KEY;
 
   if (plan === "free" || plan === "starter") {
-    if (hasGroq) return { provider: "groq", model: "llama-3.3-70b-versatile" };
+    if (hasGroq) return { provider: "groq", model: "openai/gpt-oss-120b" };
     if (hasOpenAI) return { provider: "openai", model: "gpt-4o-mini" };
     return { provider: "openrouter", model: "openai/gpt-4o-mini" };
   }
   // Pro / Ultra
   if (hasOpenAI) return { provider: "openai", model: "gpt-4o" };
-  if (hasGroq) return { provider: "groq", model: "llama-3.3-70b-versatile" };
+  if (hasGroq) return { provider: "groq", model: "openai/gpt-oss-120b" };
   return { provider: "openrouter", model: "openai/gpt-4o" };
 }
 

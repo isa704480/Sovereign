@@ -147,53 +147,51 @@ export function logo() {
  * Welcome banner — Apple-style unified surface.
  * One panel, hairline dividers between sections. Grayscale hierarchy.
  */
+// Claude Code uslubidagi ixcham splash — logo + model/akkaunt/dir, tip, misol.
+// Faqat rang/nom/logo bizniki (SOVEREIGN).
 export function banner(config, enabledSkills = [], vibeOn = false) {
   const g = G();
-  const width = Math.min(termWidth() - g.length * 2, 82);
+  const NL = String.fromCharCode(10);
+  const mark = c.accent("◆");
+  const modelName = config?.token ? "SOVEREIGN Auto" : (config?.model || "openai/gpt-oss-120b");
+  const billing = config?.token
+    ? "akkaunt · " + (config.baseUrl || "").replace(/^https?:\/\//, "")
+    : "to'g'ridan-to'g'ri (OpenRouter)";
+  const skills = enabledSkills.length ? enabledSkills.join(" · ") : "—";
+  const modeLine = vibeOn
+    ? c.ok("avto rejim · kodni AI yozadi")
+    : c.subtle("oddiy rejim · har o'zgarish tasdiqlanadi");
 
-  const hero = heroLogo(width);
-  const tagline = center(c.subtle("Terminaldagi AI koding agenti"), width);
-  const version = center(c.faint(`v${PKG_VERSION} · SOVEREIGN`), width);
-
-  const label = (t) => c.faint(t.toUpperCase());
-  const kv = (k, v, tint = c.text) => label(k.padEnd(10)) + "  " + tint(v);
-
-  const source = config?.token
-    ? kv("ACCOUNT", "sovereign · " + (config.baseUrl || "").replace(/^https?:\/\//, ""), c.ok)
-    : kv("SOURCE ", "openrouter · " + (config.model || "openai/gpt-4o-mini"), c.text);
-
-  const cwd = kv("DIR    ", process.cwd(), c.subtle);
-  const skills = kv("SKILLS ", enabledSkills.length ? enabledSkills.join(" · ") : "—", c.subtle);
-  const help = kv("MENU   ", "yozing /", c.subtle);
-  const mode = vibeOn
-    ? kv("REJIM  ", "vibe · kodni AI yozadi", c.ok)
-    : kv("REJIM  ", "oddiy · har o'zgarish tasdiqlanadi", c.subtle);
-
-  const p = panel(
-    [
-      [...hero, "", tagline, version],
-      [source, cwd, skills, mode, help],
-    ],
-    { width },
-  );
-
-  return "\n" + p.map((l) => g + l).join("\n") + "\n";
+  const lines = [
+    "",
+    g + mark + "  " + c.bold(c.text("SOVEREIGN CLI")) + " " + c.faint("v" + PKG_VERSION),
+    g + "   " + c.subtle(modelName) + " " + c.faint("· " + billing),
+    g + "   " + c.faint(process.cwd()),
+    "",
+    g + c.dim("Terminaldagi AI koding agenti — fayl yozadi, buyruq ishga tushiradi, test qiladi."),
+    g + c.dim("Modelni ") + c.accent("/model") + c.dim("  ·  buyruqlar ") + c.accent("/help") + c.dim("  ·  skills: ") + c.subtle(skills),
+    "",
+    g + c.faint("Masalan: ") + c.subtle("src papkasi bilan Express server yarat va test qil"),
+    g + "         " + modeLine,
+    "",
+  ];
+  return lines.join(NL);
 }
 
 /**
  * Bottom hint bar — Apple system bar aesthetic. Small caps, dim, single accent.
  */
+// Claude Code'dagi pastki status qatori uslubida.
 export function hintBar(config, pendingCount = 0, vibeOn = false) {
   const g = G();
-  const dot = c.accent("•");
-  const model = config?.token ? "auto" : (config?.model || "openai/gpt-4o-mini");
+  const dot = c.faint("·");
+  const status = vibeOn ? c.warn("▶▶ avto rejim yoniq") : c.subtle("oddiy rejim");
   const parts = [
-    c.subtle(model),
-    vibeOn ? c.ok("vibe") : null,
+    status + c.faint(" (/vibe)"),
+    c.faint("/swarm agentlar"),
     pendingCount ? c.warn("📎 " + pendingCount) : null,
-    c.faint("/ menu"),
-    c.faint("tab autocomplete"),
-    c.faint("ctrl+c cancel"),
+    c.faint("/ menyu"),
+    c.faint("ctrl+c bekor"),
   ].filter(Boolean);
   return g + parts.join("  " + dot + "  ");
 }
