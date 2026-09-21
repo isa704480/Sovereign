@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld("sovereign", {
   init: () => ipcRenderer.invoke("app:init"),
   pickFolder: () => ipcRenderer.invoke("app:pick-folder"),
   newTask: () => ipcRenderer.invoke("app:new-task"),
+  fsTree: () => ipcRenderer.invoke("fs:tree"),
+  fsRead: (path) => ipcRenderer.invoke("fs:read", path),
   send: (text) => ipcRenderer.send("agent:send", text),
   remember: (fact) => ipcRenderer.send("agent:remember", fact),
   confirmReply: (id, ok) => ipcRenderer.send("agent:confirm-reply", { id, ok }),

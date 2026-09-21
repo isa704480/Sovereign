@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // SOVEREIGN CLI is plain Node ESM, linted separately.
     "cli/**",
+    // SOVEREIGN Cowork desktop (Electron + React) — alohida sub-loyiha.
+    "desktop/**",
   ]),
 ]);
 

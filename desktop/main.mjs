@@ -4,7 +4,8 @@
 
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
+import { readdirSync, statSync, readFileSync } from "node:fs";
 
 import { loadConfig } from "../cli/src/config.mjs";
 import { runTool, TOOL_SCHEMA, contextSummary } from "../cli/src/tools.mjs";
@@ -28,12 +29,12 @@ function send(type, payload = {}) {
   win?.webContents.send("agent:event", { type, ...payload });
 }
 
-/** Renderer'dan tasdiq so'raydi (runTool confirm(question, forcePrompt) chaqiradi). */
-function askConfirm(question, forcePrompt = false) {
+/** Renderer'dan tasdiq so'raydi. meta (write_file/make_dir/run_command) — diff uchun. */
+function askConfirm(question, forcePrompt = false, meta = null) {
   return new Promise((resolve) => {
     const id = Math.random().toString(36).slice(2);
     pending.set(id, resolve);
-    send("confirm", { id, question: stripAnsi(question), forcePrompt });
+    send("confirm", { id, question: stripAnsi(question), forcePrompt, meta });
   });
 }
 function stripAnsi(s) {
@@ -158,6 +159,46 @@ ipcMain.handle("app:new-task", async () => {
   return { ok: true };
 });
 
+// ---- Fayl daraxti / o'qish (React sidebar + diff uchun) ----------------
+const SKIP = new Set(["node_modules", ".git", ".next", "dist", "build", "out", ".turbo", ".cache", "__pycache__", ".venv", "venv", "ui-dist"]);
+
+function walkTree(dir, depth = 0, max = 6) {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const nodes = [];
+  entries.sort((a, b) => (a.isDirectory() === b.isDirectory() ? a.name.localeCompare(b.name) : a.isDirectory() ? -1 : 1));
+  for (const e of entries) {
+    if (e.name.startsWith(".") && e.name !== ".env.example") continue;
+    if (e.isDirectory() && SKIP.has(e.name)) continue;
+    const full = join(dir, e.name);
+    if (e.isDirectory()) {
+      nodes.push({ name: e.name, path: full, dir: true, children: depth < max ? walkTree(full, depth + 1, max) : [] });
+    } else {
+      nodes.push({ name: e.name, path: full, dir: false });
+    }
+    if (nodes.length > 800) break;
+  }
+  return nodes;
+}
+
+ipcMain.handle("fs:tree", async () => ({ cwd: process.cwd(), nodes: walkTree(process.cwd()) }));
+
+ipcMain.handle("fs:read", async (_e, path) => {
+  try {
+    const root = process.cwd();
+    const rel = relative(root, path);
+    if (rel.startsWith("..")) return { error: "tashqarida" };
+    const content = readFileSync(path, "utf8");
+    return { content: content.length > 400_000 ? content.slice(0, 400_000) + "\n… (qisqartirildi)" : content };
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+
 // ---- Window ------------------------------------------------------------
 function createWindow() {
   win = new BrowserWindow({
@@ -173,7 +214,12 @@ function createWindow() {
       nodeIntegration: false,
     },
   });
-  win.loadFile(join(__dirname, "renderer", "index.html"));
+  if (process.env.VITE_DEV) {
+    win.loadURL("http://localhost:5173");
+    win.webContents.openDevTools({ mode: "detach" });
+  } else {
+    win.loadFile(join(__dirname, "ui-dist", "index.html"));
+  }
 }
 
 app.whenReady().then(createWindow);

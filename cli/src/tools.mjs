@@ -205,6 +205,7 @@ export async function runTool(name, args, confirm) {
       const ok = await confirm(
         `${outsideNote(r)}${exists ? "Almashtirilsinmi" : "Yaratilsinmi"}: ${c.white(r.outside ? r.real : args.path)} (${(args.content ?? "").length} belgi)?`,
         /*forcePrompt=*/ r.outside,
+        { tool: "write_file", path: r.outside ? r.real : args.path, content: args.content ?? "", exists },
       );
       if (!ok) return "Foydalanuvchi rad etdi.";
       mkdirSync(dirname(r.real), { recursive: true });
@@ -218,6 +219,7 @@ export async function runTool(name, args, confirm) {
       const ok = await confirm(
         `${outsideNote(r)}Papka yaratilsinmi: ${c.white(r.outside ? r.real : args.path)}?`,
         /*forcePrompt=*/ r.outside,
+        { tool: "make_dir", path: r.outside ? r.real : args.path },
       );
       if (!ok) return "Foydalanuvchi rad etdi.";
       mkdirSync(r.real, { recursive: true });
@@ -235,9 +237,10 @@ export async function runTool(name, args, confirm) {
         cls.level === "safe"
           ? `Buyruq bajarilsinmi: ${c.amber(args.command)}?`
           : `⚠️  ${cls.reason.toUpperCase()} — bajarilsinmi: ${c.amber(args.command)}?`;
+      const cmdMeta = { tool: "run_command", command: args.command };
       const ok = cls.level === "safe"
-        ? await confirm(label)
-        : await confirm(label, /*forcePrompt=*/ true);
+        ? await confirm(label, false, cmdMeta)
+        : await confirm(label, /*forcePrompt=*/ true, cmdMeta);
       if (!ok) return "Foydalanuvchi rad etdi.";
       try {
         const out = execSync(args.command, { cwd: process.cwd(), encoding: "utf8", stdio: "pipe", timeout: 120_000 });
