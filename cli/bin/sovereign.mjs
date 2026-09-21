@@ -2,6 +2,7 @@
 import readline from "node:readline";
 import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
+import { loadMemory, addMemory, removeMemory, clearMemory } from "../src/memory.mjs";
 import { login } from "../src/login.mjs";
 import { printModels, resolveModelId } from "../src/models.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
@@ -188,7 +189,7 @@ async function repl() {
   });
 
   let config = await ensureAuth(rl);
-  let messages = initialMessages();
+  let messages = initialMessages(config);
   let sessionId = null; // birinchi javobdan keyin yaratiladi
   const pending = []; // paths queued via /attach for the next user message
   const enabledSkills = new Set(config.enabledSkills || ["ui-ux-pro-max", "clean-code"]);
@@ -287,7 +288,7 @@ async function repl() {
 
     // ── Suhbatni tozalash ──
     if (input === "/clear") {
-      messages = initialMessages();
+      messages = initialMessages(config);
       sessionId = null; // yangi suhbat — yangi sessiya fayli
       say(c.dim("Suhbat tozalandi."));
       rewritePrompt();
@@ -397,7 +398,39 @@ async function repl() {
     }
 
     // ── Help / Menyu ──
-    if (input === "/help") {
+    if (input === "/memory") {
+      const list = loadMemory(config);
+      console.log("");
+      if (!list.length) {
+        console.log("  " + c.dim("Xotira bo'sh.") + " " + c.faint("/remember <fakt> bilan qo'shing."));
+      } else {
+        console.log("  " + c.faint("XOTIRA") + "  " + c.dim("(" + list.length + " ta · individual)"));
+        list.forEach((m, i) => console.log("  " + c.accent(String(i + 1).padStart(2)) + "  " + c.text(m.text)));
+        console.log("  " + c.faint("/forget <n> · /forget hammasini · /remember qo'shish"));
+      }
+      console.log("");
+      rl.prompt();
+      continue;
+    }
+    if (input.startsWith("/remember")) {
+      const text = input.slice("/remember".length).trim();
+      console.log("");
+      if (!text) console.log("  " + c.warn("Foydalanish:") + " /remember <eslab qolinadigan fakt>");
+      else console.log(addMemory(config, text) ? "  " + c.ok("✓") + " " + c.dim("eslab qoldim.") : "  " + c.dim("Allaqachon bor yoki bo'sh."));
+      console.log("");
+      rl.prompt();
+      continue;
+    }
+    if (input.startsWith("/forget")) {
+      const arg = input.slice("/forget".length).trim();
+      console.log("");
+      if (!arg) { clearMemory(config); console.log("  " + c.ok("✓") + " " + c.dim("xotira tozalandi.")); }
+      else { const n = parseInt(arg, 10); console.log(removeMemory(config, n) ? "  " + c.ok("✓") + " " + c.dim(n + "-fakt o'chirildi.") : "  " + c.warn("Bunday raqam yo'q.")); }
+      console.log("");
+      rl.prompt();
+      continue;
+    }
+        if (input === "/help") {
       console.log(renderSlashMenu());
       rewritePrompt();
       continue;
@@ -464,7 +497,7 @@ async function repl() {
       if (p) {
         try {
           process.chdir(p);
-          messages = initialMessages();
+          messages = initialMessages(config);
           say(`${c.green("Ish papkasi:")} ${c.white(process.cwd())} ${c.dim("(kontekst yangilandi)")}`);
         } catch (err) {
           say(c.red(`Xato: ${err.message}`));
@@ -594,7 +627,7 @@ async function oneShot(task) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const config = await ensureAuth(rl);
   const confirm = await confirmer(rl);
-  const messages = initialMessages();
+  const messages = initialMessages(config);
   messages.push(await buildUserMessage(task, attachFiles));
   const { error } = await agentTurn({ messages, config, confirm });
   if (error) console.log(c.red(`  Xato: ${error}`));

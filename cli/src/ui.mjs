@@ -211,6 +211,7 @@ export function slashMenu(items) {
     { label: "Suhbat",   cmds: ["/help", "/clear", "/attach", "/detach"] },
     { label: "Model",    cmds: ["/model", "/models"] },
     { label: "Skillar",  cmds: ["/skills", "/skill"] },
+    { label: "Xotira",   cmds: ["/memory", "/remember", "/forget"] },
     { label: "Akkaunt",  cmds: ["/whoami", "/login", "/logout", "/register", "/upgrade"] },
     { label: "Tizim",    cmds: ["/cwd", "/exit"] },
   ];

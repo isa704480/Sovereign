@@ -1,5 +1,6 @@
 import { TOOL_SCHEMA, runTool, contextSummary } from "./tools.mjs";
 import { c, spinner } from "./ui.mjs";
+import { memorySystemMessage } from "./memory.mjs";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -324,9 +325,12 @@ export async function swarm({ task, count, config, onProgress }) {
   return { results: good, merged };
 }
 
-export function initialMessages() {
-  return [
+export function initialMessages(config) {
+  const base = [
     { role: "system", content: SYSTEM },
     { role: "system", content: contextSummary() },
   ];
+  const mem = config ? memorySystemMessage(config) : null;
+  if (mem) base.push(mem);
+  return base;
 }

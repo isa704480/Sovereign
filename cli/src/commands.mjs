@@ -37,6 +37,9 @@ export const SLASH_COMMANDS = [
 
   { cmd: "/skills",   desc: "SOVEREIGN Skills ro'yxati" },
   { cmd: "/skill",    desc: "Skilni ON/OFF — /skill <id>" },
+  { cmd: "/memory",   desc: "Individual xotira — eslab qolinganlar" },
+  { cmd: "/remember", desc: "Eslab qolish — /remember <fakt>" },
+  { cmd: "/forget",   desc: "Xotirani o'chirish — /forget [n]" },
 
   { cmd: "/whoami",   desc: "Ulanish holati" },
   { cmd: "/login",    desc: "SOVEREIGN akkauntga kirish" },
