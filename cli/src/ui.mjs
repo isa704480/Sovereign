@@ -52,6 +52,11 @@ export function termWidth() {
   return Math.min(Math.max(process.stdout.columns || 80, 60), 120);
 }
 
+/** Haqiqiy terminal kengligi (markazlashtirish uchun — 120 cheklovsiz). */
+export function rawWidth() {
+  return Math.max(process.stdout.columns || 80, 40);
+}
+
 /** Adaptive left gutter — Apple-style breathing room. */
 export function gutter() {
   const w = termWidth();
@@ -151,7 +156,7 @@ export function logo() {
 // Faqat rang/nom/logo bizniki (SOVEREIGN). Apple restraint: bitta accent, grayscale.
 export function banner(config, enabledSkills = [], vibeOn = false) {
   const NL = String.fromCharCode(10);
-  const w = termWidth();
+  const w = rawWidth();
   const mark = c.accent("◆");
   const modelName = config?.token ? "SOVEREIGN Auto" : (config?.model || "openai/gpt-oss-120b");
   const billing = config?.token
@@ -193,7 +198,7 @@ export function hintBar(config, pendingCount = 0, vibeOn = false) {
     c.faint("ctrl+c bekor"),
   ].filter(Boolean);
   const bar = parts.join("  " + dot + "  ");
-  const pad = " ".repeat(Math.max(0, Math.floor((termWidth() - visLen(bar)) / 2)));
+  const pad = " ".repeat(Math.max(0, Math.floor((rawWidth() - visLen(bar)) / 2)));
   return pad + bar;
 }
 
