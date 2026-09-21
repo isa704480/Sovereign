@@ -272,7 +272,7 @@ async function repl() {
   rewritePrompt();
 
   for await (const raw of rl) {
-    const input = raw.trim();
+    let input = raw.trim();
     if (!input) {
       rewritePrompt();
       continue;
@@ -575,6 +575,30 @@ async function repl() {
       say(`${c.pink("💎")} Tariflar sahifasi ochildi: ${c.dim(url)}`);
       rewritePrompt();
       continue;
+    }
+
+    // ── Skil nomini to'g'ridan-to'g'ri yoqish: /ui-ux-pro-max [matn] ──
+    // Agar orqasidan matn kelsa — skilni yoqib, o'sha matnni xabar sifatida davom ettiramiz.
+    if (input.startsWith("/")) {
+      const sp = input.indexOf(" ");
+      const cmdName = (sp === -1 ? input : input.slice(0, sp)).slice(1);
+      const rest = sp === -1 ? "" : input.slice(sp + 1).trim();
+      if (SKILL_IDS.includes(cmdName)) {
+        if (!enabledSkills.has(cmdName)) {
+          enabledSkills.add(cmdName);
+          const arr = [...enabledSkills];
+          saveConfig({ enabledSkills: arr });
+          if (config.token) pushSettings(config, { enabled_skills: arr });
+          say(c.emerald(`● ${cmdName}`) + c.dim("  yoqildi"));
+        } else {
+          say(c.dim(`● ${cmdName} allaqachon yoqilgan`));
+        }
+        if (!rest) {
+          rewritePrompt();
+          continue;
+        }
+        input = rest; // skilni yoqib, qolgan matnni oddiy xabar sifatida davom ettiramiz
+      }
     }
 
     // ── Noma'lum slash-buyruq ──

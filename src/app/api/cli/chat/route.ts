@@ -10,33 +10,44 @@ const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ = "https://api.groq.com/openai/v1/chat/completions";
 const OPENAI = "https://api.openai.com/v1/chat/completions";
 
+const OMNIROUTE = (process.env.OMNIROUTE_BASE_URL ?? "").replace(/\/$/, "");
+const LLM7 = "https://api.llm7.io/v1/chat/completions";
+
+type Cand = { provider: string; model: string; url: string; auth: string; referer?: boolean };
+
 /**
- * Kod-agent uchun har tarif eng mos providerni oladi:
- * - Free/Starter: Groq (dunyodagi eng tez, tekin sxema, tool-calling kuchli)
- * - Pro/Ultra: OpenAI direct (gpt-4o eng kuchli agentcha)
- * Groq kaliti yo'q bo'lsa OpenRouter'ga fallback.
+ * Fallback zanjiri: bittasi band bo'lsa (rate-limit/5xx/kalit xatosi) —
+ * navbatdagisiga avtomatik o'tamiz. Shu bois Groq TPM tugasa ish to'xtamaydi.
+ *  Groq 120b → Groq 20b (alohida TPM) → OmniRoute → OpenRouter/OpenAI → LLM7 (tekin).
  */
-type Route = { provider: "groq" | "openai" | "openrouter"; model: string };
+function candidates(plan: string): Cand[] {
+  const list: Cand[] = [];
+  const groq = process.env.GROQ_API_KEY;
+  const openai = process.env.OPENAI_API_KEY;
+  const or = process.env.OPENROUTER_API_KEY;
+  const omniKey = process.env.OMNIROUTE_API_KEY;
+  const big = plan === "pro" || plan === "ultra";
 
-function pickRoute(plan: string): Route {
-  const hasGroq = !!process.env.GROQ_API_KEY;
-  const hasOpenAI = !!process.env.OPENAI_API_KEY;
+  // Pro/Ultra uchun avval eng kuchlisi (OpenAI gpt-4o).
+  if (big && openai) list.push({ provider: "openai", model: "gpt-4o", url: OPENAI, auth: openai });
 
-  if (plan === "free" || plan === "starter") {
-    if (hasGroq) return { provider: "groq", model: "openai/gpt-oss-120b" };
-    if (hasOpenAI) return { provider: "openai", model: "gpt-4o-mini" };
-    return { provider: "openrouter", model: "openai/gpt-4o-mini" };
+  // Groq — eng tez; ikki model = ikki alohida TPM bucket.
+  if (groq) {
+    list.push({ provider: "groq", model: "openai/gpt-oss-120b", url: GROQ, auth: groq });
+    list.push({ provider: "groq", model: "openai/gpt-oss-20b", url: GROQ, auth: groq });
   }
-  // Pro / Ultra
-  if (hasOpenAI) return { provider: "openai", model: "gpt-4o" };
-  if (hasGroq) return { provider: "groq", model: "openai/gpt-oss-120b" };
-  return { provider: "openrouter", model: "openai/gpt-4o" };
-}
+  // OmniRoute — arzon/tekin reseller (sozlangan bo'lsa).
+  if (OMNIROUTE && omniKey) {
+    list.push({ provider: "omniroute", model: process.env.OMNIROUTE_MODEL ?? "auto/gemini", url: `${OMNIROUTE}/chat/completions`, auth: omniKey });
+  }
+  // OpenRouter.
+  if (or) list.push({ provider: "openrouter", model: big ? "openai/gpt-4o" : "openai/gpt-4o-mini", url: OPENROUTER, auth: or, referer: true });
+  // OpenAI mini (agar yuqorida ishlatilmagan bo'lsa).
+  if (openai && !big) list.push({ provider: "openai", model: "gpt-4o-mini", url: OPENAI, auth: openai });
+  // LLM7 — oxirgi tekin chora (anonim, kalitsiz ishlaydi).
+  list.push({ provider: "llm7", model: "mistral-Nemo-Instruct-2407", url: LLM7, auth: process.env.LLM7_API_KEY ?? "unused" });
 
-function endpointFor(r: Route): { url: string; auth: string } {
-  if (r.provider === "groq") return { url: GROQ, auth: process.env.GROQ_API_KEY! };
-  if (r.provider === "openai") return { url: OPENAI, auth: process.env.OPENAI_API_KEY! };
-  return { url: OPENROUTER, auth: process.env.OPENROUTER_API_KEY! };
+  return list;
 }
 
 // Cost-DoS'ni to'sish: strict schema. Provider'ga o'zboshimchalik parametrlar
@@ -132,7 +143,7 @@ export async function POST(req: Request) {
   }
 
   const plan = (isPlanId(planId) && PLAN_BY_ID[planId]) || PLAN_BY_ID.free;
-  const route = pickRoute(planId);
+  const cands = candidates(planId);
 
   // CLI ham veb chat bilan bir xil kunlik chegaraga bo'ysunadi.
   try {
@@ -150,30 +161,44 @@ export async function POST(req: Request) {
   }
   void userId; // hozircha faqat log/attribute uchun
 
-  const ep = endpointFor(route);
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${ep.auth}`,
-  };
-  if (route.provider === "openrouter") {
-    headers["HTTP-Referer"] = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sovhq.vercel.app";
-    headers["X-Title"] = "SOVEREIGN CLI";
-  }
-
-  const res = await fetch(ep.url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: route.model,
+  const maxTokens = Math.min(plan.limits.maxTokens, 4096);
+  const body = (model: string) =>
+    JSON.stringify({
+      model,
       messages: parsed.data.messages,
       tools: parsed.data.tools,
       tool_choice: parsed.data.tools?.length ? "auto" : undefined,
       temperature: 0.4,
-      max_tokens: Math.min(plan.limits.maxTokens, 4096),
-    }),
-  });
+      max_tokens: maxTokens,
+    });
 
-  if (!res.ok) {
+  let lastProvider = "";
+  let lastErr = "noma'lum";
+  for (const cand of cands) {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${cand.auth}`,
+    };
+    if (cand.referer) {
+      headers["HTTP-Referer"] = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sovhq.vercel.app";
+      headers["X-Title"] = "SOVEREIGN CLI";
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(cand.url, { method: "POST", headers, body: body(cand.model) });
+    } catch (e) {
+      lastProvider = cand.provider;
+      lastErr = e instanceof Error ? e.message : "ulanish xatosi";
+      continue; // tarmoq xatosi — keyingi providerga
+    }
+
+    if (res.ok) {
+      const data = (await res.json()) as { choices?: { message?: unknown }[] };
+      const message = data.choices?.[0]?.message ?? { role: "assistant", content: "" };
+      return Response.json({ message, plan: planId, model: cand.model, provider: cand.provider });
+    }
+
     let message = `${res.status}`;
     try {
       const j = (await res.json()) as { error?: { message?: string } };
@@ -181,10 +206,14 @@ export async function POST(req: Request) {
     } catch {
       /* keep */
     }
-    return Response.json({ error: `${route.provider}: ${message}` }, { status: 502 });
+    lastProvider = cand.provider;
+    lastErr = message;
+    // Xato bo'lsa (429 TPM, 5xx, kalit) — keyingi providerga o'tamiz; maqsad: ish
+    // to'xtamasin. Zanjir oxirigacha muvaffaqiyat bo'lmasa, quyida xato qaytadi.
   }
 
-  const data = (await res.json()) as { choices?: { message?: unknown }[] };
-  const message = data.choices?.[0]?.message ?? { role: "assistant", content: "" };
-  return Response.json({ message, plan: planId, model: route.model, provider: route.provider });
+  return Response.json(
+    { error: `Barcha providerlar band yoki xato. Oxirgi (${lastProvider}): ${lastErr}` },
+    { status: 502 },
+  );
 }
