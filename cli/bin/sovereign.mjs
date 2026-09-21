@@ -360,7 +360,7 @@ async function repl() {
       const count = m ? Number(m[1]) : 3;
       const task = m ? m[2] : rest;
       if (!task) {
-        say(c.dim("Foydalanish: /swarm 4 <vazifa>  — 2 dan 8 gacha ishchi bir vaqtda ishlaydi"));
+        say(c.dim("Foydalanish: /swarm 4 <vazifa>  — 2-8 ishchi reja tuzadi, keyin agent uni bajaradi (fayl yozadi)"));
         rewritePrompt();
         continue;
       }
@@ -379,11 +379,22 @@ async function repl() {
         say(c.red(`Xato: ${res.error}`));
       } else {
         say("");
-        say(c.accent("◆ YAKUNIY YECHIM"));
+        say(c.accent("◆ REJA") + c.dim("  (ko'p agent birlashmasi)"));
         console.log(res.merged.replace(/^/gm, G + "  "));
         say("");
-        messages.push({ role: "user", content: task });
-        messages.push({ role: "assistant", content: res.merged });
+        // Bosqich 5 — Cowork oqimiga ulanish: rejani AGENT bajaradi (fayl yozadi,
+        // buyruq ishga tushiradi). Vibe rejimda avtomatik, aks holda tasdiq bilan.
+        say(c.dim("Rejani bajaraman — fayllarni yozaman va sinab ko'raman…"));
+        messages.push({
+          role: "user",
+          content:
+            `Quyidagi REJA bo'yicha loyihani AMALGA OSHIR — kerakli fayllarni yoz (write_file), ` +
+            `papkalarni yarat (make_dir), zarur bo'lsa buyruq ishga tushir (run_command) va natijani sina. ` +
+            `Har qadamni qisqa tushuntirib bor.\n\nASL VAZIFA: ${task}\n\nREJA:\n${res.merged}`,
+        });
+        const { error } = await agentTurn({ messages, config, confirm });
+        if (error) say(c.red(`Xato: ${error}`));
+        sessionId = saveSession({ id: sessionId, messages, model: config.model });
       }
       rewritePrompt();
       continue;

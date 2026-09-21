@@ -54,10 +54,13 @@ Ya'ni bo'laklar bor; Cowork — ularni **bitta ish oqimiga** bog'lash.
 - Umumiy individual xotira (bir akkaunt — bir xotira).
 - *Natija:* brauzer va terminal bitta ish maydonini bo'lishadi.
 
-### Bosqich 5 — Ko'p agent (multi-agent)
-- Bitta vazifada bir nechta agent: research → kod → test (parallel/ketma-ket).
-- CLI'da `swarm` bor — shuni Cowork oqimiga bog'lash.
-- *Natija:* murakkab vazifa bir necha ixtisoslashgan agent bilan tezroq bajariladi.
+### Bosqich 5 — Ko'p agent (multi-agent) — ✅ TAYYOR
+- CLI `/swarm N <vazifa>`: N ishchi turli burchakdan **reja** tuzadi (parallel) →
+  bosh muhandis birlashtiradi → keyin **agent rejani bajaradi** (write_file/make_dir/
+  run_command, tasdiq yoki vibe bilan). Ya'ni ko'p agent endi Cowork oqimiga ulangan.
+- Web: **Auto rejim** ko'p bosqichli (router → research → answer) va Cowork
+  WRITE_PROTOCOL orqali fayl yozadi — web multi-agent → Cowork allaqachon ishlaydi.
+- *Natija:* murakkab vazifa bir necha agent bilan rejalashtiriladi va oxirigacha bajariladi.
 
 ---
 
