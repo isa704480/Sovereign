@@ -258,6 +258,58 @@ export function skillsList(skills, enabledIds) {
   return "\n" + p.map((l) => g + l).join("\n") + "\n";
 }
 
+/** Inline markdown → ANSI (bold / italic / `code`). */
+function mdInline(s) {
+  s = s.replace(/`([^`]+)`/g, (_, x) => c.accent(x));
+  s = s.replace(/\*\*([^*]+)\*\*/g, (_, x) => c.bold(c.text(x)));
+  s = s.replace(/__([^_]+)__/g, (_, x) => c.bold(c.text(x)));
+  s = s.replace(/(?<![*\w])\*([^*\n]+)\*(?!\*)/g, (_, x) => c.italic(x));
+  s = s.replace(/(?<![_\w])_([^_\n]+)_(?![_\w])/g, (_, x) => c.italic(x));
+  return s;
+}
+
+/**
+ * Terminal markdown renderer — sarlavha, ro'yxat, kod bloki, inline formatlar.
+ * AI javobini toza, o'qiladigan ko'rinishga keltiradi (xom `**`/`#` yo'qoladi).
+ */
+export function renderMarkdown(md, indent = "      ") {
+  const lines = String(md ?? "").replace(/\r/g, "").split("\n");
+  const out = [];
+  let inFence = false;
+  for (const raw of lines) {
+    const fence = /^\s*```(\w*)/.exec(raw);
+    if (fence) {
+      out.push(indent + c.hairline(inFence ? "└─" : "┌─ " + (fence[1] || "kod")));
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) {
+      out.push(indent + c.hairline("│ ") + c.subtle(raw));
+      continue;
+    }
+    let m;
+    if ((m = /^\s*#{1,6}\s+(.*)$/.exec(raw))) {
+      if (out.length && out[out.length - 1] !== "") out.push("");
+      out.push(indent + c.bold(c.text(mdInline(m[1]))));
+      continue;
+    }
+    if ((m = /^(\s*)[-*]\s+(.*)$/.exec(raw))) {
+      out.push(indent + m[1] + c.accent("•") + "  " + mdInline(m[2]));
+      continue;
+    }
+    if ((m = /^(\s*)(\d+)\.\s+(.*)$/.exec(raw))) {
+      out.push(indent + m[1] + c.accent(m[2] + ".") + "  " + mdInline(m[3]));
+      continue;
+    }
+    if (/^\s*(---|\*\*\*|___)\s*$/.test(raw)) {
+      out.push(indent + c.hairline("─".repeat(28)));
+      continue;
+    }
+    out.push(raw.trim() ? indent + mdInline(raw) : "");
+  }
+  return out.join("\n");
+}
+
 export function clearScreen() {
   if (process.stdout.isTTY) process.stdout.write("\x1b[2J\x1b[H");
 }

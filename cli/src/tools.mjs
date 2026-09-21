@@ -4,11 +4,11 @@ import { execSync } from "node:child_process";
 import { c } from "./ui.mjs";
 
 /**
- * Har fayl operatsiyasini `sovereign` ishga tushgan ish papkasi ichida saqlaydi.
- * `realpath` orqali symlinklarni yechib, keyin cwd bilan solishtiradi — bu
- * `link → /etc/shadow` toifasidagi symlink hujumlarini to'sadi.
+ * Yo'lni realpath orqali yechadi (symlink hujumlariga qarshi), lekin THROW
+ * QILMAYDI — ish papkasidan tashqarida ekanini `outside` bilan bildiradi.
+ * Chaqiruvchi tashqarida bo'lsa foydalanuvchidan ruxsat so'raydi.
  */
-function safe(p) {
+function resolvePath(p) {
   const root = realpathSync(process.cwd());
   const abs = isAbsolute(p) ? p : resolve(root, p);
   // Fayl hali bo'lmasa, ota-papka orqali realpath hisoblaymiz.
@@ -25,10 +25,25 @@ function safe(p) {
     real = join(parent, abs.slice(dirname(abs).length + 1));
   }
   const rel = relative(root, real);
-  if (rel.startsWith("..") || isAbsolute(rel)) {
-    throw new Error(`Ruxsat yo'q: "${p}" ish papkasidan tashqarida.`);
-  }
-  return real;
+  const outside = rel.startsWith("..") || isAbsolute(rel);
+  return { real, rel, outside };
+}
+
+/**
+ * Ruxsat berilgan taqdirda ham TAQIQLANGAN tizim yo'llari — parol/kalit/OS.
+ * Bu joylarga foydalanuvchi "ha" desa ham yozilmaydi.
+ */
+const PROTECTED_PATHS = [
+  /[\\/]etc[\\/](passwd|shadow|sudoers)/i,
+  /[\\/]\.ssh[\\/]/i,
+  /[\\/](Windows|System32|Program Files)[\\/]/i,
+  /[\\/]boot[\\/]/i,
+];
+function isProtected(real) {
+  return PROTECTED_PATHS.some((re) => re.test(real));
+}
+function outsideNote(r) {
+  return r.outside ? c.amber("⚠️  ish papkasidan TASHQARIDA — ") : "";
 }
 
 /**
@@ -97,7 +112,7 @@ export const TOOL_SCHEMA = [
     type: "function",
     function: {
       name: "write_file",
-      description: "Faylga yozadi (kerak bo'lsa papkalarni ham yaratadi). Mavjud faylni almashtiradi.",
+      description: "Faylga yozadi (kerak bo'lsa papkalarni ham yaratadi). Mavjud faylni almashtiradi. Ish papkasidan tashqaridagi yo'l ham mumkin — foydalanuvchidan ruxsat so'raladi.",
       parameters: {
         type: "object",
         properties: {
@@ -112,7 +127,7 @@ export const TOOL_SCHEMA = [
     type: "function",
     function: {
       name: "make_dir",
-      description: "Papka yaratadi (ichma-ich).",
+      description: "Papka yaratadi (ichma-ich). Ish papkasidan tashqaridagi yo'l ham mumkin — foydalanuvchidan ruxsat so'raladi.",
       parameters: {
         type: "object",
         properties: { path: { type: "string" } },
@@ -164,33 +179,49 @@ function tree(dir, prefix = "", depth = 0, max = 2) {
 export async function runTool(name, args, confirm) {
   switch (name) {
     case "list_dir": {
-      const dir = safe(args.path ?? ".");
-      return tree(dir) || "(bo'sh)";
+      const r = resolvePath(args.path ?? ".");
+      if (r.outside) {
+        if (isProtected(r.real)) return `XATO: "${args.path}" — himoyalangan tizim yo'li, ochilmaydi.`;
+        const ok = await confirm(`${outsideNote(r)}ro'yxat ko'rilsinmi: ${c.white(r.real)}?`, /*forcePrompt=*/ true);
+        if (!ok) return "Foydalanuvchi rad etdi (ish papkasidan tashqaridagi papka).";
+      }
+      return tree(r.real) || "(bo'sh)";
     }
     case "read_file": {
-      const file = safe(args.path);
-      if (!existsSync(file)) return `XATO: "${args.path}" topilmadi.`;
-      const content = readFileSync(file, "utf8");
+      const r = resolvePath(args.path);
+      if (r.outside) {
+        if (isProtected(r.real)) return `XATO: "${args.path}" — himoyalangan tizim yo'li, o'qilmaydi.`;
+        const ok = await confirm(`${outsideNote(r)}o'qilsinmi: ${c.white(r.real)}?`, /*forcePrompt=*/ true);
+        if (!ok) return "Foydalanuvchi rad etdi (ish papkasidan tashqaridagi fayl).";
+      }
+      if (!existsSync(r.real)) return `XATO: "${args.path}" topilmadi.`;
+      const content = readFileSync(r.real, "utf8");
       return content.length > 60_000 ? content.slice(0, 60_000) + "\n... (qisqartirildi)" : content;
     }
     case "write_file": {
-      const file = safe(args.path);
-      const exists = existsSync(file);
+      const r = resolvePath(args.path);
+      if (r.outside && isProtected(r.real)) return `XATO: "${args.path}" — himoyalangan tizim yo'li, yozilmaydi.`;
+      const exists = existsSync(r.real);
       const ok = await confirm(
-        `${exists ? "Almashtirilsinmi" : "Yaratilsinmi"}: ${c.white(args.path)} (${(args.content ?? "").length} belgi)?`,
+        `${outsideNote(r)}${exists ? "Almashtirilsinmi" : "Yaratilsinmi"}: ${c.white(r.outside ? r.real : args.path)} (${(args.content ?? "").length} belgi)?`,
+        /*forcePrompt=*/ r.outside,
       );
       if (!ok) return "Foydalanuvchi rad etdi.";
-      mkdirSync(dirname(file), { recursive: true });
-      writeFileSync(file, args.content ?? "");
-      console.log(`  ${c.green(exists ? "✎ o'zgartirildi" : "＋ yaratildi")} ${c.dim(args.path)}`);
+      mkdirSync(dirname(r.real), { recursive: true });
+      writeFileSync(r.real, args.content ?? "");
+      console.log(`  ${c.green(exists ? "✎ o'zgartirildi" : "＋ yaratildi")} ${c.dim(r.outside ? r.real : args.path)}`);
       return `OK: ${args.path} yozildi.`;
     }
     case "make_dir": {
-      const dir = safe(args.path);
-      const ok = await confirm(`Papka yaratilsinmi: ${c.white(args.path)}?`);
+      const r = resolvePath(args.path);
+      if (r.outside && isProtected(r.real)) return `XATO: "${args.path}" — himoyalangan tizim yo'li, yaratilmaydi.`;
+      const ok = await confirm(
+        `${outsideNote(r)}Papka yaratilsinmi: ${c.white(r.outside ? r.real : args.path)}?`,
+        /*forcePrompt=*/ r.outside,
+      );
       if (!ok) return "Foydalanuvchi rad etdi.";
-      mkdirSync(dir, { recursive: true });
-      console.log(`  ${c.green("📁 yaratildi")} ${c.dim(args.path)}`);
+      mkdirSync(r.real, { recursive: true });
+      console.log(`  ${c.green("📁 yaratildi")} ${c.dim(r.outside ? r.real : args.path)}`);
       return `OK: ${args.path} papkasi yaratildi.`;
     }
     case "run_command": {

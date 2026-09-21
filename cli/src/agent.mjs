@@ -1,5 +1,5 @@
 import { TOOL_SCHEMA, runTool, contextSummary } from "./tools.mjs";
-import { c, spinner } from "./ui.mjs";
+import { c, spinner, renderMarkdown } from "./ui.mjs";
 import { memorySystemMessage } from "./memory.mjs";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
@@ -7,6 +7,7 @@ const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 const SYSTEM = [
   "Sen SOVEREIGN — terminalda ishlaydigan AI koding agentisan.",
   "Foydalanuvchining ish papkasida fayl va papkalar yarata, o'qiy va o'zgartira olasan (vositalar orqali).",
+  "Ish papkasidan TASHQARIDAGI yo'l (mas. boshqa diskdagi papka) so'ralsa — RAD ETMA, shunchaki vositani chaqir; tizim foydalanuvchidan ruxsat so'raydi, 'ha' bo'lsa bajariladi. Faqat tizim/parol/kalit yo'llari (Windows, System32, .ssh) qat'iy taqiqlangan.",
   "Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (asosan o'zbek tili).",
   "MUHIM: har bir qadamda nima qilayotganingni QISQA gap bilan tushuntirib bor — avval rejangni ayt, keyin vositani chaqir.",
   "Masalan: 'Avval package.json yarataman, keyin src papkasini ochaman.' — keyin write_file/make_dir chaqir.",
@@ -57,15 +58,6 @@ async function* sseLines(body) {
   }
 }
 
-async function typeOut(text, onText) {
-  // Account mode returns full text — reveal it in small chunks for a live feel.
-  const chunks = text.match(/\S+\s*|\s+/g) ?? [text];
-  for (const ch of chunks) {
-    onText(ch);
-    await new Promise((r) => setTimeout(r, 12));
-  }
-}
-
 // Server limits (/api/cli/chat): 60 messages, 40k chars per message.
 const TOOL_RESULT_MAX = 24_000;
 const HISTORY_MAX = 44;
@@ -103,7 +95,6 @@ async function runRound(messages, config, onText) {
     }
     const { message } = await res.json();
     const toolCalls = message.tool_calls ?? [];
-    if (message.content) await typeOut(message.content, onText);
     return { message, toolCalls };
   }
 
@@ -174,45 +165,32 @@ async function runRound(messages, config, onText) {
 
 export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
   const seen = new Set();
-  let printedHeader = false;
-  const write = (t) => {
-    if (!printedHeader) {
-      // Apple-style javob boshi: yagona kul indent + kichik accent belgi
-      process.stdout.write("\n   " + c.accent("◆") + "  ");
-      printedHeader = true;
-    }
-    // Faqat matnni yumshoq indent bilan, chegara chizmasdan
-    process.stdout.write(t.replace(/\n/g, "\n      "));
-  };
 
   for (let step = 0; step < maxSteps; step++) {
     const spin = spinner(step === 0 ? "o'ylayapti..." : "davom etyapti...");
     let round;
     try {
-      let first = true;
-      round = await runRound(messages, config, (t) => {
-        if (first) {
-          spin.stop();
-          first = false;
-        }
-        write(t);
-      });
-      if (first) spin.stop();
+      round = await runRound(messages, config, () => {});
     } catch (err) {
       spin.stop();
       return { error: err.message };
     }
+    spin.stop();
 
     messages.push(round.message);
 
+    // Javob matnini toza markdown bilan ko'rsat (xom `**`/`#` emas).
+    if (round.message.content && round.message.content.trim()) {
+      process.stdout.write("\n   " + c.accent("◆") + "\n");
+      console.log(renderMarkdown(round.message.content));
+    }
+
     if (!round.toolCalls.length) {
-      process.stdout.write("\n\n");
+      process.stdout.write("\n");
       return { done: true };
     }
 
     // Model asked for tools — narrate & run each, then loop.
-    if (printedHeader) process.stdout.write("\n");
-    printedHeader = false;
     for (const call of round.toolCalls) {
       let args = {};
       try {
