@@ -38,6 +38,48 @@ export function printModels(current) {
   console.log(`\n  ${c.dim("Misol:")} ${c.white("/model claude")}   yoki   ${c.white("/model openai/gpt-4o")}\n`);
 }
 
+/** OmniRoute id — har doim "provider/model" ko'rinishida (slash bor). */
+export function isOmniId(id) {
+  return typeof id === "string" && id.includes("/") && !id.endsWith(":free");
+}
+
+/** Serverdan OmniRoute katalogini (1700+ model) qidirib oladi. */
+export async function fetchCatalog(config, q = "", limit = 40) {
+  const base = (config.baseUrl || "https://sovhq.vercel.app").replace(/\/$/, "");
+  const url = `${base}/api/models?q=${encodeURIComponent(q)}&limit=${limit}`;
+  try {
+    const res = await fetch(url, config.token ? { headers: { Authorization: `Bearer ${config.token}` } } : {});
+    if (!res.ok) return { configured: false, total: 0, models: [] };
+    return await res.json();
+  } catch {
+    return { configured: false, total: 0, models: [] };
+  }
+}
+
+/** Katalog natijalarini chiroyli ro'yxat qilib chiqaradi. */
+export function printCatalog(data, query, current) {
+  if (!data.configured) {
+    console.log(`\n  ${c.amber("OmniRoute katalogi hozircha ulanmagan.")} ${c.dim("(server env sozlanmagan)")}\n`);
+    return;
+  }
+  const { total, models } = data;
+  console.log(
+    `\n  ${c.bold(c.white("OmniRoute modellari"))}  ${c.dim(query ? `"${query}" — ${total} ta topildi` : `${total} ta`)}\n`,
+  );
+  if (!models.length) {
+    console.log(`  ${c.dim("Hech narsa topilmadi. Boshqa so'z bilan qidiring.")}\n`);
+    return;
+  }
+  for (const m of models) {
+    const active = m.id === current;
+    const mark = active ? c.green("●") : c.dim("○");
+    const caps = [m.tools ? "🔧" : "", m.vision ? "👁" : "", m.reasoning ? "🧠" : ""].filter(Boolean).join(" ");
+    const ctx = m.context ? c.dim((m.context / 1000).toFixed(0) + "k") : "";
+    console.log(`  ${mark} ${c.white(m.id.padEnd(42))} ${c.gray(caps.padEnd(6))} ${ctx}`);
+  }
+  console.log(`\n  ${c.dim("Tanlash:")} ${c.white("/model <id>")}   ${c.dim("(masalan /model " + (models[0]?.id ?? "auto/best-coding") + ")")}\n`);
+}
+
 /** Resolve a short name or partial id to a full model id. */
 export function resolveModelId(input) {
   const q = input.trim().toLowerCase();

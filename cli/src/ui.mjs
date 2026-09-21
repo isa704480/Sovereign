@@ -158,7 +158,11 @@ export function banner(config, enabledSkills = [], vibeOn = false) {
   const NL = String.fromCharCode(10);
   const w = rawWidth();
   const mark = c.accent("◆");
-  const modelName = config?.token ? "SOVEREIGN Auto" : (config?.model || "openai/gpt-oss-120b");
+  const modelName = config?.omniModel
+    ? config.omniModel
+    : config?.token
+      ? "SOVEREIGN Auto"
+      : (config?.model || "openai/gpt-oss-120b");
   const billing = config?.token
     ? (config.email || "akkaunt") + " · " + (config.baseUrl || "").replace(/^https?:\/\//, "")
     : "to'g'ridan-to'g'ri (OpenRouter)";

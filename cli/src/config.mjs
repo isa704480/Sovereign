@@ -13,6 +13,9 @@ const DEFAULTS = {
   // Direct mode: user's own OpenRouter key + model. Kod-agent uchun tekin va tez
   // Llama 3.3 70B default sifatida — Groq direct sifatida ideal ishlaydi.
   model: "meta-llama/llama-3.3-70b-instruct:free",
+  // Akkaunt rejimida foydalanuvchi OmniRoute katalogidan tanlagan model (mas.
+  // "dva/claude-opus-5-high", "auto/best-coding"). Bo'sh bo'lsa — server tanlaydi.
+  omniModel: "",
   openrouterKey: "",
   perplexityKey: "",
 };

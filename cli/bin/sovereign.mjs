@@ -4,7 +4,7 @@ import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from ".
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
 import { loadMemory, addMemory, removeMemory, clearMemory } from "../src/memory.mjs";
 import { login } from "../src/login.mjs";
-import { printModels, resolveModelId } from "../src/models.mjs";
+import { printModels, resolveModelId, isOmniId, fetchCatalog, printCatalog } from "../src/models.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu, spinner } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
@@ -472,22 +472,40 @@ async function repl() {
     }
 
     // ── Modellar ──
-    if (input === "/models") {
-      printModels(config.model);
+    // /models            — qisqa tavsiya ro'yxati + qidiruv maslahati
+    // /models <so'z>     — OmniRoute katalogidan (1700+) qidirish
+    if (input === "/models" || input.startsWith("/models ")) {
+      const q = input.slice(7).trim();
+      if (q) {
+        const spin = spinner("katalog qidirilyapti...");
+        const data = await fetchCatalog(config, q, 40);
+        spin.stop();
+        printCatalog(data, q, config.omniModel || config.model);
+      } else {
+        printModels(config.omniModel || config.model);
+        say(c.dim("1700+ OmniRoute modeli: ") + c.white("/models <so'z>") + c.dim("  (masalan /models claude, /models deepseek)"));
+      }
       rewritePrompt();
       continue;
     }
     if (input.startsWith("/model")) {
       const arg = input.slice(6).trim();
       if (arg) {
-        const m = resolveModelId(arg);
-        config = { ...config, model: m };
-        saveConfig({ model: m });
-        say(`${c.green("Model:")} ${c.indigo(m)}${config.token ? c.dim("  (server tarifga qarab tanlaydi)") : ""}`);
-        // Web bilan model tanlovini ham sinxronlaymiz
-        if (config.token) pushSettings(config, { default_model: m });
+        if (isOmniId(arg)) {
+          // OmniRoute katalog modeli — har so'rovda serverga yuboriladi (OmniRoute orqali).
+          config = { ...config, omniModel: arg, model: arg };
+          saveConfig({ omniModel: arg, model: arg });
+          say(`${c.green("Model:")} ${c.indigo(arg)} ${c.dim("(OmniRoute)")}`);
+        } else {
+          const m = resolveModelId(arg);
+          config = { ...config, model: m, omniModel: "" };
+          saveConfig({ model: m, omniModel: "" });
+          say(`${c.green("Model:")} ${c.indigo(m)}${config.token ? c.dim("  (server tarifga qarab tanlaydi)") : ""}`);
+          if (config.token) pushSettings(config, { default_model: m });
+        }
       } else {
-        printModels(config.model);
+        printModels(config.omniModel || config.model);
+        say(c.dim("Katalogdan qidirish: ") + c.white("/models <so'z>"));
       }
       rewritePrompt();
       continue;

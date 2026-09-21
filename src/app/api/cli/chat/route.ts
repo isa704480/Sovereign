@@ -20,13 +20,18 @@ type Cand = { provider: string; model: string; url: string; auth: string; refere
  * navbatdagisiga avtomatik o'tamiz. Shu bois Groq TPM tugasa ish to'xtamaydi.
  *  Groq 120b → Groq 20b (alohida TPM) → OmniRoute → OpenRouter/OpenAI → LLM7 (tekin).
  */
-function candidates(plan: string): Cand[] {
+function candidates(plan: string, chosen?: string): Cand[] {
   const list: Cand[] = [];
   const groq = process.env.GROQ_API_KEY;
   const openai = process.env.OPENAI_API_KEY;
   const or = process.env.OPENROUTER_API_KEY;
   const omniKey = process.env.OMNIROUTE_API_KEY;
   const big = plan === "pro" || plan === "ultra";
+
+  // Foydalanuvchi katalogdan model tanlagan bo'lsa — avval OmniRoute orqali shu model.
+  if (chosen && OMNIROUTE && omniKey) {
+    list.push({ provider: "omniroute", model: chosen, url: `${OMNIROUTE}/chat/completions`, auth: omniKey });
+  }
 
   // Pro/Ultra uchun avval eng kuchlisi (OpenAI gpt-4o).
   if (big && openai) list.push({ provider: "openai", model: "gpt-4o", url: OPENAI, auth: openai });
@@ -71,6 +76,9 @@ const schema = z.object({
   // An agent task is many tool round-trips (assistant call + tool result each).
   messages: z.array(messageSchema).min(1).max(60),
   tools: z.array(toolSchema).max(8).optional(),
+  // Foydalanuvchi tanlagan model (OmniRoute katalogidan). Berilsa — avval
+  // OmniRoute orqali shu model sinaladi, keyin odatdagi zaxira zanjiri.
+  model: z.string().max(120).regex(/^[\w./:-]+$/).optional(),
 }).strict();
 
 function bearer(req: Request): string | null {
@@ -143,7 +151,7 @@ export async function POST(req: Request) {
   }
 
   const plan = (isPlanId(planId) && PLAN_BY_ID[planId]) || PLAN_BY_ID.free;
-  const cands = candidates(planId);
+  const cands = candidates(planId, parsed.data.model);
 
   // CLI ham veb chat bilan bir xil kunlik chegaraga bo'ysunadi.
   try {

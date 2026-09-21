@@ -82,7 +82,11 @@ async function runRound(messages, config, onText) {
     const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
-      body: JSON.stringify({ messages: forServer(messages), tools: TOOL_SCHEMA }),
+      body: JSON.stringify({
+        messages: forServer(messages),
+        tools: TOOL_SCHEMA,
+        ...(config.omniModel ? { model: config.omniModel } : {}),
+      }),
     });
     if (!res.ok) {
       let m = `${res.status}`;
