@@ -4,7 +4,7 @@ import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from ".
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
 import { loadMemory, addMemory, removeMemory, clearMemory, syncMemory } from "../src/memory.mjs";
 import { login } from "../src/login.mjs";
-import { printModels, resolveModelId, isOmniId, fetchCatalog, printCatalog } from "../src/models.mjs";
+import { printModels, resolveModelId, isOmniId, fetchCatalog, printCatalog, fetchFamilies, printFamilies, matchFamily } from "../src/models.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu, spinner } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
@@ -484,19 +484,25 @@ async function repl() {
       continue;
     }
 
-    // ── Modellar ──
-    // /models            — qisqa tavsiya ro'yxati + qidiruv maslahati
-    // /models <so'z>     — OmniRoute katalogidan (1700+) qidirish
+    // ── Modellar (Cursor uslubi: oila → ichida modellar) ──
+    // /models          — oilalar ro'yxati (Claude, Gemini, GPT...)
+    // /models claude   — o'sha oiladagi modellar
+    // /models <so'z>   — hamma bo'yicha qidiruv
     if (input === "/models" || input.startsWith("/models ")) {
-      const q = input.slice(7).trim();
-      if (q) {
-        const spin = spinner("katalog qidirilyapti...");
-        const data = await fetchCatalog(config, q, 40);
+      const arg = input.slice(7).trim();
+      const cur = config.omniModel || config.model;
+      if (!arg) {
+        const spin = spinner("oilalar yuklanyapti...");
+        const fams = await fetchFamilies(config);
         spin.stop();
-        printCatalog(data, q, config.omniModel || config.model);
+        printFamilies(fams);
       } else {
-        printModels(config.omniModel || config.model);
-        say(c.dim("1700+ OmniRoute modeli: ") + c.white("/models <so'z>") + c.dim("  (masalan /models claude, /models deepseek)"));
+        const spin = spinner("qidirilyapti...");
+        const fams = await fetchFamilies(config);
+        const famKey = matchFamily(fams.families ?? [], arg);
+        const data = famKey ? await fetchCatalog(config, "", 50, famKey) : await fetchCatalog(config, arg, 40);
+        spin.stop();
+        printCatalog(data, famKey ? "" : arg, cur);
       }
       rewritePrompt();
       continue;
@@ -518,7 +524,7 @@ async function repl() {
         }
       } else {
         printModels(config.omniModel || config.model);
-        say(c.dim("Katalogdan qidirish: ") + c.white("/models <so'z>"));
+        say(c.dim("Oilalar: ") + c.white("/models") + c.dim("  · oila ichi: ") + c.white("/models claude") + c.dim("  · qidiruv: ") + c.white("/models <so'z>"));
       }
       rewritePrompt();
       continue;

@@ -43,10 +43,13 @@ export function isOmniId(id) {
   return typeof id === "string" && id.includes("/") && !id.endsWith(":free");
 }
 
-/** Serverdan OmniRoute katalogini (1700+ model) qidirib oladi. */
-export async function fetchCatalog(config, q = "", limit = 40) {
+/** Serverdan OmniRoute katalogini (1700+ model) qidirib oladi (oila yoki qidiruv). */
+export async function fetchCatalog(config, q = "", limit = 40, family = "") {
   const base = (config.baseUrl || "https://sovhq.vercel.app").replace(/\/$/, "");
-  const url = `${base}/api/models?q=${encodeURIComponent(q)}&limit=${limit}`;
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (q) params.set("q", q);
+  if (family) params.set("family", family);
+  const url = `${base}/api/models?${params.toString()}`;
   try {
     const res = await fetch(url, config.token ? { headers: { Authorization: `Bearer ${config.token}` } } : {});
     if (!res.ok) return { configured: false, total: 0, models: [] };
@@ -54,6 +57,43 @@ export async function fetchCatalog(config, q = "", limit = 40) {
   } catch {
     return { configured: false, total: 0, models: [] };
   }
+}
+
+/** Oilalar ro'yxatini oladi (Cursor uslubi: Claude, Gemini, GPT...). */
+export async function fetchFamilies(config) {
+  const base = (config.baseUrl || "https://sovhq.vercel.app").replace(/\/$/, "");
+  try {
+    const res = await fetch(`${base}/api/models?families=1`, config.token ? { headers: { Authorization: `Bearer ${config.token}` } } : {});
+    if (!res.ok) return { configured: false, families: [] };
+    return await res.json();
+  } catch {
+    return { configured: false, families: [] };
+  }
+}
+
+/** Oilalar ro'yxatini chiroyli chiqaradi. */
+export function printFamilies(data) {
+  if (!data.configured) {
+    console.log(`\n  ${c.amber("OmniRoute katalogi hozircha ulanmagan.")} ${c.dim("(server env sozlanmagan)")}\n`);
+    return;
+  }
+  const fams = data.families ?? [];
+  console.log(`\n  ${c.bold(c.white("Model oilalari"))}  ${c.dim(`(${fams.length} ta)`)}\n`);
+  for (const f of fams) {
+    const auto = f.auto ? c.dim("  · auto: ") + c.accent(f.auto) : "";
+    console.log(`  ${c.accent("✦")} ${c.white(f.label.padEnd(20))} ${c.gray(String(f.count).padStart(4))}${auto}`);
+  }
+  console.log(`\n  ${c.dim("Ichini ko'rish:")} ${c.white("/models claude")}   ${c.dim("· qidirish:")} ${c.white("/models <so'z>")}   ${c.dim("· tanlash:")} ${c.white("/model <id>")}\n`);
+}
+
+/** Berilgan so'z oila kaliti/nomiga mos kelsa — oila kalitini qaytaradi. */
+export function matchFamily(families, arg) {
+  const q = arg.trim().toLowerCase();
+  if (!q) return "";
+  const byKey = families.find((f) => f.key.toLowerCase() === q);
+  if (byKey) return byKey.key;
+  const byLabel = families.find((f) => f.label.toLowerCase().startsWith(q) || f.label.toLowerCase().includes(q));
+  return byLabel ? byLabel.key : "";
 }
 
 /** Katalog natijalarini chiroyli ro'yxat qilib chiqaradi. */
