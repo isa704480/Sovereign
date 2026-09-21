@@ -204,7 +204,9 @@ export const useChat = create<ChatState>()(
       setAutoScroll: (autoScroll) => set({ autoScroll }),
 
       setModel: (modelId) => {
-        if (modelId !== AUTO_MODEL_ID && !MODEL_BY_ID[modelId]) return;
+        // OmniRoute katalog modeli (id da "/") ham ruxsat etiladi — curated ro'yxatda bo'lmasa ham.
+        const isOmni = modelId.includes("/") && !MODEL_BY_ID[modelId];
+        if (modelId !== AUTO_MODEL_ID && !isOmni && !MODEL_BY_ID[modelId]) return;
         const { activeId, conversations } = get();
         const research = MODEL_BY_ID[modelId]?.category === "research" ? true : get().research;
         if (activeId && conversations[activeId]) {

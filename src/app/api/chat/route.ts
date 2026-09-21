@@ -9,7 +9,7 @@ import {
 import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
 import { verifyAnswer } from "@/lib/ai/verifier";
 import { planRouteLLM } from "@/lib/ai/router";
-import { AUTO_MODEL_ID, MODEL_BY_ID, resolveModel } from "@/config/models";
+import { AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
 import { AGENT_MODE_BY_ID } from "@/config/agent-modes";
@@ -154,7 +154,9 @@ export async function POST(req: Request) {
   const research = reqResearch || !!mode?.autoResearch;
   const langText = `JAVOB TILI: foydalanuvchi boshqa tilda yozmasa, ${LANG_FOR_AI[lang]} javob ber.`;
   const isAuto = modelId === AUTO_MODEL_ID;
-  if (!isAuto && !MODEL_BY_ID[modelId]) return Response.json({ error: "Noma'lum model" }, { status: 400 });
+  // OmniRoute katalog modeli — id da "/" bor va curated ro'yxatda yo'q.
+  const isOmni = !isAuto && modelId.includes("/") && !MODEL_BY_ID[modelId];
+  if (!isAuto && !isOmni && !MODEL_BY_ID[modelId]) return Response.json({ error: "Noma'lum model" }, { status: 400 });
 
   const encoder = new TextEncoder();
   const sse = (payload: unknown) => encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
@@ -197,14 +199,17 @@ export async function POST(req: Request) {
     : [
         {
           modelId,
-          kind: (research || MODEL_BY_ID[modelId].category === "research" ? "research" : "answer") as "research" | "answer",
+          kind: (research || (!isOmni && MODEL_BY_ID[modelId].category === "research") ? "research" : "answer") as
+            | "research"
+            | "answer",
           purpose: "",
         },
       ];
   const routeReason = routePlan?.reason ?? "";
 
-  // Plan gating for a concrete (non-auto) model.
-  if (!isAuto) {
+  // Plan gating for a concrete (non-auto) model. OmniRoute katalog modellari
+  // tekin (OmniRoute o'z kvotasi bilan) — tarif cheklovi qo'llanmaydi.
+  if (!isAuto && !isOmni) {
     const model = MODEL_BY_ID[modelId];
     if (!planAllowsTier(plan, model.tier)) {
       const need = planForTier(model.tier);
@@ -286,7 +291,7 @@ export async function POST(req: Request) {
               const enabled = await getEnabledConnectors(sbc, cu.id);
               if (enabled.length) {
                 const answerStep = steps.find((s) => s.kind === "answer") ?? steps[steps.length - 1];
-                const pm = resolveModel(answerStep.modelId).providerModel;
+                const pm = MODEL_BY_ID[answerStep.modelId]?.providerModel ?? answerStep.modelId;
                 const ctx = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: pm, messages, enabled, signal: req.signal });
                 if (ctx) connectorContext = ctx;
               }

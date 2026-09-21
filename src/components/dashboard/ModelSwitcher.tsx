@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, ChevronDown, Lock } from "lucide-react";
+import { Check, ChevronDown, Lock, Search } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { AUTO_MODEL, AUTO_MODEL_ID, MODELS, MODEL_GROUPS, isModelVisible, resolveModel, type SovereignModel } from "@/config/models";
+import { AUTO_MODEL, AUTO_MODEL_ID, MODELS, MODEL_BY_ID, MODEL_GROUPS, isModelVisible, resolveModel, type SovereignModel } from "@/config/models";
 import { planAllowsTier, type Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,8 @@ interface ModelSwitcherProps {
   plan: Plan;
   compact?: boolean;
 }
+
+type OmniModel = { id: string; label: string; owner: string; context: number; tools: boolean; vision: boolean; reasoning: boolean };
 
 function Bars({ model }: { model: SovereignModel }) {
   return (
@@ -41,8 +43,34 @@ function Bars({ model }: { model: SovereignModel }) {
 export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherProps) {
   const t = useT();
   const { model: themeModel } = useTheme();
-  const model = value === AUTO_MODEL_ID ? AUTO_MODEL : resolveModel(value) ?? themeModel;
+  const isOmniValue = value !== AUTO_MODEL_ID && value.includes("/") && !MODEL_BY_ID[value];
+  const model = value === AUTO_MODEL_ID ? AUTO_MODEL : isOmniValue ? themeModel : resolveModel(value);
   const [open, setOpen] = useState(false);
+
+  // OmniRoute katalog (1700+ model) — qidiruv bilan dinamik yuklanadi.
+  const [q, setQ] = useState("");
+  const [catalog, setCatalog] = useState<{ configured: boolean; total: number; models: OmniModel[] } | null>(null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    const id = setTimeout(async () => {
+      if (alive) setLoading(true);
+      try {
+        const res = await fetch(`/api/models?q=${encodeURIComponent(q)}&limit=40`);
+        const data = await res.json();
+        if (alive) setCatalog(data);
+      } catch {
+        if (alive) setCatalog({ configured: false, total: 0, models: [] });
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }, q ? 280 : 0);
+    return () => {
+      alive = false;
+      clearTimeout(id);
+    };
+  }, [q, open]);
 
   // Ctrl+K (Dashboard) shu hodisani yuboradi — menyu ochiladi.
   useEffect(() => {
@@ -83,9 +111,11 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
         </span>
         {!compact && (
           <span className="leading-tight">
-            <span className="block text-sm font-semibold" style={{ color: "var(--t-text)" }}>{model.name}</span>
+            <span className="block text-sm font-semibold" style={{ color: "var(--t-text)" }}>
+              {isOmniValue ? (value.split("/").pop() ?? value) : model.name}
+            </span>
             <span className="block text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-              {model.provider} · {model.price}
+              {isOmniValue ? "OmniRoute · TEKIN" : `${model.provider} · ${model.price}`}
             </span>
           </span>
         )}
@@ -198,6 +228,69 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                 </div>
               );
             })}
+
+            {/* OmniRoute katalog — 1700+ model, qidiruv bilan */}
+            {catalog?.configured !== false && (
+              <div className="mt-1.5">
+                <div
+                  className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                  style={{ color: "var(--t-text-muted)", borderTop: "1px solid var(--t-border)" }}
+                >
+                  Barcha modellar
+                  {catalog?.total ? <span className="normal-case tracking-normal">· {catalog.total}</span> : null}
+                  <span className="ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-semibold normal-case tracking-normal" style={{ background: "rgba(16,212,160,0.15)", color: "#10D4A0" }}>
+                    TEKIN
+                  </span>
+                </div>
+                <div className="relative mb-1 px-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2" style={{ color: "var(--t-text-muted)" }} />
+                  <input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="claude, gemini, deepseek, qwen…"
+                    className="w-full rounded-lg border bg-transparent py-1.5 pl-8 pr-2 text-xs outline-none"
+                    style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
+                  />
+                </div>
+                {loading && <div className="px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>Qidirilyapti…</div>}
+                {!loading && catalog?.models?.length === 0 && (
+                  <div className="px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>Hech narsa topilmadi.</div>
+                )}
+                {!loading &&
+                  catalog?.models?.map((m) => {
+                    const active = m.id === value;
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        onClick={() => {
+                          onChange(m.id);
+                          setOpen(false);
+                        }}
+                        className="tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5"
+                        style={active ? { background: "color-mix(in srgb, #7C6FF7 14%, transparent)" } : undefined}
+                      >
+                        <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "color-mix(in srgb, #7C6FF7 20%, transparent)", color: "#7C6FF7" }}>
+                          ✦
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{m.id}</span>
+                          <span className="block truncate text-[10px]" style={{ color: "var(--t-text-muted)" }}>
+                            {m.owner}
+                            {m.context ? ` · ${Math.round(m.context / 1000)}k` : ""}
+                            {m.tools ? " · 🔧" : ""}
+                            {m.vision ? " · 👁" : ""}
+                            {m.reasoning ? " · 🧠" : ""}
+                          </span>
+                        </span>
+                        {active && <Check className="size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

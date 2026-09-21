@@ -556,7 +556,9 @@ export const AUTO_MODEL: SovereignModel = {
 };
 
 export function resolveModel(id: string): SovereignModel {
-  return id === AUTO_MODEL_ID ? AUTO_MODEL : (MODEL_BY_ID[id] ?? MODEL_BY_ID[DEFAULT_MODEL_ID]);
+  // Noma'lum id (mas. OmniRoute katalog modeli "provider/model") — Auto ko'rinishi
+  // (sovereign tema) bilan qaytadi, hech qachon undefined emas.
+  return id === AUTO_MODEL_ID ? AUTO_MODEL : (MODEL_BY_ID[id] ?? AUTO_MODEL);
 }
 
 export const MODEL_BY_THEME: Record<Exclude<ModelTheme, "sovereign">, SovereignModel> =

@@ -513,9 +513,10 @@ async function* streamOpenRouter(
   retried = false,
   continuation = 0,
   skipOmni = false,
+  forced?: { url: string; auth: string; model: string; provider: Provider },
 ): AsyncGenerator<StreamEvent> {
   const cached = withPromptCache(model, messages);
-  const direct = pickDirectRoute(model.providerModel, { skipOmni });
+  const direct = forced ?? pickDirectRoute(model.providerModel, { skipOmni });
 
   // Direct route ishlatiladigan bo'lsa uni ishlatamiz — Groq / OpenAI direct
   // OpenRouter proxysidan tezroq va ishonchliroq.
@@ -776,7 +777,61 @@ export interface StreamOptions {
 }
 
 /** Streams a completion from OpenRouter (or Perplexity for research models). */
+/** OmniRoute katalog id — "provider/model" ko'rinishida, curated ro'yxatda yo'q. */
+export function isOmniCatalogId(id: string): boolean {
+  return typeof id === "string" && id.includes("/") && !MODEL_BY_ID[id];
+}
+
+function omniCatalogRoute(modelId: string): { url: string; auth: string; model: string; provider: Provider } | null {
+  const base = process.env.OMNIROUTE_BASE_URL;
+  const auth = process.env.OMNIROUTE_API_KEY;
+  if (!base || !auth) return null;
+  return { url: `${base.replace(/\/$/, "")}/chat/completions`, auth, model: modelId, provider: "omniroute" };
+}
+
+/** OmniRoute katalog modeli uchun yengil sintetik SovereignModel (brend emas). */
+function syntheticOmniModel(id: string): SovereignModel {
+  const short = id.split("/").pop() ?? id;
+  return {
+    id,
+    name: short,
+    shortName: short,
+    provider: "OmniRoute",
+    theme: "sovereign",
+    cost: "free",
+    category: "free",
+    tier: "free",
+    providerModel: id,
+    price: "TEKIN",
+    glyph: "✦",
+    tagline: "OmniRoute katalog",
+    description: "",
+    primary: "#7C6FF7",
+    accent: "#7C6FF7",
+    bg: "#0D1033",
+    capabilities: [],
+    demo: { user: "", ai: "" },
+  };
+}
+
 export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<StreamEvent> {
+  // Foydalanuvchi OmniRoute katalogidan model tanlagan bo'lsa — o'sha id bilan
+  // to'g'ridan-to'g'ri OmniRoute'ga; xato bersa quyidagi zaxira zanjiri ishlaydi.
+  if (isOmniCatalogId(opts.modelId)) {
+    const route = omniCatalogRoute(opts.modelId);
+    if (!route) {
+      yield { type: "error", message: "OmniRoute ulanmagan (server env sozlanmagan)." };
+      return;
+    }
+    const smodel = syntheticOmniModel(opts.modelId);
+    const messages: ChatMessageInput[] = [
+      { role: "system", content: buildSystemPrompt(smodel, !!opts.research, opts.extraSystem) },
+      ...opts.messages.filter((m) => m.role !== "system"),
+    ];
+    yield* streamOpenRouter(smodel, messages, opts, opts.maxTokens ?? 2048, false, 0, false, route);
+    return;
+  }
+
   const model = MODEL_BY_ID[opts.modelId];
   if (!model) {
     yield { type: "error", message: `Noma'lum model: ${opts.modelId}` };
