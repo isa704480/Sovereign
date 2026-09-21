@@ -374,7 +374,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
         />
         <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
         <SkillsMarket open={skillsOpen} onClose={() => setSkillsOpen(false)} enabled={enabledSkills} onToggle={toggleSkill} />
-        <CoworkPanel open={coworkOpen} onClose={() => setCoworkOpen(false)} />
+        <CoworkPanel open={coworkOpen} onClose={() => setCoworkOpen(false)} messages={messages} />
         <ConnectorsPanel open={connectorsOpen} onClose={() => setConnectorsOpen(false)} />
         <KnowledgePanel open={kbOpen} onClose={() => setKbOpen(false)} />
         <SettingsPanel

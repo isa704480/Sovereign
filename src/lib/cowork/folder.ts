@@ -185,6 +185,18 @@ export const WRITE_PROTOCOL = [
   "faylning TO'LIQ mazmunini ber (qisman emas); yo'l papka ichida bo'lsin. Qisqa izohni blokdan tashqarida yoz.",
 ].join("\n");
 
+/** Assistant matnidagi barcha `sovereign-write` bloklarini ajratadi (oxirgi holat panel uchun). */
+export function extractWriteBlocks(text: string): { path: string; content: string }[] {
+  const out: { path: string; content: string }[] = [];
+  const re = /```(?:sovereign-write|sov-write|write-file)[ \t]*\n([\s\S]*?)```/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    const parsed = parseWriteBlock(m[1].replace(/\n$/, ""));
+    if (parsed) out.push(parsed);
+  }
+  return out;
+}
+
 /** `sovereign-write` blok mazmunini {path, content} ga ajratadi. */
 export function parseWriteBlock(raw: string): { path: string; content: string } | null {
   const nl = raw.indexOf("\n");
