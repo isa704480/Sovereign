@@ -1,14 +1,18 @@
 "use client";
 
-import { Check, Copy, FileCode2, PanelRightOpen } from "lucide-react";
-import { memo, useMemo, useState, type ComponentProps } from "react";
+import { Check, Copy, FileCode2, FileDown, Loader2, PanelRightOpen } from "lucide-react";
+import { memo, useEffect, useMemo, useState, type ComponentProps } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { parseWriteBlock } from "@/lib/cowork/folder";
 import { isRenderable, useArtifact } from "./artifact-context";
+import { useCowork } from "./cowork-context";
 import { GenerativeUI, parseGenUi } from "./GenerativeUI";
 
 /** Blocks the model uses to draw a component instead of printing JSON. */
 const GEN_UI_LANGS = new Set(["sovereign-ui", "sov-ui", "genui"]);
+/** Cowork yozish bloklari — diff + "Qo'llash" kartasi. */
+const WRITE_LANGS = new Set(["sovereign-write", "sov-write", "write-file"]);
 
 /** Uzun kod chatni bosib ketmasin — bir qatorli fayl kartasi ko'rinadi. */
 const FILE_CARD_CHARS = 900;
@@ -43,6 +47,96 @@ function fileNameOf(code: string, lang: string): string {
     /(?:^|\n)\s*(?:\/\/|#|<!--|\/\*)\s*([\w.-]+\.[a-z]{2,4})\b/i.exec(head)?.[1] ??
     /(?:^|\n)\s*([\w-]+\.(?:html|css|js|ts|tsx|jsx|py|json|sql|md|sh))\s*(?:-->|\*\/)?\s*(?:\n|$)/i.exec(head)?.[1];
   return named ?? DEFAULT_NAME[lang.toLowerCase()] ?? `kod.${lang.toLowerCase() || "txt"}`;
+}
+
+/** Cowork yozish kartasi — AI taklif qilgan faylni diff bilan ko'rsatib, bir tugmada saqlaydi. */
+function WriteFileCard({ path, content }: { path: string; content: string }) {
+  const { canWrite, applyWrite, readText, folder } = useCowork();
+  const artifact = useArtifact();
+  const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
+  const [err, setErr] = useState("");
+  const [oldLines, setOldLines] = useState<number | null>(null);
+  const exists = !!folder?.files.some((f) => f.path === path);
+  const newLines = content.split("\n").length;
+  const lang = path.split(".").pop() ?? "text";
+
+  useEffect(() => {
+    if (!exists) return;
+    let alive = true;
+    readText(path).then((tprev) => alive && setOldLines(tprev ? tprev.split("\n").length : 0));
+    return () => {
+      alive = false;
+    };
+  }, [path, exists, readText]);
+
+  const apply = async () => {
+    setState("saving");
+    setErr("");
+    try {
+      await applyWrite(path, content);
+      setState("done");
+    } catch (e) {
+      setState("error");
+      setErr(e instanceof Error ? e.message : "Xato");
+    }
+  };
+
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([content], { type: "text/plain" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = path.split("/").pop() ?? "file.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="tt my-3 rounded-[14px] border p-3" style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}>
+      <div className="flex items-center gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl" style={{ background: "color-mix(in srgb, #10D4A0 18%, transparent)", color: "#10D4A0" }}>
+          <FileCode2 className="size-5" />
+        </span>
+        <button type="button" onClick={() => artifact.open({ code: content, lang, title: path })} className="min-w-0 flex-1 text-left">
+          <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>{path}</span>
+          <span className="nums block text-xs" style={{ color: "var(--t-text-muted)" }}>
+            {exists ? "o'zgartirish" : "yangi fayl"} · {newLines} qator
+            {oldLines !== null ? ` (avval ${oldLines})` : ""}
+          </span>
+        </button>
+        {state === "done" ? (
+          <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "#10D4A0" }}>
+            <Check className="size-4" /> Saqlandi
+          </span>
+        ) : canWrite ? (
+          <>
+            <button type="button" onClick={() => artifact.open({ code: content, lang, title: path })} className="rounded-lg px-2.5 py-1.5 text-xs font-medium" style={{ color: "var(--t-text-muted)" }}>
+              {"Ko'rish"}
+            </button>
+            <button
+              type="button"
+              onClick={apply}
+              disabled={state === "saving"}
+              className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+              style={{ background: "var(--t-primary)" }}
+            >
+              {state === "saving" ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              {"Qo'llash"}
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={download} className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: "color-mix(in srgb, var(--t-text) 10%, transparent)", color: "var(--t-text)" }}>
+            <FileDown className="size-3.5" /> Yuklab olish
+          </button>
+        )}
+      </div>
+      {state === "error" && <div className="mt-2 text-xs" style={{ color: "#EF4444" }}>{err}</div>}
+      {!canWrite && (
+        <div className="mt-2 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+          {"To'g'ridan-to'g'ri saqlash uchun Cowork papkasini Chrome/Edge orqali ulang (Vositalar → Cowork)."}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function FileCard({ code, lang }: { code: string; lang: string }) {
@@ -214,6 +308,11 @@ export const Markdown = memo(function Markdown({ content, citations }: MarkdownP
           // Still streaming (or invalid) → show a placeholder, never raw JSON.
           if (!spec) return <GenUiPlaceholder />;
           return <GenerativeUI spec={spec} />;
+        }
+        if (lang && WRITE_LANGS.has(lang)) {
+          const parsed = parseWriteBlock(raw);
+          if (!parsed) return <GenUiPlaceholder />; // hali oqmoqda
+          return <WriteFileCard path={parsed.path} content={parsed.content} />;
         }
         if (isBlock) {
           // Katta fayl chat oqimini bosib ketmasin: karta ko'rsatamiz, kod yon panelda.
