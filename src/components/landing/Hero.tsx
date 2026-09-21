@@ -2,32 +2,10 @@
 
 import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
-import { motion } from "motion/react";
 import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 import { MagneticButton } from "@/components/motion/MagneticButton";
+import { OrbitField } from "./OrbitField";
 import { useT } from "@/store/chat";
-
-/* Abstrakt AI belgilari (brend logolari emas) — portail uslubidagi xira "yulduzlar". */
-const GLYPHS = [
-  <path key="a" d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" />,
-  <g key="b"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="3.5" /></g>,
-  <path key="c" d="M12 2l2.6 6.9L22 9.3l-5 4.7 1.4 7L12 17.8 5.6 21l1.4-7-5-4.7 7.4-.4z" />,
-  <path key="d" d="M12 3c5 0 9 4 9 9s-4 9-9 9M12 3c-3 3-3 15 0 18" />,
-  <g key="e"><path d="M3 12h18" /><path d="M7 6l-4 6 4 6M17 6l4 6-4 6" /></g>,
-  <path key="f" d="M12 2l9 5v10l-9 5-9-5V7z" />,
-  <g key="g"><circle cx="12" cy="12" r="2" /><path d="M12 3v4M12 17v4M3 12h4M17 12h4" /></g>,
-  <path key="h" d="M4 16c3-8 13-8 16 0M4 8c3 8 13 8 16 0" />,
-];
-
-const MARKS = [
-  { x: "10%", y: "22%", s: 30, g: 0, d: 0 }, { x: "22%", y: "58%", s: 40, g: 1, d: 0.6 },
-  { x: "8%", y: "78%", s: 26, g: 6, d: 1.1 }, { x: "30%", y: "82%", s: 22, g: 2, d: 0.3 },
-  { x: "17%", y: "40%", s: 24, g: 7, d: 0.9 }, { x: "34%", y: "16%", s: 20, g: 3, d: 1.4 },
-  { x: "62%", y: "18%", s: 22, g: 2, d: 0.5 }, { x: "78%", y: "28%", s: 34, g: 0, d: 1.0 },
-  { x: "88%", y: "52%", s: 42, g: 4, d: 0.2 }, { x: "72%", y: "72%", s: 26, g: 5, d: 1.3 },
-  { x: "90%", y: "80%", s: 22, g: 6, d: 0.7 }, { x: "82%", y: "14%", s: 18, g: 7, d: 1.6 },
-  { x: "58%", y: "84%", s: 24, g: 1, d: 0.4 }, { x: "45%", y: "10%", s: 18, g: 5, d: 1.2 },
-];
 
 export function Hero({ signedIn = false }: { signedIn?: boolean }) {
   const t = useT();
@@ -42,23 +20,8 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
       />
       <div className="grid-fade absolute inset-0 -z-10 opacity-60" />
 
-      {/* suzuvchi AI belgilari */}
-      <div className="pointer-events-none absolute inset-0 -z-10">
-        {MARKS.map((m, i) => (
-          <motion.div
-            key={i}
-            className="absolute"
-            style={{ left: m.x, top: m.y }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, y: [0, -10, 0] }}
-            transition={{ opacity: { duration: 1, delay: 0.2 + m.d * 0.2 }, y: { duration: 6 + (i % 4), repeat: Infinity, ease: "easeInOut", delay: m.d } }}
-          >
-            <svg width={m.s} height={m.s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.2} strokeLinecap="round" strokeLinejoin="round" className="text-text-primary/[0.07]">
-              {GLYPHS[m.g]}
-            </svg>
-          </motion.div>
-        ))}
-      </div>
+      {/* aylanuvchi AI logolari */}
+      <OrbitField />
 
       <Stagger stagger={0.09} delay={0.1} className="relative flex max-w-3xl flex-col items-center">
         <StaggerItem>

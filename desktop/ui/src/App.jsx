@@ -7,7 +7,7 @@ import { md } from "./lib/md.js";
 const S = window.sovereign;
 const C = {
   bg: "#0F0F10", surface: "#1A1A1C", surface2: "#232327", border: "rgba(255,255,255,0.08)",
-  text: "#ECECEC", muted: "#9B9BA0", faint: "#6A6A70", accent: "#D97757",
+  text: "#ECECEC", muted: "#9B9BA0", faint: "#6A6A70", accent: "#7C6FF7",
   ok: "#6BBF8A", warn: "#E0A458", err: "#E0685E", addFg: "#7FD6A0", delFg: "#F08A94",
   mono: "var(--mono)",
 };
@@ -127,7 +127,7 @@ export default function App() {
         </div>
 
         <div style={{ padding: "2px 12px 12px" }}>
-          <button className="h-bright" onClick={newTask} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, height: 34, borderRadius: 9, background: C.accent, color: "#1A1214", fontSize: 12.5, fontWeight: 600, letterSpacing: "-0.01em" }}>
+          <button className="h-bright" onClick={newTask} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, height: 34, borderRadius: 9, background: C.accent, color: "#ffffff", fontSize: 12.5, fontWeight: 600, letterSpacing: "-0.01em" }}>
             <Ico d="" w={1.8}><path d="M12 5v14M5 12h14" /></Ico> Yangi vazifa
           </button>
         </div>
@@ -321,7 +321,7 @@ export default function App() {
               onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 170) + "px"; }}
               placeholder={mode === "chat" ? "Xabar yozing…" : "Vazifa yozing…   (Enter — yuborish, Shift+Enter — yangi qator)"}
               style={{ flex: 1, resize: "none", maxHeight: 170, background: "none", border: "none", color: C.text, outline: "none", fontSize: 13.5, lineHeight: 1.5, padding: "4px 2px" }} />
-            <button type="submit" disabled={busy} className="h-bright" style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 8, background: busy ? C.surface2 : C.accent, color: busy ? C.muted : "#1A1214", flex: "none" }}>
+            <button type="submit" disabled={busy} className="h-bright" style={{ width: 30, height: 30, display: "grid", placeItems: "center", borderRadius: 8, background: busy ? C.surface2 : C.accent, color: busy ? C.muted : "#ffffff", flex: "none" }}>
               <Ico w={1.7}><path d="M12 19V5" /><path d="M6 11l6-6 6 6" /></Ico>
             </button>
           </form>

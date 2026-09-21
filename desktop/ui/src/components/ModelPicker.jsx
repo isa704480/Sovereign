@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 const S = window.sovereign;
-const C = { surface: "#1A1A1C", surface2: "#232327", border: "rgba(255,255,255,0.08)", text: "#ECECEC", muted: "#9B9BA0", faint: "#6A6A70", accent: "#D97757", ok: "#6BBF8A" };
+const C = { surface: "#1A1A1C", surface2: "#232327", border: "rgba(255,255,255,0.08)", text: "#ECECEC", muted: "#9B9BA0", faint: "#6A6A70", accent: "#7C6FF7", ok: "#6BBF8A" };
 
 export default function ModelPicker({ baseUrl, label, onSelect }) {
   const [open, setOpen] = useState(false);

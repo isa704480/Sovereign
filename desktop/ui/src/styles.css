@@ -2,7 +2,7 @@
   --bg:#0F0F10; --surface:#1A1A1C; --surface-2:#232327;
   --border:rgba(255,255,255,0.08);
   --text:#ECECEC; --muted:#9B9BA0; --faint:#6A6A70;
-  --accent:#D97757;
+  --accent:#7C6FF7;
   --ok:#6BBF8A; --warn:#E0A458; --err:#E0685E;
   --add-fg:#7FD6A0; --add-bg:#16281E;
   --del-fg:#F08A94; --del-bg:#2A1619;
@@ -32,7 +32,7 @@ a{color:var(--accent);text-decoration:none}
 .h-lift:hover{transform:translateY(-1px)}
 .h-bright:hover{filter:brightness(1.07)}
 .h-bd:hover{border-color:rgba(255,255,255,0.14)!important}
-.h-accent:hover{background:var(--accent)!important;color:#1A1214!important}
+.h-accent:hover{background:var(--accent)!important;color:#ffffff!important}
 .trunc{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tnum{font-variant-numeric:tabular-nums}
 .mono{font-family:var(--mono)}
@@ -43,6 +43,6 @@ a{color:var(--accent);text-decoration:none}
 [data-md] p{margin:6px 0}
 [data-md] ul{margin:6px 0;padding-left:18px}
 [data-md] li{margin-bottom:4px;color:var(--muted)}
-[data-md] code.inline{font-family:var(--mono);font-size:12px;color:#c9b8ad;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:1px 5px}
+[data-md] code.inline{font-family:var(--mono);font-size:12px;color:#b9b3f5;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:1px 5px}
 [data-md] pre{background:#0e101c;border:1px solid var(--border);border-radius:10px;padding:10px 12px;overflow-x:auto;margin:8px 0}
 [data-md] pre code{font-family:var(--mono);font-size:12px;color:#d7dbef;white-space:pre}

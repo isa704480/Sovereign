@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 import { lineDiff, diffStats } from "../lib/diff.js";
 
-const C = { surface: "#1A1A1C", surface2: "#232327", border: "rgba(255,255,255,0.08)", text: "#ECECEC", muted: "#9B9BA0", faint: "#6A6A70", accent: "#D97757", warn: "#E0A458", addFg: "#7FD6A0", addBg: "#16281E", delFg: "#F08A94", delBg: "#2A1619" };
+const C = { surface: "#1A1A1C", surface2: "#232327", border: "rgba(255,255,255,0.08)", text: "#ECECEC", muted: "#9B9BA0", faint: "#6A6A70", accent: "#7C6FF7", warn: "#E0A458", addFg: "#7FD6A0", addBg: "#16281E", delFg: "#F08A94", delBg: "#2A1619" };
 
 export default function ConfirmDialog({ req, onReply }) {
   const meta = req?.meta || {};
@@ -56,7 +56,7 @@ export default function ConfirmDialog({ req, onReply }) {
           <span style={{ fontSize: 11.5, color: C.faint }}>{isWrite ? meta.path?.split(/[\\/]/).pop() : ""}</span>
           <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
             <button className="h-text" onClick={() => onReply(false)} style={{ height: 32, padding: "0 14px", borderRadius: 9, fontSize: 12.5, color: C.muted, background: C.surface, border: `1px solid ${C.border}` }}>Bekor qilish</button>
-            <button className="h-bright" onClick={() => onReply(true)} style={{ height: 32, padding: "0 16px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, background: C.accent, color: "#1A1214" }}>Qo‘llash</button>
+            <button className="h-bright" onClick={() => onReply(true)} style={{ height: 32, padding: "0 16px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, background: C.accent, color: "#ffffff" }}>Qo‘llash</button>
           </span>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { Navbar } from "@/components/landing/Navbar";
 import { Hero } from "@/components/landing/Hero";
+import { ModelCompare } from "@/components/landing/ModelCompare";
 import { Features } from "@/components/landing/Features";
 import { ModelShowcase } from "@/components/landing/ModelShowcase";
 import { PrivacyBand } from "@/components/landing/PrivacyBand";
@@ -27,6 +28,7 @@ export default async function HomePage() {
     <main className="flex-1">
       <Navbar signedIn={signedIn} />
       <Hero signedIn={signedIn} />
+      <ModelCompare />
       <Features />
       <ModelShowcase />
       <PrivacyBand />
