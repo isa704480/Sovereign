@@ -147,11 +147,11 @@ export function logo() {
  * Welcome banner — Apple-style unified surface.
  * One panel, hairline dividers between sections. Grayscale hierarchy.
  */
-// Claude Code uslubidagi ixcham splash — logo + model/akkaunt/dir, tip, misol.
-// Faqat rang/nom/logo bizniki (SOVEREIGN).
+// Claude Code uslubidagi ixcham, MARKAZLASHTIRILGAN splash.
+// Faqat rang/nom/logo bizniki (SOVEREIGN). Apple restraint: bitta accent, grayscale.
 export function banner(config, enabledSkills = [], vibeOn = false) {
-  const g = G();
   const NL = String.fromCharCode(10);
+  const w = termWidth();
   const mark = c.accent("◆");
   const modelName = config?.token ? "SOVEREIGN Auto" : (config?.model || "openai/gpt-oss-120b");
   const billing = config?.token
@@ -162,28 +162,27 @@ export function banner(config, enabledSkills = [], vibeOn = false) {
     ? c.ok("avto rejim · kodni AI yozadi")
     : c.subtle("oddiy rejim · har o'zgarish tasdiqlanadi");
 
-  const lines = [
+  const content = [
+    mark + "  " + c.bold(c.text("SOVEREIGN CLI")) + " " + c.faint("v" + PKG_VERSION),
+    c.subtle(modelName) + c.faint("  ·  " + billing),
+    c.faint(process.cwd()),
     "",
-    g + mark + "  " + c.bold(c.text("SOVEREIGN CLI")) + " " + c.faint("v" + PKG_VERSION),
-    g + "   " + c.subtle(modelName) + " " + c.faint("· " + billing),
-    g + "   " + c.faint(process.cwd()),
+    c.dim("Terminaldagi AI koding agenti — fayl yozadi, buyruq ishga tushiradi, test qiladi."),
+    c.dim("Modelni ") + c.accent("/model") + c.dim("  ·  buyruqlar ") + c.accent("/help") + c.dim("  ·  skills: ") + c.subtle(skills),
     "",
-    g + c.dim("Terminaldagi AI koding agenti — fayl yozadi, buyruq ishga tushiradi, test qiladi."),
-    g + c.dim("Modelni ") + c.accent("/model") + c.dim("  ·  buyruqlar ") + c.accent("/help") + c.dim("  ·  skills: ") + c.subtle(skills),
-    "",
-    g + c.faint("Masalan: ") + c.subtle("src papkasi bilan Express server yarat va test qil"),
-    g + "         " + modeLine,
-    "",
+    c.faint("Masalan: ") + c.subtle("src papkasi bilan Express server yarat va test qil"),
+    modeLine,
   ];
-  return lines.join(NL);
+  const maxW = Math.max(...content.map((l) => visLen(l)));
+  const pad = " ".repeat(Math.max(0, Math.floor((w - maxW) / 2)));
+  return NL + content.map((l) => (l ? pad + l : "")).join(NL) + NL;
 }
 
 /**
  * Bottom hint bar — Apple system bar aesthetic. Small caps, dim, single accent.
  */
-// Claude Code'dagi pastki status qatori uslubida.
+// Claude Code'dagi pastki status qatori uslubida — markazlashtirilgan.
 export function hintBar(config, pendingCount = 0, vibeOn = false) {
-  const g = G();
   const dot = c.faint("·");
   const status = vibeOn ? c.warn("▶▶ avto rejim yoniq") : c.subtle("oddiy rejim");
   const parts = [
@@ -193,7 +192,9 @@ export function hintBar(config, pendingCount = 0, vibeOn = false) {
     c.faint("/ menyu"),
     c.faint("ctrl+c bekor"),
   ].filter(Boolean);
-  return g + parts.join("  " + dot + "  ");
+  const bar = parts.join("  " + dot + "  ");
+  const pad = " ".repeat(Math.max(0, Math.floor((termWidth() - visLen(bar)) / 2)));
+  return pad + bar;
 }
 
 /**
