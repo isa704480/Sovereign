@@ -1,4 +1,4 @@
-import { searchOmniRouteModels, getFamilies, omniRouteConfigured } from "@/lib/ai/omniroute-models";
+import { searchOmniRouteModels, getFamilies, getFeaturedFree, omniRouteConfigured } from "@/lib/ai/omniroute-models";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -21,8 +21,12 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
 
   if (url.searchParams.get("families")) {
-    const families = await getFamilies();
-    return Response.json({ configured: true, families }, { headers: { "Cache-Control": "public, max-age=300" } });
+    const [families, featured] = await Promise.all([getFamilies(), getFeaturedFree()]);
+    return Response.json({ configured: true, families, featured }, { headers: { "Cache-Control": "public, max-age=300" } });
+  }
+  if (url.searchParams.get("featured")) {
+    const featured = await getFeaturedFree();
+    return Response.json({ configured: true, featured }, { headers: { "Cache-Control": "public, max-age=300" } });
   }
 
   const q = url.searchParams.get("q") ?? "";

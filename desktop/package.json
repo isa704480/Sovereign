@@ -1,7 +1,7 @@
 {
   "name": "sovereign-cowork",
   "productName": "SOVEREIGN Cowork",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "SOVEREIGN Cowork — ish stolidagi AI koding hamkori (React + Electron).",
   "type": "module",
   "main": "main.mjs",

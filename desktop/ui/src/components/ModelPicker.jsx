@@ -6,13 +6,14 @@ const C = { surface: "#1A1A1C", surface2: "#232327", border: "rgba(255,255,255,0
 export default function ModelPicker({ baseUrl, label, onSelect }) {
   const [open, setOpen] = useState(false);
   const [families, setFamilies] = useState(null);
+  const [featured, setFeatured] = useState([]);
   const [fam, setFam] = useState(null);
   const [models, setModels] = useState(null);
   const [q, setQ] = useState("");
   const ref = useRef(null);
   const api = (qs) => fetch(`${baseUrl.replace(/\/$/, "")}/api/models${qs}`).then((r) => r.json()).catch(() => ({}));
 
-  useEffect(() => { if (open && !families) api("?families=1").then((d) => { setFamilies(d.families ?? []); setFam((d.families ?? [])[0] ?? null); }); }, [open]);
+  useEffect(() => { if (open && !families) api("?families=1").then((d) => { setFamilies(d.families ?? []); setFeatured(d.featured ?? []); setFam((d.families ?? [])[0] ?? null); }); }, [open]);
   useEffect(() => {
     if (!open) return;
     const onDown = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
@@ -45,6 +46,21 @@ export default function ModelPicker({ baseUrl, label, onSelect }) {
             <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke={C.faint} strokeWidth={1.5} strokeLinecap="round"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Model qidirish… (claude, gemini, deepseek)" style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.text, fontSize: 12.5 }} />
           </div>
+          {featured.length > 0 && !q && (
+            <div style={{ padding: "8px 10px", borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ fontSize: 10, color: C.faint, letterSpacing: "0.08em", textTransform: "uppercase", padding: "2px 4px 6px", display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ color: C.accent }}>✦</span> Tekin — tavsiya <span style={{ color: C.ok, textTransform: "none", letterSpacing: 0 }}>≥20M/oy</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                {featured.map((m) => (
+                  <button key={m.id} className="h-surf2" onClick={() => choose(m.id, m.label)} title={m.id} style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 9px", borderRadius: 8, textAlign: "left", background: label === m.label ? C.surface2 : "transparent" }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", flex: "none", background: C.ok }} />
+                    <span className="trunc" style={{ flex: 1, fontSize: 12, fontWeight: 600, color: C.text }}>{m.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ display: "flex", minHeight: 238 }}>
             <div style={{ width: 150, flex: "none", borderRight: `1px solid ${C.border}`, padding: 8, maxHeight: 300, overflowY: "auto" }}>
               <button className="h-surf2" onClick={() => choose("", "Auto")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, height: 30, padding: "0 9px", borderRadius: 8, textAlign: "left", fontSize: 12, color: C.text }}>

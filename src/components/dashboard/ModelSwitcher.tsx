@@ -30,6 +30,7 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
   // OmniRoute katalog (1700+ model) — Cursor uslubi: oila → ichida modellar.
   const [q, setQ] = useState("");
   const [families, setFamilies] = useState<ModelFamily[] | null>(null);
+  const [featured, setFeatured] = useState<{ id: string; label: string; note: string }[]>([]);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [activeFamily, setActiveFamily] = useState<ModelFamily | null>(null);
   const [catalog, setCatalog] = useState<{ total: number; models: OmniModel[] } | null>(null);
@@ -45,6 +46,7 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
         const data = await res.json();
         if (alive) {
           setFamilies(data.families ?? []);
+          setFeatured(data.featured ?? []);
           setConfigured(data.configured !== false);
         }
       } catch {
@@ -199,6 +201,34 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
                     style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                   />
                 </div>
+
+                {/* Tekin ✦ — tavsiya (saxiy, ≥20M/oy) */}
+                {!q && !activeFamily && featured.length > 0 && (
+                  <>
+                    <div className="flex items-center gap-1.5 px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--t-text-muted)" }}>
+                      Tekin — tavsiya
+                      <span className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold normal-case tracking-normal" style={{ background: "rgba(16,212,160,0.15)", color: "#10D4A0" }}>≥20M/oy</span>
+                    </div>
+                    {featured.map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => { onChange(m.id); setOpen(false); }}
+                        className="tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5"
+                        style={value === m.id ? { background: "color-mix(in srgb, #10D4A0 12%, transparent)" } : undefined}
+                        title={m.id}
+                      >
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "rgba(16,212,160,0.18)", color: "#10D4A0" }}>✦</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{m.label}</span>
+                          <span className="block truncate text-[10px]" style={{ color: "var(--t-text-muted)" }}>{m.note}</span>
+                        </span>
+                        {value === m.id && <Check className="size-4 shrink-0" style={{ color: "#10D4A0" }} />}
+                      </button>
+                    ))}
+                    <div className="my-1.5 h-px" style={{ background: "var(--t-border)" }} />
+                  </>
+                )}
 
                 {/* 1-bosqich: oilalar ro'yxati (qidiruvsiz, oila tanlanmagan) */}
                 {!q && !activeFamily && (

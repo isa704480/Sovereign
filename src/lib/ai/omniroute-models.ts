@@ -124,6 +124,31 @@ export function familyOf(id: string): string {
 
 export type ModelFamily = { key: string; label: string; count: number; auto?: string };
 
+// Saxiy TEKIN modellar (≥20M token/oy) — har AI oilasidan eng yaxshi bittasi.
+// auto/* kombolari OmniRoute'da eng yaxshi tekin modelni (yuqori budjet) tanlaydi.
+const FEATURED_FREE: { id: string; label: string; note: string }[] = [
+  { id: "auto/best-free", label: "Eng yaxshi tekin", note: "har safar eng saxiy tekin model" },
+  { id: "auto/coding:free", label: "Kod — tekin", note: "kod uchun eng yaxshi tekin" },
+  { id: "auto/claude-sonnet", label: "Claude", note: "Anthropic — tekin yo'naltirish" },
+  { id: "auto/gemini", label: "Gemini", note: "Google — 60M/oy" },
+  { id: "auto/llama", label: "Llama", note: "Meta — 30M/oy" },
+  { id: "auto/glm", label: "GLM", note: "Zhipu — 30M/oy" },
+  { id: "auto/gemma", label: "Gemma", note: "Google — 20M/oy" },
+  { id: "auto/minimax", label: "MiniMax", note: "20M/oy" },
+];
+
+export type FeaturedModel = { id: string; label: string; note: string; context: number; tools: boolean };
+
+/** Saxiy tekin (≥20M) tavsiya modellari — katalogda mavjudlari. */
+export async function getFeaturedFree(): Promise<FeaturedModel[]> {
+  const all = await getOmniRouteModels();
+  const byId = new Map(all.map((m) => [m.id, m]));
+  return FEATURED_FREE.filter((f) => byId.has(f.id)).map((f) => {
+    const m = byId.get(f.id)!;
+    return { id: f.id, label: f.label, note: f.note, context: m.context, tools: m.tools };
+  });
+}
+
 /** Oilalar ro'yxati (soni bo'yicha kamayish tartibida). */
 export async function getFamilies(): Promise<ModelFamily[]> {
   const all = await getOmniRouteModels();
