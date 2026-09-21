@@ -35,11 +35,12 @@ Ya'ni bo'laklar bor; Cowork — ularni **bitta ish oqimiga** bog'lash.
 - Har workspace uchun alohida suhbat/xotira.
 - *Natija:* foydalanuvchi papkani ochib, u bilan uzluksiz ishlaydi.
 
-### Bosqich 2 — Web'da fayl yozish (File System Access API)
-- Brauzerdagi `showDirectoryPicker` orqali **yozish ruxsati** so'rash.
-- AI tool: `write_file(path, content)` — foydalanuvchi tasdig'i bilan.
-- Diff ko'rsatish: o'zgarishdan oldin nima o'zgarishini ko'rsatib, "Qo'llash / Bekor".
-- *Natija:* web'da ham AI kod yozib, faylni yangilaydi (CLI'siz).
+### Bosqich 2 — Web'da fayl yozish (File System Access API) — ✅ POYDEVOR TAYYOR
+- `showDirectoryPicker` handle'i saqlanadi; `ensureWritePermission` readwrite so'raydi.
+- AI `sovereign-write` blokida faylni beradi → klient `WriteFileCard` bilan ko'rsatadi
+  (yangi/o'zgartirish, qator soni, **Qo'llash** tugmasi). `writeFileToFolder` saqlaydi.
+- Chromiumsiz brauzerda (Safari/Firefox) — "Yuklab olish" zaxira.
+- *Qoldi:* to'liq qator-ma-qator diff ko'rinishi; oqim tugaguncha Qo'llashni bloklash.
 
 ### Bosqich 3 — Cowork paneli (vazifa oqimi)
 - Yon panel: **Reja → Qadamlar → Fayllar → Natija**.
@@ -59,6 +60,20 @@ Ya'ni bo'laklar bor; Cowork — ularni **bitta ish oqimiga** bog'lash.
 - *Natija:* murakkab vazifa bir necha ixtisoslashgan agent bilan tezroq bajariladi.
 
 ---
+
+## Cross-platform (Mac · Linux · Windows)
+
+Alohida OS kodi kerak EMAS — ikki muhit ham platformadan mustaqil:
+
+| Yo'l | Texnologiya | Qamrov |
+|---|---|---|
+| **Web Cowork** | File System Access API (brauzer OS'ni abstract qiladi) | Chrome/Edge — Windows, macOS, Linux, ChromeOS |
+| **Web zaxira** | `<input webkitdirectory>` (o'qish) + "Yuklab olish" (yozish) | Safari, Firefox — hamma OS |
+| **CLI** | Node.js `fs` + `node:path` (POSIX/Win yo'llar avtomatik) | Windows, macOS, Linux |
+
+- Yo'llar doim `/` bilan (POSIX uslub); `node:path` Windows'da `\` ga o'giradi.
+- Sandbox: web'da brauzer ruxsati papka ichida qoladi; CLI'da `resolvePath` tekshiradi.
+- Kelajakda desktop kerak bo'lsa — Tauri/Electron o'rami (o'sha kod bazasi).
 
 ## Xavfsizlik qoidalari (har bosqichda)
 - Fayl yozish/buyruq **doim tasdiq** bilan (yoki "auto" rejim aniq yoqilganda).
