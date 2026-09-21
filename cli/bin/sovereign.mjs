@@ -2,7 +2,7 @@
 import readline from "node:readline";
 import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
-import { loadMemory, addMemory, removeMemory, clearMemory } from "../src/memory.mjs";
+import { loadMemory, addMemory, removeMemory, clearMemory, syncMemory } from "../src/memory.mjs";
 import { login } from "../src/login.mjs";
 import { printModels, resolveModelId, isOmniId, fetchCatalog, printCatalog } from "../src/models.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
@@ -189,6 +189,8 @@ async function repl() {
   });
 
   let config = await ensureAuth(rl);
+  // Umumiy xotira (web bilan bir xil) — birinchi xabardan oldin keshni yangilaymiz.
+  if (config.token) await syncMemory(config).catch(() => {});
   let messages = initialMessages(config);
   let sessionId = null; // birinchi javobdan keyin yaratiladi
   const pending = []; // paths queued via /attach for the next user message
@@ -678,6 +680,7 @@ async function repl() {
 async function oneShot(task) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const config = await ensureAuth(rl);
+  if (config.token) await syncMemory(config).catch(() => {});
   const confirm = await confirmer(rl);
   const messages = initialMessages(config);
   messages.push(await buildUserMessage(task, attachFiles));
