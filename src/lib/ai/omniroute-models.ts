@@ -78,18 +78,92 @@ export async function getOmniRouteModels(): Promise<CatalogModel[]> {
   }
 }
 
-/** Qidiruv + limit bilan filtrlash. */
-export async function searchOmniRouteModels(q = "", limit = 100): Promise<{ total: number; models: CatalogModel[] }> {
+// Model oilalari (Cursor uslubida) — id ichidagi kalit so'zdan aniqlanadi.
+const FAMILY_DEFS: { key: string; label: string; kw: string[] }[] = [
+  { key: "claude", label: "Claude", kw: ["claude"] },
+  { key: "gpt", label: "GPT · OpenAI", kw: ["gpt", "chatgpt", "codex", "o1-", "o3-", "o4-", "/o1", "/o3", "/o4"] },
+  { key: "gemini", label: "Gemini", kw: ["gemini"] },
+  { key: "gemma", label: "Gemma", kw: ["gemma"] },
+  { key: "deepseek", label: "DeepSeek", kw: ["deepseek"] },
+  { key: "qwen", label: "Qwen", kw: ["qwen"] },
+  { key: "kimi", label: "Kimi", kw: ["kimi"] },
+  { key: "llama", label: "Llama", kw: ["llama"] },
+  { key: "mistral", label: "Mistral", kw: ["mistral", "mixtral", "ministral", "magistral", "codestral", "devstral", "pixtral"] },
+  { key: "glm", label: "GLM · Zhipu", kw: ["glm", "chatglm", "zai"] },
+  { key: "minimax", label: "MiniMax", kw: ["minimax"] },
+  { key: "grok", label: "Grok", kw: ["grok"] },
+  { key: "nemotron", label: "Nemotron · NVIDIA", kw: ["nemotron"] },
+  { key: "nova", label: "Nova", kw: ["nova"] },
+  { key: "sonar", label: "Perplexity", kw: ["sonar"] },
+  { key: "command", label: "Command · Cohere", kw: ["command", "cohere"] },
+  { key: "mimo", label: "MiMo", kw: ["mimo"] },
+  { key: "phi", label: "Phi", kw: ["phi-", "/phi"] },
+  { key: "yi", label: "Yi", kw: ["/yi", "yi-"] },
+  { key: "hermes", label: "Hermes", kw: ["hermes"] },
+];
+
+// Har oila uchun "auto" (eng yaxshisini OmniRoute tanlaydi) — katalogда bo'lsa.
+const FAMILY_AUTO: Record<string, string> = {
+  gemini: "auto/gemini",
+  llama: "auto/llama",
+  glm: "auto/glm",
+  gemma: "auto/gemma",
+  minimax: "auto/minimax",
+  claude: "auto/claude-sonnet",
+  mimo: "auto/mimo",
+};
+
+/** Model id → oila kaliti (auto/* lar bundan tashqari). */
+export function familyOf(id: string): string {
+  const low = id.toLowerCase();
+  for (const d of FAMILY_DEFS) {
+    if (d.kw.some((k) => low.includes(k))) return d.key;
+  }
+  return "boshqa";
+}
+
+export type ModelFamily = { key: string; label: string; count: number; auto?: string };
+
+/** Oilalar ro'yxati (soni bo'yicha kamayish tartibida). */
+export async function getFamilies(): Promise<ModelFamily[]> {
+  const all = await getOmniRouteModels();
+  const autoIds = new Set(all.filter((m) => m.id.startsWith("auto/")).map((m) => m.id));
+  const count = new Map<string, number>();
+  for (const m of all) {
+    if (m.id.startsWith("auto/")) continue;
+    const k = familyOf(m.id);
+    count.set(k, (count.get(k) ?? 0) + 1);
+  }
+  const fams: ModelFamily[] = FAMILY_DEFS.map((d) => ({
+    key: d.key,
+    label: d.label,
+    count: count.get(d.key) ?? 0,
+    auto: FAMILY_AUTO[d.key] && autoIds.has(FAMILY_AUTO[d.key]) ? FAMILY_AUTO[d.key] : undefined,
+  }))
+    .filter((f) => f.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const other = count.get("boshqa") ?? 0;
+  if (other) fams.push({ key: "boshqa", label: "Boshqa", count: other });
+  return fams;
+}
+
+/** Qidiruv + oila + limit bilan filtrlash. */
+export async function searchOmniRouteModels(
+  q = "",
+  limit = 100,
+  family = "",
+): Promise<{ total: number; models: CatalogModel[] }> {
   const all = await getOmniRouteModels();
   const query = q.toLowerCase().trim();
-  const filtered = query
-    ? all.filter(
-        (m) =>
-          m.id.toLowerCase().includes(query) ||
-          m.label.toLowerCase().includes(query) ||
-          m.owner.toLowerCase().includes(query),
-      )
-    : all;
+  let filtered = all;
+  if (family) filtered = filtered.filter((m) => !m.id.startsWith("auto/") && familyOf(m.id) === family);
+  if (query)
+    filtered = filtered.filter(
+      (m) =>
+        m.id.toLowerCase().includes(query) ||
+        m.label.toLowerCase().includes(query) ||
+        m.owner.toLowerCase().includes(query),
+    );
   return { total: filtered.length, models: filtered.slice(0, Math.max(1, Math.min(limit, 500))) };
 }
 
