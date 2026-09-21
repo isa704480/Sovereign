@@ -153,6 +153,11 @@ ipcMain.on("agent:remember", (_e, fact) => {
   if (session.config) addMemory(session.config, String(fact));
 });
 
+ipcMain.handle("app:new-task", async () => {
+  session.messages = initialMessages(session.config);
+  return { ok: true };
+});
+
 // ---- Window ------------------------------------------------------------
 function createWindow() {
   win = new BrowserWindow({

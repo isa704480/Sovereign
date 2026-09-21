@@ -4,6 +4,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("sovereign", {
   init: () => ipcRenderer.invoke("app:init"),
   pickFolder: () => ipcRenderer.invoke("app:pick-folder"),
+  newTask: () => ipcRenderer.invoke("app:new-task"),
   send: (text) => ipcRenderer.send("agent:send", text),
   remember: (fact) => ipcRenderer.send("agent:remember", fact),
   confirmReply: (id, ok) => ipcRenderer.send("agent:confirm-reply", { id, ok }),

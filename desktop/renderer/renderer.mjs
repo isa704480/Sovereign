@@ -1,32 +1,41 @@
 // SOVEREIGN Cowork — renderer. Main jarayon bilan `window.sovereign` orqali gaplashadi.
 const S = window.sovereign;
-const log = document.getElementById("log");
-const empty = document.getElementById("empty");
-const input = document.getElementById("input");
-const composer = document.getElementById("composer");
-const sendBtn = document.getElementById("sendBtn");
-const cwdEl = document.getElementById("cwd");
-const whoEl = document.getElementById("who");
-const folderBtn = document.getElementById("folder");
-const scrim = document.getElementById("scrim");
-const dmsg = document.getElementById("dmsg");
+const $ = (id) => document.getElementById(id);
+const log = $("log");
+const empty = $("empty");
+const input = $("input");
+const composer = $("composer");
+const sendBtn = $("sendBtn");
+const folderName = $("folderName");
+const folderPath = $("folderPath");
+const crumb = $("crumb");
+const whoEl = $("who");
+const modelName = $("modelName");
+const vibeChip = $("vibeChip");
+const taskList = $("taskList");
+const scrim = $("scrim");
+const dmsg = $("dmsg");
 
 let busy = false;
+let vibeOn = false;
 let spinEl = null;
+let curAssistant = null;
 
 function esc(s) {
   return String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
 }
-
-// Yengil markdown → HTML (kod bloki, inline kod, bold, sarlavha, ro'yxat).
+function inline(s) {
+  return esc(s)
+    .replace(/`([^`]+)`/g, '<code class="inline">$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+}
 function md(text) {
   const parts = String(text).split(/```/);
   let out = "";
   parts.forEach((seg, i) => {
     if (i % 2 === 1) {
       const nl = seg.indexOf("\n");
-      const body = nl === -1 ? seg : seg.slice(nl + 1);
-      out += `<pre><code>${esc(body.replace(/\n$/, ""))}</code></pre>`;
+      out += `<pre><code>${esc((nl === -1 ? seg : seg.slice(nl + 1)).replace(/\n$/, ""))}</code></pre>`;
     } else {
       out += seg
         .split("\n")
@@ -38,23 +47,14 @@ function md(text) {
           return line.trim() ? `<p>${inline(line)}</p>` : "";
         })
         .join("")
-        .replace(/(<li>.*<\/li>)/s, "<ul>$1</ul>");
+        .replace(/(<li>[\s\S]*<\/li>)/, "<ul>$1</ul>");
     }
   });
   return out;
 }
-function inline(s) {
-  return esc(s)
-    .replace(/`([^`]+)`/g, '<code class="inline">$1</code>')
-    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-}
 
-function atBottom() {
-  return log.scrollHeight - log.scrollTop - log.clientHeight < 80;
-}
-function scroll() {
-  log.scrollTop = log.scrollHeight;
-}
+const atBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+const scroll = () => (log.scrollTop = log.scrollHeight);
 
 function addUser(text) {
   empty?.remove();
@@ -64,8 +64,6 @@ function addUser(text) {
   log.appendChild(el);
   scroll();
 }
-
-let curAssistant = null;
 function assistantBubble() {
   if (curAssistant) return curAssistant;
   const el = document.createElement("div");
@@ -82,27 +80,25 @@ function addText(text) {
 }
 
 const TOOL_LABEL = {
-  write_file: (a) => `✎ ${a.path} yozilyapti`,
-  make_dir: (a) => `📁 ${a.path} yaratilyapti`,
-  read_file: (a) => `📖 ${a.path} o'qilyapti`,
-  list_dir: () => `📂 papka ko'zdan kechirilyapti`,
-  run_command: (a) => `▶ ${a.command}`,
+  write_file: (a) => `✎  ${a.path} yozilyapti`,
+  make_dir: (a) => `📁  ${a.path} yaratilyapti`,
+  read_file: (a) => `📖  ${a.path} o'qilyapti`,
+  list_dir: () => `📂  papka ko'zdan kechirilyapti`,
+  run_command: (a) => `▶  ${a.command}`,
 };
 function addTool(name, args) {
-  curAssistant = null; // vositadan keyin yangi matn yangi bubble'da
+  curAssistant = null;
   const el = document.createElement("div");
   el.className = "tool";
-  const label = (TOOL_LABEL[name] || (() => name))(args || {});
-  el.innerHTML = `<div class="row"><span class="g"></span><span class="lbl">${esc(label)}</span><span class="done" hidden>✓</span></div>`;
   el.dataset.name = name;
+  const label = (TOOL_LABEL[name] || (() => name))(args || {});
+  el.innerHTML = `<div class="row"><span class="lbl">${esc(label)}</span><span class="done" hidden>✓</span></div>`;
   log.appendChild(el);
   scroll();
-  return el;
 }
 function markToolDone(name) {
   const cards = [...log.querySelectorAll(`.tool[data-name="${name}"]`)];
-  const last = cards[cards.length - 1];
-  last?.querySelector(".done")?.removeAttribute("hidden");
+  cards[cards.length - 1]?.querySelector(".done")?.removeAttribute("hidden");
 }
 
 function showSpinner() {
@@ -117,7 +113,6 @@ function hideSpinner() {
   spinEl?.remove();
   spinEl = null;
 }
-
 function setBusy(b) {
   busy = b;
   sendBtn.disabled = b;
@@ -127,18 +122,18 @@ function setBusy(b) {
 
 // ---- confirm dialog ----
 let confirmId = null;
-function askConfirm(id, question) {
-  confirmId = id;
-  dmsg.textContent = question;
-  scrim.hidden = false;
-}
-document.getElementById("dyes").onclick = () => reply(true);
-document.getElementById("dno").onclick = () => reply(false);
 function reply(ok) {
   scrim.hidden = true;
   if (confirmId) S.confirmReply(confirmId, ok);
   confirmId = null;
 }
+$("dyes").onclick = () => reply(true);
+$("dno").onclick = () => reply(false);
+document.addEventListener("keydown", (e) => {
+  if (scrim.hidden) return;
+  if (e.key === "Enter") reply(true);
+  if (e.key === "Escape") reply(false);
+});
 
 // ---- events from main ----
 S?.onEvent((ev) => {
@@ -152,8 +147,15 @@ S?.onEvent((ev) => {
     markToolDone(ev.name);
     if (busy) showSpinner();
   } else if (ev.type === "confirm") {
+    // Vibe rejim: xavfsiz amallarni avtomatik tasdiqlaymiz (majburiylar bundan mustasno).
+    if (vibeOn && !ev.forcePrompt) {
+      S.confirmReply(ev.id, true);
+      return;
+    }
     hideSpinner();
-    askConfirm(ev.id, ev.question);
+    confirmId = ev.id;
+    dmsg.textContent = ev.question || "Bu amalni bajaraymi?";
+    scrim.hidden = false;
   } else if (ev.type === "done") {
     curAssistant = null;
     setBusy(false);
@@ -171,7 +173,7 @@ S?.onEvent((ev) => {
 // ---- composer ----
 function autosize() {
   input.style.height = "auto";
-  input.style.height = Math.min(input.scrollHeight, 160) + "px";
+  input.style.height = Math.min(input.scrollHeight, 170) + "px";
 }
 input.addEventListener("input", autosize);
 input.addEventListener("keydown", (e) => {
@@ -185,24 +187,55 @@ composer.addEventListener("submit", (e) => {
   const text = input.value.trim();
   if (!text || busy) return;
   addUser(text);
+  addTask(text);
   input.value = "";
   autosize();
   setBusy(true);
   S.send(text);
 });
 
-folderBtn.onclick = async () => {
+// ---- tasks (sidebar) ----
+function addTask(text) {
+  const el = document.createElement("button");
+  el.className = "task active";
+  [...taskList.querySelectorAll(".task.active")].forEach((t) => t.classList.remove("active"));
+  el.textContent = text.slice(0, 60);
+  el.title = text;
+  taskList.prepend(el);
+}
+
+$("newTask").onclick = async () => {
+  await S.newTask?.();
+  log.querySelectorAll(".msg, .tool, .spin").forEach((n) => n.remove());
+  curAssistant = null;
+  setBusy(false);
+};
+
+// ---- folder ----
+function setFolder(cwd) {
+  const name = cwd.split(/[\\/]/).filter(Boolean).pop() || cwd;
+  folderName.textContent = name;
+  folderPath.textContent = cwd;
+  crumb.textContent = cwd;
+}
+$("folder").onclick = async () => {
   const r = await S.pickFolder();
-  if (r?.cwd) cwdEl.textContent = r.cwd;
+  if (r?.cwd) setFolder(r.cwd);
+};
+
+// ---- vibe ----
+vibeChip.onclick = () => {
+  vibeOn = !vibeOn;
+  vibeChip.classList.toggle("on", vibeOn);
+  vibeChip.textContent = vibeOn ? "▶▶ avto" : "○ oddiy";
 };
 
 // ---- init ----
 (async () => {
-  if (!S) return; // preview (brauzerda ochilganda bridge yo'q)
+  if (!S) return;
   const info = await S.init();
-  cwdEl.textContent = info.cwd;
-  whoEl.textContent = info.authed ? `${info.email || "akkaunt"} · ${info.model}` : "kirilmagan";
-  if (!info.authed) {
-    whoEl.style.color = "var(--warn)";
-  }
+  setFolder(info.cwd);
+  modelName.textContent = String(info.model || "Auto").replace("SOVEREIGN ", "");
+  whoEl.textContent = info.authed ? info.email || "akkaunt" : "⚠ kirilmagan — sovereign login";
+  if (!info.authed) whoEl.style.color = "var(--warn)";
 })();

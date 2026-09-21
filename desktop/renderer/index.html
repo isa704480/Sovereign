@@ -7,35 +7,60 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header class="bar">
-      <div class="brand"><span class="mark">◆</span> SOVEREIGN <span class="dim">Cowork</span></div>
-      <button id="folder" class="folder" title="Loyiha papkasini tanlash">
-        <span class="ficon">📁</span><span id="cwd" class="cwd dim">papka tanlang</span>
-      </button>
-      <div class="who dim" id="who"></div>
-    </header>
+    <div class="app">
+      <!-- Sidebar -->
+      <aside class="side">
+        <div class="side-head"><span class="mark">◆</span> SOVEREIGN <span class="dim">Cowork</span></div>
+        <button id="newTask" class="side-new"><span>+</span> Yangi vazifa</button>
 
-    <main id="log" class="log">
-      <div class="empty" id="empty">
-        <div class="emark">◆</div>
-        <h1>SOVEREIGN Cowork</h1>
-        <p class="dim">Ish stolidagi AI koding hamkoringiz. Papkani ulang va vazifa bering — reja tuzadi, fayl yozadi, ishga tushiradi.</p>
-        <p class="hint dim">Masalan: <span class="mono">src papkasida Express server yarat va test qil</span></p>
-      </div>
-    </main>
+        <button id="folder" class="side-folder">
+          <span class="ficon">📁</span>
+          <span class="side-folder-txt">
+            <span id="folderName" class="fname">Papka tanlang</span>
+            <span id="folderPath" class="fpath dim"></span>
+          </span>
+        </button>
 
-    <form id="composer" class="composer">
-      <textarea id="input" rows="1" placeholder="Vazifa yozing…  (Enter — yuborish, Shift+Enter — yangi qator)"></textarea>
-      <button id="sendBtn" type="submit" aria-label="Yuborish">↑</button>
-    </form>
+        <div class="side-label">Vazifalar</div>
+        <div id="taskList" class="side-list"></div>
+
+        <div class="side-foot">
+          <div id="who" class="dim">…</div>
+        </div>
+      </aside>
+
+      <!-- Main -->
+      <section class="main">
+        <header class="topbar">
+          <div id="crumb" class="crumb dim">SOVEREIGN Cowork</div>
+          <div class="spacer"></div>
+          <button id="modelChip" class="chip"><span class="cdot">✦</span><span id="modelName">Auto</span></button>
+          <button id="vibeChip" class="chip vibe" title="Avto rejim — tasdiqsiz yozadi">○ oddiy</button>
+        </header>
+
+        <main id="log" class="log">
+          <div class="empty" id="empty">
+            <div class="emark">◆</div>
+            <h1>Ish stolidagi AI hamkoringiz</h1>
+            <p class="dim">Papkani ulang va vazifa bering — reja tuzadi, fayl yozadi, ishga tushiradi va sinaydi.</p>
+            <p class="hint dim">Masalan: <span class="mono">src papkasida Express server yarat va test qil</span></p>
+          </div>
+        </main>
+
+        <form id="composer" class="composer">
+          <textarea id="input" rows="1" placeholder="Vazifa yozing…   (Enter — yuborish, Shift+Enter — yangi qator)"></textarea>
+          <button id="sendBtn" type="submit" aria-label="Yuborish">↑</button>
+        </form>
+      </section>
+    </div>
 
     <div id="scrim" class="scrim" hidden>
       <div class="dialog">
-        <div class="dtitle">Tasdiqlash</div>
+        <div class="dtitle" id="dtitle">Tasdiqlash</div>
         <div id="dmsg" class="dmsg"></div>
         <div class="dbtns">
           <button id="dno" class="btn ghost">Bekor</button>
-          <button id="dyes" class="btn primary">Ha</button>
+          <button id="dyes" class="btn primary">Ha, davom et</button>
         </div>
       </div>
     </div>
