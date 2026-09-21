@@ -1,10 +1,10 @@
 "use client";
 
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Lock, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { AUTO_MODEL, AUTO_MODEL_ID, MODELS, MODEL_BY_ID, MODEL_GROUPS, isModelVisible, resolveModel, type SovereignModel } from "@/config/models";
-import { planAllowsTier, type Plan } from "@/config/plans";
+import { AUTO_MODEL, AUTO_MODEL_ID, MODEL_BY_ID, resolveModel } from "@/config/models";
+import { type Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/store/chat";
@@ -20,28 +20,7 @@ interface ModelSwitcherProps {
 type OmniModel = { id: string; label: string; owner: string; context: number; tools: boolean; vision: boolean; reasoning: boolean };
 type ModelFamily = { key: string; label: string; count: number; auto?: string };
 
-function Bars({ model }: { model: SovereignModel }) {
-  return (
-    <div className="mt-1.5 flex gap-3">
-      {model.capabilities.map((c) => (
-        <div key={c.label} className="flex items-center gap-1.5 text-[10px]" style={{ color: "var(--t-text-muted)" }}>
-          <span className="flex gap-[2px]">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <span
-                key={i}
-                className="block h-[6px] w-[7px] rounded-[2px]"
-                style={{ background: i < c.score ? model.primary : "color-mix(in srgb, var(--t-text) 12%, transparent)" }}
-              />
-            ))}
-          </span>
-          {c.label}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherProps) {
+export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) {
   const t = useT();
   const { model: themeModel } = useTheme();
   const isOmniValue = value !== AUTO_MODEL_ID && value.includes("/") && !MODEL_BY_ID[value];
@@ -189,77 +168,6 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
               </span>
               {value === AUTO_MODEL_ID && <Check className="mt-1 size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
             </button>
-
-            {MODEL_GROUPS.map((g) => {
-              const items = MODELS.filter((m) => m.tier === g.tier && isModelVisible(m));
-              if (!items.length) return null;
-              const unlocked = planAllowsTier(plan, g.tier);
-              return (
-                <div key={g.tier} className="mb-1.5">
-                  <div
-                    className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
-                    style={{ color: "var(--t-text-muted)", borderTop: "1px solid var(--t-border)" }}
-                  >
-                    {g.label} {g.badge && <span>{g.badge}</span>}
-                    {!unlocked && (
-                      <span className="ml-auto inline-flex items-center gap-1 normal-case tracking-normal" style={{ color: "#F59E0B" }}>
-                        <Lock className="size-3" /> Upgrade
-                      </span>
-                    )}
-                  </div>
-                  {items.map((m) => {
-                    const active = m.id === value;
-                    const locked = !planAllowsTier(plan, m.tier);
-                    return (
-                      <button
-                        key={m.id}
-                        type="button"
-                        role="option"
-                        aria-selected={active}
-                        onClick={() => {
-                          onChange(m.id);
-                          setOpen(false);
-                        }}
-                        className={cn(
-                          "tt flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/5",
-                          locked && "opacity-55",
-                        )}
-                        style={active ? { background: `color-mix(in srgb, ${m.primary} 14%, transparent)` } : undefined}
-                        title={locked ? t("lockedModel") : undefined}
-                      >
-                        <span
-                          className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-base"
-                          style={{ background: `color-mix(in srgb, ${m.primary} 20%, transparent)`, color: m.primary }}
-                        >
-                          {m.glyph}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>{m.name}</span>
-                            <span
-                              className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
-                              style={{
-                                background: m.cost === "free" ? "rgba(16,212,160,0.15)" : "color-mix(in srgb, var(--t-text) 8%, transparent)",
-                                color: m.cost === "free" ? "#10D4A0" : "var(--t-text-muted)",
-                              }}
-                            >
-                              {m.price}
-                            </span>
-                          </span>
-                          <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{m.tagline}</span>
-                          <Bars model={m} />
-                        </span>
-                        {locked ? (
-                          <Lock className="mt-1 size-3.5 shrink-0" style={{ color: "#F59E0B" }} />
-                        ) : (
-                          active && <Check className="mt-1 size-4 shrink-0" style={{ color: m.primary }} />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
 
             {/* OmniRoute katalog — Cursor uslubi: oila → ichida modellar */}
             {configured !== false && (
