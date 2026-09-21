@@ -64,6 +64,7 @@ export async function login(baseUrl) {
           if (meRes.ok) {
             const me = await meRes.json();
             saveConfig({
+              email: me.email || "",
               enabledSkills: me.enabled_skills ?? [],
               model: me.default_model || undefined,
               plan: me.plan,

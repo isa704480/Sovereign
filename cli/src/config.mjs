@@ -9,6 +9,7 @@ const DEFAULTS = {
   // Account mode: SOVEREIGN server base URL + issued token.
   baseUrl: "https://sovhq.vercel.app",
   token: "",
+  email: "",
   // Direct mode: user's own OpenRouter key + model. Kod-agent uchun tekin va tez
   // Llama 3.3 70B default sifatida — Groq direct sifatida ideal ishlaydi.
   model: "meta-llama/llama-3.3-70b-instruct:free",
@@ -61,7 +62,7 @@ export function saveConfig(patch) {
 export function clearAuth() {
   if (!existsSync(FILE)) return;
   const cfg = loadConfig();
-  saveConfig({ token: "" });
+  saveConfig({ token: "", email: "" });
   return cfg.baseUrl;
 }
 

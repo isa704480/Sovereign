@@ -204,10 +204,12 @@ async function repl() {
         for (const s of me.enabled_skills) enabledSkills.add(s);
       }
       if (me.default_model) config.model = me.default_model;
+      if (me.email) config.email = me.email;
       config.planState = me.plan_state;
       config.plan = me.plan;
       config.daysLeft = me.days_left;
       saveConfig({
+        email: config.email || "",
         enabledSkills: [...enabledSkills],
         model: config.model,
         planState: me.plan_state,
@@ -578,6 +580,14 @@ async function repl() {
     // ── Noma'lum slash-buyruq ──
     if (input.startsWith("/")) {
       say(c.red(`Noma'lum buyruq: ${input}`) + c.dim("  /") + c.dim(" yozib menyuni oching."));
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Ulanish sharti — token yoki OpenRouter kaliti bo'lmasa yozib bo'lmaydi.
+    // (Mas. seans o'rtasida /logout qilingan bo'lsa.) Login talab qilamiz.
+    if (!config.token && !config.openrouterKey) {
+      say(`${c.amber("Tizimga kirmagansiz.")} ${c.white("/login")} ${c.dim("bilan akkauntга kiring")} ${c.dim("yoki")} ${c.white("/register")}${c.dim(".")}`);
       rewritePrompt();
       continue;
     }

@@ -160,7 +160,7 @@ export function banner(config, enabledSkills = [], vibeOn = false) {
   const mark = c.accent("◆");
   const modelName = config?.token ? "SOVEREIGN Auto" : (config?.model || "openai/gpt-oss-120b");
   const billing = config?.token
-    ? "akkaunt · " + (config.baseUrl || "").replace(/^https?:\/\//, "")
+    ? (config.email || "akkaunt") + " · " + (config.baseUrl || "").replace(/^https?:\/\//, "")
     : "to'g'ridan-to'g'ri (OpenRouter)";
   const skills = enabledSkills.length ? enabledSkills.join(" · ") : "—";
   const modeLine = vibeOn
