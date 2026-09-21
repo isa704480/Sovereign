@@ -5,7 +5,7 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
-import { readdirSync, statSync, readFileSync } from "node:fs";
+import { readdirSync, statSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
 import { loadConfig } from "../cli/src/config.mjs";
 import { runTool, TOOL_SCHEMA, contextSummary } from "../cli/src/tools.mjs";
@@ -52,13 +52,13 @@ function initialMessages(config) {
   return base;
 }
 
-async function runRound(messages, config) {
+async function runRound(messages, config, withTools = true) {
   const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
     body: JSON.stringify({
       messages: messages.slice(-44),
-      tools: TOOL_SCHEMA,
+      ...(withTools ? { tools: TOOL_SCHEMA } : {}),
       ...(config.omniModel ? { model: config.omniModel } : {}),
     }),
   });
@@ -101,9 +101,28 @@ async function agentTurn(messages, config, maxSteps = 14) {
       } catch (e) {
         result = `XATO: ${e.message}`;
       }
+      if (call.function.name === "run_command") {
+        send("terminal", { command: args.command, output: String(result) });
+      }
       send("tool-done", { name: call.function.name, result: String(result).slice(0, 400) });
       messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, 24_000) });
     }
+  }
+  send("done");
+}
+
+/** Oddiy chat — vositasiz, bitta javob (ChatGPT uslubi). */
+async function chatTurn(messages, config) {
+  let round;
+  try {
+    round = await runRound(messages, config, /*withTools=*/ false);
+  } catch (e) {
+    send("error", { message: e.message });
+    return;
+  }
+  messages.push(round.message);
+  if (round.message.content && round.message.content.trim()) {
+    send("text", { text: round.message.content });
   }
   send("done");
 }
@@ -133,13 +152,15 @@ ipcMain.handle("app:pick-folder", async () => {
   return { cwd: process.cwd() };
 });
 
-ipcMain.on("agent:send", async (_e, text) => {
+ipcMain.on("agent:send", async (_e, payload) => {
+  const { text, mode } = typeof payload === "string" ? { text: payload, mode: "code" } : payload;
   if (!session.config?.token) {
     send("error", { message: "Tizimga kirilmagan. Terminalda `sovereign login` qiling yoki ilovadan kiring." });
     return;
   }
   session.messages.push({ role: "user", content: String(text) });
-  await agentTurn(session.messages, session.config);
+  if (mode === "chat") await chatTurn(session.messages, session.config);
+  else await agentTurn(session.messages, session.config);
 });
 
 ipcMain.on("agent:confirm-reply", (_e, { id, ok }) => {
@@ -197,6 +218,26 @@ ipcMain.handle("fs:read", async (_e, path) => {
   } catch (e) {
     return { error: e.message };
   }
+});
+
+// Undo/restore — ish papkasi ichida to'g'ridan-to'g'ri yozadi (foydalanuvchi bosgan).
+ipcMain.handle("fs:write", async (_e, { path, content }) => {
+  try {
+    const root = process.cwd();
+    const rel = relative(root, path);
+    if (rel.startsWith("..")) return { error: "tashqarida" };
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, content ?? "");
+    return { ok: true };
+  } catch (e) {
+    return { error: e.message };
+  }
+});
+
+// Model tanlash (OmniRoute katalog id) — keyingi so'rovlarda ishlatiladi.
+ipcMain.handle("app:set-model", async (_e, id) => {
+  if (session.config) session.config.omniModel = id || "";
+  return { ok: true };
 });
 
 // ---- Window ------------------------------------------------------------

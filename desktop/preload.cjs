@@ -7,7 +7,9 @@ contextBridge.exposeInMainWorld("sovereign", {
   newTask: () => ipcRenderer.invoke("app:new-task"),
   fsTree: () => ipcRenderer.invoke("fs:tree"),
   fsRead: (path) => ipcRenderer.invoke("fs:read", path),
-  send: (text) => ipcRenderer.send("agent:send", text),
+  fsWrite: (path, content) => ipcRenderer.invoke("fs:write", { path, content }),
+  setModel: (id) => ipcRenderer.invoke("app:set-model", id),
+  send: (text, mode) => ipcRenderer.send("agent:send", { text, mode }),
   remember: (fact) => ipcRenderer.send("agent:remember", fact),
   confirmReply: (id, ok) => ipcRenderer.send("agent:confirm-reply", { id, ok }),
   onEvent: (cb) => {

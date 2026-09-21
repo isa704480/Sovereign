@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import FileTree from "./components/FileTree.jsx";
 import ConfirmDialog from "./components/ConfirmDialog.jsx";
+import ModelPicker from "./components/ModelPicker.jsx";
+import Terminal from "./components/Terminal.jsx";
+import ChangesBar from "./components/ChangesBar.jsx";
+import DiffView from "./components/DiffView.jsx";
 import { md } from "./lib/md.js";
 
 const S = window.sovereign;
@@ -16,7 +20,9 @@ const TOOL_LABEL = {
 };
 
 export default function App() {
-  const [info, setInfo] = useState({ authed: true, email: "", model: "Auto", cwd: "" });
+  const [info, setInfo] = useState({ authed: true, email: "", model: "Auto", cwd: "", baseUrl: "" });
+  const [mode, setMode] = useState("code");
+  const [modelLabel, setModelLabel] = useState("Auto");
   const [log, setLog] = useState([]);
   const [busy, setBusy] = useState(false);
   const [vibe, setVibe] = useState(false);
@@ -25,34 +31,38 @@ export default function App() {
   const [tasks, setTasks] = useState([]);
   const [confirmReq, setConfirmReq] = useState(null);
   const [viewer, setViewer] = useState(null);
+  const [diffView, setDiffView] = useState(null);
   const [input, setInput] = useState("");
+  const [term, setTerm] = useState([]);
+  const [termOpen, setTermOpen] = useState(false);
+  const [changes, setChanges] = useState([]);
 
   const curAsst = useRef(null);
   const vibeRef = useRef(vibe);
   vibeRef.current = vibe;
   const logRef = useRef(null);
 
-  const scroll = () => {
-    const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  };
-
+  const scroll = () => { const el = logRef.current; if (el) el.scrollTop = el.scrollHeight; };
   const refreshTree = () => S?.fsTree().then((r) => setTree(r?.nodes ?? []));
+
+  const addChange = (ch) =>
+    setChanges((prev) => {
+      const ex = prev.find((c) => c.path === ch.path);
+      return [{ path: ch.path, before: ex ? ex.before : ch.before, after: ch.after }, ...prev.filter((c) => c.path !== ch.path)];
+    });
 
   useEffect(() => {
     if (!S) return;
     (async () => {
       const i = await S.init();
-      setInfo({ authed: i.authed, email: i.email, model: String(i.model || "Auto").replace("SOVEREIGN ", ""), cwd: i.cwd });
+      setInfo({ authed: i.authed, email: i.email, model: String(i.model || "Auto").replace("SOVEREIGN ", ""), cwd: i.cwd, baseUrl: i.baseUrl });
       refreshTree();
     })();
 
-    const off = S.onEvent((ev) => {
+    const off = S.onEvent(async (ev) => {
       if (ev.type === "text") {
         setLog((L) => {
-          if (curAsst.current != null) {
-            return L.map((it) => (it.id === curAsst.current ? { ...it, html: it.html + md(ev.text) } : it));
-          }
+          if (curAsst.current != null) return L.map((it) => (it.id === curAsst.current ? { ...it, html: it.html + md(ev.text) } : it));
           const id = nid();
           curAsst.current = id;
           return [...L, { id, kind: "assistant", html: md(ev.text) }];
@@ -68,11 +78,18 @@ export default function App() {
           return L.map((it, k) => (k === real ? { ...it, done: true } : it));
         });
         if (ev.name === "write_file" || ev.name === "make_dir") refreshTree();
+      } else if (ev.type === "terminal") {
+        setTerm((T) => [...T, { command: ev.command, output: ev.output }]);
+        setTermOpen(true);
       } else if (ev.type === "confirm") {
-        if (vibeRef.current && !ev.forcePrompt) {
-          S.confirmReply(ev.id, true);
+        if (ev.meta?.tool === "write_file") {
+          const before = ev.meta.exists ? (await S.fsRead(ev.meta.path)).content ?? "" : "";
+          const change = { path: ev.meta.path, before, after: ev.meta.content };
+          if (vibeRef.current && !ev.forcePrompt) { addChange(change); S.confirmReply(ev.id, true); return; }
+          setConfirmReq({ ...ev, _change: change });
           return;
         }
+        if (vibeRef.current && !ev.forcePrompt) { S.confirmReply(ev.id, true); return; }
         setConfirmReq(ev);
       } else if (ev.type === "done") {
         curAsst.current = null;
@@ -96,34 +113,30 @@ export default function App() {
     setInput("");
     setBusy(true);
     curAsst.current = null;
-    S.send(text);
+    S.send(text, mode);
     setTimeout(scroll, 0);
   };
 
   const pickFolder = async () => {
     const r = await S.pickFolder();
-    if (r?.cwd) {
-      setInfo((i) => ({ ...i, cwd: r.cwd }));
-      refreshTree();
-    }
+    if (r?.cwd) { setInfo((i) => ({ ...i, cwd: r.cwd })); refreshTree(); setChanges([]); setTerm([]); }
   };
-
   const newTask = async () => {
     await S.newTask?.();
-    setLog([]);
-    curAsst.current = null;
-    setBusy(false);
+    setLog([]); setChanges([]); setTerm([]); curAsst.current = null; setBusy(false);
   };
-
   const openFile = async (node) => {
     const r = await S.fsRead(node.path);
     setViewer({ path: node.path, name: node.name, content: r?.content ?? r?.error ?? "" });
   };
-
   const replyConfirm = (ok) => {
-    if (confirmReq) S.confirmReply(confirmReq.id, ok);
+    if (confirmReq) {
+      if (ok && confirmReq._change) addChange(confirmReq._change);
+      S.confirmReply(confirmReq.id, ok);
+    }
     setConfirmReq(null);
   };
+  const undoChange = (ch) => { setChanges((prev) => prev.filter((c) => c.path !== ch.path)); refreshTree(); };
 
   const folderName = info.cwd.split(/[\\/]/).filter(Boolean).pop() || "Papka tanlang";
 
@@ -132,20 +145,14 @@ export default function App() {
       <aside className="side">
         <div className="side-head"><span className="mark">◆</span> SOVEREIGN <span className="dim">Cowork</span></div>
         <button className="side-new" onClick={newTask}><span>+</span> Yangi vazifa</button>
-
         <button className="side-folder" onClick={pickFolder}>
           <span className="ficon">📁</span>
-          <span className="side-folder-txt">
-            <span className="fname">{folderName}</span>
-            <span className="fpath dim">{info.cwd}</span>
-          </span>
+          <span className="side-folder-txt"><span className="fname">{folderName}</span><span className="fpath dim">{info.cwd}</span></span>
         </button>
-
         <div className="side-tabs">
           <button className={sideTab === "files" ? "on" : ""} onClick={() => setSideTab("files")}>Fayllar</button>
           <button className={sideTab === "tasks" ? "on" : ""} onClick={() => setSideTab("tasks")}>Vazifalar</button>
         </div>
-
         <div className="side-list">
           {sideTab === "files" ? (
             <FileTree nodes={tree} onOpen={openFile} activePath={viewer?.path} />
@@ -155,7 +162,6 @@ export default function App() {
             <div className="tempty dim">Hali vazifa yo‘q</div>
           )}
         </div>
-
         <div className="side-foot">
           <div className="dim" style={info.authed ? undefined : { color: "var(--warn)" }}>
             {info.authed ? info.email || "akkaunt" : "⚠ kirilmagan — sovereign login"}
@@ -165,23 +171,26 @@ export default function App() {
 
       <section className="main">
         <header className="topbar">
+          <div className="seg">
+            <button className={mode === "chat" ? "on" : ""} onClick={() => setMode("chat")}>Chat</button>
+            <button className={mode === "code" ? "on" : ""} onClick={() => setMode("code")}>Kod</button>
+          </div>
           <div className="crumb dim">{info.cwd || "SOVEREIGN Cowork"}</div>
           <div className="spacer" />
-          <button className="chip"><span className="cdot">✦</span>{info.model}</button>
-          <button className={`chip vibe ${vibe ? "on" : ""}`} onClick={() => setVibe((v) => !v)}>
-            {vibe ? "▶▶ avto" : "○ oddiy"}
-          </button>
+          {info.baseUrl && <ModelPicker baseUrl={info.baseUrl} label={modelLabel} onSelect={(_id, name) => setModelLabel(name)} />}
+          <button className={`chip vibe ${vibe ? "on" : ""}`} onClick={() => setVibe((v) => !v)}>{vibe ? "▶▶ avto" : "○ oddiy"}</button>
         </header>
 
         <main className="log" ref={logRef}>
           {log.length === 0 && (
             <div className="empty">
               <div className="emark">◆</div>
-              <h1>Ish stolidagi AI hamkoringiz</h1>
-              <p className="dim">Papkani ulang va vazifa bering — reja tuzadi, fayl yozadi, ishga tushiradi va sinaydi.</p>
-              <p className="hint dim">Masalan: <span className="mono">src papkasida Express server yarat va test qil</span></p>
+              <h1>{mode === "chat" ? "Suhbatlashamiz" : "Ish stolidagi AI hamkoringiz"}</h1>
+              <p className="dim">{mode === "chat" ? "Oddiy savol-javob — vositasiz, ChatGPT kabi." : "Papkani ulang va vazifa bering — reja tuzadi, fayl yozadi, ishga tushiradi."}</p>
+              {mode === "code" && <p className="hint dim">Masalan: <span className="mono">src papkasida Express server yarat va test qil</span></p>}
             </div>
           )}
+          <ChangesBar changes={changes} onUndo={undoChange} onView={(ch) => setDiffView(ch)} />
           {log.map((it) =>
             it.kind === "user" ? (
               <div key={it.id} className="msg user"><div className="role">Siz</div><div className="bubble">{it.text}</div></div>
@@ -190,27 +199,21 @@ export default function App() {
             ) : it.kind === "error" ? (
               <div key={it.id} className="msg assistant"><div className="role">Xato</div><div className="bubble err">{it.text}</div></div>
             ) : (
-              <div key={it.id} className="tool">
-                <div className="row">
-                  <span className="lbl">{(TOOL_LABEL[it.name] || (() => it.name))(it.args || {})}</span>
-                  {it.done && <span className="done">✓</span>}
-                </div>
-              </div>
+              <div key={it.id} className="tool"><div className="row"><span className="lbl">{(TOOL_LABEL[it.name] || (() => it.name))(it.args || {})}</span>{it.done && <span className="done">✓</span>}</div></div>
             ),
           )}
-          {busy && <div className="spin">o‘ylayapti<span className="d">…</span></div>}
+          {busy && <div className="spin">{mode === "chat" ? "yozyapti" : "o‘ylayapti"}<span className="d">…</span></div>}
         </main>
+
+        {mode === "code" && <Terminal items={term} open={termOpen} onToggle={() => setTermOpen((o) => !o)} onClear={() => setTerm([])} />}
 
         <form className="composer" onSubmit={sendMsg}>
           <textarea
             rows={1}
             value={input}
-            placeholder="Vazifa yozing…   (Enter — yuborish, Shift+Enter — yangi qator)"
+            placeholder={mode === "chat" ? "Xabar yozing…   (Enter — yuborish)" : "Vazifa yozing…   (Enter — yuborish, Shift+Enter — yangi qator)"}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); }
-            }}
-            style={{ height: "auto" }}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(); } }}
             onInput={(e) => { e.target.style.height = "auto"; e.target.style.height = Math.min(e.target.scrollHeight, 170) + "px"; }}
           />
           <button type="submit" disabled={busy} aria-label="Yuborish">↑</button>
@@ -223,6 +226,16 @@ export default function App() {
             <div className="dtitle mono">{viewer.name}</div>
             <pre className="fileview"><code>{viewer.content}</code></pre>
             <div className="dbtns"><button className="btn primary" onClick={() => setViewer(null)}>Yopish</button></div>
+          </div>
+        </div>
+      )}
+
+      {diffView && (
+        <div className="scrim" onClick={() => setDiffView(null)}>
+          <div className="dialog wide" onClick={(e) => e.stopPropagation()}>
+            <div className="dtitle mono">{diffView.path}</div>
+            <DiffView oldText={diffView.before} newText={diffView.after} />
+            <div className="dbtns"><button className="btn primary" onClick={() => setDiffView(null)}>Yopish</button></div>
           </div>
         </div>
       )}
