@@ -1,0 +1,30 @@
+{
+  "name": "sovereign-cowork",
+  "productName": "SOVEREIGN Cowork",
+  "version": "0.1.0",
+  "description": "SOVEREIGN Cowork — terminaldagi emas, ish stolidagi AI koding hamkori (Claude Code uslubida).",
+  "type": "module",
+  "main": "main.mjs",
+  "author": "Islombek",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "app.sovereign.cowork",
+    "productName": "SOVEREIGN Cowork",
+    "files": ["main.mjs", "preload.cjs", "renderer/**", "../cli/src/**"],
+    "directories": { "output": "release" },
+    "win": { "target": ["nsis"] },
+    "mac": { "target": ["dmg"], "category": "public.app-category.developer-tools" },
+    "linux": { "target": ["AppImage"], "category": "Development" }
+  }
+}

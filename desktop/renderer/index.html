@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="uz">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SOVEREIGN Cowork</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <div class="brand"><span class="mark">◆</span> SOVEREIGN <span class="dim">Cowork</span></div>
+      <button id="folder" class="folder" title="Loyiha papkasini tanlash">
+        <span class="ficon">📁</span><span id="cwd" class="cwd dim">papka tanlang</span>
+      </button>
+      <div class="who dim" id="who"></div>
+    </header>
+
+    <main id="log" class="log">
+      <div class="empty" id="empty">
+        <div class="emark">◆</div>
+        <h1>SOVEREIGN Cowork</h1>
+        <p class="dim">Ish stolidagi AI koding hamkoringiz. Papkani ulang va vazifa bering — reja tuzadi, fayl yozadi, ishga tushiradi.</p>
+        <p class="hint dim">Masalan: <span class="mono">src papkasida Express server yarat va test qil</span></p>
+      </div>
+    </main>
+
+    <form id="composer" class="composer">
+      <textarea id="input" rows="1" placeholder="Vazifa yozing…  (Enter — yuborish, Shift+Enter — yangi qator)"></textarea>
+      <button id="sendBtn" type="submit" aria-label="Yuborish">↑</button>
+    </form>
+
+    <div id="scrim" class="scrim" hidden>
+      <div class="dialog">
+        <div class="dtitle">Tasdiqlash</div>
+        <div id="dmsg" class="dmsg"></div>
+        <div class="dbtns">
+          <button id="dno" class="btn ghost">Bekor</button>
+          <button id="dyes" class="btn primary">Ha</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="renderer.mjs"></script>
+  </body>
+</html>
