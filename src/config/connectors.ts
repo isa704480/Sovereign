@@ -140,6 +140,14 @@ export const CONNECTORS: ConnectorSpec[] = [
     auth: "builtin",
     description: "Loyihani brauzerda ochib test qilish (preview).",
   },
+  {
+    id: "public-apis",
+    name: "Ommaviy API'lar",
+    category: "builtin",
+    glyph: "🧩",
+    auth: "builtin",
+    description: "Kalitsiz (loginsiz) API'lar: ob-havo, valyuta, davlat, kripto, vaqt, lug'at — AI real ma'lumot oladi.",
+  },
 ];
 
 export const CONNECTOR_BY_ID: Record<string, ConnectorSpec> = Object.fromEntries(

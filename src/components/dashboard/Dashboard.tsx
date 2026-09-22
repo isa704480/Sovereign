@@ -151,10 +151,9 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const active = activeId ? conversations[activeId] : null;
   const messages = active?.messages ?? [];
   const model = resolveModel(modelId);
-  // Per-model re-skin: the dashboard adopts the selected model's brand look
-  // (Claude → Claude, Gemini → Gemini, ChatGPT → ChatGPT). Auto and own/unknown
-  // families (sovereign) keep the SOVEREIGN interface.
-  const theme = MODEL_THEMES[model.theme] ?? MODEL_THEMES.sovereign;
+  // Faqat SOVEREIGN dizayni — model tanlanganda ham interfeys rangi o'zgarmaydi
+  // (per-model reskin olib tashlandi). Barcha modellar bir xil SOVEREIGN ko'rinishida.
+  const theme = MODEL_THEMES.sovereign;
   const ctx = useMemo(() => ({ theme, model }), [theme, model]);
 
   const lastAssistant = [...messages].reverse().find((m) => m.role === "assistant" && m.citations?.length);

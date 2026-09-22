@@ -79,6 +79,14 @@ function toolsFor(enabled: EnabledConnector[]): ORTool[] {
   if (has("gcalendar")) {
     tools.push(tool("gcalendar_list", "Yaqin kelayotgan kalendar voqealari.", {}));
   }
+  if (has("public-apis")) {
+    // Kalitsiz (loginsiz) common ommaviy API'lar — AI real ma'lumot oladi.
+    tools.push(tool("public_weather", "Ob-havo (Open-Meteo, kalitsiz). Shahar nomini ber.", { location: { type: "string", description: "Shahar nomi, mas. Tashkent" } }, ["location"]));
+    tools.push(tool("public_currency", "Valyuta kursi va konvertatsiya (kalitsiz, UZS ham bor).", { from: { type: "string", description: "3-harfli, mas. USD" }, to: { type: "string", description: "mas. UZS" }, amount: { type: "number", description: "miqdor (default 1)" } }, ["from", "to"]));
+    tools.push(tool("public_crypto", "Kripto narxi (CoinGecko, kalitsiz).", { coin: { type: "string", description: "mas. bitcoin, ethereum" }, vs: { type: "string", description: "mas. usd (default)" } }, ["coin"]));
+    tools.push(tool("public_time", "Vaqt zonasidagi joriy vaqt (WorldTimeAPI, kalitsiz).", { timezone: { type: "string", description: "mas. Asia/Tashkent" } }, ["timezone"]));
+    tools.push(tool("public_dictionary", "Inglizcha so'z ta'rifi (dictionaryapi.dev, kalitsiz).", { word: { type: "string" } }, ["word"]));
+  }
   return tools;
 }
 
@@ -188,6 +196,46 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
     if (name.startsWith(MCP_PREFIX)) {
       const ep = ctx.mcp.find((e) => e.tools.some((t) => t.function.name === name));
       return ep ? mcpCall(ep, name, args) : "MCP server topilmadi.";
+    }
+
+    // ---- Kalitsiz (loginsiz) ommaviy API'lar ----
+    if (name === "public_weather") {
+      const loc = String(args.location ?? "").trim();
+      const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1`).then((r) => r.json()).catch(() => null);
+      const p = g?.results?.[0];
+      if (!p) return `"${loc}" joyi topilmadi.`;
+      const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.latitude}&longitude=${p.longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code`).then((r) => r.json()).catch(() => null);
+      const c = w?.current;
+      if (!c) return "Ob-havo olinmadi.";
+      return `${p.name}, ${p.country ?? ""}: ${c.temperature_2m}°C (his ${c.apparent_temperature}°C), namlik ${c.relative_humidity_2m}%, shamol ${c.wind_speed_10m} km/soat.`;
+    }
+    if (name === "public_currency") {
+      const from = String(args.from ?? "").toUpperCase(), to = String(args.to ?? "").toUpperCase();
+      const amount = Number(args.amount ?? 1) || 1;
+      const j = await fetch(`https://open.er-api.com/v6/latest/${from}`).then((r) => r.json()).catch(() => null);
+      const rate = j?.rates?.[to];
+      return rate == null ? `${from}→${to} kursi olinmadi.` : `${amount} ${from} = ${(rate * amount).toFixed(2)} ${to} (1 ${from} = ${rate} ${to}).`;
+    }
+    if (name === "public_crypto") {
+      const coin = String(args.coin ?? "").toLowerCase(), vs = String(args.vs ?? "usd").toLowerCase();
+      const j = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(coin)}&vs_currencies=${encodeURIComponent(vs)}&include_24hr_change=true`).then((r) => r.json()).catch(() => null);
+      const p = j?.[coin];
+      if (!p) return `"${coin}" narxi topilmadi.`;
+      const ch = p[`${vs}_24h_change`];
+      return `${coin}: ${p[vs]} ${vs.toUpperCase()}${ch != null ? ` (24s: ${ch.toFixed(2)}%)` : ""}.`;
+    }
+    if (name === "public_time") {
+      const tz = String(args.timezone ?? "").trim();
+      const j = await fetch(`https://worldtimeapi.org/api/timezone/${tz}`).then((r) => r.json()).catch(() => null);
+      return j?.datetime ? `${tz}: ${String(j.datetime).slice(0, 19).replace("T", " ")} (${j.abbreviation ?? ""}).` : `"${tz}" vaqt zonasi topilmadi.`;
+    }
+    if (name === "public_dictionary") {
+      const word = String(args.word ?? "").trim();
+      const j = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`).then((r) => r.json()).catch(() => null);
+      const e = Array.isArray(j) ? j[0] : null;
+      if (!e) return `"${word}" topilmadi.`;
+      const defs = (e.meanings ?? []).slice(0, 3).map((m: { partOfSpeech: string; definitions: { definition: string }[] }) => `- (${m.partOfSpeech}) ${m.definitions?.[0]?.definition ?? ""}`);
+      return [`${word}${e.phonetic ? ` ${e.phonetic}` : ""}:`, ...defs].join(NL);
     }
 
     if (name === "figma_get_file") {
