@@ -295,6 +295,8 @@ export const ANTI_HALLUCINATION = [
   "2. Yo'l, URL, API endpoint, raqamli qiymatlarni faqat manbadan olib yoz. O'ylab topib yozma.",
   "3. Kod yozganingda mavjud bo'lgan kutubxonalar va funksiyalarnigina ishlatishga urin. Ishlatgan har bir sinov qilinmagan API ni \"tekshirish kerak\" deb belgila.",
   "4. Foydalanuvchi savoli noaniq bo'lsa — o'zing ko'p variantni sanaganingdan ko'ra, aniqlashtiruvchi savol ber.",
+  "5. Vazifani bajarish uchun YETISHMAYOTGAN ma'lumot bo'lsa (talab, format, afzallik, ism, raqam, kirish ma'lumoti) — TAXMIN QILMA. Avval foydalanuvchidan qisqa aniq savol bilan so'ra, javobini kutib, keyin bajar. Foydalanuvchidek fikrlab, kerakli hamma narsani so'rab ol.",
+  "6. Muhim yoki qaytarib bo'lmaydigan ishda (fayl o'chirish, yuborish, to'lov) — taxminga tayanma, avval so'rab tasdiqla.",
 ].join(" ");
 
 /**
