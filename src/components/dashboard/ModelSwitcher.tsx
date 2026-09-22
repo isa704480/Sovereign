@@ -1,10 +1,10 @@
 "use client";
 
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Lock, Search } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { AUTO_MODEL, AUTO_MODEL_ID, MODEL_BY_ID, resolveModel } from "@/config/models";
-import { type Plan } from "@/config/plans";
+import { planAllowsTier, type Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/store/chat";
@@ -20,7 +20,7 @@ interface ModelSwitcherProps {
 type OmniModel = { id: string; label: string; owner: string; context: number; tools: boolean; vision: boolean; reasoning: boolean };
 type ModelFamily = { key: string; label: string; count: number; auto?: string };
 
-export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) {
+export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherProps) {
   const t = useT();
   const { model: themeModel } = useTheme();
   const isOmniValue = value !== AUTO_MODEL_ID && value.includes("/") && !MODEL_BY_ID[value];
@@ -35,6 +35,14 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
   const [activeFamily, setActiveFamily] = useState<ModelFamily | null>(null);
   const [catalog, setCatalog] = useState<{ total: number; models: OmniModel[] } | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Katalog (OmniRoute) modellari Pro+ tarifda ochiladi. Free/Starter — qulf.
+  // Tekin ✦ tavsiya modellari va Auto barcha tariflarda ochiq.
+  const catalogLocked = !planAllowsTier(plan, "pro");
+  const upgrade = () => {
+    setOpen(false);
+    window.dispatchEvent(new CustomEvent("sovereign:upgrade"));
+  };
 
   // Oilalar ro'yxatini menyu ochilganda bir marta yuklaymiz.
   useEffect(() => {
@@ -239,15 +247,17 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
                         key={f.key}
                         type="button"
                         onClick={() => {
+                          if (catalogLocked) { upgrade(); return; }
                           setCatalog(null);
                           setActiveFamily(f);
                         }}
-                        className="tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5"
+                        className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", catalogLocked && "opacity-70")}
+                        title={catalogLocked ? "Pro tarifda ochiladi" : undefined}
                       >
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "color-mix(in srgb, #7C6FF7 20%, transparent)", color: "#7C6FF7" }}>✦</span>
                         <span className="flex-1 truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{f.label}</span>
                         <span className="text-[10px]" style={{ color: "var(--t-text-muted)" }}>{f.count}</span>
-                        <ChevronRight className="size-3.5" style={{ color: "var(--t-text-muted)" }} />
+                        {catalogLocked ? <Lock className="size-3.5" style={{ color: "#F59E0B" }} /> : <ChevronRight className="size-3.5" style={{ color: "var(--t-text-muted)" }} />}
                       </button>
                     ))}
                   </>
@@ -261,6 +271,7 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
                       <button
                         type="button"
                         onClick={() => {
+                          if (catalogLocked) { upgrade(); return; }
                           onChange(activeFamily.auto!);
                           setOpen(false);
                         }}
@@ -289,11 +300,13 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
                             role="option"
                             aria-selected={active}
                             onClick={() => {
+                              if (catalogLocked) { upgrade(); return; }
                               onChange(m.id);
                               setOpen(false);
                             }}
-                            className="tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5"
+                            className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", catalogLocked && "opacity-70")}
                             style={active ? { background: "color-mix(in srgb, #7C6FF7 14%, transparent)" } : undefined}
+                            title={catalogLocked ? "Pro tarifda ochiladi" : m.id}
                           >
                             <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "color-mix(in srgb, #7C6FF7 20%, transparent)", color: "#7C6FF7" }}>✦</span>
                             <span className="min-w-0 flex-1">
@@ -306,7 +319,7 @@ export function ModelSwitcher({ value, onChange, compact }: ModelSwitcherProps) 
                                 {m.reasoning ? " · 🧠" : ""}
                               </span>
                             </span>
-                            {active && <Check className="size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
+                            {catalogLocked ? <Lock className="size-3.5 shrink-0" style={{ color: "#F59E0B" }} /> : active && <Check className="size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
                           </button>
                         );
                       })}

@@ -207,8 +207,13 @@ export async function POST(req: Request) {
       ];
   const routeReason = routePlan?.reason ?? "";
 
-  // Plan gating for a concrete (non-auto) model. OmniRoute katalog modellari
-  // tekin (OmniRoute o'z kvotasi bilan) — tarif cheklovi qo'llanmaydi.
+  // OmniRoute katalog gating: aniq modellar (mas. "dva/claude-opus-5-high") Pro+
+  // tarifda ochiladi. "auto/*" kombolari (tekin yo'naltirish) barcha tarifda ochiq.
+  if (isOmni && !modelId.startsWith("auto/") && !planAllowsTier(plan, "pro")) {
+    return refuse(`${UPGRADE} Bu model Pro tarifda ochiladi. Tekin (Auto) yoki tavsiya modellardan foydalaning.`);
+  }
+
+  // Plan gating for a concrete (non-auto) model.
   if (!isAuto && !isOmni) {
     const model = MODEL_BY_ID[modelId];
     if (!planAllowsTier(plan, model.tier)) {
