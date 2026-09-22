@@ -45,7 +45,7 @@ export default function TermsPage() {
           </Section>
           <Section n="5" title="Maxfiylik va ma'lumotlar">
             Xotira va shaxsiy ma&apos;lumotlaringiz AES-256-GCM bilan shifrlanadi va faqat sizning qurilmangizda
-            ochiladi (zero-knowledge). Batafsil ma&apos;lumot <Link className="text-primary-soft hover:text-text-primary" href="/#privacy">Maxfiylik siyosati</Link>da.
+            ochiladi (zero-knowledge). Batafsil ma&apos;lumot <Link className="text-primary-soft hover:text-text-primary" href="/privacy">Maxfiylik siyosati</Link>da.
             Xizmat ma&apos;lumotlaringizni uchinchi tomonlarga sotmaydi.
           </Section>
           <Section n="6" title="Intellektual mulk">
@@ -67,7 +67,7 @@ export default function TermsPage() {
             Yangilanishdan keyin foydalanishda davom etsangiz — yangi shartlarni qabul qilgan hisoblanasiz.
           </Section>
           <Section n="10" title="Aloqa">
-            Savollar bo&apos;yicha: <a className="text-primary-soft hover:text-text-primary" href="mailto:info@fayzinc.com">info@fayzinc.com</a>.
+            Savollar bo&apos;yicha: <a className="text-primary-soft hover:text-text-primary" href="mailto:isa704480@gmail.com">isa704480@gmail.com</a>.
           </Section>
         </div>
       </article>

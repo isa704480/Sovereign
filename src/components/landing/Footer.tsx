@@ -30,7 +30,7 @@ export function Footer() {
             <ul className="space-y-2 text-text-secondary">
               <li><Link href="/terms" className="hover:text-text-primary">Foydalanish shartlari</Link></li>
               <li><Link href="/refund" className="hover:text-text-primary">Pul qaytarish</Link></li>
-              <li><Link href="/#privacy" className="hover:text-text-primary">Maxfiylik siyosati</Link></li>
+              <li><Link href="/privacy" className="hover:text-text-primary">Maxfiylik siyosati</Link></li>
             </ul>
           </div>
         </div>

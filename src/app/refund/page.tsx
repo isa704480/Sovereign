@@ -45,7 +45,7 @@ export default function RefundPage() {
             Bunday holatlar alohida, individual asosda ko&apos;rib chiqiladi.
           </Section>
           <Section n="6" title="Qanday so'rash kerak">
-            Pul qaytarish yoki bekor qilish uchun <a className="text-primary-soft hover:text-text-primary" href="mailto:info@fayzinc.com">info@fayzinc.com</a> ga
+            Pul qaytarish yoki bekor qilish uchun <a className="text-primary-soft hover:text-text-primary" href="mailto:isa704480@gmail.com">isa704480@gmail.com</a> ga
             hisobingiz emaili va to&apos;lov sanasi bilan murojaat qiling. So&apos;rovlar odatda 3–5 ish kuni ichida ko&apos;rib chiqiladi.
           </Section>
           <p className="text-sm text-text-muted">
