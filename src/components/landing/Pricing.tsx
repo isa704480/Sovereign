@@ -9,38 +9,34 @@ import { cn } from "@/lib/utils";
 
 export function Pricing() {
   return (
-    <section id="pricing" className="relative mx-auto max-w-6xl px-5 pb-28 md:px-8">
+    <section id="pricing" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-28">
       <FadeIn inView>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-soft">Narxlar</p>
-        <h2 className="font-display mt-3 max-w-2xl text-3xl font-extrabold text-text-primary md:text-4xl">
-          Tekin boshlang. Kerak bo&apos;lganda oshiring.
+        <p className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Narxlar</p>
+        <h2 className="font-display mx-auto mt-3 max-w-2xl text-center text-3xl font-extrabold tracking-tight text-text-primary md:text-5xl">
+          Tekin boshlang. <span className="text-gradient-brand">Kerak bo&apos;lganda oshiring.</span>
         </h2>
-        <p className="mt-4 max-w-xl text-text-secondary">
-          Tekin rejimda 3 ta ochiq model. Pullik tariflar flagman modellar, to&apos;liq kod yozish va internet
-          tadqiqotni ochadi.
+        <p className="mx-auto mt-4 max-w-xl text-center text-base text-text-secondary">
+          Tekin rejimda saxiy modellar. Pullik tariflar flagman modellar, to&apos;liq kod yozish va internet tadqiqotni ochadi.
         </p>
       </FadeIn>
 
-      <Stagger inView stagger={0.08} className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Stagger inView stagger={0.06} className="mt-14 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {PLANS.map((p) => (
           <StaggerItem key={p.id} className="h-full">
             <div
               className={cn(
-                "relative flex h-full flex-col rounded-2xl border bg-bg-elevated/70 p-6 transition-all duration-300 hover:-translate-y-1",
-                p.highlight ? "shadow-glow" : "border-border",
+                "relative flex h-full flex-col rounded-2xl border bg-white/[0.015] p-6 transition-colors duration-300",
+                p.highlight ? "border-[color-mix(in_srgb,var(--color-primary)_55%,transparent)] bg-white/[0.03]" : "border-border hover:border-white/15",
               )}
-              style={p.highlight ? { borderColor: `${p.color}88` } : undefined}
+              style={p.highlight ? { borderWidth: 2 } : undefined}
             >
               {p.highlight && (
-                <span
-                  className="absolute -top-3 left-5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white"
-                  style={{ background: p.color }}
-                >
+                <span className="absolute -top-2.5 left-5 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
                   Mashhur
                 </span>
               )}
-              <div className="text-sm font-semibold" style={{ color: p.color }}>{p.name}</div>
-              <div className="font-display nums mt-2 text-4xl font-extrabold text-text-primary">
+              <div className="text-sm font-semibold text-text-primary">{p.name}</div>
+              <div className="font-display nums mt-2 text-4xl font-extrabold tracking-tight text-text-primary">
                 {p.price === 0 ? "0" : `$${p.price}`}
                 <span className="text-sm font-normal text-text-muted">/oy</span>
               </div>
@@ -50,7 +46,7 @@ export function Pricing() {
               <ul className="mt-5 flex-1 space-y-2 text-sm text-text-secondary">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-start gap-2">
-                    <Check className="mt-0.5 size-4 shrink-0" style={{ color: p.color }} />
+                    <Check className="mt-0.5 size-4 shrink-0 text-primary-soft" strokeWidth={2} />
                     <span>{f}</span>
                   </li>
                 ))}
@@ -59,12 +55,11 @@ export function Pricing() {
               <Link
                 href="/register"
                 className={cn(
-                  "mt-6 inline-flex h-11 items-center justify-center rounded-xl text-sm font-semibold transition-opacity hover:opacity-90",
-                  p.highlight ? "text-white" : "border border-border text-text-primary hover:bg-bg-hover",
+                  "mt-6 inline-flex h-11 items-center justify-center rounded-full text-sm font-semibold transition-transform hover:-translate-y-0.5",
+                  p.highlight ? "bg-primary text-white" : "border border-border text-text-primary hover:border-white/20",
                 )}
-                style={p.highlight ? { background: p.color } : undefined}
               >
-                {p.price === 0 ? "Bepul boshlash" : `${p.name} bilan boshlash`}
+                {p.price === 0 ? "Bepul boshlash" : `${p.name} tanlash`}
               </Link>
             </div>
           </StaggerItem>
