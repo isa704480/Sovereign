@@ -28,8 +28,9 @@ export function Footer() {
           <div>
             <div className="mb-3 text-xs font-medium uppercase tracking-wider text-text-muted">Huquqiy</div>
             <ul className="space-y-2 text-text-secondary">
-              <li><span className="cursor-default">Foydalanish shartlari</span></li>
-              <li><span className="cursor-default">Maxfiylik siyosati</span></li>
+              <li><Link href="/terms" className="hover:text-text-primary">Foydalanish shartlari</Link></li>
+              <li><Link href="/refund" className="hover:text-text-primary">Pul qaytarish</Link></li>
+              <li><Link href="/#privacy" className="hover:text-text-primary">Maxfiylik siyosati</Link></li>
             </ul>
           </div>
         </div>
