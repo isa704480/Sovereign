@@ -40,7 +40,7 @@ function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
   // OmniRoute — 1700+ model, o'zi kvotaga qarab provayder almashtiradi.
   // Kod-agent uchun kod/tool'ga kuchli "auto" to'plami.
   if (OMNIROUTE && omniKey) {
-    const auto = process.env.OMNIROUTE_MODEL ?? (big ? "auto/claude-sonnet" : "auto/coding:free");
+    const auto = process.env.OMNIROUTE_MODEL ?? "auto/coding:free"; // sinovda: gpt-oss-120b, tool-calling
     if (auto !== chosen) list.push({ provider: "omniroute", model: auto, url: `${OMNIROUTE}/chat/completions`, auth: omniKey });
   }
   // Mistral Codestral — kod uchun maxsus, tool-calling ishonchli (sinovda o'tdi).

@@ -18,61 +18,65 @@ import { hasKeyFor } from "@/lib/ai/providers";
 export type AutoCategory = "code" | "creative" | "math" | "general";
 type PoolTier = "free" | "starter" | "pro" | "ultra";
 
+// Har bir id 2026-09-23 da OmniRoute orqali bittalab sinovdan o'tgan.
+// cfp/ aug/ cxa/ dva/ provayderlari bu serverda ishlamaydi (Playwright/CLI
+// talab qiladi) — ro'yxatga kiritilmagan. Claude/Grok: OpenRouter balansi
+// to'ldirilgach qo'shiladi (402 butun OpenRouter ulanishini "tugagan" qiladi).
+const NEMOTRON_SUPER = "openrouter/nvidia/nemotron-3-super-120b-a12b:free";
+const NEMOTRON_ULTRA = "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free";
+const GEMMA = "openrouter/google/gemma-4-31b-it:free";
+const QWEN = "groq/qwen/qwen3.8-27b";
+const CODESTRAL = "mistral/codestral-latest";
+const DEEPSEEK = "openrouter/deepseek/deepseek-v4-flash";
+const KIMI = "openrouter/moonshotai/kimi-k2.6";
+const GLM = "openrouter/z-ai/glm-5.2";
+const GEMINI_FLASH = "openrouter/google/gemini-2.5-flash";
+
 const FREE: Record<AutoCategory, string[]> = {
-  code: ["auto/coding:free", "groq/qwen/qwen3-32b", "groq/llama-3.3-70b-versatile", "auto/best-free", "llama-3.3-free"],
-  creative: ["auto/gemma", "auto/best-free", "groq/llama-3.3-70b-versatile", "auto/llama", "llama-3.3-free"],
-  math: ["oc/deepseek-v4-flash-free", "groq/qwen/qwen3-32b", "auto/best-free", "deepseek-r1-free", "llama-3.3-free"],
-  general: ["auto/best-free", "auto/llama", "auto/glm", "auto/minimax", "llama-3.3-free"],
+  code: ["auto/coding:free", CODESTRAL, QWEN, NEMOTRON_SUPER, "llama-3.3-free"],
+  creative: [GEMMA, "auto/minimax", "auto/glm", "auto/best-free", "llama-3.3-free"],
+  math: [NEMOTRON_SUPER, QWEN, "auto/best-free", "llama-3.3-free"],
+  general: ["auto/best-free", "auto/glm", GEMMA, QWEN, "llama-3.3-free"],
 };
 
 const STARTER: Record<AutoCategory, string[]> = {
-  code: ["cfp/deepseek-ai/deepseek-v4-flash-0731", "openrouter/qwen/qwen-2.5-coder-32b-instruct", "auto/coding:free", "gpt-4o-mini", "llama-3.3-free"],
-  creative: ["gemini/gemini-2.5-flash", "auto/gemini", "claude-haiku-4-5", "auto/gemma", "llama-3.3-free"],
-  math: ["cfp/deepseek-ai/deepseek-v4-flash-0731", "groq/qwen/qwen3-32b", "gemini/gemini-2.5-flash", "deepseek-r1-free", "llama-3.3-free"],
-  general: ["gemini/gemini-2.5-flash", "cfp/zai-org/glm-5.2", "auto/glm", "auto/best-free", "llama-3.3-free"],
+  code: [DEEPSEEK, CODESTRAL, "auto/coding:free", QWEN, "llama-3.3-free"],
+  creative: [GEMINI_FLASH, "auto/minimax", GEMMA, "auto/glm", "llama-3.3-free"],
+  math: [DEEPSEEK, NEMOTRON_ULTRA, QWEN, "llama-3.3-free"],
+  general: [GEMINI_FLASH, GLM, "auto/glm", "auto/best-free", "llama-3.3-free"],
 };
 
 const PRO: Record<AutoCategory, string[]> = {
-  code: ["auto/claude-sonnet", "cfp/moonshotai/kimi-k2.7-code", "cfp/deepseek-ai/deepseek-v4-pro-0813", "claude-sonnet-4-5", "auto/coding:free", "llama-3.3-free"],
-  creative: ["auto/claude-sonnet", "gemini/gemini-2.5-pro", "mistral/mistral-large-latest", "mistral-large", "auto/gemini", "llama-3.3-free"],
-  math: ["gemini/gemini-2.5-pro", "cfp/deepseek-ai/deepseek-v4-pro-0813", "groq/qwen/qwen3-32b", "gemini-pro-1.5", "llama-3.3-free"],
-  general: ["gemini/gemini-2.5-flash", "cfp/deepseek-ai/deepseek-v4-pro-0813", "aug/kimi-k2.7", "auto/gemini", "mistral-large", "llama-3.3-free"],
+  code: [KIMI, DEEPSEEK, CODESTRAL, "auto/coding:free", "llama-3.3-free"],
+  creative: [KIMI, GEMINI_FLASH, "auto/minimax", GEMMA, "llama-3.3-free"],
+  math: [DEEPSEEK, NEMOTRON_ULTRA, QWEN, "llama-3.3-free"],
+  general: [GEMINI_FLASH, GLM, DEEPSEEK, "auto/glm", "auto/best-free", "llama-3.3-free"],
 };
 
 const ULTRA: Record<AutoCategory, string[]> = {
-  code: ["auto/claude-opus", "cxa/gpt-5.5", "auto/claude-sonnet", "cfp/moonshotai/kimi-k2.7-code", "claude-sonnet-4-5", "llama-3.3-free"],
-  creative: ["auto/claude-opus", "auto/claude-sonnet", "gemini/gemini-2.5-pro", "mistral-large", "llama-3.3-free"],
-  math: ["cxa/gpt-5.5", "gemini/gemini-2.5-pro", "cfp/deepseek-ai/deepseek-v4-pro-0813", "gemini-pro-1.5", "llama-3.3-free"],
-  general: ["auto/claude-sonnet", "dva/grok-4-5-medium", "gemini/gemini-2.5-pro", "cfp/deepseek-ai/deepseek-v4-pro-0813", "mistral-large", "llama-3.3-free"],
+  code: [KIMI, DEEPSEEK, CODESTRAL, NEMOTRON_ULTRA, "auto/coding:free", "llama-3.3-free"],
+  creative: [KIMI, GEMINI_FLASH, GLM, "auto/minimax", "llama-3.3-free"],
+  math: [NEMOTRON_ULTRA, DEEPSEEK, QWEN, "llama-3.3-free"],
+  general: [KIMI, GEMINI_FLASH, GLM, NEMOTRON_ULTRA, "auto/best-free", "llama-3.3-free"],
 };
 
 const POOLS: Record<PoolTier, Record<AutoCategory, string[]>> = { free: FREE, starter: STARTER, pro: PRO, ultra: ULTRA };
 
 /** Foydalanuvchiga ko'rinadigan qisqa nomlar (OmniRoute id → nom). */
 const LABELS: Record<string, string> = {
-  "auto/coding:free": "Coding (tekin)",
+  "auto/coding:free": "GPT-OSS 120B",
   "auto/best-free": "Best Free",
-  "auto/gemma": "Gemma",
-  "auto/llama": "Llama",
-  "auto/glm": "GLM",
-  "auto/minimax": "MiniMax",
-  "auto/gemini": "Gemini",
-  "auto/claude-sonnet": "Claude Sonnet",
-  "auto/claude-opus": "Claude Opus",
-  "groq/qwen/qwen3-32b": "Qwen3 32B",
-  "groq/llama-3.3-70b-versatile": "Llama 3.3 70B",
-  "oc/deepseek-v4-flash-free": "DeepSeek V4 Flash",
-  "cfp/deepseek-ai/deepseek-v4-flash-0731": "DeepSeek V4 Flash",
-  "cfp/deepseek-ai/deepseek-v4-pro-0813": "DeepSeek V4 Pro",
-  "openrouter/qwen/qwen-2.5-coder-32b-instruct": "Qwen 2.5 Coder",
-  "gemini/gemini-2.5-flash": "Gemini 2.5 Flash",
-  "gemini/gemini-2.5-pro": "Gemini 2.5 Pro",
-  "cfp/zai-org/glm-5.2": "GLM 5.2",
-  "cfp/moonshotai/kimi-k2.7-code": "Kimi K2.7 Code",
-  "aug/kimi-k2.7": "Kimi K2.7",
-  "mistral/mistral-large-latest": "Mistral Large",
-  "cxa/gpt-5.5": "GPT-5.5",
-  "dva/grok-4-5-medium": "Grok 4.5",
+  "auto/glm": "GLM 5.1",
+  "auto/minimax": "MiniMax M2.5",
+  [NEMOTRON_SUPER]: "Nemotron 3 Super",
+  [NEMOTRON_ULTRA]: "Nemotron 3 Ultra",
+  [GEMMA]: "Gemma 4 31B",
+  [QWEN]: "Qwen 3.8 27B",
+  [CODESTRAL]: "Codestral",
+  [DEEPSEEK]: "DeepSeek V4 Flash",
+  [KIMI]: "Kimi K2.6",
+  [GLM]: "GLM 5.2",
+  [GEMINI_FLASH]: "Gemini 2.5 Flash",
 };
 
 export function autoModelLabel(id: string): string {
