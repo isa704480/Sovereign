@@ -47,6 +47,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
   const [selected, setSelected] = useState<PlanId | null>(null);
   const [loading, setLoading] = useState<Method | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [promo, setPromo] = useState("");
 
   function close() {
     if (loading) return;
@@ -83,7 +84,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
       const res = await fetch(METHODS.find((m) => m.id === method)!.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: selected }),
+        // Sayt promokodi faqat kripto (ZenoBank) uchun; karta kodi Dodo sahifasida kiritiladi.
+        body: JSON.stringify({ plan: selected, ...(method === "crypto" && promo.trim() ? { promo: promo.trim() } : {}) }),
       });
       const data = (await res.json().catch(() => ({}))) as { checkoutUrl?: string; error?: string };
       if (data.checkoutUrl) {
@@ -295,6 +297,24 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                       );
                     })}
                   </div>
+
+                  <label className="mt-4 block">
+                    <span className="sr-only">{t("chPromoLabel")}</span>
+                    <input
+                      value={promo}
+                      onChange={(e) => setPromo(e.target.value.toUpperCase())}
+                      disabled={!!loading}
+                      maxLength={32}
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder={t("chPromoPlaceholder")}
+                      className="tt h-11 w-full rounded-xl bg-transparent px-4 text-sm tracking-wider outline-none transition-colors focus:border-[var(--t-accent,#7C6FF7)] disabled:opacity-40"
+                      style={{ border: "1px solid var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
+                    />
+                    <span className="mt-1.5 block text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                      {t("chPromoHint")}
+                    </span>
+                  </label>
 
                   <p className="mt-5 text-center text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                     {t("pricingSecureNote")}

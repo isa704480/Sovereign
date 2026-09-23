@@ -5,14 +5,20 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { isZenoConfigured, zeno } from "@/lib/payments/zenobank";
 import { getServerT } from "@/lib/i18n-server";
+import { normalizePromo, resolvePromo } from "@/lib/payments/promo";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
-const schema = z.object({ plan: z.string() });
+const schema = z.object({ plan: z.string(), promo: z.string().max(64).optional() });
 
 /** POST /api/checkout — creates a ZenoBank crypto checkout for a plan. */
 export async function POST(req: Request) {
   const t = await getServerT();
+  // Promokodlarni terib topishga (brute-force) qarshi.
+  if (!rateLimit(`zeno-checkout:${clientIp(req)}`, 10, 60_000).ok) {
+    return Response.json({ error: t("chTooManyRequests") }, { status: 429 });
+  }
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success || !isPlanId(parsed.data.plan) || parsed.data.plan === "free") {
@@ -34,7 +40,15 @@ export async function POST(req: Request) {
 
   // CSPRNG bilan bashoratlab bo'lmaydigan order ID. UUIDv4 (~122 bit entropy).
   const orderId = `sov_${crypto.randomUUID()}`;
-  const amount = String(plan.price);
+  let amount = String(plan.price);
+  let promoCode: string | null = null;
+  const promo = normalizePromo(parsed.data.promo);
+  if (promo) {
+    const r = await resolvePromo(promo, user.id, plan.price);
+    if (!r.ok) return Response.json({ error: t(r.error) }, { status: 400 });
+    amount = r.amount;
+    promoCode = r.code;
+  }
   const origin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(req.url).origin;
 
   const { error: insErr } = await supabase.from("orders").insert({
@@ -44,8 +58,12 @@ export async function POST(req: Request) {
     amount,
     currency: "USD",
     status: "pending",
+    ...(promoCode ? { promo_code: promoCode } : {}),
   });
-  if (insErr) return Response.json({ error: insErr.message }, { status: 500 });
+  if (insErr) {
+    // promo_code ustuni yo'q bo'lsa (0024 migratsiya ishga tushirilmagan)
+    return Response.json({ error: promoCode ? t("chPromoUnavailable") : insErr.message }, { status: 500 });
+  }
 
   try {
     const checkout = await zeno().checkouts.create({
@@ -61,7 +79,7 @@ export async function POST(req: Request) {
     } catch {
       /* fallback — checkout ishlayveradi, faqat webhook reconciliation susayadi */
     }
-    return Response.json({ checkoutUrl: checkout.checkoutUrl, orderId });
+    return Response.json({ checkoutUrl: checkout.checkoutUrl, orderId, amount });
   } catch (e) {
     await supabase.from("orders").update({ status: "cancelled" }).eq("id", orderId);
     return Response.json({ error: e instanceof Error ? e.message : t("chPaymentNotCreated") }, { status: 502 });

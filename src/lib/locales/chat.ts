@@ -401,4 +401,31 @@ export const CHAT = {
     ru: "Не удалось создать страницу оплаты. Попробуйте ещё раз.",
     en: "Couldn't create the payment page. Please try again.",
   },
+  chPromoLabel: { uz: "Promokod", "uz-cyrl": "Промокод", ru: "Промокод", en: "Promo code" },
+  chPromoPlaceholder: { uz: "Promokod (ixtiyoriy)", "uz-cyrl": "Промокод (ихтиёрий)", ru: "Промокод (необязательно)", en: "Promo code (optional)" },
+  chPromoHint: {
+    uz: "Sayt promokodi kripto to'lovga qo'llanadi. Karta uchun kodni to'lov sahifasida kiriting.",
+    "uz-cyrl": "Сайт промокоди крипто тўловга қўлланади. Карта учун кодни тўлов саҳифасида киритинг.",
+    ru: "Промокод сайта применяется к оплате криптовалютой. Для карты введите код на странице оплаты.",
+    en: "Site promo codes apply to crypto payments. For card, enter the code on the payment page.",
+  },
+  chPromoInvalid: { uz: "Promokod noto'g'ri.", "uz-cyrl": "Промокод нотўғри.", ru: "Неверный промокод.", en: "Invalid promo code." },
+  chPromoUsedUp: {
+    uz: "Bu promokodning ishlatish limiti tugagan.",
+    "uz-cyrl": "Бу промокоднинг ишлатиш лимити тугаган.",
+    ru: "Лимит использования этого промокода исчерпан.",
+    en: "This promo code has reached its usage limit.",
+  },
+  chPromoAlreadyUsed: {
+    uz: "Siz bu promokodni allaqachon ishlatgansiz.",
+    "uz-cyrl": "Сиз бу промокодни аллақачон ишлатгансиз.",
+    ru: "Вы уже использовали этот промокод.",
+    en: "You've already used this promo code.",
+  },
+  chPromoUnavailable: {
+    uz: "Promokodni hozir tekshirib bo'lmadi. Keyinroq urinib ko'ring.",
+    "uz-cyrl": "Промокодни ҳозир текшириб бўлмади. Кейинроқ уриниб кўринг.",
+    ru: "Сейчас не удалось проверить промокод. Попробуйте позже.",
+    en: "Couldn't verify the promo code right now. Please try again later.",
+  },
 } satisfies Dict;
