@@ -12,13 +12,14 @@ const OPENAI = "https://api.openai.com/v1/chat/completions";
 
 const OMNIROUTE = (process.env.OMNIROUTE_BASE_URL ?? "").replace(/\/$/, "");
 const LLM7 = "https://api.llm7.io/v1/chat/completions";
+const MISTRAL = "https://api.mistral.ai/v1/chat/completions";
 
 type Cand = { provider: string; model: string; url: string; auth: string; referer?: boolean };
 
 /**
  * Fallback zanjiri: bittasi band bo'lsa (rate-limit/5xx/kalit xatosi) —
  * navbatdagisiga avtomatik o'tamiz. Shu bois Groq TPM tugasa ish to'xtamaydi.
- *  Groq 120b → Groq 20b (alohida TPM) → OmniRoute → OpenRouter/OpenAI → LLM7 (tekin).
+ *  [tanlangan] → OmniRoute auto → Mistral Codestral → Groq → Mistral Small → pullik (OpenAI/OpenRouter) → LLM7 (faqat vositasiz).
  */
 function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
   const list: Cand[] = [];
@@ -33,18 +34,22 @@ function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
     list.push({ provider: "omniroute", model: chosen, url: `${OMNIROUTE}/chat/completions`, auth: omniKey });
   }
 
-  // Pro/Ultra uchun avval eng kuchlisi (OpenAI gpt-4o).
-  if (big && openai) list.push({ provider: "openai", model: "gpt-4o", url: OPENAI, auth: openai });
+  const mistral = process.env.MISTRAL_API_KEY;
 
-  // Groq — eng tez; ikki model = ikki alohida TPM bucket.
-  if (groq) {
-    list.push({ provider: "groq", model: "openai/gpt-oss-120b", url: GROQ, auth: groq });
-    list.push({ provider: "groq", model: "openai/gpt-oss-20b", url: GROQ, auth: groq });
-  }
-  // OmniRoute — arzon/tekin reseller (sozlangan bo'lsa).
+  // OmniRoute — 1700+ model, o'zi kvotaga qarab provayder almashtiradi.
+  // Kod-agent uchun kod/tool'ga kuchli "auto" to'plami.
   if (OMNIROUTE && omniKey) {
-    list.push({ provider: "omniroute", model: process.env.OMNIROUTE_MODEL ?? "auto/gemini", url: `${OMNIROUTE}/chat/completions`, auth: omniKey });
+    const auto = process.env.OMNIROUTE_MODEL ?? (big ? "auto/claude-sonnet" : "auto/coding:free");
+    if (auto !== chosen) list.push({ provider: "omniroute", model: auto, url: `${OMNIROUTE}/chat/completions`, auth: omniKey });
   }
+  // Mistral Codestral — kod uchun maxsus, tool-calling ishonchli (sinovda o'tdi).
+  if (mistral) list.push({ provider: "mistral", model: "codestral-latest", url: MISTRAL, auth: mistral });
+  // Groq — eng tez; ikki model = ikki alohida TPM bucket (tez to'ladi).
+  if (groq) list.push({ provider: "groq", model: "openai/gpt-oss-120b", url: GROQ, auth: groq });
+  if (mistral) list.push({ provider: "mistral", model: "mistral-small-latest", url: MISTRAL, auth: mistral });
+  if (groq) list.push({ provider: "groq", model: "openai/gpt-oss-20b", url: GROQ, auth: groq });
+  // Pullik zaxiralar (balans bo'lsa).
+  if (big && openai) list.push({ provider: "openai", model: "gpt-4o", url: OPENAI, auth: openai });
   // OpenRouter.
   if (or) list.push({ provider: "openrouter", model: big ? "openai/gpt-4o" : "openai/gpt-4o-mini", url: OPENROUTER, auth: or, referer: true });
   // OpenAI mini (agar yuqorida ishlatilmagan bo'lsa).
@@ -131,7 +136,7 @@ export async function POST(req: Request) {
   }
 
   // Kamida bitta provider kaliti kerak.
-  if (!process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
+  if (!process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY && !process.env.MISTRAL_API_KEY && !process.env.OMNIROUTE_API_KEY) {
     return Response.json({ error: "Serverda hech qanday AI provider kaliti sozlanmagan" }, { status: 503 });
   }
 

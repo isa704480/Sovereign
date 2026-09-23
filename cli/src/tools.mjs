@@ -182,7 +182,7 @@ export async function runTool(name, args, confirm) {
       const r = resolvePath(args.path ?? ".");
       if (r.outside) {
         if (isProtected(r.real)) return `XATO: "${args.path}" — himoyalangan tizim yo'li, ochilmaydi.`;
-        const ok = await confirm(`${outsideNote(r)}ro'yxat ko'rilsinmi: ${c.white(r.real)}?`, /*forcePrompt=*/ true);
+        const ok = await confirm(`${outsideNote(r)}ro'yxat ko'rilsinmi: ${c.white(r.real)}?`, /*forcePrompt=*/ true, { tool: "list_dir", path: r.real, dir: true });
         if (!ok) return "Foydalanuvchi rad etdi (ish papkasidan tashqaridagi papka).";
       }
       return tree(r.real) || "(bo'sh)";
@@ -191,7 +191,7 @@ export async function runTool(name, args, confirm) {
       const r = resolvePath(args.path);
       if (r.outside) {
         if (isProtected(r.real)) return `XATO: "${args.path}" — himoyalangan tizim yo'li, o'qilmaydi.`;
-        const ok = await confirm(`${outsideNote(r)}o'qilsinmi: ${c.white(r.real)}?`, /*forcePrompt=*/ true);
+        const ok = await confirm(`${outsideNote(r)}o'qilsinmi: ${c.white(r.real)}?`, /*forcePrompt=*/ true, { tool: "read_file", path: r.real });
         if (!ok) return "Foydalanuvchi rad etdi (ish papkasidan tashqaridagi fayl).";
       }
       if (!existsSync(r.real)) return `XATO: "${args.path}" topilmadi.`;
@@ -219,7 +219,7 @@ export async function runTool(name, args, confirm) {
       const ok = await confirm(
         `${outsideNote(r)}Papka yaratilsinmi: ${c.white(r.outside ? r.real : args.path)}?`,
         /*forcePrompt=*/ r.outside,
-        { tool: "make_dir", path: r.outside ? r.real : args.path },
+        { tool: "make_dir", path: r.outside ? r.real : args.path, dir: true },
       );
       if (!ok) return "Foydalanuvchi rad etdi.";
       mkdirSync(r.real, { recursive: true });

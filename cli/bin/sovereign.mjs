@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import readline from "node:readline";
+import { dirname as pathDirname, resolve as pathResolve, sep as pathSep } from "node:path";
 import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
 import { loadMemory, addMemory, removeMemory, clearMemory, syncMemory } from "../src/memory.mjs";
@@ -72,14 +73,39 @@ async function askRequired(rl, q, tries = 4) {
 }
 
 async function confirmer(rl) {
-  return async (question, forcePrompt = false) => {
+  // "a" (hammasiga ha) — shu sessiya davomida: barcha fayl amallari, xavfsiz
+  // buyruqlar va tasdiqlangan papka ichidagi hamma narsa qayta so'ralmaydi.
+  // Xavfli buyruqlar (rm -rf, format...) baribir har doim so'raladi.
+  const trust = { all: false, dirs: new Set() };
+  const inTrustedDir = (p) => {
+    if (!p) return false;
+    const full = pathResolve(p).toLowerCase();
+    for (const d of trust.dirs) if (full === d || full.startsWith(d + pathSep)) return true;
+    return false;
+  };
+  return async (question, forcePrompt = false, meta = null) => {
+    const riskyCmd = meta?.tool === "run_command" && forcePrompt;
+    if (!riskyCmd && (inTrustedDir(meta?.path) || (trust.all && !forcePrompt))) {
+      console.log(`  ${c.dim("✓")} ${c.dim(question.replace(/\x1b\[[0-9;]*m/g, ""))} ${c.green("auto")}`);
+      return true;
+    }
     if ((AUTO_YES || vibe.on) && !forcePrompt) {
       console.log(`  ${c.amber("?")} ${question} ${c.green("auto-yes")}`);
       return true;
     }
     // `forcePrompt` — xavfli buyruqlar uchun --yes bo'lsa ham majburiy tasdiq.
     const prefix = forcePrompt ? c.red("!") : c.amber("?");
-    const a = (await ask(rl, `  ${prefix} ${question} ${c.dim("[y/N] ")}`)).trim().toLowerCase();
+    const opts = riskyCmd ? "[y/N] " : "[y/N/a] ";
+    const a = (await ask(rl, `  ${prefix} ${question} ${c.dim(opts)}`)).trim().toLowerCase();
+    if (!riskyCmd && ["a", "all", "hammasi", "hammasiga", "doim"].includes(a)) {
+      trust.all = true;
+      if (meta?.path) {
+        const full = pathResolve(meta.path);
+        trust.dirs.add((meta.dir ? full : pathDirname(full)).toLowerCase());
+      }
+      console.log(`  ${c.green("✓ shu sessiyada qolgan amallar so'ralmaydi")} ${c.dim("(xavfli buyruqlardan tashqari)")}`);
+      return true;
+    }
     return a === "y" || a === "yes" || a === "ha";
   };
 }
