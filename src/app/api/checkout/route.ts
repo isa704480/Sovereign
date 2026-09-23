@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
+import { grossPrice } from "@/config/payment-fees";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -40,7 +41,8 @@ export async function POST(req: Request) {
 
   // CSPRNG bilan bashoratlab bo'lmaydigan order ID. UUIDv4 (~122 bit entropy).
   const orderId = `sov_${crypto.randomUUID()}`;
-  let amount = String(plan.price);
+  // ZenoBank 0.1% komissiyasi mijozga qo'shiladi — bizga tarif narxi to'liq tushadi.
+  let amount = grossPrice(plan.price, "crypto").toFixed(2);
   let promoCode: string | null = null;
   const promo = normalizePromo(parsed.data.promo);
   if (promo) {

@@ -45,6 +45,7 @@ export function Pricing() {
                   {p.price === 0 ? "0" : `$${p.price}`}
                   <span className="text-sm font-normal text-text-muted">/{t("perMonth")}</span>
                 </div>
+                {p.price > 0 && <p className="mt-1 text-[11px] text-text-muted">{t("chFeeNote")}</p>}
                 <p className="mt-1 text-sm text-text-secondary">{tx.tagline}</p>
                 <p className="mt-3 text-xs text-text-muted">{tx.description}</p>
   
