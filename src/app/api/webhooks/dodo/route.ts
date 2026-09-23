@@ -36,7 +36,13 @@ export async function POST(req: Request) {
   const type = event.type ?? "";
   if (!ACTIVATING.has(type)) return Response.json({ received: true });
 
-  const supabase = createServiceClient();
+  let supabase: ReturnType<typeof createServiceClient>;
+  try {
+    supabase = createServiceClient();
+  } catch (e) {
+    console.error("[dodo webhook] service client:", e);
+    return Response.json({ error: "Service role key missing" }, { status: 500 });
+  }
 
   // Replay/duplicate protection: each webhook-id is processed once.
   const { error: dupErr } = await supabase
@@ -44,7 +50,9 @@ export async function POST(req: Request) {
     .insert({ id: req.headers.get("webhook-id")!, provider: "dodo", type });
   if (dupErr) {
     if (dupErr.code === "23505") return Response.json({ received: true, duplicate: true });
-    return Response.json({ error: "DB write failed" }, { status: 500 });
+    console.error("[dodo webhook] dedupe insert:", dupErr);
+    // Kalit/ruxsat muammosini ajratib ko'rsatamiz (maxfiy ma'lumotsiz).
+    return Response.json({ error: "DB write failed", step: "dedupe", code: dupErr.code ?? null }, { status: 500 });
   }
 
   const data = event.data ?? {};
@@ -71,9 +79,10 @@ export async function POST(req: Request) {
     p_until: until.toISOString(),
   });
   if (error) {
+    console.error("[dodo webhook] apply_plan_until:", error);
     // Let Dodo retry: drop the dedupe row so the retry is not skipped.
     await supabase.from("webhook_events").delete().eq("id", req.headers.get("webhook-id")!);
-    return Response.json({ error: "DB write failed" }, { status: 500 });
+    return Response.json({ error: "DB write failed", step: "apply_plan", code: error.code ?? null }, { status: 500 });
   }
 
   if (meta.order_id) {
