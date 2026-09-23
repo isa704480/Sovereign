@@ -2,8 +2,9 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { SUPABASE_MISSING_MESSAGE } from "@/lib/supabase/env";
 import { recommendModel } from "@/lib/recommend-model";
+import { fmt } from "@/lib/i18n";
+import { getServerT } from "@/lib/i18n-server";
 
 const answersSchema = z.object({
   purposes: z.array(z.string()).min(1),
@@ -23,8 +24,9 @@ export type OnboardingResult =
   | { ok: false; error: string };
 
 export async function completeOnboarding(raw: unknown): Promise<OnboardingResult> {
+  const t = await getServerT();
   const parsed = answersSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, error: "Javoblar to'liq emas." };
+  if (!parsed.success) return { ok: false, error: t("auOnbErrIncomplete") };
 
   let supabase: Awaited<ReturnType<typeof createClient>>;
   try {
@@ -35,12 +37,12 @@ export async function completeOnboarding(raw: unknown): Promise<OnboardingResult
       const rec = recommendModel(parsed.data);
       return { ok: true, modelId: rec.model.id, modelName: rec.model.name, reason: rec.reason };
     }
-    return { ok: false, error: SUPABASE_MISSING_MESSAGE };
+    return { ok: false, error: t("auErrSupabaseMissing") };
   }
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Sessiya topilmadi. Qayta kiring." };
+  if (!user) return { ok: false, error: t("auOnbErrNoSession") };
 
   const answers = parsed.data;
   const rec = recommendModel(answers);
@@ -54,7 +56,7 @@ export async function completeOnboarding(raw: unknown): Promise<OnboardingResult
     })
     .eq("id", user.id);
 
-  if (error) return { ok: false, error: `Saqlashda xato: ${error.message}` };
+  if (error) return { ok: false, error: fmt(t("auOnbErrSave"), { msg: error.message }) };
 
   return { ok: true, modelId: rec.model.id, modelName: rec.model.name, reason: rec.reason };
 }

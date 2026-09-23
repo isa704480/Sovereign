@@ -16,7 +16,9 @@ import { EASE } from "@/lib/motion";
 import { listKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { attachmentGlyph, processFile, type Attachment } from "@/lib/chat/attachments";
 import { matchFiles, type CoworkFile } from "@/lib/cowork/folder";
-import { useChat, useT } from "@/store/chat";
+import { useChat, useLang, useT } from "@/store/chat";
+import { fmt } from "@/lib/i18n";
+import { agentModeDescription, agentModeName } from "@/lib/locales/chat-data";
 import { AGENT_MODES, AGENT_MODE_BY_ID } from "@/config/agent-modes";
 import { useCowork } from "./cowork-context";
 import { useSpeech } from "@/hooks/use-speech";
@@ -126,6 +128,7 @@ export function InputArea({
 
   const cowork = useCowork();
   const t = useT();
+  const lang = useLang();
   const agentMode = useChat((s) => s.agentMode);
   const setAgentMode = useChat((s) => s.setAgentMode);
   const [modeMenu, setModeMenu] = useState(false);
@@ -239,9 +242,9 @@ export function InputArea({
       setBusy(true);
       item.file
         .getFile()
-        .then(processFile)
+        .then((f) => processFile(f, lang))
         .then((att) => setAttachments((prev) => (prev.some((a) => a.name === att.name) ? prev : [...prev, att])))
-        .catch((err) => setFileError(err instanceof Error ? err.message : "Fayl o'qilmadi"))
+        .catch((err) => setFileError(err instanceof Error ? err.message : t("chFileReadFailed")))
         .finally(() => setBusy(false));
     }
 
@@ -291,10 +294,10 @@ export function InputArea({
     setFileError(null);
     for (const f of files) {
       try {
-        const att = await processFile(f);
+        const att = await processFile(f, lang);
         setAttachments((prev) => [...prev, att]);
       } catch (err) {
-        setFileError(err instanceof Error ? err.message : "Fayl o'qilmadi");
+        setFileError(err instanceof Error ? err.message : t("chFileReadFailed"));
       }
     }
     setBusy(false);
@@ -313,7 +316,7 @@ export function InputArea({
       onClick={openPicker}
       className="rounded-lg p-2 transition-colors hover:bg-white/10"
       style={{ color: "var(--t-text-muted)" }}
-      title="Fayl biriktirish (rasm, PDF, matn)"
+      title={t("chAttachTitle")}
     >
       {busy ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
     </button>
@@ -325,7 +328,7 @@ export function InputArea({
       onClick={speech.toggle}
       className="rounded-lg p-2 transition-colors hover:bg-white/10"
       style={{ color: speech.listening ? model.primary : "var(--t-text-muted)" }}
-      title={speech.listening ? "To'xtatish" : "Ovozli kiritish"}
+      title={speech.listening ? t("stop") : t("chVoiceInput")}
     >
       {speech.listening ? (
         <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}>
@@ -350,16 +353,16 @@ export function InputArea({
         onClick={() => { if (coworkActive) cowork.clear(); }}
         className="rounded-full px-2.5 py-1 transition-colors"
         style={{ background: coworkActive ? "transparent" : "var(--t-surface)", color: coworkActive ? "var(--t-text-muted)" : "var(--t-text)" }}
-        title="Oddiy suhbat"
+        title={t("chModeChatTitle")}
       >
-        Chat
+        {t("chModeChat")}
       </button>
       <button
         type="button"
         onClick={() => onOpenCowork?.()}
         className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 transition-colors"
         style={{ background: coworkActive ? "var(--t-surface)" : "transparent", color: coworkActive ? "var(--t-accent)" : "var(--t-text-muted)" }}
-        title="Cowork — kompyuterdagi papka bilan ishlash"
+        title={t("chModeCoworkTitle")}
       >
         <FolderTree className="size-3" /> Cowork
       </button>
@@ -373,7 +376,7 @@ export function InputArea({
       onClick={() => window.dispatchEvent(new Event("sovereign:open-model"))}
       className="tt inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium transition-colors hover:bg-white/5"
       style={{ color: "var(--t-text-muted)" }}
-      title="Model tanlash (Ctrl+K)"
+      title={t("chSelectModelTitle")}
     >
       <span
         className="inline-flex size-4 items-center justify-center rounded-[5px] text-[10px] leading-none"
@@ -396,10 +399,10 @@ export function InputArea({
         aria-expanded={modeMenu}
         className="tt inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors hover:bg-white/5"
         style={{ borderColor: cur.id !== "general" ? "var(--t-primary)" : "var(--t-border)", color: cur.id !== "general" ? "var(--t-accent)" : "var(--t-text-muted)" }}
-        title="Agent rejimi"
+        title={t("chAgentMode")}
       >
         <span>{cur.glyph}</span>
-        <span className="max-w-[90px] truncate">{cur.name}</span>
+        <span className="max-w-[90px] truncate">{agentModeName(lang, cur)}</span>
         <ChevronDown className="size-3 opacity-70" />
       </button>
       {modeMenu && (
@@ -420,8 +423,8 @@ export function InputArea({
             >
               <span className="text-base">{m.glyph}</span>
               <span className="min-w-0">
-                <span className="block text-sm" style={{ color: "var(--t-text)" }}>{m.name}</span>
-                <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>{m.description}</span>
+                <span className="block text-sm" style={{ color: "var(--t-text)" }}>{agentModeName(lang, m)}</span>
+                <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>{agentModeDescription(lang, m)}</span>
               </span>
             </button>
           ))}
@@ -455,7 +458,7 @@ export function InputArea({
                 onClick={() => removeAttachment(a.id)}
                 className="rounded-full p-0.5 hover:bg-white/10"
                 style={{ color: "var(--t-text-muted)" }}
-                aria-label="O'chirish"
+                aria-label={t("chRemove")}
               >
                 <X className="size-3.5" />
               </button>
@@ -468,7 +471,7 @@ export function InputArea({
       {mentionOpen && (
         <div
           role="listbox"
-          aria-label="Bilim bazasi hujjatlari"
+          aria-label={t("chKbDocsAria")}
           className="tt mb-2 overflow-hidden rounded-[18px] border"
           style={{
             background: "var(--t-surface)",
@@ -477,7 +480,7 @@ export function InputArea({
           }}
         >
           <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
-            {cowork.folder ? `${cowork.folder.name} · bilim bazasi` : "Bilim bazasi"}
+            {cowork.folder ? fmt(t("chMentionHeaderFolder"), { name: cowork.folder.name }) : t("chMentionHeader")}
           </div>
           {matches.map((m, i) => (
             <button
@@ -505,7 +508,7 @@ export function InputArea({
             </button>
           ))}
           <div className="px-3 pb-2 pt-1 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-            ↑↓ tanlash · ↵ qo&apos;shish · Esc yopish
+            {t("chMentionHint")}
           </div>
         </div>
       )}
@@ -523,9 +526,9 @@ export function InputArea({
 
         {isSearch && (
           <div className="mb-2 flex flex-wrap gap-1.5">
-            <Chip active icon={<Globe className="size-3.5" />} label="Web" />
-            <Chip icon={<span className="text-[13px]">🎓</span>} label="Academic" disabled title="Tez orada" />
-            <Chip icon={<span className="text-[13px]">📰</span>} label="News" disabled title="Tez orada" />
+            <Chip active icon={<Globe className="size-3.5" />} label={t("chChipWeb")} />
+            <Chip icon={<span className="text-[13px]">🎓</span>} label={t("chChipAcademic")} disabled title={t("chSoon")} />
+            <Chip icon={<span className="text-[13px]">📰</span>} label={t("chChipNews")} disabled title={t("chSoon")} />
           </div>
         )}
 
@@ -568,7 +571,7 @@ export function InputArea({
               whileTap={{ scale: 0.95 }}
               className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full"
               style={{ background: "var(--t-text)", color: "var(--t-bg)" }}
-              title="To'xtatish"
+              title={t("stop")}
             >
               <Square className="size-3.5 fill-current" />
             </motion.button>
@@ -584,7 +587,7 @@ export function InputArea({
                 color: canSend ? "#fff" : "var(--t-text-muted)",
                 boxShadow: canSend ? `0 0 18px color-mix(in srgb, ${model.primary} 45%, transparent)` : undefined,
               }}
-              title="Yuborish (Enter)"
+              title={t("chSendEnter")}
             >
               <ArrowUp className="size-4" strokeWidth={2.5} />
             </motion.button>
@@ -629,13 +632,13 @@ export function InputArea({
                         {
                           id: "cowork",
                           label: cowork.folder ? `Cowork · ${cowork.folder.name}` : t("coworkFolder"),
-                          hint: cowork.folder ? `${cowork.folder.files.length} fayl · @ bilan tanlang` : "Kompyuterdagi papka — fayl tanlash shart emas",
+                          hint: cowork.folder ? fmt(t("chCoworkHint"), { n: cowork.folder.files.length }) : t("chCoworkHintEmpty"),
                           Icon: FolderTree,
                           enabled: !!onOpenCowork,
                         },
-                        { id: "file", label: t("attachFile"), hint: "Rasm, PDF, matn, kod", Icon: Paperclip, enabled: true },
-                        { id: "kb", label: t("knowledgeBase"), hint: "Hujjatlar — @ bilan chaqiriladi", Icon: FolderOpen, enabled: !!onOpenKnowledge },
-                        { id: "memory", label: t("memory"), hint: "AI sizni eslab qoladi", Icon: Brain, enabled: !!onOpenMemory },
+                        { id: "file", label: t("attachFile"), hint: t("chFileHint"), Icon: Paperclip, enabled: true },
+                        { id: "kb", label: t("knowledgeBase"), hint: t("chKbHint"), Icon: FolderOpen, enabled: !!onOpenKnowledge },
+                        { id: "memory", label: t("memory"), hint: t("chMemoryHint"), Icon: Brain, enabled: !!onOpenMemory },
                       ] as const
                     ).map(({ id, label, hint, Icon, enabled }, i) => (
                       <button
@@ -672,14 +675,14 @@ export function InputArea({
               icon={<Globe className="size-3.5" />}
               label={t("researchMode")}
               onClick={() => onToggleResearch(!research)}
-              title="Perplexity orqali internet tadqiqoti"
+              title={t("chResearchTitle")}
             />
             <Chip
               active={blindPrompting}
               icon={<ShieldCheck className="size-3.5" />}
               label={t("privateMode")}
               onClick={() => onToggleBlindPrompting(!blindPrompting)}
-              title="Blind Prompting — ism, telefon, email va boshqa shaxsiy ma'lumotlarni AI ko'rmasligi uchun maskalash"
+              title={t("chPrivateTitle")}
             />
             {/* Xotira va Tez javob — hozircha shipp qilinmagan; Apple: disabled affordances chiqarmaymiz */}
             <div className="ml-auto">{modelChip}</div>

@@ -5,9 +5,13 @@ import { Dashboard } from "@/components/dashboard/Dashboard";
 import { displayName, effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
+import { getServerT } from "@/lib/i18n-server";
 import type { Conversation } from "@/store/chat";
 
-export const metadata: Metadata = { title: "Chat" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return { title: t("chChatTitle") };
+}
 
 export default async function AppPage() {
   // Local design preview without Supabase (development only).

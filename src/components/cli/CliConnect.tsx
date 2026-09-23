@@ -7,6 +7,8 @@ import { approveCliDevice } from "@/app/actions/cli";
 import { LogoMark } from "@/components/brand/Logo";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { EASE_OUT_EXPO } from "@/lib/motion";
+import { fmt } from "@/lib/i18n";
+import { useT } from "@/store/chat";
 
 interface CliConnectProps {
   code: string;
@@ -16,6 +18,7 @@ interface CliConnectProps {
 }
 
 export function CliConnect({ code, name, email, plan }: CliConnectProps) {
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<"idle" | "done" | "denied" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -56,37 +59,37 @@ export function CliConnect({ code, name, email, plan }: CliConnectProps) {
             <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-success/15 text-success shadow-[0_0_28px_rgba(16,212,160,0.35)]">
               <Check className="size-7" strokeWidth={3} />
             </div>
-            <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary">Ulandi!</h1>
+            <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary">{t("auCliConnected")}</h1>
             <p className="mt-2 text-sm text-text-secondary">
-              Terminalga qaytishingiz mumkin — SOVEREIGN CLI hisobingizga ulandi.
+              {t("auCliConnectedDesc")}
             </p>
-            <p className="mt-4 text-xs text-text-muted">Bu oynani yopsangiz bo&apos;ladi.</p>
+            <p className="mt-4 text-xs text-text-muted">{t("auCliCanClose")}</p>
           </>
         ) : state === "denied" ? (
           <>
             <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-error/15 text-error">
               <X className="size-7" strokeWidth={3} />
             </div>
-            <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary">Rad etildi</h1>
-            <p className="mt-2 text-sm text-text-secondary">Ulanish bekor qilindi. Oynani yopishingiz mumkin.</p>
+            <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary">{t("auCliDenied")}</h1>
+            <p className="mt-2 text-sm text-text-secondary">{t("auCliDeniedDesc")}</p>
           </>
         ) : (
           <>
-            <h1 className="font-display text-2xl font-extrabold text-text-primary">SOVEREIGN CLI&apos;ni ulash</h1>
+            <h1 className="font-display text-2xl font-extrabold text-text-primary">{t("auCliTitle")}</h1>
             <p className="mt-2 text-sm text-text-secondary">
-              Terminaldagi SOVEREIGN CLI ushbu hisobga kirmoqchi:
+              {t("auCliRequest")}
             </p>
 
             <div className="mt-5 rounded-2xl border border-border bg-bg-base/60 p-4 text-left">
               <div className="text-sm font-medium text-text-primary">{name}</div>
               <div className="text-xs text-text-muted">{email}</div>
               <div className="mt-2 inline-flex rounded-full bg-primary/15 px-2.5 py-0.5 text-[11px] font-semibold text-primary-soft">
-                {planName} tarif
+                {fmt(t("auCliPlan"), { plan: planName })}
               </div>
             </div>
 
             <div className="mt-4 rounded-xl border border-border bg-bg-base/40 px-3 py-2 text-left font-mono text-[11px] text-text-muted">
-              Kod: {code.slice(0, 8)}…{code.slice(-4)}
+              {t("auCliCode")}: {code.slice(0, 8)}…{code.slice(-4)}
             </div>
 
             {error && <p className="mt-3 text-sm text-error">{error}</p>}
@@ -98,7 +101,7 @@ export function CliConnect({ code, name, email, plan }: CliConnectProps) {
                 disabled={pending}
                 className="h-11 rounded-xl border border-border text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover"
               >
-                Bekor qilish
+                {t("auCliCancel")}
               </button>
               <button
                 type="button"
@@ -106,11 +109,11 @@ export function CliConnect({ code, name, email, plan }: CliConnectProps) {
                 disabled={pending}
                 className="h-11 rounded-xl bg-primary text-sm font-semibold text-white shadow-glow transition-colors hover:bg-primary-dark disabled:opacity-60"
               >
-                {pending ? "Ulanmoqda…" : "Ruxsat berish"}
+                {pending ? t("auCliConnecting") : t("auCliAllow")}
               </button>
             </div>
             <p className="mt-4 text-xs text-text-muted">
-              CLI kompyuteringizda kod yozadi va fayl yaratadi. Faqat o&apos;zingiz ishga tushirgan bo&apos;lsangiz ruxsat bering.
+              {t("auCliWarning")}
             </p>
           </>
         )}

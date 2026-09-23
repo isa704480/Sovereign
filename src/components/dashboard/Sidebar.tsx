@@ -10,6 +10,8 @@ import type { Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { groupByDate, useChat, useT, type Conversation } from "@/store/chat";
+import { fmt } from "@/lib/i18n";
+import { convTitle } from "@/lib/locales/chat-data";
 import { useTheme } from "./theme-context";
 
 interface SidebarProps {
@@ -132,7 +134,7 @@ export function Sidebar({
     <div className="flex h-full flex-col" style={{ color: "var(--t-text)" }}>
       {/* header */}
       <div className="flex items-center justify-between px-3 pb-2 pt-3">
-        <Link href="/" className="flex items-center gap-2 rounded-lg transition-opacity hover:opacity-80" title="Bosh sahifa">
+        <Link href="/" className="flex items-center gap-2 rounded-lg transition-opacity hover:opacity-80" title={t("chHome")}>
           <span
             className="flex size-7 items-center justify-center rounded-lg text-sm"
             style={{ background: `color-mix(in srgb, ${model.primary} 20%, transparent)`, color: model.primary }}
@@ -148,7 +150,7 @@ export function Sidebar({
             </span>
           )}
         </Link>
-        <button type="button" onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} aria-label="Yopish">
+        <button type="button" onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")}>
           <PanelLeftClose className="size-4" />
         </button>
       </div>
@@ -186,8 +188,8 @@ export function Sidebar({
             onClick={() => setNewProject("")}
             className="rounded-md p-1 transition-colors hover:bg-white/10"
             style={{ color: "var(--t-text-muted)" }}
-            aria-label="Yangi loyiha"
-            title="Yangi loyiha"
+            aria-label={t("newProject")}
+            title={t("newProject")}
           >
             <FolderPlus className="size-3.5" />
           </button>
@@ -225,7 +227,7 @@ export function Sidebar({
                     background: on ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : "transparent",
                     color: on ? "var(--t-accent)" : "var(--t-text-muted)",
                   }}
-                  title={on ? "Loyihadan chiqish" : "Loyihani ochish"}
+                  title={on ? t("chLeaveProject") : t("chOpenProject")}
                 >
                   <Folder className="size-3" />
                   <span className="truncate">{p.name}</span>
@@ -261,7 +263,7 @@ export function Sidebar({
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm(`"${activeProject.name}" loyihasi o'chirilsinmi? Suhbatlar qoladi.`)) deleteProject(activeProject.id);
+                      if (window.confirm(fmt(t("chDeleteProjectConfirm"), { name: activeProject.name }))) deleteProject(activeProject.id);
                     }}
                     className="hover:underline"
                     style={{ color: "var(--error, #EF4444)" }}
@@ -305,7 +307,7 @@ export function Sidebar({
                   >
                     <span className="size-2 shrink-0 rounded-full" style={{ background: m?.primary ?? "var(--t-primary)" }} />
                     <span className="min-w-0 flex-1 pr-10">
-                      <span className="block truncate">{c.title}</span>
+                      <span className="block truncate">{convTitle(c.title, t)}</span>
                       {snippets[id] && (
                         <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>{snippets[id]}</span>
                       )}
@@ -317,8 +319,8 @@ export function Sidebar({
                       onClick={() => moveToProject(id, c.projectId ? null : activeProjectId ?? projects[0].id)}
                       className="absolute right-8 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
                       style={{ color: c.projectId ? "var(--t-accent)" : "var(--t-text-muted)" }}
-                      aria-label={c.projectId ? "Loyihadan chiqarish" : "Loyihaga qo'shish"}
-                      title={c.projectId ? "Loyihadan chiqarish" : `Loyihaga qo'shish: ${(activeProject ?? projects[0]).name}`}
+                      aria-label={c.projectId ? t("chRemoveFromProject") : t("chAddToProject")}
+                      title={c.projectId ? t("chRemoveFromProject") : fmt(t("chAddToProjectNamed"), { name: (activeProject ?? projects[0]).name })}
                     >
                       <Folder className="size-3.5" />
                     </button>
@@ -328,7 +330,7 @@ export function Sidebar({
                     onClick={() => onDelete(id)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
                     style={{ color: "var(--t-text-muted)" }}
-                    aria-label="O'chirish"
+                    aria-label={t("delete")}
                   >
                     <Trash2 className="size-3.5" />
                   </button>
@@ -358,7 +360,7 @@ export function Sidebar({
             style={{ color: "var(--t-text)" }}
           >
             <LayoutGrid className="size-4" style={{ color: "var(--t-text-muted)" }} />
-            <span className="flex-1 text-left">Vositalar</span>
+            <span className="flex-1 text-left">{t("chTools")}</span>
             <ChevronDown className="size-4 transition-transform" style={{ color: "var(--t-text-muted)", transform: toolsOpen ? "rotate(180deg)" : "none" }} />
           </button>
 
@@ -432,7 +434,7 @@ export function Sidebar({
               style={{ color: "var(--t-text)" }}
             >
               <Plug className="size-4" style={{ color: "var(--t-text-muted)" }} />
-              <span className="flex-1 text-left">Ulanishlar</span>
+              <span className="flex-1 text-left">{t("chConnectors")}</span>
             </button>
 
             <div style={{ height: 1, background: "var(--t-border)" }} />
@@ -469,7 +471,7 @@ export function Sidebar({
               type="button"
               onClick={onOpenSettings}
               className="tt group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-[color:var(--surface-hover)]"
-              aria-label="Sozlamalarni ochish"
+              aria-label={t("chOpenSettings")}
             >
               {user.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -510,8 +512,8 @@ export function Sidebar({
                 type="submit"
                 className="rounded-md p-1.5 opacity-60 transition-all hover:bg-[color:var(--surface-hover)] hover:opacity-100"
                 style={{ color: "var(--t-text-muted)" }}
-                title="Chiqish"
-                aria-label="Chiqish"
+                title={t("logout")}
+                aria-label={t("logout")}
               >
                 <LogOut className="size-4" />
               </button>
@@ -541,8 +543,8 @@ export function Sidebar({
         onClick={onOpen}
         className="mb-1 rounded-lg p-2 transition-colors hover:bg-white/10"
         style={{ color: "var(--t-text-muted)" }}
-        aria-label="Panelni ochish"
-        title="Panelni ochish"
+        aria-label={t("chOpenPanel")}
+        title={t("chOpenPanel")}
       >
         <PanelLeftOpen className="size-5" />
       </button>
@@ -571,7 +573,7 @@ export function Sidebar({
         type="button"
         onClick={onOpenSettings}
         className="mt-auto rounded-full transition-transform hover:scale-105"
-        aria-label="Sozlamalarni ochish"
+        aria-label={t("chOpenSettings")}
         title={`${user.name} · ${plan.name}`}
       >
         {user.avatarUrl ? (

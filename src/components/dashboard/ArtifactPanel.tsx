@@ -17,15 +17,24 @@ interface ArtifactPanelProps {
 // Live edit lets the user tweak the artifact and re-render immediately.
 const HTML_TABS = ["preview", "code"] as const;
 
+/** Iframe ichida ko'rsatiladigan xato matnlari (joriy tilda). */
+interface BootMessages {
+  err: string;
+  noComp: string;
+  libFail: string;
+}
+
 // JSX/TSX preview bootstrap (runs INSIDE the sandboxed iframe).
 // Babel transforms the code, then every bare `import "lib"` is rewritten to
 // https://esm.sh/lib so any npm library loads straight from the CDN — the user
 // never has to run `npm install`. React is pinned so all libs share one copy.
-const JSX_BOOT = [
+const jsxBoot = (m: BootMessages) => [
+  // Matnlar JSON sifatida — tirnoq/maxsus belgilar skriptni buzmaydi (tarjimalarda "</" yo'q).
+  "window.__E=" + JSON.stringify(m) + ";",
   "(function(){",
   "var raw=document.getElementById('__src').textContent;",
   "var CDN='https://esm.sh/';",
-  "function showErr(m){document.body.innerHTML=\"<pre style='color:#b00020;padding:16px;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace'>\"+((m&&(m.message||m))||'Xato')+\"</pre>\";}",
+  "function showErr(m){document.body.innerHTML=\"<pre style='color:#b00020;padding:16px;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace'>\"+((m&&(m.message||m))||window.__E.err)+\"</pre>\";}",
   "window.addEventListener('error',function(e){showErr(e.message);});",
   "window.addEventListener('unhandledrejection',function(e){showErr(e.reason&&(e.reason.message||e.reason));});",
   "try{",
@@ -33,14 +42,14 @@ const JSX_BOOT = [
   "function pin(x){if(x==='react')return CDN+'react@18.3.1';if(x==='react-dom')return CDN+'react-dom@18.3.1?deps=react@18.3.1';if(x==='react-dom/client')return CDN+'react-dom@18.3.1/client?deps=react@18.3.1';if(x.indexOf('react/')===0)return CDN+'react@18.3.1/'+x.slice(6);return CDN+x+'?deps=react@18.3.1,react-dom@18.3.1';}",
   "out=out.replace(/(from\\s*|import\\s*\\(?\\s*)([\"'])(?!https?:|\\.\\/|\\.\\.\\/|\\/)([^\"']+)(\\2)/g,function(m,p,q,spec){return p+q+pin(spec)+q;});",
   "var boot='import { createElement as __ce } from \"'+CDN+'react@18.3.1\";\\nimport { createRoot as __cr } from \"'+CDN+'react-dom@18.3.1/client?deps=react@18.3.1\";\\n';",
-  "var tail=\"\\n;{var __A=(typeof App!=='undefined'&&App)||(typeof Component!=='undefined'&&Component)||(typeof Page!=='undefined'&&Page);if(!__A){throw new Error('Komponent topilmadi - App yoki Component deb nomlang, yoki export default qiling');}__cr(document.getElementById('root')).render(__ce(__A));}\";",
+  "var tail=\"\\n;{var __A=(typeof App!=='undefined'&&App)||(typeof Component!=='undefined'&&Component)||(typeof Page!=='undefined'&&Page);if(!__A){throw new Error(window.__E.noComp);}__cr(document.getElementById('root')).render(__ce(__A));}\";",
   "var mod=boot+out+tail;",
-  "var sc=document.createElement('script');sc.type='module';sc.onerror=function(){showErr('Kutubxona yuklanmadi (internet yoki esm.sh)');};sc.textContent=mod;document.body.appendChild(sc);",
+  "var sc=document.createElement('script');sc.type='module';sc.onerror=function(){showErr(window.__E.libFail);};sc.textContent=mod;document.body.appendChild(sc);",
   "}catch(e){showErr(e);}",
   "})();",
 ].join("");
 
-function toHtmlDoc(code: string, lang: string): string {
+function toHtmlDoc(code: string, lang: string, msgs: BootMessages): string {
   const l = lang.toLowerCase();
   const isFullDoc = /<!doctype html|<html[\s>]/i.test(code);
   if (l === "svg") {
@@ -62,7 +71,7 @@ function toHtmlDoc(code: string, lang: string): string {
 <body>
 <div id="root"></div>
 <script type="text/plain" id="__src">${escaped}</script>
-<script>${JSX_BOOT}</script>
+<script>${jsxBoot(msgs)}</script>
 </body>
 </html>`;
   }
@@ -108,7 +117,13 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
   const [copied, setCopied] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const srcDoc = useMemo(() => (isMarkdown ? "" : toHtmlDoc(code, lang)), [code, lang, isMarkdown]);
+  const errMsg = t("chError");
+  const noCompMsg = t("chArtNoComponent");
+  const libFailMsg = t("chArtLibFailed");
+  const srcDoc = useMemo(
+    () => (isMarkdown ? "" : toHtmlDoc(code, lang, { err: errMsg, noComp: noCompMsg, libFail: libFailMsg })),
+    [code, lang, isMarkdown, errMsg, noCompMsg, libFailMsg],
+  );
 
   async function copy() {
     try {
@@ -197,7 +212,7 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
         ) : canPreview && tab === "preview" ? (
           <iframe
             key={reloadKey}
-            title="Artifact preview"
+            title={t("chArtPreviewTitle")}
             srcDoc={srcDoc}
             // React/kutubxonali kod ESM modul ishlatadi — u faqat allow-same-origin
             // bilan yuklanadi (opaque origin'da native modul bloklanadi). HTML/SVG

@@ -4,7 +4,8 @@ import { Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { countryFlag, countryName, searchCountries } from "@/config/countries";
-import { useChat, useT } from "@/store/chat";
+import { useChat, useLang, useT } from "@/store/chat";
+import { optionText, zoneText } from "@/lib/locales/onboarding-data";
 import {
   AGE_GROUPS,
   EXPERIENCE_ZONES,
@@ -23,6 +24,7 @@ import { Chip } from "./Chip";
 import { OptionCard } from "./OptionCard";
 
 export function StepPurpose() {
+  const lang = useLang();
   const purposes = useOnboarding((s) => s.purposes);
   const toggle = useOnboarding((s) => s.toggle);
   return (
@@ -31,8 +33,7 @@ export function StepPurpose() {
         <OptionCard
           key={o.id}
           emoji={o.emoji}
-          label={o.label}
-          description={o.description}
+          {...optionText("purposes", o, lang)}
           selected={purposes.includes(o.id)}
           onToggle={() => toggle("purposes", o.id)}
         />
@@ -78,6 +79,7 @@ function OtherInput({
 
 export function StepIndustry() {
   const t = useT();
+  const lang = useLang();
   const industries = useOnboarding((s) => s.industries);
   const other = useOnboarding((s) => s.otherIndustry ?? "");
   const toggle = useOnboarding((s) => s.toggle);
@@ -88,7 +90,7 @@ export function StepIndustry() {
     <div>
       <div className="flex flex-wrap gap-2">
         {INDUSTRIES.map((o) => (
-          <Chip key={o.id} label={o.label} selected={industries.includes(o.id)} onToggle={() => toggle("industries", o.id)} />
+          <Chip key={o.id} label={optionText("industries", o, lang).label} selected={industries.includes(o.id)} onToggle={() => toggle("industries", o.id)} />
         ))}
         <Chip
           label={otherOpen ? t("onbOther") : t("onbOtherDots")}
@@ -105,6 +107,7 @@ export function StepIndustry() {
 }
 
 export function StepPriorities() {
+  const lang = useLang();
   const priorities = useOnboarding((s) => s.priorities);
   const toggle = useOnboarding((s) => s.toggle);
   return (
@@ -113,8 +116,7 @@ export function StepPriorities() {
         <OptionCard
           key={o.id}
           emoji={o.emoji}
-          label={o.label}
-          description={o.description}
+          {...optionText("priorities", o, lang)}
           selected={priorities.includes(o.id)}
           onToggle={() => toggle("priorities", o.id)}
         />
@@ -125,6 +127,7 @@ export function StepPriorities() {
 
 export function StepLanguages() {
   const t = useT();
+  const lang = useLang();
   const languages = useOnboarding((s) => s.languages);
   const other = useOnboarding((s) => s.otherLanguage ?? "");
   const toggle = useOnboarding((s) => s.toggle);
@@ -135,7 +138,7 @@ export function StepLanguages() {
     <div>
       <div className="flex flex-wrap gap-2">
         {LANGUAGES.map((o) => (
-          <Chip key={o.id} emoji={o.emoji} label={o.label} selected={languages.includes(o.id)} onToggle={() => toggle("languages", o.id)} />
+          <Chip key={o.id} emoji={o.emoji} label={optionText("languages", o, lang).label} selected={languages.includes(o.id)} onToggle={() => toggle("languages", o.id)} />
         ))}
         <button
           type="button"
@@ -157,16 +160,17 @@ export function StepLanguages() {
 }
 
 export function StepAge() {
+  const t = useT();
+  const lang = useLang();
   const ageGroup = useOnboarding((s) => s.ageGroup ?? "");
   const setAgeGroup = useOnboarding((s) => s.setAgeGroup);
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Yosh guruhi">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" role="radiogroup" aria-label={t("auOnbAgeGroup")}>
       {AGE_GROUPS.map((o) => (
         <OptionCard
           key={o.id}
           emoji={o.emoji}
-          label={o.label}
-          description={o.description}
+          {...optionText("age", o, lang)}
           selected={ageGroup === o.id}
           onToggle={() => setAgeGroup(o.id)}
         />
@@ -193,10 +197,10 @@ export function StepCountry() {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder={t("onbCountryPlaceholder")}
-        aria-label="Davlat qidirish"
+        aria-label={t("auOnbCountrySearch")}
         className="mb-3 h-11 rounded-xl"
       />
-      <div className="flex max-h-[260px] flex-wrap gap-2 overflow-y-auto pr-1" role="radiogroup" aria-label="Davlat">
+      <div className="flex max-h-[260px] flex-wrap gap-2 overflow-y-auto pr-1" role="radiogroup" aria-label={t("auOnbCountry")}>
         {shown.map((code) => (
           <Chip
             key={code}
@@ -219,6 +223,7 @@ export function StepCountry() {
 
 export function StepExperience() {
   const t = useT();
+  const lang = useLang();
   const experience = useOnboarding((s) => s.experience);
   const setExperience = useOnboarding((s) => s.setExperience);
   const zone = experienceZone(experience);
@@ -232,7 +237,7 @@ export function StepExperience() {
           min={0}
           max={100}
           step={1}
-          aria-label="Tajriba darajasi"
+          aria-label={t("auOnbExperienceLevel")}
           className="[&_[data-slot=slider-range]]:bg-primary [&_[data-slot=slider-thumb]]:size-5 [&_[data-slot=slider-thumb]]:border-primary [&_[data-slot=slider-thumb]]:bg-bg-base [&_[data-slot=slider-thumb]]:shadow-glow [&_[data-slot=slider-track]]:h-2 [&_[data-slot=slider-track]]:bg-bg-hover"
         />
       </div>
@@ -256,7 +261,7 @@ export function StepExperience() {
                   : "border-border text-text-muted hover:text-text-secondary",
               )}
             >
-              {z.label}
+              {zoneText(z, lang).label}
             </button>
           );
         })}
@@ -272,7 +277,7 @@ export function StepExperience() {
           className="mt-5 flex items-center gap-2 text-sm text-text-secondary"
         >
           <span className="size-1.5 rounded-full bg-primary" />
-          {zone.hint}
+          {zoneText(zone, lang).hint}
         </motion.p>
       </AnimatePresence>
     </div>

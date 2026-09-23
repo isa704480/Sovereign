@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { CONNECTOR_BY_ID } from "@/config/connectors";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
+import { getServerT } from "@/lib/i18n-server";
 
 async function session() {
   if (!isSupabaseConfigured()) return null;
@@ -59,10 +60,11 @@ async function upsert(userId: string, connectorId: string, patch: { enabled?: bo
 
 /** Figma/GitHub tokenini tekshiradi (haqiqiy API chaqiruvi). */
 async function verifyToken(connectorId: string, token: string): Promise<Result> {
+  const t = await getServerT();
   try {
     if (connectorId === "figma") {
       const r = await fetch("https://api.figma.com/v1/me", { headers: { "X-Figma-Token": token } });
-      if (!r.ok) return { ok: false, error: "Figma token noto'g'ri yoki muddati o'tgan." };
+      if (!r.ok) return { ok: false, error: t("pnErrFigmaToken") };
       const j = (await r.json()) as { email?: string; handle?: string };
       return { ok: true, meta: j.email ?? j.handle ?? "Figma" };
     }
@@ -70,13 +72,13 @@ async function verifyToken(connectorId: string, token: string): Promise<Result> 
       const r = await fetch("https://api.github.com/user", {
         headers: { Authorization: `Bearer ${token}`, "User-Agent": "SOVEREIGN", Accept: "application/vnd.github+json" },
       });
-      if (!r.ok) return { ok: false, error: "GitHub token noto'g'ri yoki ruxsat yetarli emas." };
+      if (!r.ok) return { ok: false, error: t("pnErrGithubToken") };
       const j = (await r.json()) as { login?: string };
       return { ok: true, meta: j.login ? `@${j.login}` : "GitHub" };
     }
     return { ok: true };
   } catch {
-    return { ok: false, error: "Tekshirishda tarmoq xatosi." };
+    return { ok: false, error: t("pnErrVerifyNetwork") };
   }
 }
 
@@ -84,13 +86,14 @@ const tokenSchema = z.object({ connectorId: z.string().min(1).max(60), token: z.
 
 /** Token bilan ulash (Figma/GitHub/MCP). Muvaffaqiyatli bo'lsa yoqib qo'yiladi. */
 export async function connectToken(input: unknown): Promise<Result> {
+  const t = await getServerT();
   const parsed = tokenSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Token noto'g'ri." };
+  if (!parsed.success) return { ok: false, error: t("pnErrBadToken") };
   const { connectorId, token } = parsed.data;
   const spec = CONNECTOR_BY_ID[connectorId];
-  if (!spec) return { ok: false, error: "Bunday connector yo'q." };
+  if (!spec) return { ok: false, error: t("pnErrNoConnector") };
   const s = await session();
-  if (!s) return { ok: false, error: "Avval tizimga kiring." };
+  if (!s) return { ok: false, error: t("pnErrLoginFirst") };
 
   let meta: string | null = null;
   if (spec.auth === "token") {
@@ -99,10 +102,10 @@ export async function connectToken(input: unknown): Promise<Result> {
     meta = v.meta ?? null;
   } else if (spec.auth === "mcp") {
     // MCP: "token" — bu server URL. SSRF xavfi uchun tarmoqqa chiqmaymiz, faqat format.
-    if (!/^https?:\/\/[^\s]+$/i.test(token)) return { ok: false, error: "MCP server URL noto'g'ri (https://...)." };
+    if (!/^https?:\/\/[^\s]+$/i.test(token)) return { ok: false, error: t("pnErrMcpUrl") };
     meta = token.replace(/^https?:\/\//, "").slice(0, 40);
   } else {
-    return { ok: false, error: "Bu connector token bilan ulanmaydi." };
+    return { ok: false, error: t("pnErrNoTokenAuth") };
   }
 
   const err = await upsert(
@@ -119,13 +122,14 @@ const toggleSchema = z.object({ connectorId: z.string().min(1).max(60), enabled:
 
 /** Vaqtincha o'chirish/yoqish (token saqlanadi). Builtin uchun ham ishlaydi. */
 export async function setConnectorEnabled(input: unknown): Promise<Result> {
+  const t = await getServerT();
   const parsed = toggleSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Noto'g'ri so'rov." };
+  if (!parsed.success) return { ok: false, error: t("pnErrBadRequest") };
   const { connectorId, enabled } = parsed.data;
   const spec = CONNECTOR_BY_ID[connectorId];
-  if (!spec) return { ok: false, error: "Bunday connector yo'q." };
+  if (!spec) return { ok: false, error: t("pnErrNoConnector") };
   const s = await session();
-  if (!s) return { ok: false, error: "Avval tizimga kiring." };
+  if (!s) return { ok: false, error: t("pnErrLoginFirst") };
   // Builtin (CLI/brauzer) — kalitsiz, faqat yoqish belgisi.
   const config = spec.auth === "builtin" ? { builtin: true } : {};
   const err = await upsert(s.user.id, connectorId, { enabled, config }, s.supabase);
@@ -135,8 +139,9 @@ export async function setConnectorEnabled(input: unknown): Promise<Result> {
 
 /** Ulanishni butunlay uzish (token o'chadi). */
 export async function disconnectConnector(connectorId: string): Promise<Result> {
+  const t = await getServerT();
   const s = await session();
-  if (!s) return { ok: false, error: "Avval tizimga kiring." };
+  if (!s) return { ok: false, error: t("pnErrLoginFirst") };
   const { error } = await s.supabase
     .from("connector_accounts")
     .delete()
@@ -151,10 +156,11 @@ export async function disconnectConnector(connectorId: string): Promise<Result> 
  * scope sozlangan bo'lishi shart (sensitive scope'lar Google tekshiruvini talab qiladi).
  */
 export async function connectGoogle(connectorId: string): Promise<{ ok: false; error: string } | never> {
+  const t = await getServerT();
   const spec = CONNECTOR_BY_ID[connectorId];
-  if (!spec || spec.auth !== "oauth-google") return { ok: false, error: "Bu Google connector emas." };
+  if (!spec || spec.auth !== "oauth-google") return { ok: false, error: t("pnErrNotGoogle") };
   const s = await session();
-  if (!s) return { ok: false, error: "Avval tizimga kiring." };
+  if (!s) return { ok: false, error: t("pnErrLoginFirst") };
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const scopes = ["openid", "email", "profile", ...(spec.scopes ?? [])].join(" ");
   const { data, error } = await s.supabase.auth.signInWithOAuth({
@@ -167,5 +173,5 @@ export async function connectGoogle(connectorId: string): Promise<{ ok: false; e
   });
   if (error) return { ok: false, error: error.message };
   if (data.url) redirect(data.url);
-  return { ok: false, error: "OAuth havolasi olinmadi." };
+  return { ok: false, error: t("pnErrNoOauthUrl") };
 }

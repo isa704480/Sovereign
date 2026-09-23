@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { getMemories } from "@/lib/ai/memory";
+import { getServerT } from "@/lib/i18n-server";
 
 async function session() {
   if (!isSupabaseConfigured()) return null;
@@ -16,7 +17,7 @@ async function session() {
 /** GDPR export: all of the user's data as a JSON object. */
 export async function exportMyData(): Promise<{ ok: true; data: unknown } | { ok: false; error: string }> {
   const s = await session();
-  if (!s) return { ok: false, error: "Sessiya topilmadi" };
+  if (!s) return { ok: false, error: (await getServerT())("pnErrNoSession") };
   const [{ data: profile }, { data: conversations }, { data: messages }, memories, { data: orders }] = await Promise.all([
     s.supabase.from("profiles").select("*").eq("id", s.user.id).maybeSingle(),
     s.supabase.from("conversations").select("*").eq("user_id", s.user.id),

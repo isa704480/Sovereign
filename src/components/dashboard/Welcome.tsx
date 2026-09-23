@@ -6,7 +6,8 @@ import { EASE_OUT_EXPO } from "@/lib/motion";
 import { LogoMark } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme-context";
-import { useT } from "@/store/chat";
+import { useLang, useT } from "@/store/chat";
+import { themeSuggestions } from "@/lib/locales/chat-data";
 
 interface WelcomeProps {
   userName: string;
@@ -81,6 +82,8 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
   const { theme, model } = useTheme();
   const t = theme.id;
   const tr = useT();
+  const lang = useLang();
+  const suggestions = themeSuggestions(lang, theme);
 
   const wrap = (children: ReactNode, className?: string) => (
     <motion.div
@@ -109,7 +112,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
           </p>
         </div>
         {input}
-        <Suggestions items={theme.suggestions} onPick={onSuggestion} variant="chips" />
+        <Suggestions items={suggestions} onPick={onSuggestion} variant="chips" />
         <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>Made by Anthropic · via SOVEREIGN</span>
       </>,
     );
@@ -130,7 +133,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
           </h1>
         </div>
         {input}
-        <Suggestions items={theme.suggestions} onPick={onSuggestion} variant="cards" />
+        <Suggestions items={suggestions} onPick={onSuggestion} variant="cards" />
       </>,
     );
   }
@@ -148,7 +151,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
         </div>
         {input}
         <div className="grid w-full max-w-2xl grid-cols-2 gap-3 md:grid-cols-4">
-          {theme.suggestions.map((s) => (
+          {suggestions.map((s) => (
             <button
               key={s}
               type="button"
@@ -176,7 +179,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
         </div>
         <p className="-mt-4 text-sm" style={{ color: "var(--t-text-muted)" }}>{tr("greeting")}</p>
         {input}
-        <Suggestions items={theme.suggestions} onPick={onSuggestion} variant="list" />
+        <Suggestions items={suggestions} onPick={onSuggestion} variant="list" />
       </>,
       "max-w-2xl",
     );
@@ -197,7 +200,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
           <p className="mt-2 text-sm" style={{ color: "var(--t-text-muted)" }}>{tr("subGreeting")}</p>
         </div>
         {input}
-        <Suggestions items={theme.suggestions} onPick={onSuggestion} variant="cards" />
+        <Suggestions items={suggestions} onPick={onSuggestion} variant="cards" />
       </>,
     );
   }
@@ -219,7 +222,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
           </span>
         </div>
         {input}
-        <Suggestions items={theme.suggestions} onPick={onSuggestion} variant="cards" />
+        <Suggestions items={suggestions} onPick={onSuggestion} variant="cards" />
       </>,
     );
   }
@@ -235,7 +238,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
         <p className="mt-2 text-sm" style={{ color: "var(--t-text-muted)" }}>{tr("subGreeting")}</p>
       </div>
       {input}
-      <Suggestions items={theme.suggestions} onPick={onSuggestion} variant="cards" />
+      <Suggestions items={suggestions} onPick={onSuggestion} variant="cards" />
     </>,
   );
 }

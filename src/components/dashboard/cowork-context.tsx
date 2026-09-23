@@ -13,7 +13,8 @@ import {
   WRITE_PROTOCOL,
   type CoworkFolder,
 } from "@/lib/cowork/folder";
-import { useChat } from "@/store/chat";
+import { translate } from "@/lib/i18n";
+import { useChat, useLang } from "@/store/chat";
 
 interface CoworkValue {
   folder: CoworkFolder | null;
@@ -49,6 +50,7 @@ export function CoworkProvider({ children }: { children: React.ReactNode }) {
   const [folder, setFolder] = useState<CoworkFolder | null>(null);
   const [shareOutline, setShareOutline] = useState(true);
   const setCoworkOutline = useChat((s) => s.setCoworkOutline);
+  const lang = useLang();
 
   const canWrite = canWriteFolder(folder);
 
@@ -76,16 +78,16 @@ export function CoworkProvider({ children }: { children: React.ReactNode }) {
 
   const applyWrite = useCallback(
     async (path: string, content: string) => {
-      if (!folder) throw new Error("Papka ulanmagan.");
+      if (!folder) throw new Error(translate(lang, "pnCwNoFolder"));
       const ok = await ensureWritePermission(folder);
-      if (!ok) throw new Error("Yozish ruxsati berilmadi.");
+      if (!ok) throw new Error(translate(lang, "pnCwNoWritePerm"));
       await writeFileToFolder(folder, path, content);
       // Yangi fayl bo'lsa ro'yxatga qo'shamiz (outline yangilansin).
       if (!folder.files.some((f) => f.path === path)) {
         setFolder({ ...folder, files: [...folder.files, { path, name: path.split("/").pop() ?? path, size: content.length, getFile: async () => new File([content], path) }].sort((a, b) => a.path.localeCompare(b.path)) });
       }
     },
-    [folder],
+    [folder, lang],
   );
 
   const value = useMemo<CoworkValue>(

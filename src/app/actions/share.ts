@@ -4,6 +4,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { getServerT } from "@/lib/i18n-server";
 
 /** Havola id: 16 belgi, taxmin qilib bo'lmaydigan. */
 function shareId(): string {
@@ -37,25 +38,26 @@ export type ShareResult = { ok: true; url: string; id: string } | { ok: false; e
  * maxfiy maydonlar (verifier, route) nusxaga kirmaydi — faqat matn.
  */
 export async function shareConversation(raw: unknown): Promise<ShareResult> {
+  const t = await getServerT();
   const parsed = schema.safeParse(raw);
-  if (!parsed.success) return { ok: false, error: "Suhbat ma'lumoti noto'g'ri" };
-  if (!isSupabaseConfigured()) return { ok: false, error: "Supabase sozlanmagan" };
+  if (!parsed.success) return { ok: false, error: t("chBadConversation") };
+  if (!isSupabaseConfigured()) return { ok: false, error: t("chSupabaseMissing") };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Avval tizimga kiring" };
+  if (!user) return { ok: false, error: t("chLoginFirst") };
 
   const id = shareId();
   const { error } = await supabase.from("shared_conversations").insert({
     id,
     user_id: user.id,
-    title: parsed.data.title || "Suhbat",
+    title: parsed.data.title || t("chShareDefaultTitle"),
     model_id: parsed.data.modelId ?? null,
     messages: parsed.data.messages,
   });
-  if (error) return { ok: false, error: "Ulashib bo'lmadi. Migratsiya 0019 ishga tushganmi?" };
+  if (error) return { ok: false, error: t("chShareFailed") };
 
   const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sovhq.vercel.app").replace(/\/$/, "");
   return { ok: true, id, url: `${origin}/share/${id}` };

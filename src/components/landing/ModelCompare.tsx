@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
+import { useT } from "@/store/chat";
 
 type Family = { key: string; label: string; count: number; auto?: string };
 
 export function ModelCompare() {
+  const t = useT();
   const [families, setFamilies] = useState<Family[] | null>(null);
 
   useEffect(() => {
@@ -22,25 +24,26 @@ export function ModelCompare() {
   const total = families?.reduce((a, f) => a + f.count, 0) ?? 0;
   const max = families?.[0]?.count ?? 1;
   const shown = (families ?? []).slice(0, 12);
+  // "{n} model." — son alohida rangda, shuning uchun gapni {n} atrofida bo'lamiz.
+  const [modelsPre, modelsPost = ""] = t("ldCompareModels").split("{n}");
 
   return (
     <section className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-28">
       <div className="mx-auto max-w-2xl text-center">
-        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Bitta joyda</span>
+        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("ldCompareEyebrow")}</span>
         <h2 className="font-display mt-3 text-3xl font-extrabold tracking-tight text-text-primary md:text-5xl">
-          <span className="tabular-nums text-gradient-brand">{total ? total.toLocaleString() : "1700+"}</span> model.
+          {modelsPre}
+          <span className="tabular-nums text-gradient-brand">{total ? total.toLocaleString() : "1700+"}</span>
+          {modelsPost}
           <br />
-          Har bir AI oilasidan.
+          {t("ldCompareFamilies")}
         </h2>
-        <p className="mt-4 text-base text-text-secondary">
-          Claude, GPT, Gemini, DeepSeek, Qwen, Kimi va boshqalar — hammasi bitta tanlagichda.
-          Modelni bir zumda almashtiring, suhbat davom etadi.
-        </p>
+        <p className="mt-4 text-base text-text-secondary">{t("ldCompareSub")}</p>
       </div>
 
       {/* solishtiruv paneli — bitta yuza, hairline qatorlar */}
       <div className="mx-auto mt-12 max-w-3xl overflow-hidden rounded-2xl border border-border bg-white/[0.015]">
-        {!families && <div className="px-5 py-8 text-center text-sm text-text-muted">Yuklanyapti…</div>}
+        {!families && <div className="px-5 py-8 text-center text-sm text-text-muted">{t("ldLoading")}</div>}
         {shown.map((f, i) => (
           <motion.div
             key={f.key}
@@ -67,9 +70,7 @@ export function ModelCompare() {
         ))}
       </div>
 
-      <p className="mt-6 text-center text-xs text-text-muted">
-        Yangi modellar chiqishi bilan avtomatik qo&apos;shiladi — siz hech narsa qilmaysiz.
-      </p>
+      <p className="mt-6 text-center text-xs text-text-muted">{t("ldCompareFootnote")}</p>
     </section>
   );
 }

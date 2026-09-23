@@ -1,5 +1,7 @@
 "use client";
 
+import { DEFAULT_LANG, fmt, translate, type Lang } from "@/lib/i18n";
+
 export type AttachmentKind = "image" | "pdf" | "text" | "audio" | "video" | "other";
 
 export interface Attachment {
@@ -33,19 +35,19 @@ function kindOf(mime: string, name: string): AttachmentKind {
   return "other";
 }
 
-const readAsDataURL = (file: File) =>
+const readAsDataURL = (file: File, lang: Lang) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result as string);
-    r.onerror = () => reject(new Error("O'qib bo'lmadi"));
+    r.onerror = () => reject(new Error(translate(lang, "chFileReadFailed")));
     r.readAsDataURL(file);
   });
 
-const readAsText = (file: File) =>
+const readAsText = (file: File, lang: Lang) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result as string);
-    r.onerror = () => reject(new Error("O'qib bo'lmadi"));
+    r.onerror = () => reject(new Error(translate(lang, "chFileReadFailed")));
     r.readAsText(file);
   });
 
@@ -76,23 +78,23 @@ async function extractPdf(file: File): Promise<string> {
 export const uuid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : Math.random().toString(36).slice(2);
 
-/** Reads a File into an Attachment, extracting text/images as needed. */
-export async function processFile(file: File): Promise<Attachment> {
+/** Reads a File into an Attachment, extracting text/images as needed. `lang` — xato matnlari tili. */
+export async function processFile(file: File, lang: Lang = DEFAULT_LANG): Promise<Attachment> {
   const kind = kindOf(file.type, file.name);
   const base: Attachment = { id: uuid(), name: file.name, mime: file.type, size: file.size, kind };
 
   if (kind === "image") {
-    if (file.size > MAX_IMAGE) throw new Error(`Rasm juda katta (max 8MB): ${file.name}`);
-    base.dataUrl = await readAsDataURL(file);
+    if (file.size > MAX_IMAGE) throw new Error(fmt(translate(lang, "chImageTooBig"), { name: file.name }));
+    base.dataUrl = await readAsDataURL(file, lang);
     return base;
   }
   if (kind === "text") {
-    if (file.size > MAX_TEXT) throw new Error(`Matn fayli juda katta (max 2MB): ${file.name}`);
-    base.text = (await readAsText(file)).slice(0, 40_000);
+    if (file.size > MAX_TEXT) throw new Error(fmt(translate(lang, "chTextTooBig"), { name: file.name }));
+    base.text = (await readAsText(file, lang)).slice(0, 40_000);
     return base;
   }
   if (kind === "pdf") {
-    if (file.size > MAX_PDF) throw new Error(`PDF juda katta (max 20MB): ${file.name}`);
+    if (file.size > MAX_PDF) throw new Error(fmt(translate(lang, "chPdfTooBig"), { name: file.name }));
     try {
       base.text = await extractPdf(file);
     } catch {
@@ -123,7 +125,7 @@ export async function processFile(file: File): Promise<Attachment> {
 }
 
 /** Builds the OpenAI-style message content (string or multimodal array). */
-export function buildUserContent(text: string, attachments: Attachment[]): string | unknown[] {
+export function buildUserContent(text: string, attachments: Attachment[], lang: Lang = DEFAULT_LANG): string | unknown[] {
   const images = attachments.filter((a) => a.kind === "image" && a.dataUrl);
   const docs = attachments.filter((a) => (a.kind === "pdf" || a.kind === "text") && a.text);
   const media = attachments.filter((a) => a.kind === "audio" || a.kind === "video");
@@ -144,7 +146,7 @@ export function buildUserContent(text: string, attachments: Attachment[]): strin
   if (!images.length) return full;
 
   return [
-    { type: "text", text: full || "Ushbu rasm(lar)ni ko'rib chiq." },
+    { type: "text", text: full || translate(lang, "chImageOnlyPrompt") },
     ...images.map((img) => ({ type: "image_url", image_url: { url: img.dataUrl } })),
   ];
 }

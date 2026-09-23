@@ -3,7 +3,9 @@
 import { Zap } from "lucide-react";
 import { useEffect, useState } from "react";
 import {creditLevel, CREDIT_COLOR, CREDIT_LABEL, type Plan} from "@/config/plans";
-import { useT } from "@/store/chat";
+import { pick } from "@/lib/i18n";
+import { CREDIT_TEXT } from "@/lib/locales/plans";
+import { useLang, useT } from "@/store/chat";
 
 interface CreditIndicatorProps {
   plan: Plan;
@@ -18,6 +20,7 @@ interface CreditIndicatorProps {
  */
 export function CreditIndicator({ plan, onUpgrade }: CreditIndicatorProps) {
   const t = useT();
+  const lang = useLang();
   const [ratio, setRatio] = useState<number>(0);
   const [loaded, setLoaded] = useState(false);
 
@@ -51,7 +54,7 @@ export function CreditIndicator({ plan, onUpgrade }: CreditIndicatorProps) {
   const used = Math.round(ratio * plan.limits.tokensPerMonth); // faqat funktsiyaga uzatish uchun
   const level = creditLevel(used, plan);
   const color = CREDIT_COLOR[level];
-  const label = CREDIT_LABEL[level];
+  const label = pick(lang, CREDIT_TEXT[level]) || CREDIT_LABEL[level];
 
   return (
     <div

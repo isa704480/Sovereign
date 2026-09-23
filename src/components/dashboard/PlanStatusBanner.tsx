@@ -4,6 +4,7 @@ import { AlertCircle, Clock, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { EASE } from "@/lib/motion";
+import { fmt } from "@/lib/i18n";
 import { useT } from "@/store/chat";
 
 interface PlanStatusBannerProps {
@@ -28,10 +29,12 @@ export function PlanStatusBanner({ planState, daysLeft, planName, onUpgrade }: P
   const color = isExpired ? "#EB5A64" : "#F5AA3C";
 
   const label = isExpired
-    ? `${planName || t("yourPlan")} ${t("planExpiredSuffix")}`
+    ? planName
+      ? fmt(t("chPlanExpiredNamed"), { plan: planName })
+      : `${t("yourPlan")} ${t("planExpiredSuffix")}`
     : daysLeft === 0
       ? t("planExpiresToday")
-      : `${t("planExpiresInPrefix")} ${daysLeft} ${t("planExpiresInSuffix")}`;
+      : fmt(t("chPlanExpiresIn"), { n: daysLeft ?? "" });
 
   const cta = isExpired ? t("reactivate") : t("refresh");
 

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { chunkText, embedTexts } from "@/lib/ai/embed";
+import { getServerT } from "@/lib/i18n-server";
 
 async function session() {
   if (!isSupabaseConfigured()) return null;
@@ -36,21 +37,22 @@ export type UploadResult =
 
 /** Adds a text document to the user's knowledge base and stores embeddings. */
 export async function uploadKnowledge(input: unknown): Promise<UploadResult> {
+  const t = await getServerT();
   const parsed = uploadSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Noto'g'ri fayl ma'lumoti" };
+  if (!parsed.success) return { ok: false, error: t("pnErrBadFileData") };
   const s = await session();
-  if (!s) return { ok: false, error: "Avval tizimga kiring" };
+  if (!s) return { ok: false, error: t("pnErrLoginFirst") };
 
   const { name, mime, content } = parsed.data;
   const chunks = chunkText(content);
-  if (!chunks.length) return { ok: false, error: "Fayl bo'sh" };
+  if (!chunks.length) return { ok: false, error: t("pnErrFileEmpty") };
 
   const { data: doc, error: docErr } = await s.supabase
     .from("kb_documents")
     .insert({ user_id: s.user.id, name, mime: mime ?? null, size: content.length, status: "processing" })
     .select("id")
     .single();
-  if (docErr || !doc) return { ok: false, error: docErr?.message ?? "Fayl saqlanmadi" };
+  if (docErr || !doc) return { ok: false, error: docErr?.message ?? t("pnErrFileNotSaved") };
 
   try {
     // Embed in batches so we don't hit provider payload limits.
@@ -71,7 +73,7 @@ export async function uploadKnowledge(input: unknown): Promise<UploadResult> {
     await s.supabase.from("kb_documents").update({ status: "ready" }).eq("id", doc.id);
   } catch (e) {
     await s.supabase.from("kb_documents").update({ status: "error" }).eq("id", doc.id);
-    return { ok: false, error: e instanceof Error ? e.message : "Indekslash xato" };
+    return { ok: false, error: e instanceof Error ? e.message : t("pnErrIndexing") };
   }
 
   return { ok: true, documentId: doc.id, chunks: chunks.length };

@@ -10,7 +10,10 @@ import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type PlanId } from
 import { PricingDialog } from "./PricingDialog";
 import { useSendMessage } from "@/hooks/use-send-message";
 import { EASE } from "@/lib/motion";
-import { useChat, useChatHydrated, type Conversation } from "@/store/chat";
+import { useChat, useChatHydrated, useLang, type Conversation } from "@/store/chat";
+import { fmt, pick, translate, type TKey } from "@/lib/i18n";
+import { convTitle } from "@/lib/locales/chat-data";
+import { TIER_TEXT } from "@/lib/locales/plans";
 import { ArtifactPanel } from "./ArtifactPanel";
 import { ArtifactProvider, type ArtifactPayload } from "./artifact-context";
 import { ChatHeader } from "./ChatHeader";
@@ -42,6 +45,9 @@ interface DashboardProps {
 
 export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null }: DashboardProps) {
   const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
+  // Barqaror t — useCallback bog'liqliklari har renderda yangilanmasin.
+  const lang = useLang();
+  const t = useCallback((key: TKey) => translate(lang, key), [lang]);
   const [pricing, setPricing] = useState<{ open: boolean; reason: string | null; suggested: PlanId | null }>({
     open: false,
     reason: null,
@@ -105,11 +111,11 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     try {
       await navigator.clipboard.writeText(res.url);
     } catch {
-      window.prompt("Havola:", res.url);
+      window.prompt(t("chLinkPrompt"), res.url);
     }
     setShareState("done");
     setTimeout(() => setShareState("idle"), 2500);
-  }, []);
+  }, [t]);
 
   // Tezkor tugmalar: Ctrl+K model, Ctrl+N yangi suhbat, Ctrl+/ kiritish, Esc to'xtatish.
   useEffect(() => {
@@ -164,13 +170,13 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const handleToggleResearch = useCallback(
     (on: boolean) => {
       if (on && !plan.limits.research) {
-        openPricing("Internet tadqiqot (Perplexity) Pro tarifida mavjud.", "pro");
+        openPricing(t("chResearchPro"), "pro");
         return;
       }
       setResearch(on);
       if (on && model.category !== "research") setModel(RESEARCH_MODEL_ID);
     },
-    [setResearch, setModel, model.category, plan.limits.research, openPricing],
+    [setResearch, setModel, model.category, plan.limits.research, openPricing, t],
   );
 
   const handleDelete = useCallback(
@@ -192,12 +198,12 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       if (!m) return;
       if (!planAllowsTier(plan, m.tier)) {
         const need = planForTier(m.tier);
-        openPricing(`${m.name} — ${TIER_LABEL[m.tier]} darajasidagi model. ${need.name} tarifida ochiladi.`, need.id);
+        openPricing(fmt(t("chModelLocked"), { model: m.name, tier: pick(lang, TIER_TEXT[m.tier]) || TIER_LABEL[m.tier], plan: need.name }), need.id);
         return;
       }
       setModel(id);
     },
-    [plan, setModel, openPricing],
+    [plan, setModel, openPricing, t, lang],
   );
 
   // Auto-open the artifact panel when a finished answer contains a site (HTML/SVG).
@@ -299,7 +305,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           />
 
           <ChatHeader
-            title={active?.title ?? "Yangi suhbat"}
+            title={convTitle(active?.title, t)}
             modelId={modelId}
             onModelChange={handleModelChange}
             plan={plan}
@@ -329,7 +335,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
                   <Welcome
                     key={theme.id}
                     userName={user.name}
-                    onSuggestion={(t) => inputRef.current?.setDraft(t)}
+                    onSuggestion={(text) => inputRef.current?.setDraft(text)}
                     input={centered ? <div className="w-full">{inputEl}</div> : undefined}
                   />
                 </AnimatePresence>

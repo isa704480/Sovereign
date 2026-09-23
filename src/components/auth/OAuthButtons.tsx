@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { googleIdTokenViaFirebase, isFirebaseConfigured } from "@/lib/firebase/client";
 import type { OAuthProvider } from "@/lib/validations/auth";
 import { cn } from "@/lib/utils";
+import { useT } from "@/store/chat";
 
 function GoogleIcon() {
   return (
@@ -33,6 +34,7 @@ interface OAuthButtonsProps {
 }
 
 export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [active, setActive] = useState<OAuthProvider | null>(null);
 
@@ -61,8 +63,9 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
       const res = await signInWithOAuth("google", next);
       if (res && !res.ok) throw new Error(res.error);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Google bilan kirishda xato";
-      onError?.(/popup-closed|cancelled|closed by user/i.test(msg) ? "Oyna yopildi. Qayta urinib ko'ring." : msg);
+      // Kalitlar FormAlert'da tanlangan tilga o'giriladi.
+      const msg = e instanceof Error ? e.message : "auErrGoogle";
+      onError?.(/popup-closed|cancelled|closed by user/i.test(msg) ? "auErrPopupClosed" : msg);
       setActive(null);
     }
   }
@@ -93,7 +96,7 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
         )}
       >
         {active === "google" ? <Loader2 className="size-4 animate-spin text-text-muted" /> : <GoogleIcon />}
-        Google bilan davom etish
+        {t("auContinueGoogle")}
       </button>
       <button
         type="button"
@@ -106,7 +109,7 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
         )}
       >
         {active === "github" ? <Loader2 className="size-4 animate-spin text-text-muted" /> : <GitHubIcon />}
-        GitHub bilan davom etish
+        {t("auContinueGitHub")}
       </button>
     </div>
   );

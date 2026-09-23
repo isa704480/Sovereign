@@ -9,6 +9,7 @@ import { requestPasswordReset, signInWithEmail } from "@/app/actions/auth";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginSchema, type LoginInput } from "@/lib/validations/auth";
+import { useT } from "@/store/chat";
 import { OAuthButtons } from "./OAuthButtons";
 import { PasswordInput } from "./PasswordInput";
 import { FieldError, FormAlert, SubmitButton, inputClass } from "./form-primitives";
@@ -19,6 +20,7 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ next, initialError }: LoginFormProps) {
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(initialError ?? null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -47,7 +49,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
       const res = await requestPasswordReset(email);
       if (!res.ok) setServerError(res.error);
       else {
-        setNotice("Parolni tiklash havolasi emailingizga yuborildi.");
+        setNotice("auResetSent");
         setResetMode(false);
       }
     });
@@ -59,7 +61,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
 
       <div className="flex items-center gap-3 text-xs text-text-muted">
         <span className="h-px flex-1 bg-border" />
-        yoki
+        {t("auOr")}
         <span className="h-px flex-1 bg-border" />
       </div>
 
@@ -69,7 +71,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
         noValidate
       >
         <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-text-secondary">Email</Label>
+          <Label htmlFor="email" className="text-text-secondary">{t("auEmail")}</Label>
           <Input
             id="email"
             type="email"
@@ -85,19 +87,19 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
         {!resetMode && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-text-secondary">Parol</Label>
+              <Label htmlFor="password" className="text-text-secondary">{t("auPassword")}</Label>
               <button
                 type="button"
                 onClick={() => setResetMode(true)}
                 className="text-xs text-text-muted transition-colors hover:text-primary-soft"
               >
-                Parolni unutdingizmi?
+                {t("auForgotPassword")}
               </button>
             </div>
             <PasswordInput
               id="password"
               autoComplete="current-password"
-              placeholder="Parolingiz"
+              placeholder={t("auPasswordPlaceholder")}
               aria-invalid={!!form.formState.errors.password}
               className={inputClass}
               {...form.register("password")}
@@ -113,7 +115,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
 
         <SubmitButton pending={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-          {resetMode ? "Tiklash havolasini yuborish" : "Kirish"}
+          {resetMode ? t("auSendResetLink") : t("login")}
           {!pending && <ArrowRight className="size-4" />}
         </SubmitButton>
 
@@ -123,7 +125,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
             onClick={() => setResetMode(false)}
             className="w-full text-center text-xs text-text-muted transition-colors hover:text-text-primary"
           >
-            ← Parol bilan kirishga qaytish
+            {t("auBackToPasswordLogin")}
           </button>
         )}
       </form>

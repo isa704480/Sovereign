@@ -4,8 +4,10 @@ import { Eye, EyeOff } from "lucide-react";
 import { useState, type ComponentProps } from "react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useT } from "@/store/chat";
 
 export function PasswordInput({ className, ...props }: ComponentProps<typeof Input>) {
+  const t = useT();
   const [show, setShow] = useState(false);
   return (
     <div className="relative">
@@ -13,7 +15,7 @@ export function PasswordInput({ className, ...props }: ComponentProps<typeof Inp
       <button
         type="button"
         onClick={() => setShow((s) => !s)}
-        aria-label={show ? "Parolni yashirish" : "Parolni ko'rsatish"}
+        aria-label={show ? t("auHidePassword") : t("auShowPassword")}
         className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
         tabIndex={-1}
       >

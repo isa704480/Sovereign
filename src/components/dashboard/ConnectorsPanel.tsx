@@ -13,6 +13,9 @@ import {
 } from "@/app/actions/connectors";
 import { CONNECTORS, CONNECTOR_CATEGORIES, type ConnectorSpec } from "@/config/connectors";
 import { EASE_OUT_EXPO } from "@/lib/motion";
+import { fmt } from "@/lib/i18n";
+import { connectorCategoryLabel, connectorText } from "@/lib/locales/panels-data";
+import { useLang, useT } from "@/store/chat";
 
 interface ConnectorsPanelProps {
   open: boolean;
@@ -36,6 +39,8 @@ function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean
 }
 
 export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
+  const t = useT();
+  const lang = useLang();
   const [states, setStates] = useState<Record<string, ConnectorState>>({});
   const [loaded, setLoaded] = useState(false);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -111,16 +116,16 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <div className="flex items-center gap-2">
                 <Plug className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
-                <span className="font-display text-lg font-bold">Ulanishlar</span>
+                <span className="font-display text-lg font-bold">{t("pnConnectorsTitle")}</span>
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label="Yopish" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                 <X className="size-5" />
               </button>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
               <p className="mb-4 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                Servislarni ulang va xohlaganda vaqtincha o&apos;chirib qo&apos;ying. Tokenlar maxfiy saqlanadi.
+                {t("pnConnectorsIntro")}
               </p>
 
               {!loaded ? (
@@ -131,27 +136,28 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                   if (!items.length) return null;
                   return (
                     <div key={cat.id} className="mb-5">
-                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{cat.label}</div>
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{connectorCategoryLabel(lang, cat)}</div>
                       <div className="flex flex-col gap-2">
                         {items.map((spec) => {
                           const st = stateOf(spec.id);
                           const isGoogle = spec.auth === "oauth-google";
                           const isBuiltin = spec.auth === "builtin";
                           const isTokenish = spec.auth === "token" || spec.auth === "mcp";
+                          const tx = connectorText(lang, spec);
                           return (
                             <div key={spec.id} className="rounded-2xl border p-3.5" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))", background: "color-mix(in srgb, var(--t-text, #fff) 3%, transparent)" }}>
                               <div className="flex items-start gap-3">
                                 <span className="text-xl leading-none">{spec.glyph}</span>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-sm font-semibold">{spec.name}</span>
+                                    <span className="text-sm font-semibold">{tx.name}</span>
                                     {st.connected && (
                                       <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]" style={{ background: "color-mix(in srgb, var(--t-primary) 20%, transparent)", color: "var(--t-accent)" }}>
-                                        <Check className="size-3" /> {st.meta || "Ulangan"}
+                                        <Check className="size-3" /> {st.meta || t("pnConnected")}
                                       </span>
                                     )}
                                   </div>
-                                  <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{spec.description}</div>
+                                  <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{tx.description}</div>
                                 </div>
                                 {(st.connected || isBuiltin) && (
                                   <Toggle on={st.enabled} onChange={(v) => toggle(spec, v)} />
@@ -166,7 +172,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                       type={spec.auth === "mcp" ? "text" : "password"}
                                       value={draft[spec.id] ?? ""}
                                       onChange={(e) => setDraft((d) => ({ ...d, [spec.id]: e.target.value }))}
-                                      placeholder={spec.tokenLabel ?? "Token"}
+                                      placeholder={spec.tokenLabel ?? t("pnToken")}
                                       className="min-w-0 flex-1 rounded-lg border bg-transparent px-2.5 py-1.5 text-xs outline-none"
                                       style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                                     />
@@ -177,13 +183,13 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                       className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity disabled:opacity-40"
                                       style={{ background: "var(--t-primary, #5B50F0)" }}
                                     >
-                                      {busy === spec.id ? <Loader2 className="size-3.5 animate-spin" /> : "Ulash"}
+                                      {busy === spec.id ? <Loader2 className="size-3.5 animate-spin" /> : t("pnConnect")}
                                     </button>
                                   </div>
                                   {error[spec.id] && <span className="text-[11px]" style={{ color: "#EB5A64" }}>{error[spec.id]}</span>}
                                   {spec.docsUrl && (
                                     <a href={spec.docsUrl} target="_blank" rel="noreferrer" className="text-[11px] underline" style={{ color: "var(--t-text-muted)" }}>
-                                      Token qayerdan olinadi?
+                                      {t("pnTokenWhere")}
                                     </a>
                                   )}
                                 </div>
@@ -192,7 +198,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                               {/* token connected — uzish */}
                               {isTokenish && st.connected && (
                                 <button type="button" onClick={() => disconnect(spec)} className="mt-2 text-[11px] underline" style={{ color: "var(--t-text-muted)" }}>
-                                  Uzish
+                                  {t("pnDisconnect")}
                                 </button>
                               )}
 
@@ -205,16 +211,16 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                     className="self-start rounded-lg px-3 py-1.5 text-xs font-medium text-white"
                                     style={{ background: "var(--t-primary, #5B50F0)" }}
                                   >
-                                    Google bilan ulash
+                                    {t("pnConnectGoogle")}
                                   </button>
                                   <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-                                    Google Cloud&apos;da OAuth scope va consent sozlangan bo&apos;lishi kerak{spec.sensitive ? " (Google tekshiruvi talab qilinadi)" : ""}.
+                                    {fmt(t("pnGoogleOauthNote"), { extra: spec.sensitive ? t("pnGoogleReviewNote") : "" })}
                                   </span>
                                 </div>
                               )}
                               {isGoogle && st.connected && (
                                 <button type="button" onClick={() => disconnect(spec)} className="mt-2 text-[11px] underline" style={{ color: "var(--t-text-muted)" }}>
-                                  Uzish
+                                  {t("pnDisconnect")}
                                 </button>
                               )}
                             </div>

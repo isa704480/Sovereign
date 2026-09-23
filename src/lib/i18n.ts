@@ -3,6 +3,11 @@
  * Kalitlar qisqa, tarjimalar bir joyda — yangi til qo'shish = bitta ustun.
  */
 
+import { LANDING } from "@/lib/locales/landing";
+import { CHAT } from "@/lib/locales/chat";
+import { PANELS } from "@/lib/locales/panels";
+import { AUTH } from "@/lib/locales/auth";
+
 export type Lang = "uz" | "uz-cyrl" | "ru" | "en";
 
 export const LANGS: { id: Lang; label: string; short: string; htmlLang: string }[] = [
@@ -14,6 +19,24 @@ export const LANGS: { id: Lang; label: string; short: string; htmlLang: string }
 
 export const DEFAULT_LANG: Lang = "uz";
 
+/** Bitta matnning 4 tildagi varianti. */
+export type L10n = Record<Lang, string>;
+export type Dict = Record<string, L10n>;
+
+/** Server tanlangan tilni shu cookie orqali biladi (LangSync yozadi). */
+export const LANG_COOKIE = "sov-lang";
+
+/** Oddiy matn yoki L10n obyektdan kerakli tilni oladi. */
+export function pick(lang: Lang, v: string | L10n | undefined | null): string {
+  if (v == null) return "";
+  return typeof v === "string" ? v : (v[lang] ?? v.uz);
+}
+
+/** "{n} ta model" → fmt(s, { n: 5 }) */
+export function fmt(s: string, vars: Record<string, string | number>): string {
+  return s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}
+
 /** AI javob berishi kerak bo'lgan til nomi (system prompt uchun). */
 export const LANG_FOR_AI: Record<Lang, string> = {
   uz: "o'zbek tilida (lotin alifbosida)",
@@ -22,7 +45,7 @@ export const LANG_FOR_AI: Record<Lang, string> = {
   en: "in English",
 };
 
-const DICT = {
+const CORE = {
   // Umumiy
   newChat: { uz: "Yangi suhbat", "uz-cyrl": "Янги суҳбат", ru: "Новый чат", en: "New chat" },
   searchChats: { uz: "Suhbatlarni qidirish", "uz-cyrl": "Суҳбатларни қидириш", ru: "Поиск по чатам", en: "Search chats" },
@@ -476,6 +499,8 @@ const DICT = {
   onbRecommendation: { uz: "Siz uchun tavsiya", "uz-cyrl": "Сиз учун тавсия", ru: "Рекомендация для вас", en: "Recommended for you" },
   onbEnter: { uz: "SOVEREIGN'ga kirish", "uz-cyrl": "SOVEREIGN'га кириш", ru: "Войти в SOVEREIGN", en: "Enter SOVEREIGN" },
 } as const;
+
+const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH };
 
 export type TKey = keyof typeof DICT;
 

@@ -4,6 +4,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { HERO_DEMO_MODELS, type SovereignModel } from "@/config/models";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
+import { pick } from "@/lib/i18n";
+import { LD_MODEL_TEXT } from "@/lib/locales/landing";
+import { useLang, useT } from "@/store/chat";
 
 interface Props {
   model: SovereignModel;
@@ -40,6 +43,11 @@ function TypingDots({ color }: { color: string }) {
 /** Animated "one interface, many models" card shown in the hero. */
 export function ModelSwitcherDemo({ model }: Props) {
   const typing = useTyping(model.id);
+  const t = useT();
+  const lang = useLang();
+  const tx = LD_MODEL_TEXT[model.id];
+  const demoUser = tx?.demoUser ? pick(lang, tx.demoUser) : model.demo.user;
+  const demoAi = tx?.demoAi ? pick(lang, tx.demoAi) : model.demo.ai;
   return (
     <motion.div
       layout
@@ -66,7 +74,7 @@ export function ModelSwitcherDemo({ model }: Props) {
             <div className="leading-tight">
               <div className="text-sm font-semibold text-text-primary">{model.name}</div>
               <div className="text-xs text-text-muted">
-                {model.provider} · {model.cost === "free" ? "Tekin" : model.cost === "$" ? "$0.001/so'rov" : "$0.003/1K"}
+                {model.provider} · {model.cost === "free" ? t("ldFree") : model.cost === "$" ? t("ldPerRequest") : "$0.003/1K"}
               </div>
             </div>
           </motion.div>
@@ -78,7 +86,7 @@ export function ModelSwitcherDemo({ model }: Props) {
             animate={{ opacity: [1, 0.4, 1] }}
             transition={{ duration: 1.6, repeat: Infinity }}
           />
-          Faol
+          {t("ldActive")}
         </span>
       </div>
 
@@ -93,7 +101,7 @@ export function ModelSwitcherDemo({ model }: Props) {
             transition={{ duration: 0.25, ease: EASE }}
             className="ml-auto max-w-[80%] rounded-[18px_18px_4px_18px] bg-[#1C1F42] px-3.5 py-2.5 text-[13px] text-text-primary"
           >
-            {model.demo.user}
+            {demoUser}
           </motion.div>
         </AnimatePresence>
 
@@ -116,7 +124,7 @@ export function ModelSwitcherDemo({ model }: Props) {
                 transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
                 className="block whitespace-pre-wrap"
               >
-                {model.demo.ai}
+                {demoAi}
               </motion.span>
             )}
           </motion.div>

@@ -5,8 +5,10 @@ import { Logo } from "@/components/brand/Logo";
 import { AuthScene } from "@/components/three/scenes";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useT } from "@/store/chat";
 
 export function VisualPanel() {
+  const t = useT();
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   return (
     <aside className="relative hidden overflow-hidden bg-bg-elevated lg:flex lg:flex-col">
@@ -36,10 +38,12 @@ export function VisualPanel() {
           className="max-w-md"
         >
           <p className="font-display text-3xl font-extrabold leading-tight text-text-primary">
-            Birinchi marta AI <span className="text-gradient-brand">sizga</span> tegishli.
+            {t("auHeroA")}
+            <span className="text-gradient-brand">{t("auHeroB")}</span>
+            {t("auHeroC")}
           </p>
           <p className="mt-4 text-sm text-text-secondary">
-            Bitta hisob. Barcha modellar. Shifrlangan xotira — faqat sizning qurilmangizda ochiladi.
+            {t("auHeroDesc")}
           </p>
           <div className="mt-6 flex items-center gap-2 font-mono text-[11px] text-text-muted">
             <span className="size-1.5 rounded-full bg-success" />

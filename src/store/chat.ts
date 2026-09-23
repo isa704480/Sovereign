@@ -15,6 +15,11 @@ export function useT(): (key: TKey) => string {
   return (key) => translate(lang, key);
 }
 
+/** Joriy interfeys tili (config ma'lumotlarini pick() bilan tarjima qilish uchun). */
+export function useLang(): Lang {
+  return useChat((s) => s.lang);
+}
+
 /** A skill the user wrote in the Skills market; kept on this device. */
 export interface CustomSkill {
   id: string;

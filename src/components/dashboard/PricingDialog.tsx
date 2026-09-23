@@ -5,8 +5,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { PLAN_BY_ID, PLANS, type PlanId } from "@/config/plans";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
-import { useT } from "@/store/chat";
+import { useLang, useT } from "@/store/chat";
 import type { TKey } from "@/lib/i18n";
+import { planText } from "@/lib/locales/plans";
 import { cn } from "@/lib/utils";
 
 interface PricingDialogProps {
@@ -42,6 +43,7 @@ const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoin
 
 export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPlan }: PricingDialogProps) {
   const t = useT();
+  const lang = useLang();
   const [selected, setSelected] = useState<PlanId | null>(null);
   const [loading, setLoading] = useState<Method | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -166,6 +168,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     {PLANS.map((p) => {
                       const current = p.id === currentPlan;
                       const suggested = p.id === suggestedPlan;
+                      const tx = planText(lang, p);
                       return (
                         <div
                           key={p.id}
@@ -191,10 +194,10 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             {p.price === 0 ? "0" : `$${p.price}`}
                             <span className="text-sm font-normal" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>/{t("perMonth")}</span>
                           </div>
-                          <p className="mt-1 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{p.tagline}</p>
+                          <p className="mt-1 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{tx.tagline}</p>
 
                           <ul className="mt-4 flex-1 space-y-2 text-[13px]">
-                            {p.features.map((f) => (
+                            {tx.features.map((f) => (
                               <li key={f} className="flex items-start gap-2">
                                 <Check className="mt-0.5 size-3.5 shrink-0" style={{ color: p.color }} />
                                 <span>{f}</span>
@@ -245,7 +248,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                   </button>
 
                   <p className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: plan.color }}>
-                    {plan.name} · ${plan.price}/oy
+                    {plan.name} · ${plan.price}/{t("perMonth")}
                   </p>
                   <h2 className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em]">{t("choosePayment")}</h2>
 

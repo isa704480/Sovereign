@@ -90,7 +90,7 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          aria-label={open ? "Menyuni yopish" : "Menyuni ochish"}
+          aria-label={open ? t("ldMenuClose") : t("ldMenuOpen")}
           className="rounded-lg p-2 text-text-secondary hover:bg-bg-hover md:hidden"
         >
           {open ? <X className="size-5" /> : <Menu className="size-5" />}

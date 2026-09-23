@@ -1,14 +1,21 @@
+"use client";
+
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { LogoMark } from "@/components/brand/Logo";
+import type { AuthKey } from "@/lib/locales/auth";
+import { useT } from "@/store/chat";
 
 interface AuthCardProps {
-  title: string;
-  subtitle?: string;
+  /** AUTH lug'ati kaliti — til almashganda jonli yangilanadi. */
+  title: AuthKey;
+  subtitle?: AuthKey;
   children: ReactNode;
   footer?: ReactNode;
 }
 
 export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
+  const t = useT();
   return (
     <div className="relative">
       <div className="pointer-events-none absolute -inset-x-10 -top-16 h-40 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(91,80,240,0.18),transparent_70%)]" />
@@ -16,11 +23,24 @@ export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
         <div className="hidden lg:block">
           <LogoMark size={30} />
         </div>
-        <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary lg:mt-6">{title}</h1>
-        {subtitle && <p className="mt-1.5 text-sm text-text-secondary">{subtitle}</p>}
+        <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary lg:mt-6">{t(title)}</h1>
+        {subtitle && <p className="mt-1.5 text-sm text-text-secondary">{t(subtitle)}</p>}
         <div className="mt-6">{children}</div>
         {footer && <div className="mt-6 text-center text-sm text-text-secondary">{footer}</div>}
       </div>
     </div>
+  );
+}
+
+/** Karta pastidagi "Hisobingiz yo'qmi? Ro'yxatdan o'ting →" qatori. */
+export function AuthFooterLink({ prompt, link, href }: { prompt: AuthKey; link: AuthKey; href: string }) {
+  const t = useT();
+  return (
+    <>
+      {t(prompt)}{" "}
+      <Link href={href} className="font-medium text-primary-soft underline-offset-4 hover:underline">
+        {t(link)}
+      </Link>
+    </>
   );
 }

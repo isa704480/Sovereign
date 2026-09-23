@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, postAuthPath } from "@/lib/auth/profile";
+import { authErrorKey } from "@/lib/locales/auth";
+
+/**
+ * /login?error= ga lug'at kaliti (LoginForm uni tanlangan tilga o'giradi);
+ * tanilmagan Supabase xatosi o'z holicha o'tadi.
+ */
+function errorParam(message: string): string {
+  return encodeURIComponent(authErrorKey(message) ?? message);
+}
 
 /**
  * OAuth (Google / GitHub) and email-confirmation callback.
@@ -53,11 +62,11 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${base}${postAuthPath(profile, next)}`);
     }
     return NextResponse.redirect(
-      `${base}/login?error=${encodeURIComponent(error?.message ?? "Sessiya yaratilmadi")}`,
+      `${base}/login?error=${error?.message ? errorParam(error.message) : "auErrNoSession"}`,
     );
   }
 
   return NextResponse.redirect(
-    `${base}/login?error=${encodeURIComponent(errorDescription ?? "Kirish bekor qilindi")}`,
+    `${base}/login?error=${errorDescription ? errorParam(errorDescription) : "auErrSignInCancelled"}`,
   );
 }

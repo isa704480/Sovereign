@@ -3,8 +3,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile } from "@/lib/auth/profile";
 import { OnboardingFlow } from "@/components/onboarding/OnboardingFlow";
+import { getServerT } from "@/lib/i18n-server";
 
-export const metadata: Metadata = { title: "Sozlash" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return { title: t("auOnbMetaTitle") };
+}
 
 export default async function OnboardingPage() {
   const supabase = await createClient();

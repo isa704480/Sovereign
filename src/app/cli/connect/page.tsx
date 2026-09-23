@@ -4,8 +4,12 @@ import { createClient } from "@/lib/supabase/server";
 import { displayName, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { CliConnect } from "@/components/cli/CliConnect";
+import { getServerT } from "@/lib/i18n-server";
 
-export const metadata: Metadata = { title: "CLI ulash" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return { title: t("auCliMetaTitle") };
+}
 
 export default async function CliConnectPage(props: PageProps<"/cli/connect">) {
   const sp = await props.searchParams;

@@ -6,6 +6,8 @@ import { completeOnboarding } from "@/app/actions/onboarding";
 import { LogoMark } from "@/components/brand/Logo";
 import { ONBOARDING_STEPS, TOTAL_STEPS } from "@/config/onboarding";
 import { stepIsValid, useOnboarding, useOnboardingHydrated } from "@/store/onboarding";
+import { stepText } from "@/lib/locales/onboarding-data";
+import { useLang } from "@/store/chat";
 import { Completion } from "./Completion";
 import { ProgressBar } from "./ProgressBar";
 import { StepShell } from "./StepShell";
@@ -14,6 +16,7 @@ import { StepAge, StepCountry, StepExperience, StepIndustry, StepLanguages, Step
 const STEP_COMPONENTS = [StepPurpose, StepIndustry, StepPriorities, StepLanguages, StepExperience, StepAge, StepCountry];
 
 export function OnboardingFlow() {
+  const lang = useLang();
   const hydrated = useOnboardingHydrated();
   const state = useOnboarding();
   const [pending, startTransition] = useTransition();
@@ -25,6 +28,7 @@ export function OnboardingFlow() {
   const canNext = stepIsValid(state, step);
   const Step = STEP_COMPONENTS[step];
   const meta = ONBOARDING_STEPS[step];
+  const text = stepText(meta.id, lang, meta);
 
   function handleNext() {
     if (!canNext) return;
@@ -80,8 +84,8 @@ export function OnboardingFlow() {
             <StepShell
               key={meta.id}
               number={meta.number}
-              title={meta.title}
-              subtitle={meta.subtitle}
+              title={text.title}
+              subtitle={text.subtitle}
               direction={state.direction}
               canNext={canNext}
               canBack={step > 0}

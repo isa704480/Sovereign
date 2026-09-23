@@ -1,5 +1,6 @@
 import "server-only";
 import { MODELS, MODEL_BY_ID, type SovereignModel } from "@/config/models";
+import { DEFAULT_LANG, fmt, translate, type Lang } from "@/lib/i18n";
 
 /** Free provider models used as automatic fallbacks when one is rate-limited. */
 const FREE_FALLBACKS = MODELS.filter((m) => m.category === "free").map((m) => m.providerModel);
@@ -340,7 +341,7 @@ async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<Record
   }
 }
 
-async function errorMessage(res: Response): Promise<string> {
+async function errorMessage(res: Response, lang: Lang = DEFAULT_LANG): Promise<string> {
   let rawMessage = `${res.status} ${res.statusText}`;
   let code = res.status;
   try {
@@ -364,18 +365,18 @@ async function errorMessage(res: Response): Promise<string> {
     return rawMessage;
   }
   if (code === 429 || /rate-limited|rate limit/i.test(rawMessage)) {
-    return "Model hozir band. Bir necha soniyadan keyin qayta urinib ko'ring yoki boshqa modelni tanlang.";
+    return translate(lang, "chErrModelBusy");
   }
   if (code === 402 || /credits|billing|payment/i.test(rawMessage)) {
-    return "Server sozlamalarida muammo. Iltimos, adminga xabar bering.";
+    return translate(lang, "chErrServerConfig");
   }
   if (code >= 500) {
-    return "Model xizmatida vaqtinchalik muammo. Bir necha soniyadan keyin qayta urinib ko'ring.";
+    return translate(lang, "chErrProviderTemporary");
   }
   if (code === 401 || code === 403) {
-    return "Server sozlamalarida muammo. Iltimos, adminga xabar bering.";
+    return translate(lang, "chErrServerConfig");
   }
-  return "So'rovni bajarib bo'lmadi. Iltimos, qayta urinib ko'ring.";
+  return translate(lang, "chErrRequestFailed");
 }
 
 /* ------------------------------------------------------------------ */
@@ -562,7 +563,7 @@ async function* streamOpenRouter(
   });
 
   if (!res.ok || !res.body) {
-    const message = await errorMessage(res);
+    const message = await errorMessage(res, opts.lang);
     // Low-credit accounts: "You requested up to N tokens, but can only afford M."
     const afford = /can only afford (\d+)/i.exec(message);
     if (afford && !retried) {
@@ -713,7 +714,7 @@ async function* streamPerplexity(
   });
 
   if (!res.ok || !res.body) {
-    yield { type: "error", message: await errorMessage(res) };
+    yield { type: "error", message: await errorMessage(res, opts.lang) };
     return;
   }
 
@@ -741,7 +742,7 @@ async function* streamPerplexity(
     }
 
     if (type === "response.failed" || type === "error" || ev.error) {
-      yield { type: "error", message: ev.response?.error?.message ?? ev.error?.message ?? ev.message ?? "Perplexity xatosi" };
+      yield { type: "error", message: ev.response?.error?.message ?? ev.error?.message ?? ev.message ?? translate(opts.lang ?? DEFAULT_LANG, "chErrPerplexity") };
       return;
     }
 
@@ -776,6 +777,8 @@ export interface StreamOptions {
   /** Extra system-prompt clause (plan guardrails). */
   extraSystem?: string;
   signal?: AbortSignal;
+  /** Interfeys tili — foydalanuvchiga ko'rinadigan xato matnlari uchun. */
+  lang?: Lang;
 }
 
 /** Streams a completion from OpenRouter (or Perplexity for research models). */
@@ -822,7 +825,7 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
   if (isOmniCatalogId(opts.modelId)) {
     const route = omniCatalogRoute(opts.modelId);
     if (!route) {
-      yield { type: "error", message: "OmniRoute ulanmagan (server env sozlanmagan)." };
+      yield { type: "error", message: translate(opts.lang ?? DEFAULT_LANG, "chErrOmniNotConfigured") };
       return;
     }
     const smodel = syntheticOmniModel(opts.modelId);
@@ -836,7 +839,7 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
 
   const model = MODEL_BY_ID[opts.modelId];
   if (!model) {
-    yield { type: "error", message: `Noma'lum model: ${opts.modelId}` };
+    yield { type: "error", message: fmt(translate(opts.lang ?? DEFAULT_LANG, "chErrUnknownModelId"), { id: opts.modelId }) };
     return;
   }
 
@@ -844,7 +847,7 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
     // Production'da soxta javob berib bo'lmaydi — xato qaytaramiz, shunda
     // chat route boshqa (sozlangan) modelga o'zi o'tadi. Mock faqat dev/preview.
     if (process.env.NODE_ENV === "production") {
-      yield { type: "error", message: `${model.name} hozircha ulanmagan.` };
+      yield { type: "error", message: fmt(translate(opts.lang ?? DEFAULT_LANG, "chErrModelNotConnected"), { model: model.name }) };
       return;
     }
     yield* mockStream(model, opts.messages);

@@ -12,11 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { registerSchema, type RegisterInput } from "@/lib/validations/auth";
 import { EASE } from "@/lib/motion";
+import { useT } from "@/store/chat";
 import { OAuthButtons } from "./OAuthButtons";
 import { PasswordInput } from "./PasswordInput";
 import { FieldError, FormAlert, SubmitButton, inputClass } from "./form-primitives";
 
 export function RegisterForm() {
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -48,12 +50,13 @@ export function RegisterForm() {
         <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-primary/15 text-primary-soft">
           <MailCheck className="size-6" />
         </div>
-        <h2 className="font-display mt-4 text-lg font-bold text-text-primary">Pochtangizni tekshiring</h2>
+        <h2 className="font-display mt-4 text-lg font-bold text-text-primary">{t("auCheckInbox")}</h2>
         <p className="mt-2 text-sm text-text-secondary">
-          <span className="font-medium text-text-primary">{sentTo}</span> manziliga tasdiqlash havolasi yuborildi.
-          Havolani bosganingizdan so&apos;ng onboarding boshlanadi.
+          {t("auSentToPrefix")}
+          <span className="font-medium text-text-primary">{sentTo}</span>
+          {t("auSentToSuffix")} {t("auAfterConfirm")}
         </p>
-        <p className="mt-4 text-xs text-text-muted">Xat kelmadimi? Spam papkasini tekshiring.</p>
+        <p className="mt-4 text-xs text-text-muted">{t("auNoEmail")}</p>
       </motion.div>
     );
   }
@@ -64,13 +67,13 @@ export function RegisterForm() {
 
       <div className="flex items-center gap-3 text-xs text-text-muted">
         <span className="h-px flex-1 bg-border" />
-        yoki
+        {t("auOr")}
         <span className="h-px flex-1 bg-border" />
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-text-secondary">Email</Label>
+          <Label htmlFor="email" className="text-text-secondary">{t("auEmail")}</Label>
           <Input
             id="email"
             type="email"
@@ -84,11 +87,11 @@ export function RegisterForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="password" className="text-text-secondary">Parol</Label>
+          <Label htmlFor="password" className="text-text-secondary">{t("auPassword")}</Label>
           <PasswordInput
             id="password"
             autoComplete="new-password"
-            placeholder="Kamida 8 belgi"
+            placeholder={t("auPasswordMinPlaceholder")}
             aria-invalid={!!form.formState.errors.password}
             className={inputClass}
             {...form.register("password")}
@@ -97,11 +100,11 @@ export function RegisterForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="confirmPassword" className="text-text-secondary">Parolni tasdiqlash</Label>
+          <Label htmlFor="confirmPassword" className="text-text-secondary">{t("auConfirmPassword")}</Label>
           <PasswordInput
             id="confirmPassword"
             autoComplete="new-password"
-            placeholder="Parolni qayta kiriting"
+            placeholder={t("auConfirmPasswordPlaceholder")}
             aria-invalid={!!form.formState.errors.confirmPassword}
             className={inputClass}
             {...form.register("confirmPassword")}
@@ -122,10 +125,11 @@ export function RegisterForm() {
                   className="mt-0.5"
                 />
                 <span>
+                  {t("auAcceptPrefix")}
                   <Link href="#" className="text-primary-soft underline-offset-4 hover:underline">
-                    Foydalanish shartlariga
-                  </Link>{" "}
-                  roziman
+                    {t("auAcceptLink")}
+                  </Link>
+                  {t("auAcceptSuffix")}
                 </span>
               </label>
               <FieldError message={form.formState.errors.acceptTerms?.message} />
@@ -137,7 +141,7 @@ export function RegisterForm() {
 
         <SubmitButton pending={pending}>
           {pending ? <Loader2 className="size-4 animate-spin" /> : null}
-          Davom etish
+          {t("auContinue")}
           {!pending && <ArrowRight className="size-4" />}
         </SubmitButton>
       </form>

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { AuthCard } from "@/components/auth/AuthCard";
+import { AuthCard, AuthFooterLink } from "@/components/auth/AuthCard";
 import { LoginForm } from "@/components/auth/LoginForm";
 import { TrustBadges } from "@/components/auth/TrustBadges";
+import { getServerT } from "@/lib/i18n-server";
 
-export const metadata: Metadata = { title: "Kirish" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return { title: t("login") };
+}
 
 export default async function LoginPage(props: PageProps<"/login">) {
   const sp = await props.searchParams;
@@ -14,16 +17,9 @@ export default async function LoginPage(props: PageProps<"/login">) {
   return (
     <>
       <AuthCard
-        title="Xush kelibsiz"
-        subtitle="Hisobingizga kiring va davom eting"
-        footer={
-          <>
-            Hisobingiz yo&apos;qmi?{" "}
-            <Link href="/register" className="font-medium text-primary-soft underline-offset-4 hover:underline">
-              Ro&apos;yxatdan o&apos;ting →
-            </Link>
-          </>
-        }
+        title="auWelcome"
+        subtitle="auLoginSubtitle"
+        footer={<AuthFooterLink prompt="auNoAccount" link="auSignUpLink" href="/register" />}
       >
         <LoginForm next={next} initialError={error} />
       </AuthCard>

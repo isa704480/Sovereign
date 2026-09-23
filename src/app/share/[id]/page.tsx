@@ -5,6 +5,9 @@ import { MODEL_BY_ID } from "@/config/models";
 import { MODEL_THEMES, themeVars } from "@/config/model-themes";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { getServerLang } from "@/lib/i18n-server";
+import { translate, type TKey } from "@/lib/i18n";
+import { convTitle, localeOf } from "@/lib/locales/chat-data";
 import { SharedMessages } from "./SharedMessages";
 
 interface SharedRow {
@@ -31,9 +34,11 @@ async function load(id: string): Promise<SharedRow | null> {
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
   const row = await load(id);
+  const lang = await getServerLang();
+  const t = (k: TKey) => translate(lang, k);
   return {
-    title: row ? `${row.title} · SOVEREIGN` : "Suhbat topilmadi · SOVEREIGN",
-    description: row ? "SOVEREIGN AI'da ulashilgan suhbat" : undefined,
+    title: row ? `${convTitle(row.title, t)} · SOVEREIGN` : `${t("chShareNotFound")} · SOVEREIGN`,
+    description: row ? t("chShareDesc") : undefined,
     robots: { index: false },
   };
 }
@@ -42,9 +47,11 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
   const { id } = await params;
   const row = await load(id);
   if (!row) notFound();
+  const lang = await getServerLang();
+  const t = (k: TKey) => translate(lang, k);
 
   const model = row.model_id ? MODEL_BY_ID[row.model_id] : undefined;
-  const date = new Date(row.created_at).toLocaleDateString("uz-UZ", { year: "numeric", month: "long", day: "numeric" });
+  const date = new Date(row.created_at).toLocaleDateString(localeOf(lang), { year: "numeric", month: "long", day: "numeric" });
 
   return (
     <main className="theme-root min-h-svh" style={{ ...themeVars(MODEL_THEMES.sovereign), background: "#060812", color: "#F0F2FF" }}>
@@ -56,16 +63,16 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
             className="rounded-full px-3.5 py-1.5 text-xs font-semibold text-white"
             style={{ background: "#5B50F0" }}
           >
-            O&apos;zim ham sinab ko&apos;raman
+            {t("chShareTry")}
           </Link>
         </div>
       </header>
 
       <div className="mx-auto max-w-3xl px-4 py-8 md:py-10">
-        <h1 className="t-display text-2xl font-extrabold tracking-[-0.02em] md:text-3xl">{row.title}</h1>
+        <h1 className="t-display text-2xl font-extrabold tracking-[-0.02em] md:text-3xl">{convTitle(row.title, t)}</h1>
         <p className="mt-1 text-xs" style={{ color: "#9BA3CC" }}>
           {date}
-          {model ? ` · ${model.name}` : ""} · ulashilgan nusxa, keyingi xabarlar kirmaydi
+          {model ? ` · ${model.name}` : ""} · {t("chShareNote")}
         </p>
         <div className="mt-8">
           <SharedMessages messages={row.messages} />

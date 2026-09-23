@@ -1,25 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { AuthCard } from "@/components/auth/AuthCard";
+import { AuthCard, AuthFooterLink } from "@/components/auth/AuthCard";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import { TrustBadges } from "@/components/auth/TrustBadges";
+import { getServerT } from "@/lib/i18n-server";
 
-export const metadata: Metadata = { title: "Hisob yaratish" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getServerT();
+  return { title: t("auRegisterMetaTitle") };
+}
 
 export default function RegisterPage() {
   return (
     <>
       <AuthCard
-        title="Hisobingizni yarating"
-        subtitle="30 soniyada tayyor"
-        footer={
-          <>
-            Hisobingiz bormi?{" "}
-            <Link href="/login" className="font-medium text-primary-soft underline-offset-4 hover:underline">
-              Kiring →
-            </Link>
-          </>
-        }
+        title="auRegisterTitle"
+        subtitle="auRegisterSubtitle"
+        footer={<AuthFooterLink prompt="auHaveAccount" link="auSignInLink" href="/login" />}
       >
         <RegisterForm />
       </AuthCard>

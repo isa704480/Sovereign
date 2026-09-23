@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { getServerT } from "@/lib/i18n-server";
 
 /* Local-first: the browser store is the source of truth for the UI; these
    actions mirror it to Supabase whenever a session exists. */
@@ -40,7 +41,7 @@ async function session() {
 
 export async function syncConversation(raw: unknown): Promise<SyncResult> {
   const parsed = conversationSchema.safeParse(raw);
-  if (!parsed.success) return { ok: false, error: "Noto'g'ri suhbat ma'lumoti" };
+  if (!parsed.success) return { ok: false, error: (await getServerT())("chBadConversation") };
   const s = await session();
   if (!s) return { ok: true, skipped: true };
   const c = parsed.data;
@@ -79,7 +80,7 @@ export async function syncConversation(raw: unknown): Promise<SyncResult> {
 }
 
 export async function deleteConversationAction(id: string): Promise<SyncResult> {
-  if (!z.uuid().safeParse(id).success) return { ok: false, error: "Noto'g'ri id" };
+  if (!z.uuid().safeParse(id).success) return { ok: false, error: (await getServerT())("chBadId") };
   const s = await session();
   if (!s) return { ok: true, skipped: true };
   const { error } = await s.supabase.from("conversations").delete().eq("id", id).eq("user_id", s.user.id);

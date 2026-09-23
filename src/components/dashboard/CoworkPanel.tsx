@@ -4,6 +4,7 @@ import { Check, CheckCheck, FileCode2, FileDown, FolderOpen, Info, Loader2, Sear
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { extractWriteBlocks, matchFiles } from "@/lib/cowork/folder";
+import { fmt } from "@/lib/i18n";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { useT, type ChatMessage } from "@/store/chat";
 import { useCowork } from "./cowork-context";
@@ -28,6 +29,7 @@ function collectChanges(messages: ChatMessage[]): Change[] {
 
 /** O'zgarishlar paneli — Reja→Fayllar→Natija oqimining "Fayllar/Natija" qismi. */
 function CoworkChanges({ changes }: { changes: Change[] }) {
+  const t = useT();
   const { canWrite, applyWrite } = useCowork();
   const [applied, setApplied] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -43,7 +45,7 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
       await applyWrite(c.path, c.content);
       setApplied((a) => ({ ...a, [c.path]: c.content }));
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Xato");
+      setErr(e instanceof Error ? e.message : t("pnCwError"));
     } finally {
       setBusy(null);
     }
@@ -69,7 +71,7 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <FileCode2 className="size-4" style={{ color: "#10D4A0" }} />
-          <span className="text-sm font-semibold">O&apos;zgarishlar</span>
+          <span className="text-sm font-semibold">{t("pnCwChanges")}</span>
           <span className="nums rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)", color: "var(--t-text-muted)" }}>
             {changes.length}
           </span>
@@ -83,7 +85,7 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
             style={{ background: "var(--t-primary)" }}
           >
             {busy ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCheck className="size-3.5" />}
-            Barchasini qo&apos;llash
+            {t("pnCwApplyAll")}
           </button>
         )}
       </div>
@@ -100,11 +102,11 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-mono text-xs" style={{ color: "var(--t-text)" }} title={c.path}>{c.path}</span>
-                <span className="nums text-[10px]" style={{ color: "var(--t-text-muted)" }}>{lines} qator</span>
+                <span className="nums text-[10px]" style={{ color: "var(--t-text-muted)" }}>{fmt(t("pnCwLines"), { n: lines })}</span>
               </span>
               {done ? (
                 <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "#10D4A0" }}>
-                  <Check className="size-3.5" /> qo&apos;llandi
+                  <Check className="size-3.5" /> {t("pnCwApplied")}
                 </span>
               ) : canWrite ? (
                 <button
@@ -113,9 +115,9 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
                   disabled={busy === c.path}
                   className="rounded-lg border px-2.5 py-1 text-xs font-semibold disabled:opacity-60"
                   style={{ borderColor: "var(--t-border)", color: "var(--t-primary)" }}
-                  aria-label={`${c.path} — qo'llash`}
+                  aria-label={fmt(t("pnCwApplyAria"), { path: c.path })}
                 >
-                  {busy === c.path ? <Loader2 className="size-3.5 animate-spin" /> : "Qo'llash"}
+                  {busy === c.path ? <Loader2 className="size-3.5 animate-spin" /> : t("pnCwApply")}
                 </button>
               ) : (
                 <button
@@ -123,9 +125,9 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
                   onClick={() => download(c)}
                   className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium"
                   style={{ background: "color-mix(in srgb, var(--t-text) 10%, transparent)", color: "var(--t-text)" }}
-                  aria-label={`${c.path} — yuklab olish`}
+                  aria-label={fmt(t("pnCwDownloadAria"), { path: c.path })}
                 >
-                  <FileDown className="size-3.5" /> Yuklab
+                  <FileDown className="size-3.5" /> {t("pnCwDownload")}
                 </button>
               )}
             </li>
@@ -135,7 +137,7 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
       {err && <div className="mt-2 text-xs" style={{ color: "#EF4444" }}>{err}</div>}
       {!canWrite && (
         <div className="mt-2 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-          To&apos;g&apos;ridan-to&apos;g&apos;ri saqlash uchun quyida papkani Chrome/Edge orqali ulang.
+          {t("pnCwConnectHint")}
         </div>
       )}
     </div>
@@ -201,7 +203,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                   <p className="text-sm" style={{ color: "var(--t-text-muted)" }}>
                     {t("coworkIntro1")}
                     <br />
-                    {t("coworkIntro2a")} <span style={{ color: "var(--t-accent)" }}>@rasm.png</span> {t("coworkIntro2b")}
+                    {t("coworkIntro2a")} <span style={{ color: "var(--t-accent)" }}>{t("pnCwExampleFile")}</span> {t("coworkIntro2b")}
                   </p>
                   <div className="mt-5 flex flex-col items-center gap-2">
                     {supported ? (

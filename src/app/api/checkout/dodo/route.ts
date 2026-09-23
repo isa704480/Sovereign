@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createDodoCheckout, dodoMode, isDodoConfigured } from "@/lib/payments/dodo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 
@@ -12,25 +13,26 @@ const schema = z.object({ plan: z.string() });
 
 /** POST /api/checkout/dodo — card subscription checkout via Dodo Payments. */
 export async function POST(req: Request) {
+  const t = await getServerT();
   const rl = rateLimit(`dodo-checkout:${clientIp(req)}`, 10, 60_000);
-  if (!rl.ok) return Response.json({ error: "Juda ko'p urinish. Bir oz kuting." }, { status: 429 });
+  if (!rl.ok) return Response.json({ error: t("chTooManyAttempts") }, { status: 429 });
 
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success || !isPlanId(parsed.data.plan) || parsed.data.plan === "free") {
-    return Response.json({ error: "Noto'g'ri tarif" }, { status: 400 });
+    return Response.json({ error: t("chBadPlan") }, { status: 400 });
   }
   const planId = parsed.data.plan;
 
-  if (!isSupabaseConfigured()) return Response.json({ error: "Supabase sozlanmagan" }, { status: 503 });
+  if (!isSupabaseConfigured()) return Response.json({ error: t("chSupabaseMissing") }, { status: 503 });
   if (!isDodoConfigured()) {
-    return Response.json({ error: "Karta to'lovi hali sozlanmagan. Kripto orqali to'lang." }, { status: 503 });
+    return Response.json({ error: t("chCardNotConfigured") }, { status: 503 });
   }
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user?.email) return Response.json({ error: "Avval tizimga kiring" }, { status: 401 });
+  if (!user?.email) return Response.json({ error: t("chLoginFirst") }, { status: 401 });
 
   const orderId = `sov_${crypto.randomUUID()}`;
   const { error: insErr } = await supabase.from("orders").insert({
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
     status: "pending",
     provider: "dodo",
   });
-  if (insErr) return Response.json({ error: "Buyurtma yaratilmadi" }, { status: 500 });
+  if (insErr) return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
 
   const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? new URL(req.url).origin).replace(/\/$/, "");
   try {
@@ -68,10 +70,10 @@ export async function POST(req: Request) {
     // 403 = Dodo hasn't enabled live payments for the merchant yet (verification pending).
     if ((e as { status?: number }).status === 403) {
       return Response.json(
-        { error: "Karta orqali to'lov tez orada ochiladi. Hozircha Kripto orqali to'lashingiz mumkin." },
+        { error: t("chCardSoon") },
         { status: 503 },
       );
     }
-    return Response.json({ error: "To'lov sahifasi yaratilmadi. Qayta urinib ko'ring." }, { status: 502 });
+    return Response.json({ error: t("chCheckoutPageFailed") }, { status: 502 });
   }
 }

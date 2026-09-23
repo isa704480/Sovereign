@@ -5,8 +5,15 @@ import type { MouseEvent } from "react";
 import { SHOWCASE_MODELS, type SovereignModel } from "@/config/models";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { Stagger, StaggerItem } from "@/components/motion/Stagger";
+import { pick } from "@/lib/i18n";
+import { LD_CAPABILITY_LABEL, LD_MODEL_TEXT } from "@/lib/locales/landing";
+import { modelProvider } from "@/lib/locales/chat-data";
+import { useLang, useT } from "@/store/chat";
 
 function ModelCard({ model }: { model: SovereignModel }) {
+  const t = useT();
+  const lang = useLang();
+  const description = LD_MODEL_TEXT[model.id] ? pick(lang, LD_MODEL_TEXT[model.id].description) : model.description;
   const rx = useMotionValue(0);
   const ry = useMotionValue(0);
   const mx = useMotionValue(50);
@@ -52,7 +59,7 @@ function ModelCard({ model }: { model: SovereignModel }) {
         </span>
         {model.cost === "free" ? (
           <span className="rounded-full bg-success/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-success">
-            Tekin
+            {t("ldFree")}
           </span>
         ) : (
           <span className="rounded-full bg-bg-hover px-2.5 py-1 font-mono text-[11px] text-text-secondary">{model.cost}</span>
@@ -60,13 +67,15 @@ function ModelCard({ model }: { model: SovereignModel }) {
       </div>
 
       <h3 className="font-display mt-5 text-lg font-bold text-text-primary">{model.name}</h3>
-      <p className="text-xs text-text-muted">{model.provider}</p>
-      <p className="mt-3 text-sm text-text-secondary">{model.description}</p>
+      <p className="text-xs text-text-muted">{modelProvider(lang, model)}</p>
+      <p className="mt-3 text-sm text-text-secondary">{description}</p>
 
       <div className="mt-5 space-y-2">
         {model.capabilities.map((c) => (
           <div key={c.label} className="flex items-center gap-3 text-xs">
-            <span className="w-20 text-text-muted">{c.label}</span>
+            <span className="w-20 text-text-muted">
+              {LD_CAPABILITY_LABEL[c.label] ? pick(lang, LD_CAPABILITY_LABEL[c.label]) : c.label}
+            </span>
             <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-hover">
               <motion.div
                 className="h-full rounded-full"
@@ -85,16 +94,15 @@ function ModelCard({ model }: { model: SovereignModel }) {
 }
 
 export function ModelShowcase() {
+  const t = useT();
   return (
     <section id="models" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-32">
       <FadeIn inView>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-soft">Modellar</p>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-soft">{t("navModels")}</p>
         <h2 className="font-display mt-3 max-w-2xl text-3xl font-extrabold text-text-primary md:text-4xl">
-          Qaysi AI&apos;ni tanlasangiz — biz qo&apos;llab-quvvatlaymiz
+          {t("ldShowcaseTitle")}
         </h2>
-        <p className="mt-4 max-w-xl text-text-secondary">
-          Har bir model o&apos;z atmosferasi bilan keladi. Model almashganda butun interfeys unga moslashadi.
-        </p>
+        <p className="mt-4 max-w-xl text-text-secondary">{t("ldShowcaseSub")}</p>
       </FadeIn>
 
       <Stagger inView stagger={0.08} className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

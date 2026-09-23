@@ -5,6 +5,8 @@ import { memo, useEffect, useMemo, useState, type ComponentProps } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseWriteBlock } from "@/lib/cowork/folder";
+import { fmt } from "@/lib/i18n";
+import { useT } from "@/store/chat";
 import { isRenderable, useArtifact } from "./artifact-context";
 import { useCowork } from "./cowork-context";
 import { GenerativeUI, parseGenUi } from "./GenerativeUI";
@@ -41,16 +43,17 @@ const DEFAULT_NAME: Record<string, string> = {
 
 // Modelning o'zi yozgan fayl nomini oladi: "// index.html", "<!-- a.html -->",
 // yoki CSS izohi ichidagi nom. Topilmasa — til bo'yicha standart nom.
-function fileNameOf(code: string, lang: string): string {
+function fileNameOf(code: string, lang: string, base = "kod"): string {
   const head = code.slice(0, 200);
   const named =
     /(?:^|\n)\s*(?:\/\/|#|<!--|\/\*)\s*([\w.-]+\.[a-z]{2,4})\b/i.exec(head)?.[1] ??
     /(?:^|\n)\s*([\w-]+\.(?:html|css|js|ts|tsx|jsx|py|json|sql|md|sh))\s*(?:-->|\*\/)?\s*(?:\n|$)/i.exec(head)?.[1];
-  return named ?? DEFAULT_NAME[lang.toLowerCase()] ?? `kod.${lang.toLowerCase() || "txt"}`;
+  return named ?? DEFAULT_NAME[lang.toLowerCase()] ?? `${base}.${lang.toLowerCase() || "txt"}`;
 }
 
 /** Cowork yozish kartasi — AI taklif qilgan faylni diff bilan ko'rsatib, bir tugmada saqlaydi. */
 function WriteFileCard({ path, content }: { path: string; content: string }) {
+  const t = useT();
   const { canWrite, applyWrite, readText, folder } = useCowork();
   const artifact = useArtifact();
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -77,7 +80,7 @@ function WriteFileCard({ path, content }: { path: string; content: string }) {
       setState("done");
     } catch (e) {
       setState("error");
-      setErr(e instanceof Error ? e.message : "Xato");
+      setErr(e instanceof Error ? e.message : t("chError"));
     }
   };
 
@@ -99,18 +102,18 @@ function WriteFileCard({ path, content }: { path: string; content: string }) {
         <button type="button" onClick={() => artifact.open({ code: content, lang, title: path })} className="min-w-0 flex-1 text-left">
           <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>{path}</span>
           <span className="nums block text-xs" style={{ color: "var(--t-text-muted)" }}>
-            {exists ? "o'zgartirish" : "yangi fayl"} · {newLines} qator
-            {oldLines !== null ? ` (avval ${oldLines})` : ""}
+            {exists ? t("chWriteModify") : t("chWriteNew")} · {fmt(t("chLinesCount"), { n: newLines })}
+            {oldLines !== null ? fmt(t("chLinesBefore"), { n: oldLines }) : ""}
           </span>
         </button>
         {state === "done" ? (
           <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "#10D4A0" }}>
-            <Check className="size-4" /> Saqlandi
+            <Check className="size-4" /> {t("chSaved")}
           </span>
         ) : canWrite ? (
           <>
             <button type="button" onClick={() => artifact.open({ code: content, lang, title: path })} className="rounded-lg px-2.5 py-1.5 text-xs font-medium" style={{ color: "var(--t-text-muted)" }}>
-              {"Ko'rish"}
+              {t("chView")}
             </button>
             <button
               type="button"
@@ -120,19 +123,19 @@ function WriteFileCard({ path, content }: { path: string; content: string }) {
               style={{ background: "var(--t-primary)" }}
             >
               {state === "saving" ? <Loader2 className="size-3.5 animate-spin" /> : null}
-              {"Qo'llash"}
+              {t("chApply")}
             </button>
           </>
         ) : (
           <button type="button" onClick={download} className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: "color-mix(in srgb, var(--t-text) 10%, transparent)", color: "var(--t-text)" }}>
-            <FileDown className="size-3.5" /> Yuklab olish
+            <FileDown className="size-3.5" /> {t("download")}
           </button>
         )}
       </div>
       {state === "error" && <div className="mt-2 text-xs" style={{ color: "#EF4444" }}>{err}</div>}
       {!canWrite && (
         <div className="mt-2 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-          {"To'g'ridan-to'g'ri saqlash uchun Cowork papkasini Chrome/Edge orqali ulang (Vositalar → Cowork)."}
+          {t("chWriteNoAccess")}
         </div>
       )}
     </div>
@@ -140,10 +143,11 @@ function WriteFileCard({ path, content }: { path: string; content: string }) {
 }
 
 function FileCard({ code, lang }: { code: string; lang: string }) {
+  const t = useT();
   const artifact = useArtifact();
   const [copied, setCopied] = useState(false);
   const lines = code.split("\n").length;
-  const name = fileNameOf(code, lang);
+  const name = fileNameOf(code, lang, t("chCodeFileBase"));
   const canPreview = isRenderable(lang);
 
   async function copy() {
@@ -170,7 +174,7 @@ function FileCard({ code, lang }: { code: string; lang: string }) {
       <button type="button" onClick={() => artifact.open({ code, lang, title: name })} className="min-w-0 flex-1 text-left">
         <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>{name}</span>
         <span className="nums block text-xs" style={{ color: "var(--t-text-muted)" }}>
-          {lines} qator · {(code.length / 1024).toFixed(1)} KB
+          {fmt(t("chLinesCount"), { n: lines })} · {(code.length / 1024).toFixed(1)} KB
         </span>
       </button>
       <button
@@ -178,8 +182,8 @@ function FileCard({ code, lang }: { code: string; lang: string }) {
         onClick={copy}
         className="rounded-lg p-2 transition-colors hover:bg-white/10"
         style={{ color: "var(--t-text-muted)" }}
-        title="Nusxa olish"
-        aria-label="Nusxa olish"
+        title={t("copy")}
+        aria-label={t("copy")}
       >
         {copied ? <Check className="size-4" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-4" />}
       </button>
@@ -189,13 +193,14 @@ function FileCard({ code, lang }: { code: string; lang: string }) {
         className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
         style={{ background: "var(--t-primary)" }}
       >
-        {canPreview ? "Ochish" : "Kodni ko'rish"}
+        {canPreview ? t("chOpen") : t("chViewCode")}
       </button>
     </div>
   );
 }
 
 function CodeBlock({ className, children }: { className?: string; children: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   const artifact = useArtifact();
   const lang = /language-(\w+)/.exec(className ?? "")?.[1] ?? "text";
@@ -228,10 +233,10 @@ function CodeBlock({ className, children }: { className?: string; children: stri
               onClick={() => artifact.open({ code: children, lang })}
               className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case tracking-normal transition-colors hover:bg-white/10"
               style={{ color: "var(--t-accent)" }}
-              title="Yonda ochib ko'rish"
+              title={t("chOpenSide")}
             >
               <PanelRightOpen className="size-3.5" />
-              Ochish
+              {t("chOpen")}
             </button>
           )}
           <button
@@ -240,7 +245,7 @@ function CodeBlock({ className, children }: { className?: string; children: stri
             className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case tracking-normal transition-colors hover:bg-white/10"
           >
             {copied ? <Check className="size-3.5" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-3.5" />}
-            {copied ? "Nusxalandi" : "Nusxa olish"}
+            {copied ? t("copied") : t("copy")}
           </button>
         </div>
       </div>
@@ -252,11 +257,12 @@ function CodeBlock({ className, children }: { className?: string; children: stri
 }
 
 function GenUiPlaceholder() {
+  const t = useT();
   return (
     <div
       className="tt my-3 h-24 animate-pulse rounded-2xl border"
       style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 4%, transparent)" }}
-      aria-label="Ko'rinish tayyorlanmoqda"
+      aria-label={t("chPreparingView")}
     />
   );
 }

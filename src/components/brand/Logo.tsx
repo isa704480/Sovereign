@@ -1,5 +1,8 @@
+"use client";
+
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useT } from "@/store/chat";
 
 interface LogoProps {
   className?: string;
@@ -71,6 +74,7 @@ export function LogoMark({ size = 28, className }: { size?: number; className?: 
 }
 
 export function Logo({ className, size = 28, withText = true, href = "/" }: LogoProps) {
+  const t = useT();
   const content = (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
       <LogoMark size={size} />
@@ -83,7 +87,7 @@ export function Logo({ className, size = 28, withText = true, href = "/" }: Logo
   );
   if (!href) return content;
   return (
-    <Link href={href} aria-label="SOVEREIGN AI bosh sahifa" className="inline-flex">
+    <Link href={href} aria-label={t("chLogoHomeAria")} className="inline-flex">
       {content}
     </Link>
   );

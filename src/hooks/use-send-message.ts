@@ -8,6 +8,7 @@ import { detectImageIntent } from "@/lib/chat/image-intent";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
 import { CUSTOM_SKILL_PREFIX, useChat, uuid, type ChatMessage, type Project } from "@/store/chat";
+import { translate, type Lang } from "@/lib/i18n";
 
 /** Cowork papka ro'yxati + loyiha ko'rsatmasi — bitta kontekst matni (server 6000 belgi qabul qiladi). */
 function buildContext(cowork: string | null, project?: Project): string | undefined {
@@ -23,7 +24,7 @@ function buildContext(cowork: string | null, project?: Project): string | undefi
  * PII in the *latest* user message is replaced with tokens; the returned
  * `tokenMap` is used to un-mask the streamed answer on the client.
  */
-function toWire(messages: ChatMessage[], blind: boolean) {
+function toWire(messages: ChatMessage[], blind: boolean, lang: Lang) {
   const tokenMap: Record<string, string> = {};
   const wire = messages.map((m) => {
     // Blind Prompting yoqilganda BARCHA user xabarlari (nafaqat oxirgi)
@@ -38,7 +39,7 @@ function toWire(messages: ChatMessage[], blind: boolean) {
       : m.content;
     return {
       role: m.role,
-      content: m.role === "user" && m.attachments?.length ? buildUserContent(raw as string, m.attachments) : raw,
+      content: m.role === "user" && m.attachments?.length ? buildUserContent(raw as string, m.attachments, lang) : raw,
     };
   });
   return { wire, tokenMap };
@@ -87,7 +88,7 @@ export function useSendMessage() {
     let failed: string | null = null;
 
     const state0 = useChat.getState();
-    const { wire, tokenMap } = toWire(history.slice(-HISTORY_LIMIT), state0.blindPrompting);
+    const { wire, tokenMap } = toWire(history.slice(-HISTORY_LIMIT), state0.blindPrompting, state0.lang);
     const hasMask = Object.keys(tokenMap).length > 0;
 
     try {
@@ -155,7 +156,7 @@ export function useSendMessage() {
       });
     } catch (err) {
       if (!(err instanceof Error && err.name === "AbortError")) {
-        failed = err instanceof Error ? err.message : "Ulanish xatosi";
+        failed = err instanceof Error ? err.message : translate(useChat.getState().lang, "chConnectionError");
       }
     }
 
@@ -232,7 +233,7 @@ export function useSendMessage() {
         const assistant: ChatMessage = {
           id: uuid(),
           role: "assistant",
-          content: "Rasm chizilyapti...",
+          content: translate(state.lang, "chImageDrawing"),
           createdAt: new Date().toISOString(),
           status: "streaming",
         };
@@ -248,19 +249,19 @@ export function useSendMessage() {
           if (!res.ok || !data.urls?.length) {
             useChat.getState().updateMessage(conversationId, assistant.id, {
               status: "error",
-              error: data.error ?? "Rasm yaratilmadi",
+              error: data.error ?? translate(state.lang, "chImageFailed"),
             });
           } else {
             const md = data.urls.map((u) => `![](${u})`).join("\n\n");
             useChat.getState().updateMessage(conversationId, assistant.id, {
               status: "done",
-              content: `Mana chizilgan rasm:\n\n${md}`,
+              content: `${translate(state.lang, "chImageHere")}\n\n${md}`,
             });
           }
         } catch (err) {
           useChat.getState().updateMessage(conversationId, assistant.id, {
             status: "error",
-            error: err instanceof Error ? err.message : "Ulanish xatosi",
+            error: err instanceof Error ? err.message : translate(state.lang, "chConnectionError"),
           });
         }
         setStreaming(false);

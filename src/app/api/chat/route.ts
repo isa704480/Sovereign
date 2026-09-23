@@ -18,7 +18,9 @@ import { fetchMentionedDocs, knowledgePrompt, retrieveKnowledge } from "@/lib/ai
 import { extractUrls, readPages } from "@/lib/ai/web-read";
 import { captureSample } from "@/lib/ai/training";
 import { getEnabledConnectors, runConnectorTools } from "@/lib/ai/connector-tools";
-import { LANG_FOR_AI } from "@/lib/i18n";
+import { fmt, LANG_FOR_AI, pick, translate, type TKey } from "@/lib/i18n";
+import { getServerT } from "@/lib/i18n-server";
+import { TIER_TEXT } from "@/lib/locales/plans";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -129,7 +131,8 @@ export async function POST(req: Request) {
   const ip = clientIp(req);
   const ipRl = rateLimit(`chat:ip:${ip}`, 30, 60_000); // 30/min per IP
   if (!ipRl.ok) {
-    return Response.json({ error: "Juda ko'p so'rov. Bir oz kuting." }, {
+    const st = await getServerT();
+    return Response.json({ error: st("chTooManyRequests") }, {
       status: 429,
       headers: { "Retry-After": Math.ceil(ipRl.retryAfterMs / 1000).toString() },
     });
@@ -137,7 +140,7 @@ export async function POST(req: Request) {
 
   const json = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
-  if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: (await getServerT())("chBadRequest") }, { status: 400 });
 
   const {
     modelId,
@@ -150,13 +153,15 @@ export async function POST(req: Request) {
     lang,
     agentMode,
   } = parsed.data;
+  // Foydalanuvchiga ko'rinadigan xabarlar — interfeys tilida.
+  const t = (key: TKey) => translate(lang, key);
   const mode = AGENT_MODE_BY_ID[agentMode];
   const research = reqResearch || !!mode?.autoResearch;
   const langText = `JAVOB TILI: foydalanuvchi boshqa tilda yozmasa, ${LANG_FOR_AI[lang]} javob ber.`;
   const isAuto = modelId === AUTO_MODEL_ID;
   // OmniRoute katalog modeli — id da "/" bor va curated ro'yxatda yo'q.
   const isOmni = !isAuto && modelId.includes("/") && !MODEL_BY_ID[modelId];
-  if (!isAuto && !isOmni && !MODEL_BY_ID[modelId]) return Response.json({ error: "Noma'lum model" }, { status: 400 });
+  if (!isAuto && !isOmni && !MODEL_BY_ID[modelId]) return Response.json({ error: t("chUnknownModel") }, { status: 400 });
 
   const encoder = new TextEncoder();
   const sse = (payload: unknown) => encoder.encode(`data: ${JSON.stringify(payload)}\n\n`);
@@ -185,15 +190,15 @@ export async function POST(req: Request) {
 
   // Auth majburiy (prod'da Supabase sozlangan bo'lsa) — anonim cost-DoS ni to'sish.
   if (!authed && isSupabaseConfigured()) {
-    return refuse(`${UPGRADE} Chat uchun avval kiring yoki ro'yxatdan o'ting.`);
+    return refuse(`${UPGRADE} ${t("chLoginRequired")}`);
   }
 
   if (usedToday >= plan.limits.messagesPerDay) {
-    return refuse(`${UPGRADE} Kunlik limit tugadi (${plan.limits.messagesPerDay} ta xabar, ${plan.name}). Ertaga davom eting yoki tarifni oshiring.`);
+    return refuse(`${UPGRADE} ${fmt(t("chDailyLimit"), { n: plan.limits.messagesPerDay, plan: plan.name })}`);
   }
 
   // ---- Build the execution plan (single model, or Auto orchestration) ----
-  const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan) : null;
+  const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan, lang) : null;
   const steps = routePlan
     ? routePlan.steps
     : [
@@ -210,7 +215,7 @@ export async function POST(req: Request) {
   // OmniRoute katalog gating: aniq modellar (mas. "dva/claude-opus-5-high") Pro+
   // tarifda ochiladi. "auto/*" kombolari (tekin yo'naltirish) barcha tarifda ochiq.
   if (isOmni && !modelId.startsWith("auto/") && !planAllowsTier(plan, "pro")) {
-    return refuse(`${UPGRADE} Bu model Pro tarifda ochiladi. Tekin (Auto) yoki tavsiya modellardan foydalaning.`);
+    return refuse(`${UPGRADE} ${t("chOmniProOnly")}`);
   }
 
   // Plan gating for a concrete (non-auto) model.
@@ -218,13 +223,14 @@ export async function POST(req: Request) {
     const model = MODEL_BY_ID[modelId];
     if (!planAllowsTier(plan, model.tier)) {
       const need = planForTier(model.tier);
-      return refuse(`${UPGRADE} ${model.name} — ${TIER_LABEL[model.tier]} darajasidagi model. ${need.name} ($${need.price}/oy) tarifiga o'ting.`);
+      const tier = pick(lang, TIER_TEXT[model.tier]) || TIER_LABEL[model.tier];
+      return refuse(`${UPGRADE} ${fmt(t("chModelTierUpgrade"), { model: model.name, tier, plan: need.name, price: need.price })}`);
     }
     if ((research || model.category === "research") && !plan.limits.research) {
-      return refuse(`${UPGRADE} Internet tadqiqot (Perplexity) Pro tarifida mavjud.`);
+      return refuse(`${UPGRADE} ${t("chResearchPro")}`);
     }
     if (model.id === "sonar-pro-online" && !plan.limits.deepResearch) {
-      return refuse(`${UPGRADE} Sonar Pro chuqur tadqiqot Ultra tarifida mavjud.`);
+      return refuse(`${UPGRADE} ${t("chDeepResearchUltra")}`);
     }
   }
 
@@ -279,7 +285,7 @@ export async function POST(req: Request) {
           const { pages, prompt } = await readPages(urls);
           webContext = prompt;
           if (pages.length) send({ type: "citations", citations: pages.map((p) => p.url) });
-          else send({ type: "text", text: `_(Sahifani ocha olmadim: ${urls.join(", ")})_\n\n` });
+          else send({ type: "text", text: `${fmt(t("chPageOpenFailed"), { urls: urls.join(", ") })}\n\n` });
         }
 
         let researchContext = "";
@@ -353,6 +359,7 @@ ${connectorContext}`
               maxTokens: plan.limits.maxTokens,
               extraSystem: extra || undefined,
               signal: req.signal,
+              lang,
             })) {
               if (ev.type === "done") break;
               if (ev.type === "error") {
@@ -433,7 +440,7 @@ ${connectorContext}`
         }
       } catch (err) {
         if (!(err instanceof Error && err.name === "AbortError")) {
-          send({ type: "error", message: err instanceof Error ? err.message : "Noma'lum xato" });
+          send({ type: "error", message: err instanceof Error ? err.message : t("chUnknownError") });
         }
       } finally {
         controller.enqueue(done);

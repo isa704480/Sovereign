@@ -1,6 +1,7 @@
 import "server-only";
 import { MODELS, MODEL_BY_ID, type SovereignModel } from "@/config/models";
 import { planAllowsTier, type Plan } from "@/config/plans";
+import { DEFAULT_LANG, fmt, LANG_FOR_AI, translate, type Lang, type TKey } from "@/lib/i18n";
 
 export interface RouteStep {
   modelId: string;
@@ -57,7 +58,9 @@ const RESEARCH_MODEL = "sonar-online";
  * Deterministic "SOVEREIGN Auto" planner: reads the request and picks the best
  * model — or a research→answer pipeline when the task needs fresh facts first.
  */
-export function planRoute(content: string | unknown[], plan: Plan): RoutePlan {
+export function planRoute(content: string | unknown[], plan: Plan, lang: Lang = DEFAULT_LANG): RoutePlan {
+  // reason/purpose foydalanuvchiga ko'rinadi (MessageItem) — interfeys tilida.
+  const t = (key: TKey) => translate(lang, key);
   const text = textOf(content);
   const needsResearch =
     plan.limits.research && RESEARCH_RE.some((re) => re.test(text));
@@ -74,39 +77,39 @@ export function planRoute(content: string | unknown[], plan: Plan): RoutePlan {
   if (needsResearch && isCode) {
     return {
       steps: [
-        { modelId: RESEARCH_MODEL, kind: "research", purpose: "Internetdan dolzarb ma'lumot to'plash" },
-        { modelId: codeModel.id, kind: "answer", purpose: "Topilgan ma'lumot asosida kod/sayt yozish" },
+        { modelId: RESEARCH_MODEL, kind: "research", purpose: t("chRoutePurposeResearchFacts") },
+        { modelId: codeModel.id, kind: "answer", purpose: t("chRoutePurposeBuildFromResearch") },
       ],
-      reason: `Vazifa avval tadqiqot, keyin kod talab qiladi. Perplexity bilan qidiraman, so'ng ${codeModel.name} bilan yozaman.`,
+      reason: fmt(t("chRouteReasonResearchCode"), { model: codeModel.name }),
     };
   }
   if (needsResearch) {
     return {
-      steps: [{ modelId: RESEARCH_MODEL, kind: "research", purpose: "Manbalar bilan javob" }],
-      reason: "Savol dolzarb/internet ma'lumot talab qiladi — Perplexity Research tanlandi.",
+      steps: [{ modelId: RESEARCH_MODEL, kind: "research", purpose: t("chRoutePurposeSourced") }],
+      reason: t("chRouteReasonResearch"),
     };
   }
   if (isCode) {
     return {
-      steps: [{ modelId: codeModel.id, kind: "answer", purpose: "Kod yozish" }],
-      reason: `Kod vazifasi — ${codeModel.name} tanlandi (kod uchun eng kuchli).`,
+      steps: [{ modelId: codeModel.id, kind: "answer", purpose: t("chRoutePurposeCode") }],
+      reason: fmt(t("chRouteReasonCode"), { model: codeModel.name }),
     };
   }
   if (isMath) {
     return {
-      steps: [{ modelId: mathModel.id, kind: "answer", purpose: "Matematik yechim" }],
-      reason: `Matematik masala — ${mathModel.name} tanlandi.`,
+      steps: [{ modelId: mathModel.id, kind: "answer", purpose: t("chRoutePurposeMath") }],
+      reason: fmt(t("chRouteReasonMath"), { model: mathModel.name }),
     };
   }
   if (isCreative) {
     return {
-      steps: [{ modelId: creativeModel.id, kind: "answer", purpose: "Ijodiy yozish" }],
-      reason: `Ijodiy vazifa — ${creativeModel.name} tanlandi.`,
+      steps: [{ modelId: creativeModel.id, kind: "answer", purpose: t("chRoutePurposeCreative") }],
+      reason: fmt(t("chRouteReasonCreative"), { model: creativeModel.name }),
     };
   }
   return {
-    steps: [{ modelId: generalModel.id, kind: "answer", purpose: "Umumiy javob" }],
-    reason: `Umumiy savol — ${generalModel.name} tanlandi.`,
+    steps: [{ modelId: generalModel.id, kind: "answer", purpose: t("chRoutePurposeGeneral") }],
+    reason: fmt(t("chRouteReasonGeneral"), { model: generalModel.name }),
   };
 }
 
@@ -126,9 +129,10 @@ interface RawPlan {
  * that respects the current subscription. Falls back to the rules-based
  * router on any error, so Auto never fails.
  */
-export async function planRouteLLM(content: string | unknown[], plan: Plan): Promise<RoutePlan> {
+export async function planRouteLLM(content: string | unknown[], plan: Plan, lang: Lang = DEFAULT_LANG): Promise<RoutePlan> {
+  const t = (key: TKey) => translate(lang, key);
   const text = textOf(content).slice(0, 2000);
-  if (!text || !process.env.OPENROUTER_API_KEY) return planRoute(content, plan);
+  if (!text || !process.env.OPENROUTER_API_KEY) return planRoute(content, plan, lang);
 
   const codeModel = pick(plan, ["gpt-4o", "claude-sonnet-4-5", "gpt-4o-mini", "glm-5.2:free"]);
   const creativeModel = pick(plan, ["claude-sonnet-4-5", "claude-haiku-4-5", "gemma-4-31b:free"]);
@@ -137,7 +141,9 @@ export async function planRouteLLM(content: string | unknown[], plan: Plan): Pro
 
   const sys = [
     "Sen SOVEREIGN Auto planner'san. Foydalanuvchi so'rovini tahlil qilib, uni qanday bajarish kerakligini aniqla.",
-    "JSON qaytar: {\"intent\":\"qisqa uzbek tavsif\",\"needs_research\":true|false,\"category\":\"code|creative|math|general|research\",\"reason\":\"qisqa sabab\"}.",
+    "JSON qaytar: {\"intent\":\"qisqa tavsif\",\"needs_research\":true|false,\"category\":\"code|creative|math|general|research\",\"reason\":\"qisqa sabab\"}.",
+    // intent/reason foydalanuvchiga ko'rsatiladi — interfeys tilida bo'lsin.
+    `intent va reason maydonlarini ${LANG_FOR_AI[lang]} yoz.`,
     "needs_research = true agar internet'dan yangi/dolzarb ma'lumot (yangiliklar, narxlar, faktlar, sana) kerak bo'lsa.",
     "category kod = dastur/sayt/skript yozish; creative = matn yozish/tarjima/ijodiy; math = matematika; general = umumiy suhbat; research = faqat internet qidiruv.",
     "Faqat JSON qaytar, boshqa hech narsa.",
@@ -167,28 +173,28 @@ export async function planRouteLLM(content: string | unknown[], plan: Plan): Pro
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     raw = JSON.parse(data.choices?.[0]?.message?.content ?? "{}");
   } catch {
-    return planRoute(content, plan);
+    return planRoute(content, plan, lang);
   }
 
   const needsResearch = plan.limits.research && (raw.needs_research === true || raw.category === "research");
   const cat = raw.category;
   const answerModel =
     cat === "code" ? codeModel : cat === "math" ? mathModel : cat === "creative" ? creativeModel : generalModel;
-  const intent = raw.intent?.trim() || "Foydalanuvchi so'rovi";
+  const intent = raw.intent?.trim() || t("chRouteUserRequest");
   const reason = raw.reason?.trim() || intent;
 
   if (needsResearch && cat === "code") {
     return {
       steps: [
-        { modelId: RESEARCH_MODEL, kind: "research", purpose: "Dolzarb ma'lumot qidirish" },
-        { modelId: answerModel.id, kind: "answer", purpose: "Kod/sayt yozish" },
+        { modelId: RESEARCH_MODEL, kind: "research", purpose: t("chRoutePurposeSearchFacts") },
+        { modelId: answerModel.id, kind: "answer", purpose: t("chRoutePurposeBuild") },
       ],
       reason: `${reason} — Perplexity + ${answerModel.name}.`,
     };
   }
   if (needsResearch) {
     return {
-      steps: [{ modelId: RESEARCH_MODEL, kind: "research", purpose: "Internetdan javob" }],
+      steps: [{ modelId: RESEARCH_MODEL, kind: "research", purpose: t("chRoutePurposeWebAnswer") }],
       reason: `${reason} — Perplexity Research.`,
     };
   }

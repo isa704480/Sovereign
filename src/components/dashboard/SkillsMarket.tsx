@@ -4,8 +4,9 @@ import { Check, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { SKILLS, SKILL_CATEGORY_LABEL, type SkillCategory } from "@/config/skills";
+import { skillCategoryLabel, skillText } from "@/lib/locales/panels-data";
 import { EASE_OUT_EXPO } from "@/lib/motion";
-import { CUSTOM_SKILL_PREFIX, useChat, useT, type CustomSkill } from "@/store/chat";
+import { CUSTOM_SKILL_PREFIX, useChat, useLang, useT, type CustomSkill } from "@/store/chat";
 
 interface SkillsMarketProps {
   open: boolean;
@@ -41,8 +42,9 @@ function Toggle({ on }: { on: boolean }) {
 
 export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketProps) {
   const t = useT();
+  const lang = useLang();
   const catLabel = (k: (typeof CATEGORIES)[number]) =>
-    k === "all" ? t("catAll") : k === "mine" ? t("catMine") : SKILL_CATEGORY_LABEL[k] ?? k;
+    k === "all" ? t("catAll") : k === "mine" ? t("catMine") : skillCategoryLabel(lang, k, SKILL_CATEGORY_LABEL[k]);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -62,16 +64,19 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
 
   const items = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const built = SKILLS.map((s) => ({
-      id: s.id,
-      name: s.name,
-      description: s.description,
-      glyph: s.glyph,
-      color: s.color,
-      category: s.category as string,
-      details: summarize(s.prompt),
-      custom: false as const,
-    }));
+    const built = SKILLS.map((s) => {
+      const tx = skillText(lang, s);
+      return {
+        id: s.id,
+        name: tx.name,
+        description: tx.description,
+        glyph: s.glyph,
+        color: s.color,
+        category: s.category as string,
+        details: tx.details ?? summarize(s.prompt),
+        custom: false as const,
+      };
+    });
     const mine = customSkills.map((s: CustomSkill) => ({
       id: `${CUSTOM_SKILL_PREFIX}${s.id}`,
       name: s.name,
@@ -85,7 +90,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
     return [...built, ...mine]
       .filter((s) => cat === "all" || s.category === cat)
       .filter((s) => !needle || `${s.name} ${s.description}`.toLowerCase().includes(needle));
-  }, [q, cat, customSkills, t]);
+  }, [q, cat, customSkills, t, lang]);
 
   function saveDraft() {
     const name = draft.name.trim().slice(0, 40);
@@ -128,7 +133,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border)" }}>
               <div className="flex items-center gap-2">
                 <Sparkles className="size-5" style={{ color: "var(--t-accent)" }} />
-                <span className="font-display text-lg font-bold">Skills</span>
+                <span className="font-display text-lg font-bold">{t("skills")}</span>
                 <span className="text-xs" style={{ color: "var(--t-text-muted)" }}>{enabled.length} {t("skillsEnabled")}</span>
               </div>
               <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>

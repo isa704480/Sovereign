@@ -3,8 +3,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { SUPABASE_MISSING_MESSAGE } from "@/lib/supabase/env";
 import { getProfile, postAuthPath } from "@/lib/auth/profile";
+import { getServerT } from "@/lib/i18n-server";
+import { authErrorKey, isAuthKey } from "@/lib/locales/auth";
 import {
   loginSchema,
   registerSchema,
@@ -35,25 +36,24 @@ async function getSupabase() {
   }
 }
 
-function translate(message: string): string {
-  const m = message.toLowerCase();
-  if (m.includes("invalid login credentials")) return "Email yoki parol noto'g'ri.";
-  if (m.includes("email not confirmed")) return "Email hali tasdiqlanmagan. Pochtangizdagi havolani bosing.";
-  if (m.includes("already registered") || m.includes("already been registered"))
-    return "Bu email allaqachon ro'yxatdan o'tgan. Kirishga harakat qiling.";
-  if (m.includes("password should be")) return "Parol talablarga javob bermaydi.";
-  if (m.includes("rate limit") || m.includes("too many")) return "Juda ko'p urinish. Birozdan keyin qayta urinib ko'ring.";
-  if (m.includes("provider is not enabled")) return "Bu kirish usuli hali yoqilmagan (Supabase → Auth → Providers).";
-  if (m.includes("fetch failed") || m.includes("network")) return "Serverga ulanib bo'lmadi. Internetni tekshiring.";
-  return message;
+/** Supabase xatosi yoki lug'at kaliti → foydalanuvchi tanlagan tildagi matn. */
+async function translate(message: string): Promise<string> {
+  const t = await getServerT();
+  if (isAuthKey(message)) return t(message);
+  const key = authErrorKey(message);
+  return key ? t(key) : message;
+}
+
+async function fail(message: string): Promise<AuthResult> {
+  return { ok: false, error: await translate(message) };
 }
 
 export async function signUpWithEmail(input: RegisterInput): Promise<AuthResult> {
   const parsed = registerSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Noto'g'ri ma'lumot" };
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "auErrInvalidData");
 
   const supabase = await getSupabase();
-  if (!supabase) return { ok: false, error: SUPABASE_MISSING_MESSAGE };
+  if (!supabase) return fail("auErrSupabaseMissing");
   const { email, password } = parsed.data;
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -70,16 +70,13 @@ export async function signUpWithEmail(input: RegisterInput): Promise<AuthResult>
   if (alreadyExists) {
     const signIn = await supabase.auth.signInWithPassword({ email, password });
     if (signIn.error) {
-      return {
-        ok: false,
-        error: "Bu email allaqachon ro'yxatdan o'tgan, lekin parol mos kelmadi. Kirish sahifasidan urinib ko'ring.",
-      };
+      return fail("auErrExistsWrongPw");
     }
     const profile = await getProfile(supabase, signIn.data.user.id);
     redirect(postAuthPath(profile));
   }
 
-  if (error) return { ok: false, error: translate(error.message) };
+  if (error) return fail(error.message);
 
   // "Confirm email" off in Supabase → session is returned immediately → straight in.
   if (data.session) redirect("/onboarding");
@@ -88,15 +85,15 @@ export async function signUpWithEmail(input: RegisterInput): Promise<AuthResult>
 
 export async function signInWithEmail(input: LoginInput, next?: string | null): Promise<AuthResult> {
   const parsed = loginSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Noto'g'ri ma'lumot" };
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "auErrInvalidData");
 
   const supabase = await getSupabase();
-  if (!supabase) return { ok: false, error: SUPABASE_MISSING_MESSAGE };
+  if (!supabase) return fail("auErrSupabaseMissing");
   const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
-  if (error) return { ok: false, error: translate(error.message) };
+  if (error) return fail(error.message);
 
   const profile = await getProfile(supabase, data.user.id);
   redirect(postAuthPath(profile, next));
@@ -104,7 +101,7 @@ export async function signInWithEmail(input: LoginInput, next?: string | null): 
 
 export async function signInWithOAuth(provider: OAuthProvider, next?: string | null): Promise<AuthResult> {
   const supabase = await getSupabase();
-  if (!supabase) return { ok: false, error: SUPABASE_MISSING_MESSAGE };
+  if (!supabase) return fail("auErrSupabaseMissing");
   const safeNext = next && next.startsWith("/") ? next : "/onboarding";
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
@@ -113,20 +110,20 @@ export async function signInWithOAuth(provider: OAuthProvider, next?: string | n
       queryParams: provider === "google" ? { access_type: "offline", prompt: "select_account" } : undefined,
     },
   });
-  if (error) return { ok: false, error: translate(error.message) };
+  if (error) return fail(error.message);
   if (data.url) redirect(data.url);
-  return { ok: false, error: "OAuth havolasi olinmadi." };
+  return fail("auErrOAuthUrl");
 }
 
 export async function requestPasswordReset(email: string): Promise<AuthResult> {
   const parsed = resetSchema.safeParse({ email });
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Noto'g'ri email" };
+  if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "auErrInvalidEmail");
   const supabase = await getSupabase();
-  if (!supabase) return { ok: false, error: SUPABASE_MISSING_MESSAGE };
+  if (!supabase) return fail("auErrSupabaseMissing");
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: `${await siteUrl()}/auth/callback?next=/app`,
   });
-  if (error) return { ok: false, error: translate(error.message) };
+  if (error) return fail(error.message);
   return { ok: true, status: "reset-sent" };
 }
 

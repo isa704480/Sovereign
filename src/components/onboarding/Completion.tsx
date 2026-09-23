@@ -9,7 +9,8 @@ import { MODEL_BY_ID } from "@/config/models";
 import { BurstScene } from "@/components/three/scenes";
 import { MagneticButton } from "@/components/motion/MagneticButton";
 import { EASE, EASE_OUT_EXPO, spring } from "@/lib/motion";
-import { useT } from "@/store/chat";
+import { useLang, useT } from "@/store/chat";
+import { completionLine, reasonText } from "@/lib/locales/onboarding-data";
 
 interface CompletionProps {
   modelId: string;
@@ -19,6 +20,7 @@ interface CompletionProps {
 
 export function Completion({ modelId, reason, onEnter }: CompletionProps) {
   const t = useT();
+  const lang = useLang();
   const router = useRouter();
   const model = MODEL_BY_ID[modelId] ?? MODEL_BY_ID["claude-sonnet-4-5"];
   const [line, setLine] = useState(0);
@@ -72,7 +74,7 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
               transition={{ duration: 0.25, ease: EASE }}
               className="font-mono text-sm text-text-secondary"
             >
-              {COMPLETION_LINES[line]}
+              {completionLine(line, lang, COMPLETION_LINES[line])}
             </motion.p>
           ) : (
             <motion.div
@@ -95,7 +97,7 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
                   <div className="font-display text-base font-bold text-text-primary">{model.name}</div>
                 </div>
               </div>
-              <p className="mt-3 text-sm text-text-secondary">{reason}</p>
+              <p className="mt-3 text-sm text-text-secondary">{reasonText(reason, lang)}</p>
             </motion.div>
           )}
         </AnimatePresence>

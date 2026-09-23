@@ -27,22 +27,21 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
         <StaggerItem>
           <span className="inline-flex items-center gap-2 rounded-full border border-border bg-white/[0.03] px-3.5 py-1.5 text-xs font-medium tracking-wide text-text-secondary">
             <span className="size-1.5 rounded-full bg-primary shadow-glow" />
-            1700+ model · bitta hisob · shifrlangan xotira
+            {t("ldHeroBadge")}
           </span>
         </StaggerItem>
 
         <StaggerItem>
           <h1 className="font-display mt-7 text-5xl font-extrabold leading-[1.03] tracking-tight text-text-primary md:text-7xl">
-            Barcha AI.
+            {t("ldHeroTitle1")}
             <br />
-            <span className="text-gradient-brand">Bitta oyna.</span>
+            <span className="text-gradient-brand">{t("ldHeroTitle2")}</span>
           </h1>
         </StaggerItem>
 
         <StaggerItem>
           <p className="mt-7 max-w-xl text-lg leading-relaxed text-text-secondary">
-            Claude, GPT, Gemini, DeepSeek — beshta ilovaga sakramang. Modelni bir zumda
-            almashtiring; suhbat hech narsani unutmaydi. Xotira faqat sizda — shifrlangan.
+            {t("ldHeroSub")}
           </p>
         </StaggerItem>
 
@@ -53,7 +52,7 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
                 href={signedIn ? "/app" : "/register"}
                 className="group inline-flex h-12 items-center gap-2 rounded-full bg-text-primary px-7 text-base font-semibold text-bg-base transition-transform hover:-translate-y-0.5"
               >
-                {signedIn ? t("backToChat") : "Bepul boshlash"}
+                {signedIn ? t("backToChat") : t("startFree")}
                 <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
             </MagneticButton>
@@ -61,14 +60,14 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
               href="#features"
               className="inline-flex h-12 items-center gap-1.5 rounded-full border border-border px-6 text-base font-medium text-text-secondary transition-colors hover:border-white/20 hover:text-text-primary"
             >
-              Nega SOVEREIGN?
+              {t("ldHeroWhy")}
             </a>
           </div>
         </StaggerItem>
 
         <StaggerItem>
           <div className="mt-7 flex items-center gap-2 text-sm text-text-muted">
-            <Lock className="size-3.5 text-success" /> Bank kartasi talab qilinmaydi
+            <Lock className="size-3.5 text-success" /> {t("ldHeroNoCard")}
           </div>
         </StaggerItem>
       </Stagger>

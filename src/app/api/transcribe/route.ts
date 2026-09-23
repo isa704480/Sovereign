@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -12,8 +13,9 @@ const MAX = 25 * 1024 * 1024;
 /** POST /api/transcribe — multipart form with a "file" field. Pro+ only. */
 export async function POST(req: Request) {
   // Cost-DoS: Whisper qimmat, IP bo'yicha kuchli chegara
+  const t = await getServerT();
   const ipRl = rateLimit(`trs:ip:${clientIp(req)}`, 5, 60_000);
-  if (!ipRl.ok) return Response.json({ error: "Juda ko'p transkripsiya so'rovi" }, { status: 429 });
+  if (!ipRl.ok) return Response.json({ error: t("chTooManyTranscribe") }, { status: 429 });
 
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
@@ -23,10 +25,10 @@ export async function POST(req: Request) {
     if (user) {
       const profile = await getProfile(supabase, user.id);
       if (!effectivePlan(profile).limits.fullCode) {
-        return Response.json({ error: "Transkripsiya Pro tarifda ochiladi.", upgrade: "pro" }, { status: 402 });
+        return Response.json({ error: t("chTranscribePro"), upgrade: "pro" }, { status: 402 });
       }
     } else if (process.env.NODE_ENV !== "development") {
-      return Response.json({ error: "Avval tizimga kiring" }, { status: 401 });
+      return Response.json({ error: t("chLoginFirst") }, { status: 401 });
     }
   }
 
@@ -34,11 +36,11 @@ export async function POST(req: Request) {
   try {
     form = await req.formData();
   } catch {
-    return Response.json({ error: "Multipart body kutildi" }, { status: 400 });
+    return Response.json({ error: t("chMultipartExpected") }, { status: 400 });
   }
   const file = form.get("file");
-  if (!(file instanceof Blob)) return Response.json({ error: "file yo'q" }, { status: 400 });
-  if (file.size > MAX) return Response.json({ error: "Fayl juda katta (max 25 MB)" }, { status: 413 });
+  if (!(file instanceof Blob)) return Response.json({ error: t("chNoFile") }, { status: 400 });
+  if (file.size > MAX) return Response.json({ error: t("chFileTooBig25") }, { status: 413 });
 
   try {
     const name = (form.get("name") as string) || "audio.webm";
@@ -46,6 +48,6 @@ export async function POST(req: Request) {
     const text = await transcribe(file, name, language);
     return Response.json({ text });
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : "Transkripsiya xato" }, { status: 502 });
+    return Response.json({ error: e instanceof Error ? e.message : t("chTranscribeFailed") }, { status: 502 });
   }
 }

@@ -4,8 +4,9 @@ import { Check, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { SKILLS, SKILL_CATEGORY_LABEL, type SkillCategory } from "@/config/skills";
+import { skillCategoryLabel, skillText } from "@/lib/locales/panels-data";
 import { EASE } from "@/lib/motion";
-import { useT } from "@/store/chat";
+import { useLang, useT } from "@/store/chat";
 import { cn } from "@/lib/utils";
 
 interface SkillPickerProps {
@@ -17,6 +18,7 @@ const ORDER: SkillCategory[] = ["design", "code", "security", "writing", "data"]
 
 export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
   const t = useT();
+  const lang = useLang();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const count = enabled.length;
@@ -49,10 +51,10 @@ export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
           background: count ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : "transparent",
           color: count ? "var(--t-accent)" : "var(--t-text-muted)",
         }}
-        title="SOVEREIGN Skills — ekspert rejimlar"
+        title={t("pnSkillsTooltip")}
       >
         <Sparkles className="size-3.5" />
-        Skills
+        {t("skills")}
         {count > 0 && (
           <span
             className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white"
@@ -74,7 +76,7 @@ export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
             style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", borderRadius: 16 }}
           >
             <div className="px-2 pb-1 pt-1">
-              <div className="text-xs font-semibold" style={{ color: "var(--t-text)" }}>SOVEREIGN Skills</div>
+              <div className="text-xs font-semibold" style={{ color: "var(--t-text)" }}>{t("pnSovSkills")}</div>
               <p className="mt-0.5 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
                 {t("skillPickerSubtitle")}
               </p>
@@ -89,10 +91,11 @@ export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
                     className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
                     style={{ color: "var(--t-text-muted)", borderTop: "1px solid var(--t-border)" }}
                   >
-                    {SKILL_CATEGORY_LABEL[cat]}
+                    {skillCategoryLabel(lang, cat, SKILL_CATEGORY_LABEL[cat])}
                   </div>
                   {items.map((s) => {
                     const on = enabled.includes(s.id);
+                    const tx = skillText(lang, s);
                     return (
                       <button
                         key={s.id}
@@ -104,11 +107,11 @@ export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
                           className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg text-sm"
                           style={{ background: `color-mix(in srgb, ${s.color} 20%, transparent)`, color: s.color }}
                         >
-                          {s.glyph || s.name[0]}
+                          {s.glyph || tx.name[0]}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium" style={{ color: "var(--t-text)" }}>{s.name}</span>
-                          <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>{s.description}</span>
+                          <span className="block text-sm font-medium" style={{ color: "var(--t-text)" }}>{tx.name}</span>
+                          <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>{tx.description}</span>
                         </span>
                         <span
                           className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-colors"

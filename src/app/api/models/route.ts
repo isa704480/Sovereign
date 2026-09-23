@@ -1,5 +1,6 @@
 import { searchOmniRouteModels, getFamilies, getFeaturedFree, omniRouteConfigured } from "@/lib/ai/omniroute-models";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 
@@ -12,7 +13,7 @@ export const runtime = "nodejs";
  */
 export async function GET(req: Request) {
   const ipRl = rateLimit(`models:ip:${clientIp(req)}`, 60, 60_000);
-  if (!ipRl.ok) return Response.json({ error: "Juda ko'p so'rov" }, { status: 429 });
+  if (!ipRl.ok) return Response.json({ error: (await getServerT())("chTooManyRequests") }, { status: 429 });
 
   if (!omniRouteConfigured()) {
     return Response.json({ configured: false, total: 0, models: [], families: [] });

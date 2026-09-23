@@ -5,8 +5,9 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState, useTransition, type ChangeEvent } from "react";
 import { deleteKnowledge, listKnowledge, uploadKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { processFile } from "@/lib/chat/attachments";
+import { fmt } from "@/lib/i18n";
 import { EASE_OUT_EXPO } from "@/lib/motion";
-import { useT } from "@/store/chat";
+import { useLang, useT } from "@/store/chat";
 
 interface KnowledgePanelProps {
   open: boolean;
@@ -23,6 +24,7 @@ function fmtSize(n: number) {
 
 export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
   const t = useT();
+  const lang = useLang();
   const [items, setItems] = useState<KbDoc[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,9 +53,9 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
     for (const f of files) {
       setBusy(f.name);
       try {
-        const att = await processFile(f);
+        const att = await processFile(f, lang);
         if (!att.text) {
-          setError(`${f.name}: matn ajratib olinmadi.`);
+          setError(fmt(t("pnKbNoText"), { name: f.name }));
           continue;
         }
         const res = await uploadKnowledge({ name: f.name, mime: f.type || att.mime, content: att.text });

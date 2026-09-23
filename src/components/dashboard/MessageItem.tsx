@@ -6,7 +6,10 @@ import { useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
 import { SKILL_BY_ID } from "@/config/skills";
 import { attachmentGlyph } from "@/lib/chat/attachments";
-import { useT, type ChatMessage } from "@/store/chat";
+import { useLang, useT, type ChatMessage } from "@/store/chat";
+import { fmt, type Lang } from "@/lib/i18n";
+import { localeOf } from "@/lib/locales/chat-data";
+import { skillText } from "@/lib/locales/panels-data";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { Markdown } from "./Markdown";
@@ -23,9 +26,9 @@ interface MessageItemProps {
   tts?: { speaking: boolean; onToggle: () => void };
 }
 
-function timeLabel(iso: string) {
+function timeLabel(iso: string, lang: Lang) {
   try {
-    return new Date(iso).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
+    return new Date(iso).toLocaleTimeString(localeOf(lang), { hour: "2-digit", minute: "2-digit" });
   } catch {
     return "";
   }
@@ -34,6 +37,7 @@ function timeLabel(iso: string) {
 export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: MessageItemProps) {
   const { theme, model: activeModel } = useTheme();
   const t = useT();
+  const lang = useLang();
   const [copied, setCopied] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
@@ -165,7 +169,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
               className="flex items-center gap-0.5 pr-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
               style={{ color: "var(--t-text-muted)" }}
             >
-              <span className="mr-1 text-[11px]">{timeLabel(message.createdAt)}</span>
+              <span className="mr-1 text-[11px]">{timeLabel(message.createdAt, lang)}</span>
               <button type="button" onClick={copy} className="rounded-md p-1 hover:bg-white/10" title={t("copy")} aria-label={t("copy")}>
                 {copied ? <Check className="size-3.5" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-3.5" />}
               </button>
@@ -239,7 +243,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
           <div className="mb-3 overflow-hidden rounded-xl border" style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}>
             <button type="button" onClick={() => setShowReasoning((o) => !o)} className="flex w-full items-center gap-2 px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>
               <Lightbulb className="size-3.5" style={{ color: "var(--t-accent)" }} />
-              <span className="flex-1 text-left font-medium">O&apos;ylash jarayoni{streaming && !message.content ? "..." : ""}</span>
+              <span className="flex-1 text-left font-medium">{t("chThinking")}{streaming && !message.content ? "..." : ""}</span>
               <ChevronDown className="size-3.5 transition-transform" style={{ transform: showReasoning ? "rotate(180deg)" : "none" }} />
             </button>
             {showReasoning && (
@@ -278,7 +282,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
           <div
             className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]"
             style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
-            title={`Semantik keshdan (${Math.round(message.cache.similarity * 100)}% o'xshash) — arzon va tez`}
+            title={fmt(t("chCacheTitle"), { n: Math.round(message.cache.similarity * 100) })}
           >
             <Zap className="size-3" style={{ color: "var(--t-accent)" }} />
             {t("fromCache")} · {Math.round(message.cache.similarity * 100)}% {t("cacheMatch")}
@@ -335,14 +339,15 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             {message.skills.map((id) => {
               const sk = SKILL_BY_ID[id];
               if (!sk) return null;
+              const skt = skillText(lang, sk);
               return (
                 <span
                   key={id}
                   className="tt inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium"
                   style={{ borderColor: `${sk.color}55`, color: sk.color, background: `color-mix(in srgb, ${sk.color} 10%, transparent)` }}
-                  title={sk.description}
+                  title={skt.description}
                 >
-                  {sk.glyph || "✦"} {sk.name}
+                  {sk.glyph || "✦"} {skt.name}
                 </span>
               );
             })}
