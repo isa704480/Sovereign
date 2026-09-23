@@ -404,10 +404,10 @@ export const CHAT = {
   chPromoLabel: { uz: "Promokod", "uz-cyrl": "Промокод", ru: "Промокод", en: "Promo code" },
   chPromoPlaceholder: { uz: "Promokod (ixtiyoriy)", "uz-cyrl": "Промокод (ихтиёрий)", ru: "Промокод (необязательно)", en: "Promo code (optional)" },
   chPromoHint: {
-    uz: "Sayt promokodi kripto to'lovga qo'llanadi. Karta uchun kodni to'lov sahifasida kiriting.",
-    "uz-cyrl": "Сайт промокоди крипто тўловга қўлланади. Карта учун кодни тўлов саҳифасида киритинг.",
-    ru: "Промокод сайта применяется к оплате криптовалютой. Для карты введите код на странице оплаты.",
-    en: "Site promo codes apply to crypto payments. For card, enter the code on the payment page.",
+    uz: "Promokodingiz bo'lsa, yozing — karta va kripto to'lovga qo'llanadi.",
+    "uz-cyrl": "Промокодингиз бўлса, ёзинг — карта ва крипто тўловга қўлланади.",
+    ru: "Есть промокод? Введите его — он применится к оплате картой и криптой.",
+    en: "Have a promo code? Enter it — it applies to card and crypto payments.",
   },
   chPromoInvalid: { uz: "Promokod noto'g'ri.", "uz-cyrl": "Промокод нотўғри.", ru: "Неверный промокод.", en: "Invalid promo code." },
   chPromoUsedUp: {

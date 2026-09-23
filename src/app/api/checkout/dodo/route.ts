@@ -5,11 +5,12 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createDodoCheckout, dodoMode, dodoProductId, isDodoConfigured } from "@/lib/payments/dodo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { normalizePromo } from "@/lib/payments/promo";
 import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 
-const schema = z.object({ plan: z.string(), period: z.string().optional() });
+const schema = z.object({ plan: z.string(), period: z.string().optional(), promo: z.string().max(64).optional() });
 
 /** POST /api/checkout/dodo — card subscription checkout via Dodo Payments. */
 export async function POST(req: Request) {
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
   }
   const planId = parsed.data.plan;
   const period = isBillingPeriod(parsed.data.period) ? parsed.data.period : "month";
+  const promo = normalizePromo(parsed.data.promo);
 
   if (!isSupabaseConfigured()) return Response.json({ error: t("chSupabaseMissing") }, { status: 503 });
   if (!isDodoConfigured()) {
@@ -60,7 +62,8 @@ export async function POST(req: Request) {
       email: user.email,
       name: (user.user_metadata?.full_name as string | undefined) ?? undefined,
       returnUrl: `${origin}/app?paid=1`,
-      metadata: { user_id: user.id, plan: planId, order_id: orderId, period },
+      metadata: { user_id: user.id, plan: planId, order_id: orderId, period, ...(promo ? { promo } : {}) },
+      ...(promo ? { discountCode: promo } : {}),
     });
     try {
       await createServiceClient().from("orders").update({ checkout_id: checkout.sessionId }).eq("id", orderId);
@@ -73,6 +76,11 @@ export async function POST(req: Request) {
       await createServiceClient().from("orders").update({ status: "cancelled" }).eq("id", orderId);
     } catch {
       /* ignore */
+    }
+    // Promokod Dodo'da yo'q / muddati o'tgan / limiti tugagan → Dodo 4xx qaytaradi.
+    const status = (e as { status?: number }).status;
+    if (promo && status && status >= 400 && status < 500 && status !== 403) {
+      return Response.json({ error: t("chPromoInvalid") }, { status: 400 });
     }
     // 403 = Dodo hasn't enabled live payments for the merchant yet (verification pending).
     if ((e as { status?: number }).status === 403) {

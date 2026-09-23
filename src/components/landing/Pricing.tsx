@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { PLANS, type BillingPeriod } from "@/config/plans";
-import { BillingToggle, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
+import { BillingToggle, priceFontSize, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ export function Pricing() {
             <StaggerItem key={p.id} className="h-full">
               <div
                 className={cn(
-                  "relative flex h-full flex-col rounded-2xl border bg-white/[0.015] p-6 transition-colors duration-300",
+                  "relative flex h-full min-w-0 flex-col rounded-2xl border bg-white/[0.015] p-6 transition-colors duration-300 [container-type:inline-size]",
                   p.highlight ? "border-[color-mix(in_srgb,var(--color-primary)_55%,transparent)] bg-white/[0.03]" : "border-border hover:border-white/15",
                 )}
                 style={p.highlight ? { borderWidth: 2 } : undefined}
@@ -48,7 +48,10 @@ export function Pricing() {
                   </span>
                 )}
                 <div className="text-sm font-semibold text-text-primary">{p.name}</div>
-                <div className="font-display nums mt-2 text-4xl font-extrabold tracking-tight text-text-primary">
+                <div
+                  className="font-display nums mt-2 whitespace-nowrap font-extrabold leading-tight tracking-tight text-text-primary"
+                  style={{ fontSize: priceFontSize(priceLabel(p, period), 2.25) }}
+                >
                   {p.price === 0 ? "0" : priceLabel(p, period)}
                   <span className="text-sm font-normal text-text-muted">
                     /{p.price > 0 && period === "year" ? t("ldPerYear") : t("perMonth")}

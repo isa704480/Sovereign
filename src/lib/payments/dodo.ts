@@ -58,6 +58,8 @@ export async function createDodoCheckout(input: {
   name?: string;
   returnUrl: string;
   metadata: Record<string, string>;
+  /** Dodo'da yaratilgan chegirma kodi (Sales → Discounts). Noto'g'ri bo'lsa Dodo xato qaytaradi. */
+  discountCode?: string;
 }): Promise<{ sessionId: string; checkoutUrl: string }> {
   const productId = dodoProductId(input.plan, input.period);
   if (!productId) throw new Error("DODO_PRODUCT_*_YEARLY sozlanmagan");
@@ -66,6 +68,7 @@ export async function createDodoCheckout(input: {
     customer: { email: input.email, name: input.name || input.email.split("@")[0] },
     return_url: input.returnUrl,
     metadata: input.metadata,
+    ...(input.discountCode ? { discount_codes: [input.discountCode] } : {}),
   });
   if (!session.checkout_url) throw new Error("Dodo checkout_url qaytmadi");
   return { sessionId: session.session_id, checkoutUrl: session.checkout_url };

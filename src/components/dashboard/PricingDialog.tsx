@@ -4,7 +4,7 @@ import { ArrowLeft, Bitcoin, Check, CreditCard, Loader2, X } from "lucide-react"
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { PLAN_BY_ID, PLANS, type BillingPeriod, type PlanId } from "@/config/plans";
-import { BillingToggle, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
+import { BillingToggle, priceFontSize, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
 import { useLang, useT } from "@/store/chat";
 import type { TKey } from "@/lib/i18n";
@@ -87,8 +87,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
       const res = await fetch(METHODS.find((m) => m.id === method)!.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Sayt promokodi faqat kripto (ZenoBank) uchun; karta kodi Dodo sahifasida kiritiladi.
-        body: JSON.stringify({ plan: selected, period, ...(method === "crypto" && promo.trim() ? { promo: promo.trim() } : {}) }),
+        // Karta: kod Dodo chegirmasi sifatida qo'llanadi; kripto: sayt PROMO_CODES.
+        body: JSON.stringify({ plan: selected, period, ...(promo.trim() ? { promo: promo.trim() } : {}) }),
       });
       const data = (await res.json().catch(() => ({}))) as { checkoutUrl?: string; error?: string };
       if (data.checkoutUrl) {
@@ -126,7 +126,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
             onClick={(e) => e.stopPropagation()}
             className={cn(
               "tt relative max-h-[92vh] w-full overflow-y-auto rounded-[22px] border p-6 transition-[max-width] duration-300 md:p-8",
-              plan ? "max-w-xl" : "max-w-5xl",
+              plan ? "max-w-xl" : "max-w-6xl",
             )}
             style={{
               background: "var(--t-surface, #0D1033)",
@@ -172,7 +172,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {PLANS.map((p) => {
                       const current = p.id === currentPlan;
                       const suggested = p.id === suggestedPlan;
@@ -181,7 +181,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                         <div
                           key={p.id}
                           className={cn(
-                            "tt relative flex flex-col rounded-2xl border p-5 transition-colors",
+                            "tt relative flex min-w-0 flex-col rounded-2xl border p-5 transition-colors [container-type:inline-size]",
                             (p.highlight || suggested) && "shadow-glow",
                           )}
                           style={{
@@ -198,7 +198,11 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             </span>
                           )}
                           <div className="text-sm font-semibold" style={{ color: p.color }}>{p.name}</div>
-                          <div className="t-display nums mt-1 text-3xl font-extrabold tracking-[-0.02em]">
+                          {/* Narx karta kengligiga moslanadi — $1099.90/yil ham sig'adi. */}
+                          <div
+                            className="t-display nums mt-1 whitespace-nowrap font-extrabold leading-tight tracking-[-0.02em]"
+                            style={{ fontSize: priceFontSize(priceLabel(p, period), 1.875) }}
+                          >
                             {p.price === 0 ? "0" : priceLabel(p, period)}
                             <span className="text-sm font-normal" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                               /{p.price > 0 && period === "year" ? t("ldPerYear") : t("perMonth")}

@@ -71,6 +71,14 @@ export function usePriceHint(): (plan: Plan, period: BillingPeriod) => string {
       : fmt(t("ldPerDay"), { price: (plan.price / 30).toFixed(2) });
 }
 
+/**
+ * Narx shrifti karta kengligiga moslanadi (karta `[container-type:inline-size]`).
+ * "$1099.90" kabi uzun narxlar kichikroq — kartadan chiqib ketmaydi.
+ */
+export function priceFontSize(label: string, maxRem: number): string {
+  return `min(${maxRem}rem, ${label.length >= 8 ? 11.5 : 13.5}cqw)`;
+}
+
 /** "$59.90" / "$5.99" */
 export function priceLabel(plan: Plan, period: BillingPeriod): string {
   return `$${formatPrice(planPrice(plan, period))}`;
