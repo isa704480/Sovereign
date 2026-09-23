@@ -1,13 +1,29 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "regions": ["fra1"],
+  "regions": [
+    "fra1"
+  ],
   "buildCommand": "next build",
   "installCommand": "npm install",
   "functions": {
-    "src/app/api/chat/route.ts": { "maxDuration": 300 },
-    "src/app/api/image/route.ts": { "maxDuration": 60 },
-    "src/app/api/transcribe/route.ts": { "maxDuration": 60 },
-    "src/app/api/cli/chat/route.ts": { "maxDuration": 60 }
-  }
+    "src/app/api/chat/route.ts": {
+      "maxDuration": 300
+    },
+    "src/app/api/image/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/transcribe/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/cli/chat/route.ts": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/omniroute-watchdog?mode=preventive",
+      "schedule": "0 23 * * *"
+    }
+  ]
 }

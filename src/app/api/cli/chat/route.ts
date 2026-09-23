@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -203,6 +204,7 @@ export async function POST(req: Request) {
     try {
       res = await fetch(cand.url, { method: "POST", headers, body: body(cand.model) });
     } catch (e) {
+      if (cand.provider === "omniroute") healOmniRouteIfStuck(502, "network");
       failures.push(`${cand.provider}/${cand.model}: ${short(e instanceof Error ? e.message : "ulanish xatosi")}`);
       continue; // tarmoq xatosi — keyingi providerga
     }
@@ -220,6 +222,7 @@ export async function POST(req: Request) {
     } catch {
       /* keep */
     }
+    if (cand.provider === "omniroute") healOmniRouteIfStuck(res.status, message);
     failures.push(`${cand.provider}/${cand.model}: ${res.status} ${short(message)}`);
     // Xato bo'lsa (429 TPM, 5xx, kalit) — keyingi providerga o'tamiz; maqsad: ish
     // to'xtamasin. Zanjir oxirigacha muvaffaqiyat bo'lmasa, quyida xato qaytadi.

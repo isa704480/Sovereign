@@ -1,6 +1,7 @@
 import "server-only";
 import { MODELS, MODEL_BY_ID, type SovereignModel } from "@/config/models";
 import { DEFAULT_LANG, fmt, translate, type Lang } from "@/lib/i18n";
+import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 
 /** Free provider models used as automatic fallbacks when one is rate-limited. */
 const FREE_FALLBACKS = MODELS.filter((m) => m.category === "free").map((m) => m.providerModel);
@@ -358,6 +359,9 @@ async function errorMessage(res: Response, lang: Lang = DEFAULT_LANG): Promise<s
   } catch {
     /* ignore */
   }
+  // OmniRoute "resource pressure"ga tiqilib qolgan bo'lsa — fonda Railway restart.
+  const omniBase = (process.env.OMNIROUTE_BASE_URL ?? "").replace(/\/$/, "");
+  if (omniBase && res.url.startsWith(omniBase)) healOmniRouteIfStuck(res.status, rawMessage);
   // Xato'ni serverga xotira uchun log qilamiz (agar keyinroq Sentry ulasak),
   // lekin foydalanuvchiga faqat generic xabar qaytariladi — infra sirlarni fosh qilmaymiz.
   const isAffordError = /can only afford (\d+)/i.exec(rawMessage);

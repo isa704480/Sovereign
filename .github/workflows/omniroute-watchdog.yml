@@ -1,0 +1,18 @@
+# OmniRoute "o'zini tiklash": har 10 daqiqada tekshiradi, tiqilib qolgan bo'lsa
+# sayt Railway orqali restart qiladi. Kerak: repo Settings -> Secrets -> CRON_SECRET
+# (Vercel'dagi CRON_SECRET bilan bir xil qiymat).
+name: OmniRoute watchdog
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check OmniRoute
+        run: |
+          curl -sS --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://sovhq.vercel.app/api/cron/omniroute-watchdog"
