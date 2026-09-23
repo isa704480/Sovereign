@@ -430,7 +430,7 @@ ${connectorContext}`
 
         // Verifier: uzun faktual javoblarni haiku bilan tekshirish.
         // Streaming tugagandan keyin qo'shimcha "verifier" eventi keladi.
-        if (cacheableAnswer.length >= 300 && !research) {
+        if (cacheableAnswer.length >= 300 && !research && isFactualProse(cacheableAnswer)) {
           try {
             const issues = await verifyAnswer(lastText, cacheableAnswer);
             if (issues.length > 0) send({ type: "verifier", issues });
@@ -450,4 +450,17 @@ ${connectorContext}`
   });
 
   return new Response(stream, { headers });
+}
+
+/**
+ * Fakt-tekshiruv faqat faktlarga boy oddiy matnga arziydi: asosan kod,
+ * jonli komponent yoki aniqlashtiruvchi savollardan iborat javobni tekshirish
+ * foydasiz (oldin savollar "da'vo" sifatida tekshirilib chiqardi).
+ */
+function isFactualProse(answer: string): boolean {
+  const code = (answer.match(/```[\s\S]*?```/g) ?? []).reduce((n, b) => n + b.length, 0);
+  if (code / answer.length >= 0.3) return false;
+  if (answer.includes("```sovereign-ui")) return false;
+  const questions = answer.split("\n").filter((l) => l.trim().endsWith("?")).length;
+  return questions < 3;
 }

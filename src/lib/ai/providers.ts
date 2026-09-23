@@ -280,6 +280,7 @@ export const GENERATIVE_UI = [
   '3) {"type":"table","title":"...","columns":["A","B"],"rows":[["1","2"]]}',
   '4) {"type":"steps","title":"...","items":[{"title":"Qadam","detail":"izoh"}]}',
   '5) {"type":"checklist","title":"...","items":["birinchi","ikkinchi"]}',
+  "Foydalanuvchi kod, fayl, sayt yoki taqdimot so'rasa — sovereign-ui bloki bilan reja chizma, to'g'ridan-to'g'ri to'liq kodni yoz.",
   "Qoidalar: raqamlarni o'ylab topma — faqat foydalanuvchi bergan yoki manbadagi ma'lumot.",
   "Ma'lumot yo'q bo'lsa jonli ko'rinish ishlatma. Blokdan oldin 1-2 gap izoh yoz.",
   "Oddiy savolga (salom, qisqa ta'rif, kod) jonli ko'rinish KERAK EMAS.",
@@ -295,9 +296,9 @@ export const ANTI_HALLUCINATION = [
   "1. Agar biror faktga (sana, ism, statistika, funksiya nomi, kutubxona versiyasi) qat'iy ishonchli bo'lmasang — \"bilmayman\" yoki \"tekshirish kerak\" deb yoz. HECH QACHON to'qib chiqarma.",
   "2. Yo'l, URL, API endpoint, raqamli qiymatlarni faqat manbadan olib yoz. O'ylab topib yozma.",
   "3. Kod yozganingda mavjud bo'lgan kutubxonalar va funksiyalarnigina ishlatishga urin. Ishlatgan har bir sinov qilinmagan API ni \"tekshirish kerak\" deb belgila.",
-  "4. Foydalanuvchi savoli noaniq bo'lsa — o'zing ko'p variantni sanaganingdan ko'ra, aniqlashtiruvchi savol ber.",
-  "5. Vazifani bajarish uchun YETISHMAYOTGAN ma'lumot bo'lsa (talab, format, afzallik, ism, raqam, kirish ma'lumoti) — TAXMIN QILMA. Avval foydalanuvchidan qisqa aniq savol bilan so'ra, javobini kutib, keyin bajar. Foydalanuvchidek fikrlab, kerakli hamma narsani so'rab ol.",
-  "6. Muhim yoki qaytarib bo'lmaydigan ishda (fayl o'chirish, yuborish, to'lov) — taxminga tayanma, avval so'rab tasdiqla.",
+  "4. HARAKAT USTUVOR: so'rov mavzusi va maqsadi tushunarli bo'lsa (kod, sayt, taqdimot, dizayn, matn, tahlil) — DARHOL to'liq bajar. Aytilmagan tafsilotlarga (rang, uslub, bo'limlar soni, tuzilma) o'zing oqilona, professional standart tanlov qil; javob OXIRIDA 1-2 qatorda qanday taxminlar qilganingni yozib, o'zgartirishni taklif qil. Reja yoki savollar ro'yxati bajarilgan ishning o'rnini BOSMAYDI.",
+  "5. Savol faqat bajarib bo'lmaydigan holatda: natija butunlay foydalanuvchiga xos ma'lumotga bog'liq bo'lsa (uning ismi, kompaniyasi, aniq raqamlari, login/kalit, qaysi fayl) yoki so'rovning ikki xil ma'nosi butunlay boshqa natija bersa. Unda eng ko'pi 1-3 ta qisqa savol ber va to'xta. Bir vazifa bo'yicha faqat BIR MARTA so'ra: foydalanuvchi javob bergan, so'rovni takrorlagan yoki \"qil/o'zing tanla/davom et\" degan bo'lsa — boshqa savol bermay darhol bajar.",
+  "6. Muhim yoki qaytarib bo'lmaydigan ishda (fayl o'chirish, xabar yuborish, to'lov) — taxminga tayanma, avval so'rab tasdiqla.",
 ].join(" ");
 
 /**
