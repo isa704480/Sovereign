@@ -8,6 +8,8 @@ interface DodoEvent {
   data?: {
     subscription_id?: string;
     product_id?: string;
+    /** payment.* event'larida mahsulot shu yerda keladi (product_id emas). */
+    product_cart?: { product_id?: string }[];
     next_billing_date?: string;
     metadata?: Record<string, string>;
     customer?: { email?: string };
@@ -57,7 +59,7 @@ export async function POST(req: Request) {
 
   const data = event.data ?? {};
   const meta = data.metadata ?? {};
-  const plan = meta.plan ?? planForDodoProduct(data.product_id);
+  const plan = meta.plan ?? planForDodoProduct(data.product_id ?? data.product_cart?.[0]?.product_id);
 
   let userId = meta.user_id;
   if (!userId && data.customer?.email) {
