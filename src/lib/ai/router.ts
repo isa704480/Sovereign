@@ -1,13 +1,15 @@
 import "server-only";
-import { MODELS, MODEL_BY_ID, type SovereignModel } from "@/config/models";
-import { planAllowsTier, type Plan } from "@/config/plans";
+import type { Plan } from "@/config/plans";
 import { DEFAULT_LANG, fmt, LANG_FOR_AI, translate, type Lang, type TKey } from "@/lib/i18n";
+import { autoCandidates, autoModelLabel, type AutoCategory } from "@/lib/ai/auto-pools";
 
 export interface RouteStep {
   modelId: string;
   /** "research" runs Perplexity; "answer" runs the chosen model. */
   kind: "research" | "answer";
   purpose: string;
+  /** Auto: shu qadam uchun zaxira navbati ([modelId, ...]); chat route shu tartibda sinaydi. */
+  fallbacks?: string[];
 }
 
 export interface RoutePlan {
@@ -37,19 +39,15 @@ function textOf(content: string | unknown[]): string {
     .join(" ");
 }
 
-/** Best model of a preferred id list that the plan allows; else best allowed overall. */
-function pick(plan: Plan, preferred: string[]): SovereignModel {
-  for (const id of preferred) {
-    const m = MODEL_BY_ID[id];
-    if (m && planAllowsTier(plan, m.tier)) return m;
-  }
-  // Fallback: highest-tier chat model the plan allows.
-  const order = ["pro", "starter", "free"] as const;
-  for (const tier of order) {
-    const m = MODELS.find((x) => x.tier === tier && x.category !== "research" && planAllowsTier(plan, x.tier));
-    if (m) return m;
-  }
-  return MODEL_BY_ID["gemma-4-31b:free"];
+/** Auto tanlovi: tarif × vazifa navbatidan asosiy model + zaxiralar. */
+interface Choice {
+  id: string;
+  name: string;
+  fallbacks: string[];
+}
+function choose(plan: Plan, category: AutoCategory): Choice {
+  const list = autoCandidates(plan, category);
+  return { id: list[0], name: autoModelLabel(list[0]), fallbacks: list };
 }
 
 const RESEARCH_MODEL = "sonar-online";
@@ -68,17 +66,17 @@ export function planRoute(content: string | unknown[], plan: Plan, lang: Lang = 
   const isCreative = CREATIVE_RE.test(text);
   const isMath = MATH_RE.test(text);
 
-  const codeModel = pick(plan, ["gpt-4o", "claude-sonnet-4-5", "gpt-4o-mini", "glm-5.2:free"]);
-  const creativeModel = pick(plan, ["claude-sonnet-4-5", "claude-haiku-4-5", "gemma-4-31b:free"]);
-  const mathModel = pick(plan, ["gemini-pro-1.5", "gpt-4o", "nemotron-3-super:free"]);
-  const generalModel = pick(plan, ["claude-sonnet-4-5", "gpt-4o-mini", "glm-5.2:free"]);
+  const codeModel = choose(plan, "code");
+  const creativeModel = choose(plan, "creative");
+  const mathModel = choose(plan, "math");
+  const generalModel = choose(plan, "general");
 
   // Research + build → Perplexity first, then the coding model.
   if (needsResearch && isCode) {
     return {
       steps: [
         { modelId: RESEARCH_MODEL, kind: "research", purpose: t("chRoutePurposeResearchFacts") },
-        { modelId: codeModel.id, kind: "answer", purpose: t("chRoutePurposeBuildFromResearch") },
+        { modelId: codeModel.id, kind: "answer", purpose: t("chRoutePurposeBuildFromResearch"), fallbacks: codeModel.fallbacks },
       ],
       reason: fmt(t("chRouteReasonResearchCode"), { model: codeModel.name }),
     };
@@ -91,24 +89,24 @@ export function planRoute(content: string | unknown[], plan: Plan, lang: Lang = 
   }
   if (isCode) {
     return {
-      steps: [{ modelId: codeModel.id, kind: "answer", purpose: t("chRoutePurposeCode") }],
+      steps: [{ modelId: codeModel.id, kind: "answer", purpose: t("chRoutePurposeCode"), fallbacks: codeModel.fallbacks }],
       reason: fmt(t("chRouteReasonCode"), { model: codeModel.name }),
     };
   }
   if (isMath) {
     return {
-      steps: [{ modelId: mathModel.id, kind: "answer", purpose: t("chRoutePurposeMath") }],
+      steps: [{ modelId: mathModel.id, kind: "answer", purpose: t("chRoutePurposeMath"), fallbacks: mathModel.fallbacks }],
       reason: fmt(t("chRouteReasonMath"), { model: mathModel.name }),
     };
   }
   if (isCreative) {
     return {
-      steps: [{ modelId: creativeModel.id, kind: "answer", purpose: t("chRoutePurposeCreative") }],
+      steps: [{ modelId: creativeModel.id, kind: "answer", purpose: t("chRoutePurposeCreative"), fallbacks: creativeModel.fallbacks }],
       reason: fmt(t("chRouteReasonCreative"), { model: creativeModel.name }),
     };
   }
   return {
-    steps: [{ modelId: generalModel.id, kind: "answer", purpose: t("chRoutePurposeGeneral") }],
+    steps: [{ modelId: generalModel.id, kind: "answer", purpose: t("chRoutePurposeGeneral"), fallbacks: generalModel.fallbacks }],
     reason: fmt(t("chRouteReasonGeneral"), { model: generalModel.name }),
   };
 }
@@ -134,10 +132,10 @@ export async function planRouteLLM(content: string | unknown[], plan: Plan, lang
   const text = textOf(content).slice(0, 2000);
   if (!text || !process.env.OPENROUTER_API_KEY) return planRoute(content, plan, lang);
 
-  const codeModel = pick(plan, ["gpt-4o", "claude-sonnet-4-5", "gpt-4o-mini", "glm-5.2:free"]);
-  const creativeModel = pick(plan, ["claude-sonnet-4-5", "claude-haiku-4-5", "gemma-4-31b:free"]);
-  const mathModel = pick(plan, ["gemini-pro-1.5", "gpt-4o", "nemotron-3-super:free"]);
-  const generalModel = pick(plan, ["claude-sonnet-4-5", "gpt-4o-mini", "glm-5.2:free"]);
+  const codeModel = choose(plan, "code");
+  const creativeModel = choose(plan, "creative");
+  const mathModel = choose(plan, "math");
+  const generalModel = choose(plan, "general");
 
   const sys = [
     "Sen SOVEREIGN Auto planner'san. Foydalanuvchi so'rovini tahlil qilib, uni qanday bajarish kerakligini aniqla.",
@@ -187,7 +185,7 @@ export async function planRouteLLM(content: string | unknown[], plan: Plan, lang
     return {
       steps: [
         { modelId: RESEARCH_MODEL, kind: "research", purpose: t("chRoutePurposeSearchFacts") },
-        { modelId: answerModel.id, kind: "answer", purpose: t("chRoutePurposeBuild") },
+        { modelId: answerModel.id, kind: "answer", purpose: t("chRoutePurposeBuild"), fallbacks: answerModel.fallbacks },
       ],
       reason: `${reason} — Perplexity + ${answerModel.name}.`,
     };
@@ -199,7 +197,7 @@ export async function planRouteLLM(content: string | unknown[], plan: Plan, lang
     };
   }
   return {
-    steps: [{ modelId: answerModel.id, kind: "answer", purpose: intent }],
+    steps: [{ modelId: answerModel.id, kind: "answer", purpose: intent, fallbacks: answerModel.fallbacks }],
     reason: `${reason} — ${answerModel.name}.`,
   };
 }

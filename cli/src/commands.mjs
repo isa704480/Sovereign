@@ -32,8 +32,8 @@ export const SLASH_COMMANDS = [
   { cmd: "/vibe",     desc: "Vibe rejim — kodni faqat AI yozadi" },
   { cmd: "/swarm",    desc: "Parallel ishchilar — /swarm 4 <vazifa>" },
 
-  { cmd: "/model",    desc: "Modelni tanlash — /model <id>" },
-  { cmd: "/models",   desc: "Barcha modellar ro'yxati" },
+  { cmd: "/model",    desc: "Modelni tanlash — strelka menyusi (yoki /model <id>, /model auto)" },
+  { cmd: "/models",   desc: "Oilalar menyusi (yoki /models <so'z> qidiruv)" },
 
   { cmd: "/skills",   desc: "SOVEREIGN Skills ro'yxati" },
   { cmd: "/skill",    desc: "Skilni ON/OFF — /skill <id>" },

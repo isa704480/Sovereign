@@ -345,10 +345,11 @@ ${connectorContext}`
           let stepText = "";
           // Model band yoki krediti tugagan bo'lsa — javobsiz qoldirmay, ruxsat
           // etilgan boshqa modelga o'tamiz va buni foydalanuvchiga aytamiz.
-          const candidates = [
-            step.modelId,
-            ...fallbackModelIds(step.modelId, (tier) => planAllowsTier(plan, tier)),
-          ];
+          // Auto qadami o'z navbatini olib keladi (tarif × vazifa); qo'lda tanlangan
+          // model uchun esa — shu turdagi, tarif ruxsat bergan zaxiralar.
+          const candidates = step.fallbacks?.length
+            ? step.fallbacks
+            : [step.modelId, ...fallbackModelIds(step.modelId, (tier) => planAllowsTier(plan, tier))];
           for (let ci = 0; ci < candidates.length; ci++) {
             const candidate = candidates[ci];
             let failure = "";

@@ -229,7 +229,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
                         className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5"
                         style={{ borderColor: `${sm?.primary ?? "#5B50F0"}55`, color: sm?.primary ?? "var(--t-text)" }}
                       >
-                        {st.kind === "research" ? "🌐" : sm?.glyph} {sm?.shortName ?? st.modelId}
+                        {st.kind === "research" ? "🌐" : sm?.glyph} {sm?.shortName ?? shortModelId(st.modelId)}
                       </span>
                     </span>
                   );
@@ -274,7 +274,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             <RefreshCw className="size-3" style={{ color: "var(--warning, #F59E0B)" }} />
             {t("modelSwitched")} ·{" "}
             {MODEL_BY_ID[message.switched[message.switched.length - 1].to]?.shortName ??
-              message.switched[message.switched.length - 1].to}
+              shortModelId(message.switched[message.switched.length - 1].to)}
           </div>
         ) : null}
 
@@ -413,4 +413,9 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
       </div>
     </motion.div>
   );
+}
+
+/** OmniRoute id → o'qiladigan nom: "cfp/deepseek-ai/deepseek-v4-flash-0731" → "deepseek-v4-flash-0731". */
+function shortModelId(id: string): string {
+  return id.split("/").pop() || id;
 }

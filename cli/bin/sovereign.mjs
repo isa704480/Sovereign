@@ -4,7 +4,8 @@ import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from ".
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
 import { loadMemory, addMemory, removeMemory, clearMemory, syncMemory } from "../src/memory.mjs";
 import { login } from "../src/login.mjs";
-import { printModels, resolveModelId, isOmniId, fetchCatalog, printCatalog, fetchFamilies, printFamilies, matchFamily } from "../src/models.mjs";
+import { printModels, resolveModelId, isOmniId, fetchCatalog, printCatalog, fetchFamilies, matchFamily, CLI_MODELS } from "../src/models.mjs";
+import { selectMenu } from "../src/menu.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu, spinner } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
@@ -271,6 +272,80 @@ async function repl() {
   };
   const say = (line) => console.log(G + line);
 
+  // ── Model tanlash — strelka bilan (yozmasdan) ──
+  const setAutoModel = () => {
+    saveConfig({ omniModel: "", model: "" });
+    config = { ...config, omniModel: "", model: loadConfig().model };
+    say(`${c.green("Model:")} ${c.indigo("SOVEREIGN Auto")} ${c.dim("(tarifingizga qarab server o'zi tanlaydi)")}`);
+  };
+  const setOmniModel = (id) => {
+    config = { ...config, omniModel: id, model: id };
+    saveConfig({ omniModel: id, model: id });
+    say(`${c.green("Model:")} ${c.indigo(id)} ${c.dim("(OmniRoute)")}`);
+  };
+  const caps = (m) =>
+    [m.tools ? "🔧" : "", m.vision ? "👁" : "", m.reasoning ? "🧠" : "", m.context ? `${Math.round(m.context / 1000)}k` : ""]
+      .filter(Boolean)
+      .join(" ");
+  const pickModel = async () => {
+    const spin = spinner("oilalar yuklanyapti...");
+    const fams = await fetchFamilies(config);
+    spin.stop();
+    const current = config.omniModel || "";
+    for (;;) {
+      const top = [
+        { label: "★ SOVEREIGN Auto", hint: "tarifga qarab eng mos modelni server tanlaydi", pick: { kind: "auto" } },
+      ];
+      if (fams.configured) {
+        if (fams.featured?.length) {
+          top.push({ label: "✦ Tekin — tavsiya", hint: `${fams.featured.length} ta · tool-calling`, pick: { kind: "featured" } });
+        }
+        for (const f of fams.families ?? []) {
+          top.push({
+            label: f.label,
+            hint: `${f.count} model${f.auto ? " · auto: " + f.auto : ""}`,
+            search: f.key,
+            pick: { kind: "family", key: f.key, label: f.label },
+          });
+        }
+      } else {
+        // Katalog ulanmagan — mahalliy ro'yxat.
+        for (const m of CLI_MODELS) top.push({ label: m.label, hint: m.note, search: m.id, pick: { kind: "static", id: m.id } });
+      }
+      const fam = await selectMenu({ title: "Model oilasi", items: top });
+      if (!fam) return;
+      const v = fam.pick;
+      if (v.kind === "auto") return setAutoModel();
+      if (v.kind === "static") {
+        config = { ...config, model: v.id, omniModel: "" };
+        saveConfig({ model: v.id, omniModel: "" });
+        return say(`${c.green("Model:")} ${c.indigo(v.id)}`);
+      }
+      let models;
+      if (v.kind === "featured") {
+        models = fams.featured.map((m) => ({ ...m, hintText: m.note }));
+      } else {
+        const sp = spinner(`${v.label} modellari yuklanyapti...`);
+        const data = await fetchCatalog(config, "", 500, v.key);
+        sp.stop();
+        models = data.models ?? [];
+      }
+      const items = [
+        { label: "← Orqaga", hint: "oilalar ro'yxatiga", back: true },
+        ...models.map((m) => ({
+          label: m.id === current ? `${m.id}  ●` : m.id,
+          hint: [m.hintText ?? m.label ?? "", caps(m)].filter(Boolean).join("  "),
+          search: `${m.label ?? ""} ${m.owner ?? ""}`,
+          id: m.id,
+        })),
+      ];
+      const at = items.findIndex((it) => it.id === current);
+      const chosen = await selectMenu({ title: v.label ?? "Tekin — tavsiya", items, initial: at > 0 ? at : 1 });
+      if (!chosen || chosen.back) continue; // oilalarga qaytish
+      return setOmniModel(chosen.id);
+    }
+  };
+
   rewritePrompt();
 
   for await (const raw of rl) {
@@ -492,10 +567,7 @@ async function repl() {
       const arg = input.slice(7).trim();
       const cur = config.omniModel || config.model;
       if (!arg) {
-        const spin = spinner("oilalar yuklanyapti...");
-        const fams = await fetchFamilies(config);
-        spin.stop();
-        printFamilies(fams);
+        await pickModel();
       } else {
         const spin = spinner("qidirilyapti...");
         const fams = await fetchFamilies(config);
@@ -511,10 +583,7 @@ async function repl() {
       const arg = input.slice(6).trim();
       if (arg && /^(auto|avto|sovereign)$/i.test(arg)) {
         // SOVEREIGN Auto — server tarif va mavjud provayderlarga qarab o'zi tanlaydi.
-        saveConfig({ omniModel: "", model: "" });
-        // Bo'sh model faylda → loadConfig standart modelni qaytaradi (direct-mode uchun ham to'g'ri).
-        config = { ...config, omniModel: "", model: loadConfig().model };
-        say(`${c.green("Model:")} ${c.indigo("SOVEREIGN Auto")} ${c.dim("(server eng mos va ishlayotgan provayderni o'zi tanlaydi)")}`);
+        setAutoModel();
       } else if (arg) {
         if (isOmniId(arg)) {
           // OmniRoute katalog modeli — har so'rovda serverga yuboriladi (OmniRoute orqali).
@@ -528,9 +597,10 @@ async function repl() {
           say(`${c.green("Model:")} ${c.indigo(m)}${config.token ? c.dim("  (server tarifga qarab tanlaydi)") : ""}`);
           if (config.token) pushSettings(config, { default_model: m });
         }
+      } else if (process.stdin.isTTY) {
+        await pickModel();
       } else {
         printModels(config.omniModel || (config.token ? "" : config.model));
-        say(c.dim("Oilalar: ") + c.white("/models") + c.dim("  · oila ichi: ") + c.white("/models claude") + c.dim("  · qidiruv: ") + c.white("/models <so'z>"));
       }
       rewritePrompt();
       continue;
