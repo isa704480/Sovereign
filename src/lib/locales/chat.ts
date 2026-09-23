@@ -428,16 +428,4 @@ export const CHAT = {
     ru: "Сейчас не удалось проверить промокод. Попробуйте позже.",
     en: "Couldn't verify the promo code right now. Please try again later.",
   },
-  chFeeNote: {
-    uz: "+ to'lov komissiyasi: karta ~6%, kripto 0.1%",
-    "uz-cyrl": "+ тўлов комиссияси: карта ~6%, крипто 0.1%",
-    ru: "+ комиссия платёжной системы: карта ~6%, крипто 0.1%",
-    en: "+ payment processing fee: card ~6%, crypto 0.1%",
-  },
-  chFeeIncluded: {
-    uz: "to'lov komissiyasi bilan",
-    "uz-cyrl": "тўлов комиссияси билан",
-    ru: "с учётом комиссии",
-    en: "incl. processing fee",
-  },
 } satisfies Dict;

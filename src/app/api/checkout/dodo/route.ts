@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
-import { grossPrice } from "@/config/payment-fees";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -40,7 +39,7 @@ export async function POST(req: Request) {
     id: orderId,
     user_id: user.id,
     plan: planId,
-    amount: grossPrice(PLAN_BY_ID[planId].price, "card").toFixed(2),
+    amount: PLAN_BY_ID[planId].price.toFixed(2),
     currency: "USD",
     status: "pending",
     provider: "dodo",

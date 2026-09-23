@@ -6,10 +6,9 @@ import { useEffect, useState } from "react";
 import { PLAN_BY_ID, PLANS, type PlanId } from "@/config/plans";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
 import { useLang, useT } from "@/store/chat";
-import type { TKey } from "@/lib/i18n";
+import { fmt, type TKey } from "@/lib/i18n";
 import { planText } from "@/lib/locales/plans";
 import { cn } from "@/lib/utils";
-import { formatUsd, grossPrice, type PayMethod } from "@/config/payment-fees";
 
 interface PricingDialogProps {
   open: boolean;
@@ -21,7 +20,7 @@ interface PricingDialogProps {
   suggestedPlan?: PlanId | null;
 }
 
-type Method = PayMethod;
+type Method = "card" | "crypto";
 
 const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoint: string; Icon: typeof CreditCard }[] = [
   {
@@ -198,7 +197,9 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             <span className="text-sm font-normal" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>/{t("perMonth")}</span>
                           </div>
                           {p.price > 0 && (
-                            <p className="mt-1 text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t("chFeeNote")}</p>
+                            <p className="mt-1 text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                              {fmt(t("ldPerDay"), { price: (p.price / 30).toFixed(2) })}
+                            </p>
                           )}
                           <p className="mt-1 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{tx.tagline}</p>
 
@@ -296,14 +297,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             <span className="block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{sub}</span>
                             <span className="mt-1 block text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t(noteKey)}</span>
                           </span>
-                          <span className="shrink-0 text-right">
-                            <span className="nums block text-sm font-semibold" style={{ color: plan.color }}>
-                              ${formatUsd(grossPrice(plan.price, id))}
-                            </span>
-                            <span className="block text-[10px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                              {t("chFeeIncluded")}
-                            </span>
-                          </span>
+                          <span className="nums text-sm font-semibold" style={{ color: plan.color }}>${plan.price}</span>
                         </button>
                       );
                     })}

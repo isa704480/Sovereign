@@ -5,9 +5,17 @@
  * Faqat "ko'p / o'rtacha / kam" indikator. Aniq matematika:
  *
  *  Free (registered):   150k token/oy  = X
- *  Basic  $4.99:        450k token/oy  = 3X
- *  Pro    $19.99:       1.5M token/oy  = 10X
- *  Ultra  $99.99:       3M   token/oy  = 20X
+ *  Basic  $5.99:        450k token/oy  = 3X
+ *  Pro    $21.99:       1.5M token/oy  = 10X
+ *  Ultra  $109.99:      3M   token/oy  = 20X
+ *
+ * Narx = mijoz to'laydigan summa (karta ham, kripto ham bir xil). Provayder
+ * komissiyasidan keyin ham maqsadli daromad ($4.99 / $19.99 / $99.99) qoladi:
+ *   Dodo (karta): 4% + $0.40, +1.5% xalqaro karta, +0.5% obuna = 6% + $0.40
+ *     (https://dodopayments.com/pricing) → sof $5.23 / $20.27 / $102.99
+ *   ZenoBank (kripto): 0.1% (https://docs.zenobank.io/fees)
+ * Soliq (VAT) Dodo tomonidan mijozga ustidan qo'shiladi (tax_inclusive=false).
+ * Narxni o'zgartirsangiz — Dodo'dagi mahsulot narxini ham moslang.
  *
  * Har xabar (savol + javob) o'rtacha ~2k token deb hisoblanadi.
  * Ya'ni Free 75 xabar, Basic 225, Pro 750, Ultra 1500 xabar/oy.
@@ -75,7 +83,7 @@ export const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Basic",
-    price: 4.99,
+    price: 5.99,
     tagline: "Har kuni ishlatasiz",
     description: "3× ko'proq token, arzon flagman modellar bilan.",
     tiers: ["free", "starter"],
@@ -100,7 +108,7 @@ export const PLANS: Plan[] = [
   {
     id: "pro",
     name: "Pro",
-    price: 19.99,
+    price: 21.99,
     tagline: "Professional darajaga",
     description: "10× ko'proq token, barcha flagman modellar va research.",
     tiers: ["free", "starter", "pro"],
@@ -127,7 +135,7 @@ export const PLANS: Plan[] = [
   {
     id: "ultra",
     name: "Ultra",
-    price: 99.99,
+    price: 109.99,
     tagline: "Maksimal quvvat",
     description: "20× ko'proq token, Opus/GPT-5, chuqur research, ustuvor navbat.",
     tiers: ["free", "starter", "pro", "ultra"],

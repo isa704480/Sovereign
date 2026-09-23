@@ -205,6 +205,12 @@ export const LANDING = {
   // Navbar
   ldMenuOpen: { uz: "Menyuni ochish", "uz-cyrl": "Менюни очиш", ru: "Открыть меню", en: "Open menu" },
   ldMenuClose: { uz: "Menyuni yopish", "uz-cyrl": "Менюни ёпиш", ru: "Закрыть меню", en: "Close menu" },
+  ldPerDay: {
+    uz: "kuniga atigi ~${price}",
+    "uz-cyrl": "кунига атиги ~${price}",
+    ru: "всего ~${price} в день",
+    en: "just ~${price} a day",
+  },
 } satisfies Dict;
 
 /**
