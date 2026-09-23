@@ -50,7 +50,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Obuna va to'lov",
-          body: "Xizmat bepul (Free) va pullik (Starter, Pro, Ultra) tariflarni taklif qiladi. Pullik tariflar **oylik avtomatik yangilanadigan obuna** asosida hisoblanadi. To'lov muvaffaqiyatli o'tgach, tegishli tarif imkoniyatlari darhol ochiladi. Narxlar oldindan ogohlantirilib o'zgartirilishi mumkin. To'lovlar Dodo Payments (karta) yoki kripto shlyuzi orqali qayta ishlanadi.",
+          body: "Xizmat bepul (Free) va pullik (Basic, Pro, Ultra) tariflarni taklif qiladi. Pullik tariflar **oylik yoki yillik** to'lanadi: karta orqali — avtomatik yangilanadigan obuna, kripto va СБП orqali — tanlangan muddatga bir martalik to'lov. To'lov muvaffaqiyatli o'tgach, tegishli tarif imkoniyatlari darhol ochiladi. Narxlar oldindan ogohlantirilib o'zgartirilishi mumkin. To'lovlar Dodo Payments (karta), kripto shlyuzi yoki RollyPay (СБП, rublda) orqali qayta ishlanadi.",
         },
         {
           h: "Ruxsat etilgan foydalanish",
@@ -93,7 +93,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Обуна ва тўлов",
-          body: "Хизмат бепул (Free) ва пуллик (Starter, Pro, Ultra) тарифларни таклиф қилади. Пуллик тарифлар **ойлик автоматик янгиланадиган обуна** асосида ҳисобланади. Тўлов муваффақиятли ўтгач, тегишли тариф имкониятлари дарҳол очилади. Нархлар олдиндан огоҳлантирилиб ўзгартирилиши мумкин. Тўловлар Dodo Payments (карта) ёки крипто шлюзи орқали қайта ишланади.",
+          body: "Хизмат бепул (Free) ва пуллик (Basic, Pro, Ultra) тарифларни таклиф қилади. Пуллик тарифлар **ойлик ёки йиллик** тўланади: карта орқали — автоматик янгиланадиган обуна, крипто ва СБП орқали — танланган муддатга бир марталик тўлов. Тўлов муваффақиятли ўтгач, тегишли тариф имкониятлари дарҳол очилади. Нархлар олдиндан огоҳлантирилиб ўзгартирилиши мумкин. Тўловлар Dodo Payments (карта), крипто шлюзи ёки RollyPay (СБП, рублда) орқали қайта ишланади.",
         },
         {
           h: "Рухсат этилган фойдаланиш",
@@ -136,7 +136,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Подписка и оплата",
-          body: "Сервис предлагает бесплатный (Free) и платные (Starter, Pro, Ultra) тарифы. Платные тарифы оплачиваются в виде **ежемесячной подписки с автоматическим продлением**. После успешной оплаты возможности соответствующего тарифа открываются сразу. Цены могут изменяться с предварительным уведомлением. Платежи обрабатываются через Dodo Payments (карта) или криптошлюз.",
+          body: "Сервис предлагает бесплатный (Free) и платные (Basic, Pro, Ultra) тарифы. Платные тарифы оплачиваются **помесячно или за год**: картой — подписка с автоматическим продлением, криптовалютой и через СБП — разовый платёж за выбранный срок. После успешной оплаты возможности соответствующего тарифа открываются сразу. Цены могут изменяться с предварительным уведомлением. Платежи обрабатываются через Dodo Payments (карта), криптошлюз или RollyPay (СБП, в рублях).",
         },
         {
           h: "Допустимое использование",
@@ -179,7 +179,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Subscription and payment",
-          body: "The Service offers a free plan (Free) and paid plans (Starter, Pro, Ultra). Paid plans are billed as a **monthly auto-renewing subscription**. Once payment succeeds, the features of the corresponding plan are unlocked immediately. Prices may change with prior notice. Payments are processed via Dodo Payments (card) or a crypto gateway.",
+          body: "The Service offers a free plan (Free) and paid plans (Basic, Pro, Ultra). Paid plans are billed **monthly or yearly**: by card as an auto-renewing subscription; by crypto or SBP as a one-time payment for the chosen period. Once payment succeeds, the features of the corresponding plan are unlocked immediately. Prices may change with prior notice. Payments are processed via Dodo Payments (card), a crypto gateway or RollyPay (SBP, in rubles).",
         },
         {
           h: "Acceptable use",
@@ -222,7 +222,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
             "**Hisob:** email, ism (ixtiyoriy), autentifikatsiya identifikatori.",
             "**Foydalanish:** so'rovlar soni, tanlangan model, tarif holati — xizmatni ta'minlash uchun.",
             "**Xotira/suhbatlar:** siz saqlagan kontent — **shifrlangan** holda (quyida).",
-            "**To'lov:** to'lov shlyuzi (Dodo Payments/kripto) tomonidan qayta ishlanadi; biz karta ma'lumotlaringizni saqlamaymiz.",
+            "**To'lov:** to'lov shlyuzi (Dodo Payments / kripto / RollyPay СБП) tomonidan qayta ishlanadi; biz karta ma'lumotlaringizni saqlamaymiz.",
           ],
         },
         {
@@ -273,7 +273,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
             "**Ҳисоб:** email, исм (ихтиёрий), аутентификация идентификатори.",
             "**Фойдаланиш:** сўровлар сони, танланган модел, тариф ҳолати — хизматни таъминлаш учун.",
             "**Хотира/суҳбатлар:** сиз сақлаган контент — **шифрланган** ҳолда (қуйида).",
-            "**Тўлов:** тўлов шлюзи (Dodo Payments/крипто) томонидан қайта ишланади; биз карта маълумотларингизни сақламаймиз.",
+            "**Тўлов:** тўлов шлюзи (Dodo Payments / крипто / RollyPay СБП) томонидан қайта ишланади; биз карта маълумотларингизни сақламаймиз.",
           ],
         },
         {
@@ -324,7 +324,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
             "**Аккаунт:** email, имя (необязательно), идентификатор аутентификации.",
             "**Использование:** количество запросов, выбранная модель, статус тарифа — для предоставления сервиса.",
             "**Память/чаты:** сохранённый вами контент — в **зашифрованном** виде (см. ниже).",
-            "**Оплата:** обрабатывается платёжным шлюзом (Dodo Payments/крипто); мы не храним данные вашей карты.",
+            "**Оплата:** обрабатывается платёжным шлюзом (Dodo Payments / крипто / RollyPay СБП); мы не храним данные вашей карты.",
           ],
         },
         {
@@ -375,7 +375,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
             "**Account:** email, name (optional), authentication identifier.",
             "**Usage:** number of requests, selected model, plan status — to provide the service.",
             "**Memory/chats:** content you save — stored **encrypted** (see below).",
-            "**Payment:** processed by the payment gateway (Dodo Payments/crypto); we do not store your card details.",
+            "**Payment:** processed by the payment gateway (Dodo Payments / crypto / RollyPay SBP); we do not store your card details.",
           ],
         },
         {

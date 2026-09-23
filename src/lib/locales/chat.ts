@@ -434,4 +434,17 @@ export const CHAT = {
     ru: "Годовая оплата пока недоступна. Выберите помесячный тариф.",
     en: "Yearly billing isn't available yet. Please choose monthly.",
   },
+  chPayBySbp: { uz: "СБП — rublda (Rossiya)", "uz-cyrl": "СБП — рублда (Россия)", ru: "СБП — в рублях (Россия)", en: "SBP — in rubles (Russia)" },
+  chPayBySbpNote: {
+    uz: "Rossiya banki ilovasi yoki QR orqali. Tanlangan muddatga bir martalik to'lov.",
+    "uz-cyrl": "Россия банки иловаси ёки QR орқали. Танланган муддатга бир марталик тўлов.",
+    ru: "Через приложение банка РФ или QR-код. Разовый платёж за выбранный срок.",
+    en: "Via a Russian bank app or QR code. One-time payment for the chosen period.",
+  },
+  chSbpNotConfigured: {
+    uz: "СБП orqali to'lov hozircha ulanmagan. Karta yoki kripto orqali to'lang.",
+    "uz-cyrl": "СБП орқали тўлов ҳозирча уланмаган. Карта ёки крипто орқали тўланг.",
+    ru: "Оплата через СБП пока недоступна. Оплатите картой или криптовалютой.",
+    en: "SBP payments aren't available yet. Please pay by card or crypto.",
+  },
 } satisfies Dict;

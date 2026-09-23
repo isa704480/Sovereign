@@ -31,6 +31,11 @@ export interface Plan {
   price: number;
   /** USD per year (yillik obuna) — 10× oylik = "2 oy bepul". */
   yearlyPrice?: number;
+  /**
+   * Rossiya uchun СБП (RollyPay) narxi, rublda. RollyPay 10.5% oladi — narx shuni
+   * hisobga olib qo'yilgan: sof daromad dollardagi maqsaddan kam emas (~94 ₽/$).
+   */
+  rubPrice?: number;
   tagline: string;
   description: string;
   /** Model tiers this plan can use. */
@@ -65,6 +70,17 @@ export function isBillingPeriod(v: unknown): v is BillingPeriod {
 /** Tanlangan davr uchun to'lov summasi (USD). */
 export function planPrice(plan: Plan, period: BillingPeriod): number {
   return period === "year" ? (plan.yearlyPrice ?? plan.price * 10) : plan.price;
+}
+
+/** СБП (rubl) summasi: yillik = 10 × oylik ("2 oy bepul"). 0 — rublda sotilmaydi. */
+export function planPriceRub(plan: Plan, period: BillingPeriod): number {
+  const m = plan.rubPrice ?? 0;
+  return period === "year" ? m * 10 : m;
+}
+
+/** "10 990 ₽" */
+export function formatRub(n: number): string {
+  return `${n.toLocaleString("ru-RU").replace(/\s/g, " ")} ₽`;
 }
 
 /** Narxni ko'rsatish: 59.9 → "59.90", 5.99 → "5.99", 0 → "0". */
@@ -103,6 +119,7 @@ export const PLANS: Plan[] = [
     name: "Basic",
     price: 5.99,
     yearlyPrice: 59.9,
+    rubPrice: 590,
     tagline: "Har kuni ishlatasiz",
     description: "3× ko'proq token, arzon flagman modellar bilan.",
     tiers: ["free", "starter"],
@@ -129,6 +146,7 @@ export const PLANS: Plan[] = [
     name: "Pro",
     price: 21.99,
     yearlyPrice: 219.9,
+    rubPrice: 2190,
     tagline: "Professional darajaga",
     description: "10× ko'proq token, barcha flagman modellar va research.",
     tiers: ["free", "starter", "pro"],
@@ -157,6 +175,7 @@ export const PLANS: Plan[] = [
     name: "Ultra",
     price: 109.99,
     yearlyPrice: 1099.9,
+    rubPrice: 10990,
     tagline: "Maksimal quvvat",
     description: "20× ko'proq token, Opus/GPT-5, chuqur research, ustuvor navbat.",
     tiers: ["free", "starter", "pro", "ultra"],

@@ -1,9 +1,9 @@
 "use client";
 
-import { ArrowLeft, Bitcoin, Check, CreditCard, Loader2, X } from "lucide-react";
+import { ArrowLeft, Bitcoin, Check, CreditCard, Loader2, QrCode, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { PLAN_BY_ID, PLANS, type BillingPeriod, type PlanId } from "@/config/plans";
+import { formatRub, PLAN_BY_ID, PLANS, planPriceRub, type BillingPeriod, type PlanId } from "@/config/plans";
 import { BillingToggle, priceFontSize, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
 import { useLang, useT } from "@/store/chat";
@@ -21,7 +21,7 @@ interface PricingDialogProps {
   suggestedPlan?: PlanId | null;
 }
 
-type Method = "card" | "crypto";
+type Method = "card" | "crypto" | "sbp";
 
 const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoint: string; Icon: typeof CreditCard }[] = [
   {
@@ -39,6 +39,14 @@ const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoin
     noteKey: "payByCryptoNote",
     endpoint: "/api/checkout",
     Icon: Bitcoin,
+  },
+  {
+    id: "sbp",
+    titleKey: "chPayBySbp",
+    sub: "СБП · QR · Сбер · Т-Банк · Альфа",
+    noteKey: "chPayBySbpNote",
+    endpoint: "/api/checkout/rollypay",
+    Icon: QrCode,
   },
 ];
 
@@ -278,7 +286,9 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     className="tt mt-6 overflow-hidden"
                     style={{ border: "1px solid var(--t-border)", borderRadius: 18 }}
                   >
-                    {METHODS.map(({ id, titleKey, sub, noteKey, Icon }, idx) => {
+                    {(lang === "ru" ? [...METHODS.filter((m) => m.id === "sbp"), ...METHODS.filter((m) => m.id !== "sbp")] : METHODS)
+                      .filter((m) => m.id !== "sbp" || planPriceRub(plan, period) > 0)
+                      .map(({ id, titleKey, sub, noteKey, Icon }, idx) => {
                       const busy = loading === id;
                       return (
                         <button
@@ -309,7 +319,9 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             <span className="block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{sub}</span>
                             <span className="mt-1 block text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t(noteKey)}</span>
                           </span>
-                          <span className="nums text-sm font-semibold" style={{ color: plan.color }}>{priceLabel(plan, period)}</span>
+                          <span className="nums shrink-0 text-sm font-semibold" style={{ color: plan.color }}>
+                            {id === "sbp" ? formatRub(planPriceRub(plan, period)) : priceLabel(plan, period)}
+                          </span>
                         </button>
                       );
                     })}
