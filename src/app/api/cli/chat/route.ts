@@ -20,7 +20,7 @@ type Cand = { provider: string; model: string; url: string; auth: string; refere
  * navbatdagisiga avtomatik o'tamiz. Shu bois Groq TPM tugasa ish to'xtamaydi.
  *  Groq 120b → Groq 20b (alohida TPM) → OmniRoute → OpenRouter/OpenAI → LLM7 (tekin).
  */
-function candidates(plan: string, chosen?: string): Cand[] {
+function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
   const list: Cand[] = [];
   const groq = process.env.GROQ_API_KEY;
   const openai = process.env.OPENAI_API_KEY;
@@ -49,8 +49,9 @@ function candidates(plan: string, chosen?: string): Cand[] {
   if (or) list.push({ provider: "openrouter", model: big ? "openai/gpt-4o" : "openai/gpt-4o-mini", url: OPENROUTER, auth: or, referer: true });
   // OpenAI mini (agar yuqorida ishlatilmagan bo'lsa).
   if (openai && !big) list.push({ provider: "openai", model: "gpt-4o-mini", url: OPENAI, auth: openai });
-  // LLM7 — oxirgi tekin chora (anonim, kalitsiz ishlaydi).
-  list.push({ provider: "llm7", model: "mistral-Nemo-Instruct-2407", url: LLM7, auth: process.env.LLM7_API_KEY ?? "unused" });
+  // LLM7 — oxirgi tekin chora (anonim, kalitsiz). Tool-calling'ni qo'llamaydi —
+  // agent (vositali) so'rovda uni sinash faqat chalg'ituvchi xato beradi.
+  if (!needsTools) list.push({ provider: "llm7", model: "mistral-Nemo-Instruct-2407", url: LLM7, auth: process.env.LLM7_API_KEY ?? "unused" });
 
   return list;
 }
@@ -151,7 +152,7 @@ export async function POST(req: Request) {
   }
 
   const plan = (isPlanId(planId) && PLAN_BY_ID[planId]) || PLAN_BY_ID.free;
-  const cands = candidates(planId, parsed.data.model);
+  const cands = candidates(planId, parsed.data.model, Boolean(parsed.data.tools?.length));
 
   // CLI ham veb chat bilan bir xil kunlik chegaraga bo'ysunadi.
   try {
@@ -180,8 +181,9 @@ export async function POST(req: Request) {
       max_tokens: maxTokens,
     });
 
-  let lastProvider = "";
-  let lastErr = "noma'lum";
+  // Har provayder xatosi — foydalanuvchi faqat oxirgisini emas, butun zanjirni ko'rsin.
+  const failures: string[] = [];
+  const short = (m: string) => m.replace(/\s+/g, " ").slice(0, 90);
   for (const cand of cands) {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -196,8 +198,7 @@ export async function POST(req: Request) {
     try {
       res = await fetch(cand.url, { method: "POST", headers, body: body(cand.model) });
     } catch (e) {
-      lastProvider = cand.provider;
-      lastErr = e instanceof Error ? e.message : "ulanish xatosi";
+      failures.push(`${cand.provider}/${cand.model}: ${short(e instanceof Error ? e.message : "ulanish xatosi")}`);
       continue; // tarmoq xatosi — keyingi providerga
     }
 
@@ -214,14 +215,13 @@ export async function POST(req: Request) {
     } catch {
       /* keep */
     }
-    lastProvider = cand.provider;
-    lastErr = message;
+    failures.push(`${cand.provider}/${cand.model}: ${res.status} ${short(message)}`);
     // Xato bo'lsa (429 TPM, 5xx, kalit) — keyingi providerga o'tamiz; maqsad: ish
     // to'xtamasin. Zanjir oxirigacha muvaffaqiyat bo'lmasa, quyida xato qaytadi.
   }
 
   return Response.json(
-    { error: `Barcha providerlar band yoki xato. Oxirgi (${lastProvider}): ${lastErr}` },
+    { error: `Barcha providerlar band yoki xato:\n  - ${failures.join("\n  - ")}` },
     { status: 502 },
   );
 }

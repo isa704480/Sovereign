@@ -509,7 +509,13 @@ async function repl() {
     }
     if (input.startsWith("/model")) {
       const arg = input.slice(6).trim();
-      if (arg) {
+      if (arg && /^(auto|avto|sovereign)$/i.test(arg)) {
+        // SOVEREIGN Auto — server tarif va mavjud provayderlarga qarab o'zi tanlaydi.
+        saveConfig({ omniModel: "", model: "" });
+        // Bo'sh model faylda → loadConfig standart modelni qaytaradi (direct-mode uchun ham to'g'ri).
+        config = { ...config, omniModel: "", model: loadConfig().model };
+        say(`${c.green("Model:")} ${c.indigo("SOVEREIGN Auto")} ${c.dim("(server eng mos va ishlayotgan provayderni o'zi tanlaydi)")}`);
+      } else if (arg) {
         if (isOmniId(arg)) {
           // OmniRoute katalog modeli — har so'rovda serverga yuboriladi (OmniRoute orqali).
           config = { ...config, omniModel: arg, model: arg };
@@ -523,7 +529,7 @@ async function repl() {
           if (config.token) pushSettings(config, { default_model: m });
         }
       } else {
-        printModels(config.omniModel || config.model);
+        printModels(config.omniModel || (config.token ? "" : config.model));
         say(c.dim("Oilalar: ") + c.white("/models") + c.dim("  · oila ichi: ") + c.white("/models claude") + c.dim("  · qidiruv: ") + c.white("/models <so'z>"));
       }
       rewritePrompt();

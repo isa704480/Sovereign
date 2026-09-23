@@ -30,6 +30,8 @@ export const CLI_MODELS = [
 
 export function printModels(current) {
   console.log(`\n  ${c.bold(c.white("Modellar"))}  ${c.dim("(/model <id> yoki qisqa nom bilan)")}\n`);
+  const autoOn = !current;
+  console.log(`  ${autoOn ? c.green("●") : c.dim("○")} ${c.white("SOVEREIGN Auto".padEnd(22))} ${c.dim("/model auto".padEnd(38))}  ${c.gray("— ★ tavsiya: server o'zi eng mosini tanlaydi")}`);
   for (const m of CLI_MODELS) {
     const active = m.id === current;
     const mark = active ? c.green("●") : c.dim("○");
