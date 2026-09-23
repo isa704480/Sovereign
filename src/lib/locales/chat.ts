@@ -428,4 +428,10 @@ export const CHAT = {
     ru: "Сейчас не удалось проверить промокод. Попробуйте позже.",
     en: "Couldn't verify the promo code right now. Please try again later.",
   },
+  chYearlyUnavailable: {
+    uz: "Yillik to'lov hozircha ochilmagan. Oylik tarifni tanlang.",
+    "uz-cyrl": "Йиллик тўлов ҳозирча очилмаган. Ойлик тарифни танланг.",
+    ru: "Годовая оплата пока недоступна. Выберите помесячный тариф.",
+    en: "Yearly billing isn't available yet. Please choose monthly.",
+  },
 } satisfies Dict;

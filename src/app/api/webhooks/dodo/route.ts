@@ -68,12 +68,12 @@ export async function POST(req: Request) {
   }
   if (!userId || !plan) return Response.json({ received: true, skipped: "unmatched" });
 
-  // Paid through the next billing date (+1 day grace); fall back to 30 days.
+  // Paid through the next billing date (+1 day grace); fall back to 30 days (yearly: 366).
   const next = data.next_billing_date ? new Date(data.next_billing_date) : null;
   const until =
     next && !Number.isNaN(next.getTime())
       ? new Date(next.getTime() + 24 * 3600 * 1000)
-      : new Date(Date.now() + 30 * 24 * 3600 * 1000);
+      : new Date(Date.now() + (meta.period === "year" ? 366 : 30) * 24 * 3600 * 1000);
 
   const { error } = await supabase.rpc("apply_plan_until", {
     p_user_id: userId,

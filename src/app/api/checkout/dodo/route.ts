@@ -1,15 +1,15 @@
 import { z } from "zod";
-import { PLAN_BY_ID, isPlanId } from "@/config/plans";
+import { PLAN_BY_ID, isBillingPeriod, isPlanId, planPrice } from "@/config/plans";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { createDodoCheckout, dodoMode, isDodoConfigured } from "@/lib/payments/dodo";
+import { createDodoCheckout, dodoMode, dodoProductId, isDodoConfigured } from "@/lib/payments/dodo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 
-const schema = z.object({ plan: z.string() });
+const schema = z.object({ plan: z.string(), period: z.string().optional() });
 
 /** POST /api/checkout/dodo — card subscription checkout via Dodo Payments. */
 export async function POST(req: Request) {
@@ -22,10 +22,14 @@ export async function POST(req: Request) {
     return Response.json({ error: t("chBadPlan") }, { status: 400 });
   }
   const planId = parsed.data.plan;
+  const period = isBillingPeriod(parsed.data.period) ? parsed.data.period : "month";
 
   if (!isSupabaseConfigured()) return Response.json({ error: t("chSupabaseMissing") }, { status: 503 });
   if (!isDodoConfigured()) {
     return Response.json({ error: t("chCardNotConfigured") }, { status: 503 });
+  }
+  if (!dodoProductId(planId, period)) {
+    return Response.json({ error: t("chYearlyUnavailable") }, { status: 503 });
   }
 
   const supabase = await createClient();
@@ -39,10 +43,12 @@ export async function POST(req: Request) {
     id: orderId,
     user_id: user.id,
     plan: planId,
-    amount: PLAN_BY_ID[planId].price.toFixed(2),
+    amount: planPrice(PLAN_BY_ID[planId], period).toFixed(2),
     currency: "USD",
     status: "pending",
     provider: "dodo",
+    // Oylik buyurtma ustunsiz ham yoziladi (0025 migratsiyasidan oldin ham ishlaydi).
+    ...(period === "year" ? { billing_period: "year" } : {}),
   });
   if (insErr) return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
 
@@ -50,10 +56,11 @@ export async function POST(req: Request) {
   try {
     const checkout = await createDodoCheckout({
       plan: planId,
+      period,
       email: user.email,
       name: (user.user_metadata?.full_name as string | undefined) ?? undefined,
       returnUrl: `${origin}/app?paid=1`,
-      metadata: { user_id: user.id, plan: planId, order_id: orderId },
+      metadata: { user_id: user.id, plan: planId, order_id: orderId, period },
     });
     try {
       await createServiceClient().from("orders").update({ checkout_id: checkout.sessionId }).eq("id", orderId);

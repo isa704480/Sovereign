@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PLAN_BY_ID, isPlanId } from "@/config/plans";
+import { PLAN_BY_ID, isBillingPeriod, isPlanId, planPrice } from "@/config/plans";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -10,7 +10,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
-const schema = z.object({ plan: z.string(), promo: z.string().max(64).optional() });
+const schema = z.object({ plan: z.string(), promo: z.string().max(64).optional(), period: z.string().optional() });
 
 /** POST /api/checkout — creates a ZenoBank crypto checkout for a plan. */
 export async function POST(req: Request) {
@@ -26,6 +26,8 @@ export async function POST(req: Request) {
   }
   const planId = parsed.data.plan;
   const plan = PLAN_BY_ID[planId];
+  const period = isBillingPeriod(parsed.data.period) ? parsed.data.period : "month";
+  const price = planPrice(plan, period);
 
   if (!isSupabaseConfigured()) return Response.json({ error: t("chSupabaseMissing") }, { status: 503 });
   if (!isZenoConfigured()) {
@@ -40,11 +42,11 @@ export async function POST(req: Request) {
 
   // CSPRNG bilan bashoratlab bo'lmaydigan order ID. UUIDv4 (~122 bit entropy).
   const orderId = `sov_${crypto.randomUUID()}`;
-  let amount = plan.price.toFixed(2);
+  let amount = price.toFixed(2);
   let promoCode: string | null = null;
   const promo = normalizePromo(parsed.data.promo);
   if (promo) {
-    const r = await resolvePromo(promo, user.id, plan.price);
+    const r = await resolvePromo(promo, user.id, price);
     if (!r.ok) return Response.json({ error: t(r.error) }, { status: 400 });
     amount = r.amount;
     promoCode = r.code;
@@ -59,10 +61,15 @@ export async function POST(req: Request) {
     currency: "USD",
     status: "pending",
     ...(promoCode ? { promo_code: promoCode } : {}),
+    // Yillik: to'lov 365 kunga yoziladi (0025 migratsiyasi). Oylik ustunsiz ham ishlaydi.
+    ...(period === "year" ? { billing_period: "year" } : {}),
   });
   if (insErr) {
     // promo_code ustuni yo'q bo'lsa (0024 migratsiya ishga tushirilmagan)
-    return Response.json({ error: promoCode ? t("chPromoUnavailable") : insErr.message }, { status: 500 });
+    return Response.json(
+      { error: promoCode ? t("chPromoUnavailable") : period === "year" ? t("chYearlyUnavailable") : insErr.message },
+      { status: 500 },
+    );
   }
 
   try {

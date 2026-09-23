@@ -205,6 +205,17 @@ export const LANDING = {
   // Navbar
   ldMenuOpen: { uz: "Menyuni ochish", "uz-cyrl": "Менюни очиш", ru: "Открыть меню", en: "Open menu" },
   ldMenuClose: { uz: "Menyuni yopish", "uz-cyrl": "Менюни ёпиш", ru: "Закрыть меню", en: "Close menu" },
+  ldMonthly: { uz: "Oylik", "uz-cyrl": "Ойлик", ru: "Помесячно", en: "Monthly" },
+  ldYearly: { uz: "Yillik", "uz-cyrl": "Йиллик", ru: "Годовой", en: "Yearly" },
+  ldTwoMonthsFree: { uz: "2 oy bepul", "uz-cyrl": "2 ой бепул", ru: "2 месяца бесплатно", en: "2 months free" },
+  ldPerYear: { uz: "yil", "uz-cyrl": "йил", ru: "год", en: "yr" },
+  ldBilledYearly: {
+    uz: "oyiga ${price} · yiliga bir marta to'lanadi",
+    "uz-cyrl": "ойига ${price} · йилига бир марта тўланади",
+    ru: "${price} в месяц · оплата раз в год",
+    en: "${price}/mo · billed once a year",
+  },
+  ldBillingPeriod: { uz: "To'lov davri", "uz-cyrl": "Тўлов даври", ru: "Период оплаты", en: "Billing period" },
   ldPerDay: {
     uz: "kuniga atigi ~${price}",
     "uz-cyrl": "кунига атиги ~${price}",

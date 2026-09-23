@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
-import { PLANS } from "@/config/plans";
+import { PLANS, type BillingPeriod } from "@/config/plans";
+import { BillingToggle, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 import { cn } from "@/lib/utils";
@@ -13,6 +15,8 @@ import { useLang, useT } from "@/store/chat";
 export function Pricing() {
   const t = useT();
   const lang = useLang();
+  const [period, setPeriod] = useState<BillingPeriod>("month");
+  const hint = usePriceHint();
   return (
     <section id="pricing" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-28">
       <FadeIn inView>
@@ -21,6 +25,9 @@ export function Pricing() {
           {t("ldPricingTitle1")} <span className="text-gradient-brand">{t("ldPricingTitle2")}</span>
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-center text-base text-text-secondary">{t("ldPricingSub")}</p>
+        <div className="mt-8 flex justify-center">
+          <BillingToggle value={period} onChange={setPeriod} />
+        </div>
       </FadeIn>
 
       <Stagger inView stagger={0.06} className="mt-14 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -42,12 +49,12 @@ export function Pricing() {
                 )}
                 <div className="text-sm font-semibold text-text-primary">{p.name}</div>
                 <div className="font-display nums mt-2 text-4xl font-extrabold tracking-tight text-text-primary">
-                  {p.price === 0 ? "0" : `$${p.price}`}
-                  <span className="text-sm font-normal text-text-muted">/{t("perMonth")}</span>
+                  {p.price === 0 ? "0" : priceLabel(p, period)}
+                  <span className="text-sm font-normal text-text-muted">
+                    /{p.price > 0 && period === "year" ? t("ldPerYear") : t("perMonth")}
+                  </span>
                 </div>
-                {p.price > 0 && (
-                  <p className="mt-1 text-xs text-text-muted">{fmt(t("ldPerDay"), { price: (p.price / 30).toFixed(2) })}</p>
-                )}
+                {p.price > 0 && <p className="mt-1 text-xs text-text-muted">{hint(p, period)}</p>}
                 <p className="mt-1 text-sm text-text-secondary">{tx.tagline}</p>
                 <p className="mt-3 text-xs text-text-muted">{tx.description}</p>
   

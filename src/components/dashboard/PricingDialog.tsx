@@ -3,10 +3,11 @@
 import { ArrowLeft, Bitcoin, Check, CreditCard, Loader2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { PLAN_BY_ID, PLANS, type PlanId } from "@/config/plans";
+import { PLAN_BY_ID, PLANS, type BillingPeriod, type PlanId } from "@/config/plans";
+import { BillingToggle, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
 import { useLang, useT } from "@/store/chat";
-import { fmt, type TKey } from "@/lib/i18n";
+import type { TKey } from "@/lib/i18n";
 import { planText } from "@/lib/locales/plans";
 import { cn } from "@/lib/utils";
 
@@ -45,6 +46,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
   const t = useT();
   const lang = useLang();
   const [selected, setSelected] = useState<PlanId | null>(null);
+  const [period, setPeriod] = useState<BillingPeriod>("month");
+  const hint = usePriceHint();
   const [loading, setLoading] = useState<Method | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [promo, setPromo] = useState("");
@@ -85,7 +88,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // Sayt promokodi faqat kripto (ZenoBank) uchun; karta kodi Dodo sahifasida kiritiladi.
-        body: JSON.stringify({ plan: selected, ...(method === "crypto" && promo.trim() ? { promo: promo.trim() } : {}) }),
+        body: JSON.stringify({ plan: selected, period, ...(method === "crypto" && promo.trim() ? { promo: promo.trim() } : {}) }),
       });
       const data = (await res.json().catch(() => ({}))) as { checkoutUrl?: string; error?: string };
       if (data.checkoutUrl) {
@@ -164,6 +167,9 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                         {reason}
                       </p>
                     )}
+                    <div className="mt-5 flex justify-center">
+                      <BillingToggle value={period} onChange={setPeriod} />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -193,12 +199,14 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           )}
                           <div className="text-sm font-semibold" style={{ color: p.color }}>{p.name}</div>
                           <div className="t-display nums mt-1 text-3xl font-extrabold tracking-[-0.02em]">
-                            {p.price === 0 ? "0" : `$${p.price}`}
-                            <span className="text-sm font-normal" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>/{t("perMonth")}</span>
+                            {p.price === 0 ? "0" : priceLabel(p, period)}
+                            <span className="text-sm font-normal" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                              /{p.price > 0 && period === "year" ? t("ldPerYear") : t("perMonth")}
+                            </span>
                           </div>
                           {p.price > 0 && (
                             <p className="mt-1 text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                              {fmt(t("ldPerDay"), { price: (p.price / 30).toFixed(2) })}
+                              {hint(p, period)}
                             </p>
                           )}
                           <p className="mt-1 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{tx.tagline}</p>
@@ -229,7 +237,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                                 : { background: p.color, color: "#fff" }
                             }
                           >
-                            {current ? t("currentPlan") : p.price === 0 ? "Free" : `$${p.price} — ${t("selectSuffix")}`}
+                            {current ? t("currentPlan") : p.price === 0 ? "Free" : `${priceLabel(p, period)} — ${t("selectSuffix")}`}
                           </button>
                         </div>
                       );
@@ -255,7 +263,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                   </button>
 
                   <p className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: plan.color }}>
-                    {plan.name} · ${plan.price}/{t("perMonth")}
+                    {plan.name} · {priceLabel(plan, period)}/{period === "year" ? t("ldPerYear") : t("perMonth")}
                   </p>
                   <h2 className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em]">{t("choosePayment")}</h2>
 
@@ -297,7 +305,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             <span className="block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{sub}</span>
                             <span className="mt-1 block text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t(noteKey)}</span>
                           </span>
-                          <span className="nums text-sm font-semibold" style={{ color: plan.color }}>${plan.price}</span>
+                          <span className="nums text-sm font-semibold" style={{ color: plan.color }}>{priceLabel(plan, period)}</span>
                         </button>
                       );
                     })}

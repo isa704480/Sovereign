@@ -1,6 +1,6 @@
 import "server-only";
 import DodoPayments from "dodopayments";
-import type { PlanId } from "@/config/plans";
+import type { BillingPeriod, PlanId } from "@/config/plans";
 
 type PaidPlan = Exclude<PlanId, "free">;
 
@@ -10,10 +10,24 @@ const PRODUCTS: Record<PaidPlan, string> = {
   ultra: process.env.DODO_PRODUCT_ULTRA ?? "pdt_0NnwFXmtCtqu32TNGKhU3",
 };
 
+/** Yillik obuna mahsulotlari (Dodo'da alohida mahsulot, 1 Year davr). */
+const PRODUCTS_YEARLY: Record<PaidPlan, string | undefined> = {
+  starter: process.env.DODO_PRODUCT_BASIC_YEARLY,
+  pro: process.env.DODO_PRODUCT_PRO_YEARLY,
+  ultra: process.env.DODO_PRODUCT_ULTRA_YEARLY,
+};
+
+export function dodoProductId(plan: PaidPlan, period: BillingPeriod): string | undefined {
+  return period === "year" ? PRODUCTS_YEARLY[plan] : PRODUCTS[plan];
+}
+
 export function planForDodoProduct(productId: string | undefined): PaidPlan | null {
   if (!productId) return null;
-  const hit = (Object.entries(PRODUCTS) as [PaidPlan, string][]).find(([, id]) => id === productId);
-  return hit ? hit[0] : null;
+  for (const map of [PRODUCTS, PRODUCTS_YEARLY]) {
+    const hit = (Object.entries(map) as [PaidPlan, string | undefined][]).find(([, id]) => id === productId);
+    if (hit) return hit[0];
+  }
+  return null;
 }
 
 export function isDodoConfigured(): boolean {
@@ -39,13 +53,16 @@ function dodo(): DodoPayments {
 
 export async function createDodoCheckout(input: {
   plan: PaidPlan;
+  period: BillingPeriod;
   email: string;
   name?: string;
   returnUrl: string;
   metadata: Record<string, string>;
 }): Promise<{ sessionId: string; checkoutUrl: string }> {
+  const productId = dodoProductId(input.plan, input.period);
+  if (!productId) throw new Error("DODO_PRODUCT_*_YEARLY sozlanmagan");
   const session = await dodo().checkoutSessions.create({
-    product_cart: [{ product_id: PRODUCTS[input.plan], quantity: 1 }],
+    product_cart: [{ product_id: productId, quantity: 1 }],
     customer: { email: input.email, name: input.name || input.email.split("@")[0] },
     return_url: input.returnUrl,
     metadata: input.metadata,
