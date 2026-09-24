@@ -1,4 +1,5 @@
 import "server-only";
+import { omniTranscribe } from "@/lib/ai/omniroute-media";
 
 const WHISPER = "https://api.openai.com/v1/audio/transcriptions";
 
@@ -8,8 +9,11 @@ const WHISPER = "https://api.openai.com/v1/audio/transcriptions";
  * container formats (mp3, m4a, wav, mp4, webm, ogg, ...).
  */
 export async function transcribe(file: Blob, filename: string, language = "uz"): Promise<string> {
+  // Avval OmniRoute orqali Groq Whisper (tekin, tez); bo'lmasa OpenAI Whisper.
+  const viaOmni = await omniTranscribe(file, filename, language);
+  if (viaOmni !== null) return viaOmni;
   const key = process.env.OPENAI_API_KEY;
-  if (!key) throw new Error("OPENAI_API_KEY yo'q");
+  if (!key) throw new Error("Transkripsiya provayderi yo'q");
   const form = new FormData();
   form.append("file", file, filename);
   form.append("model", "whisper-1");

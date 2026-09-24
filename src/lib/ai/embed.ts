@@ -1,4 +1,5 @@
 import "server-only";
+import { omniEmbed } from "@/lib/ai/omniroute-media";
 
 const EMBED_URL = "https://openrouter.ai/api/v1/embeddings";
 
@@ -26,10 +27,15 @@ export function chunkText(text: string, targetChars = 3200, overlapChars = 200):
   return chunks.filter((c) => c.length > 20);
 }
 
-/** Batches text through OpenAI's small embeddings model (via OpenRouter). */
+/**
+ * text-embedding-3-small (1536): avval OmniRoute orqali, bo'lmasa to'g'ridan-to'g'ri
+ * OpenRouter. Ikkalasi ham AYNI model — bazadagi vektorlar bilan mos.
+ */
 export async function embedTexts(texts: string[]): Promise<number[][]> {
-  if (!process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY yo'q");
   if (!texts.length) return [];
+  const viaOmni = await omniEmbed(texts);
+  if (viaOmni) return viaOmni;
+  if (!process.env.OPENROUTER_API_KEY) throw new Error("Embedding provayderi yo'q");
   const res = await fetch(EMBED_URL, {
     method: "POST",
     headers: {

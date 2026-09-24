@@ -1,4 +1,5 @@
 import "server-only";
+import { omniImage } from "@/lib/ai/omniroute-media";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -20,7 +21,10 @@ export interface ImageResult {
  * back to text.
  */
 export async function generateImage(prompt: string): Promise<ImageResult> {
-  if (!process.env.OPENROUTER_API_KEY) throw new Error("OPENROUTER_API_KEY yo'q");
+  // Avval OmniRoute orqali tekin AI Horde (Flux Schnell); bo'lmasa OpenRouter Gemini.
+  const viaOmni = await omniImage(prompt);
+  if (viaOmni) return viaOmni;
+  if (!process.env.OPENROUTER_API_KEY) throw new Error("Rasm provayderi yo'q");
   const res = await fetch(OPENROUTER, {
     method: "POST",
     headers: {

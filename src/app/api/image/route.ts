@@ -7,7 +7,7 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 180;
 
 const schema = z.object({ prompt: z.string().min(2).max(2000) });
 
