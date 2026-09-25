@@ -16,7 +16,7 @@ const schema = z.object({ plan: z.string(), promo: z.string().max(64).optional()
 export async function POST(req: Request) {
   const t = await getServerT();
   // Promokodlarni terib topishga (brute-force) qarshi.
-  if (!rateLimit(`zeno-checkout:${clientIp(req)}`, 10, 60_000).ok) {
+  if (!(await rateLimit(`zeno-checkout:${clientIp(req)}`, 10, 60_000)).ok) {
     return Response.json({ error: t("chTooManyRequests") }, { status: 429 });
   }
   const body = await req.json().catch(() => null);

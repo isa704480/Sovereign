@@ -15,7 +15,7 @@ const schema = z.object({ prompt: z.string().min(2).max(2000) });
 export async function POST(req: Request) {
   // Cost-DoS: har foydalanuvchi/IP uchun kuchli rate-limit
   const t = await getServerT();
-  const ipRl = rateLimit(`img:ip:${clientIp(req)}`, 10, 60_000);
+  const ipRl = await rateLimit(`img:ip:${clientIp(req)}`, 10, 60_000);
   if (!ipRl.ok) return Response.json({ error: t("chTooManyImages") }, { status: 429 });
 
   const body = await req.json().catch(() => null);

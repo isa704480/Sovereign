@@ -148,7 +148,7 @@ export async function POST(req: Request) {
   // IP-bazasidagi umumiy anti-abuse — auth kelib chiqishidan qat'i nazar
   // burst hujumni to'sadi. Auth foydalanuvchilarga alohida tokened bucket.
   const ip = clientIp(req);
-  const ipRl = rateLimit(`chat:ip:${ip}`, 30, 60_000); // 30/min per IP
+  const ipRl = await rateLimit(`chat:ip:${ip}`, 30, 60_000); // 30/min per IP
   if (!ipRl.ok) {
     const st = await getServerT();
     return Response.json({ error: st("chTooManyRequests") }, {

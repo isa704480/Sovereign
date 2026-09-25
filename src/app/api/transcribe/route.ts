@@ -14,7 +14,7 @@ const MAX = 25 * 1024 * 1024;
 export async function POST(req: Request) {
   // Cost-DoS: Whisper qimmat, IP bo'yicha kuchli chegara
   const t = await getServerT();
-  const ipRl = rateLimit(`trs:ip:${clientIp(req)}`, 5, 60_000);
+  const ipRl = await rateLimit(`trs:ip:${clientIp(req)}`, 5, 60_000);
   if (!ipRl.ok) return Response.json({ error: t("chTooManyTranscribe") }, { status: 429 });
 
   if (isSupabaseConfigured()) {

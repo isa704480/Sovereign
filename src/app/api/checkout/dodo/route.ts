@@ -15,7 +15,7 @@ const schema = z.object({ plan: z.string(), period: z.string().optional(), promo
 /** POST /api/checkout/dodo — card subscription checkout via Dodo Payments. */
 export async function POST(req: Request) {
   const t = await getServerT();
-  const rl = rateLimit(`dodo-checkout:${clientIp(req)}`, 10, 60_000);
+  const rl = await rateLimit(`dodo-checkout:${clientIp(req)}`, 10, 60_000);
   if (!rl.ok) return Response.json({ error: t("chTooManyAttempts") }, { status: 429 });
 
   const parsed = schema.safeParse(await req.json().catch(() => null));

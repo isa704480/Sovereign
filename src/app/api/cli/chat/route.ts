@@ -110,7 +110,7 @@ export async function POST(req: Request) {
 
   // Rate limit: har bir token uchun daqiqasiga 20 chaqiruv (tool-loop hisobga olib).
   const tokenHash = token.slice(0, 24); // token o'zi kalit sifatida — logga tushmasin
-  const rl = rateLimit(`cli:${tokenHash}`, 20, 60_000);
+  const rl = await rateLimit(`cli:${tokenHash}`, 20, 60_000);
   if (!rl.ok) {
     return Response.json(
       { error: "Juda ko'p so'rov. Bir oz kuting." },
@@ -118,7 +118,7 @@ export async function POST(req: Request) {
     );
   }
   // Qo'shimcha IP-bazasidagi tekshiruv (agar bitta token ko'p mijozdan foydalanilsa).
-  const ipRl = rateLimit(`cli:ip:${clientIp(req)}`, 60, 60_000);
+  const ipRl = await rateLimit(`cli:ip:${clientIp(req)}`, 60, 60_000);
   if (!ipRl.ok) {
     return Response.json({ error: "Juda ko'p so'rov (IP)." }, { status: 429 });
   }

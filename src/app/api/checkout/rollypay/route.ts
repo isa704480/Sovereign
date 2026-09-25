@@ -14,7 +14,7 @@ const schema = z.object({ plan: z.string(), period: z.string().optional() });
 /** POST /api/checkout/rollypay — Rossiya uchun СБП (rubl) to'lov sahifasi. */
 export async function POST(req: Request) {
   const t = await getServerT();
-  if (!rateLimit(`rolly-checkout:${clientIp(req)}`, 10, 60_000).ok) {
+  if (!(await rateLimit(`rolly-checkout:${clientIp(req)}`, 10, 60_000)).ok) {
     return Response.json({ error: t("chTooManyRequests") }, { status: 429 });
   }
   const parsed = schema.safeParse(await req.json().catch(() => null));

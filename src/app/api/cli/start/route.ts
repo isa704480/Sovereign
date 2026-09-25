@@ -11,7 +11,7 @@ const schema = z.object({ device: z.string().max(80).optional() });
 export async function POST(req: Request) {
   // Har IP uchun cheklov — cli_sessions jadvalini keraksiz kodlar bilan
   // to'ldirishning (spam/DoS) oldini oladi.
-  const rl = rateLimit(`cli-start:ip:${clientIp(req)}`, 10, 60_000);
+  const rl = await rateLimit(`cli-start:ip:${clientIp(req)}`, 10, 60_000);
   if (!rl.ok) {
     return Response.json(
       { error: (await getServerT())("secTooManyRequests") },

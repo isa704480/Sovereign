@@ -28,9 +28,9 @@ export async function GET(req: Request) {
   const token = bearer(req);
   if (!token) return Response.json({ error: "Token yo'q" }, { status: 401 });
 
-  const rl = rateLimit(`cli-me-get:${token.slice(0, 24)}`, 30, 60_000);
+  const rl = await rateLimit(`cli-me-get:${token.slice(0, 24)}`, 30, 60_000);
   if (!rl.ok) return Response.json({ error: "Juda ko'p so'rov" }, { status: 429 });
-  const ipRl = rateLimit(`cli-me:ip:${clientIp(req)}`, 60, 60_000);
+  const ipRl = await rateLimit(`cli-me:ip:${clientIp(req)}`, 60, 60_000);
   if (!ipRl.ok) return Response.json({ error: "Juda ko'p so'rov (IP)" }, { status: 429 });
 
   try {
@@ -64,7 +64,7 @@ export async function PATCH(req: Request) {
   const token = bearer(req);
   if (!token) return Response.json({ error: "Token yo'q" }, { status: 401 });
 
-  const rl = rateLimit(`cli-me-patch:${token.slice(0, 24)}`, 20, 60_000);
+  const rl = await rateLimit(`cli-me-patch:${token.slice(0, 24)}`, 20, 60_000);
   if (!rl.ok) return Response.json({ error: "Juda ko'p so'rov" }, { status: 429 });
 
   const raw = await req.json().catch(() => null);

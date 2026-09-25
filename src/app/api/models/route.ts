@@ -12,7 +12,7 @@ export const runtime = "nodejs";
  * Kalit oshkor bo'lmaydi — server keshdan beradi. CLI, veb va Cowork foydalanadi.
  */
 export async function GET(req: Request) {
-  const ipRl = rateLimit(`models:ip:${clientIp(req)}`, 60, 60_000);
+  const ipRl = await rateLimit(`models:ip:${clientIp(req)}`, 60, 60_000);
   if (!ipRl.ok) return Response.json({ error: (await getServerT())("chTooManyRequests") }, { status: 429 });
 
   if (!omniRouteConfigured()) {

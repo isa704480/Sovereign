@@ -19,7 +19,7 @@ function bearer(req: Request): string | null {
 export async function GET(req: Request) {
   const token = bearer(req);
   if (!token) return Response.json({ error: "Token yo'q" }, { status: 401 });
-  const rl = rateLimit(`cli-mem:${token.slice(0, 24)}`, 40, 60_000);
+  const rl = await rateLimit(`cli-mem:${token.slice(0, 24)}`, 40, 60_000);
   if (!rl.ok) return Response.json({ error: "Juda ko'p so'rov" }, { status: 429 });
 
   try {
@@ -42,9 +42,9 @@ const addSchema = z.object({ content: z.string().min(1).max(500) }).strict();
 export async function POST(req: Request) {
   const token = bearer(req);
   if (!token) return Response.json({ error: "Token yo'q" }, { status: 401 });
-  const rl = rateLimit(`cli-mem-w:${token.slice(0, 24)}`, 30, 60_000);
+  const rl = await rateLimit(`cli-mem-w:${token.slice(0, 24)}`, 30, 60_000);
   if (!rl.ok) return Response.json({ error: "Juda ko'p so'rov" }, { status: 429 });
-  const ipRl = rateLimit(`cli-mem:ip:${clientIp(req)}`, 60, 60_000);
+  const ipRl = await rateLimit(`cli-mem:ip:${clientIp(req)}`, 60, 60_000);
   if (!ipRl.ok) return Response.json({ error: "Juda ko'p so'rov (IP)" }, { status: 429 });
 
   const parsed = addSchema.safeParse(await req.json().catch(() => null));
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   const token = bearer(req);
   if (!token) return Response.json({ error: "Token yo'q" }, { status: 401 });
-  const rl = rateLimit(`cli-mem-d:${token.slice(0, 24)}`, 30, 60_000);
+  const rl = await rateLimit(`cli-mem-d:${token.slice(0, 24)}`, 30, 60_000);
   if (!rl.ok) return Response.json({ error: "Juda ko'p so'rov" }, { status: 429 });
 
   const url = new URL(req.url);
