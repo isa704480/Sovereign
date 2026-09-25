@@ -404,10 +404,10 @@ export const CHAT = {
   chPromoLabel: { uz: "Promokod", "uz-cyrl": "Промокод", ru: "Промокод", en: "Promo code" },
   chPromoPlaceholder: { uz: "Promokod (ixtiyoriy)", "uz-cyrl": "Промокод (ихтиёрий)", ru: "Промокод (необязательно)", en: "Promo code (optional)" },
   chPromoHint: {
-    uz: "Promokodingiz bo'lsa, yozing — karta va kripto to'lovga qo'llanadi.",
-    "uz-cyrl": "Промокодингиз бўлса, ёзинг — карта ва крипто тўловга қўлланади.",
-    ru: "Есть промокод? Введите его — он применится к оплате картой и криптой.",
-    en: "Have a promo code? Enter it — it applies to card and crypto payments.",
+    uz: "Promokodingiz bo'lsa, yozing — barcha to'lov usullariga qo'llanadi.",
+    "uz-cyrl": "Промокодингиз бўлса, ёзинг — барча тўлов усулларига қўлланади.",
+    ru: "Есть промокод? Введите его — он применится к любому способу оплаты.",
+    en: "Have a promo code? Enter it — it applies to every payment method.",
   },
   chPromoInvalid: { uz: "Promokod noto'g'ri.", "uz-cyrl": "Промокод нотўғри.", ru: "Неверный промокод.", en: "Invalid promo code." },
   chPromoUsedUp: {
@@ -442,9 +442,9 @@ export const CHAT = {
     en: "Via a Russian bank app or QR code. One-time payment for the chosen period.",
   },
   chSbpNotConfigured: {
-    uz: "СБП orqali to'lov hozircha ulanmagan. Karta yoki kripto orqali to'lang.",
-    "uz-cyrl": "СБП орқали тўлов ҳозирча уланмаган. Карта ёки крипто орқали тўланг.",
-    ru: "Оплата через СБП пока недоступна. Оплатите картой или криптовалютой.",
-    en: "SBP payments aren't available yet. Please pay by card or crypto.",
+    uz: "Bu to'lov usuli hozircha ulanmagan. Karta orqali to'lang.",
+    "uz-cyrl": "Бу тўлов усули ҳозирча уланмаган. Карта орқали тўланг.",
+    ru: "Этот способ оплаты пока недоступен. Оплатите картой.",
+    en: "This payment method isn't available yet. Please pay by card.",
   },
 } satisfies Dict;

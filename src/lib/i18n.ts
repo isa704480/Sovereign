@@ -383,10 +383,10 @@ const CORE = {
   },
   payByCrypto: { uz: "Kripto orqali", "uz-cyrl": "Крипто орқали", ru: "Криптовалютой", en: "By crypto" },
   payByCryptoNote: {
-    uz: "Bir martalik to'lov — 30 kunga faollashadi.",
-    "uz-cyrl": "Бир марталик тўлов — 30 кунга фаоллашади.",
-    ru: "Разовый платёж — активируется на 30 дней.",
-    en: "One-time payment — activates for 30 days.",
+    uz: "Bir martalik to'lov tanlangan muddatga. Summa rublda hisoblanadi, kripto bilan to'lanadi.",
+    "uz-cyrl": "Бир марталик тўлов танланган муддатга. Сумма рублда ҳисобланади, крипто билан тўланади.",
+    ru: "Разовый платёж на выбранный срок. Сумма считается в рублях, оплата криптовалютой.",
+    en: "One-time payment for the chosen period. Priced in rubles, paid in crypto.",
   },
   pricingSecureNote: {
     uz: "Xavfsiz to'lov sahifasiga o'tasiz. Karta ma'lumotlari SOVEREIGN'da saqlanmaydi.",

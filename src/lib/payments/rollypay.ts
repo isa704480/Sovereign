@@ -2,14 +2,14 @@ import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 /**
- * RollyPay — Rossiya auditoriyasi uchun СБП (rubl) qabul qilish.
- * Docs: https://docs.rollypay.io (payments, callbacks).
+ * RollyPay — СБП / МИР kartalari (rubl) va kripto. Pul kassa balansiga USDT
+ * bo'lib tushadi. Docs: https://docs.rollypay.io (payments, callbacks, rate).
  *
  * Env: ROLLYPAY_API_KEY (kassa api_key), ROLLYPAY_SIGNING_SECRET (kassa
  * signing_secret — webhook imzosi), ROLLYPAY_TEST=true — sandbox to'lovlar.
  * Webhook URL kassa sozlamasida: https://sovhq.vercel.app/api/webhooks/rollypay
  */
-const BASE = "https://rollypay.io/api/v1";
+const BASE = (process.env.ROLLYPAY_BASE_URL ?? "https://api.rollypay.io/api/v1").replace(/\/$/, "");
 /** Webhook vaqt tamg'asi shu oraliqdan eski bo'lsa — replay deb rad etiladi. */
 const MAX_SKEW_SEC = 10 * 60;
 
@@ -21,7 +21,38 @@ export function rollyTestMode(): boolean {
   return process.env.ROLLYPAY_TEST === "true";
 }
 
+function headers(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "X-API-Key": process.env.ROLLYPAY_API_KEY!,
+    "X-Nonce": crypto.randomUUID(),
+  };
+}
+
+/** Joriy USDT/RUB kursi (masalan 93.89). 10 daqiqa keshlanadi; xato bo'lsa null. */
+let rateCache: { rate: number; at: number } | null = null;
+export async function rollyRate(): Promise<number | null> {
+  if (rateCache && Date.now() - rateCache.at < 10 * 60_000) return rateCache.rate;
+  try {
+    const res = await fetch(`${BASE}/rate`, { headers: headers(), signal: AbortSignal.timeout(8_000) });
+    const data = (await res.json().catch(() => ({}))) as { rate?: string };
+    const rate = Number(data.rate);
+    if (!res.ok || !Number.isFinite(rate) || rate < 10 || rate > 1000) return null;
+    rateCache = { rate, at: Date.now() };
+    return rate;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * sbp — rus foydalanuvchi uchun: usul yuborilmaydi, formada СБП yoki МИР kartasini
+ * o'zi tanlaydi. crypto — to'g'ridan-to'g'ri kripto sahifasi.
+ */
+export type RollyMethod = "sbp" | "crypto";
+
 export async function createRollyPayment(input: {
+  method: RollyMethod;
   orderId: string;
   amountRub: number;
   description: string;
@@ -32,15 +63,11 @@ export async function createRollyPayment(input: {
 }): Promise<{ paymentId: string; payUrl: string }> {
   const res = await fetch(`${BASE}/payments`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-API-Key": process.env.ROLLYPAY_API_KEY!,
-      "X-Nonce": crypto.randomUUID(),
-    },
+    headers: headers(),
     body: JSON.stringify({
       amount: input.amountRub.toFixed(2),
       payment_currency: "RUB",
-      payment_method: "sbp",
+      ...(input.method === "crypto" ? { payment_method: "crypto" } : {}),
       order_id: input.orderId,
       description: input.description,
       customer_id: input.customerId,

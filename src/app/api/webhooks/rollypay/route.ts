@@ -59,5 +59,16 @@ export async function POST(req: Request) {
   if (type === "payment.canceled" || type === "payment.expired") {
     await supabase.rpc("expire_order", { p_order_id: orderId });
   }
+
+  // Kechki bank natijasi: to'lov qaytarildi / bank bekor qildi — berilgan muddat ham
+  // qaytarib olinadi (0030). refund_request.completed va payment.refunded birga
+  // keladi — funksiya faqat 'paid' buyurtmani o'zgartiradi, ikkinchisi hech narsa qilmaydi.
+  if (event.status === "refunded" || event.status === "chargeback") {
+    const { error } = await supabase.rpc("revoke_order_payment", { p_order_id: orderId });
+    if (error) {
+      console.error("[rollypay] revoke_order_payment:", error.message);
+      return Response.json({ error: "DB write failed" }, { status: 500 });
+    }
+  }
   return Response.json({ received: true });
 }

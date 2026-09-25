@@ -42,7 +42,7 @@ export type PromoResult =
  * Bu faqat oldindan tekshiruv — haqiqiy band qilish (limit/bir martalik) order
  * bilan birga `reservePromoOrder` da atomik bajariladi.
  */
-export async function resolvePromo(code: string, userId: string, price: number): Promise<PromoResult> {
+export async function resolvePromo(code: string, userId: string, price: number, minAmount?: number): Promise<PromoResult> {
   const def = promoDefs().find((d) => d.code === code);
   if (!def) return { ok: false, error: "chPromoInvalid" };
 
@@ -57,7 +57,8 @@ export async function resolvePromo(code: string, userId: string, price: number):
   if (mine.error) return { ok: false, error: "chPromoUnavailable" };
   if ((mine.count ?? 0) > 0) return { ok: false, error: "chPromoAlreadyUsed" };
 
-  const min = Number(process.env.PROMO_MIN_USD ?? "1") || 1;
+  // minAmount — boshqa valyutada (masalan rubl) chaqirilganda o'sha valyutadagi minimum.
+  const min = minAmount ?? (Number(process.env.PROMO_MIN_USD ?? "1") || 1);
   const discounted = Math.round(price * (100 - def.percent)) / 100;
   const amount = Math.min(price, Math.max(min, discounted)).toFixed(2);
   return { ok: true, code, percent: def.percent, maxUses: def.maxUses, amount };

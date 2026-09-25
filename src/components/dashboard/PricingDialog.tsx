@@ -27,6 +27,7 @@ interface PricingDialogProps {
 
 type Method = "card" | "crypto" | "sbp";
 
+// Karta — Dodo; kripto va СБП — RollyPay (ZenoBank endi ishlatilmaydi, /api/checkout zaxira).
 const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoint: string; Icon: typeof CreditCard }[] = [
   {
     id: "card",
@@ -39,15 +40,15 @@ const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoin
   {
     id: "crypto",
     titleKey: "payByCrypto",
-    sub: "USDT · USDC · BTC",
+    sub: "USDT · RollyPay",
     noteKey: "payByCryptoNote",
-    endpoint: "/api/checkout",
+    endpoint: "/api/checkout/rollypay",
     Icon: Bitcoin,
   },
   {
     id: "sbp",
     titleKey: "chPayBySbp",
-    sub: "СБП · QR · Сбер · Т-Банк · Альфа",
+    sub: "СБП · QR · карты МИР",
     noteKey: "chPayBySbpNote",
     endpoint: "/api/checkout/rollypay",
     Icon: QrCode,
@@ -113,8 +114,13 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
       const res = await fetch(METHODS.find((m) => m.id === method)!.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Karta: kod Dodo chegirmasi sifatida qo'llanadi; kripto: sayt PROMO_CODES.
-        body: JSON.stringify({ plan: selected, period, ...(promo.trim() ? { promo: promo.trim() } : {}) }),
+        // Karta: kod Dodo chegirmasi sifatida qo'llanadi; kripto/СБП: sayt PROMO_CODES.
+        body: JSON.stringify({
+          plan: selected,
+          period,
+          ...(method !== "card" ? { method } : {}),
+          ...(promo.trim() ? { promo: promo.trim() } : {}),
+        }),
       });
       const data = (await res.json().catch(() => ({}))) as { checkoutUrl?: string; error?: string };
       if (data.checkoutUrl) {
@@ -325,7 +331,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     style={{ border: "1px solid var(--t-border)", borderRadius: 18 }}
                   >
                     {(lang === "ru" ? [...METHODS.filter((m) => m.id === "sbp"), ...METHODS.filter((m) => m.id !== "sbp")] : METHODS)
-                      .filter((m) => m.id !== "sbp" || planPriceRub(plan, period) > 0)
+                      .filter((m) => m.id === "card" || planPriceRub(plan, period) > 0)
                       .map(({ id, titleKey, sub, noteKey, Icon }, idx) => {
                       const busy = loading === id;
                       return (
