@@ -38,6 +38,13 @@ interface SidebarProps {
   onOpenConnectors?: () => void;
 }
 
+/**
+ * Suhbat qatoridagi amal tugmalari (papka, o'chirish): sichqonchada hover'da,
+ * klaviaturada fokusda, sensorli ekranda (hover yo'q) doim ko'rinadi. 32px nishon.
+ */
+const ROW_ACTION =
+  "absolute top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-white/10 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100";
+
 function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
@@ -258,7 +265,7 @@ export function Sidebar({
                   className="w-full resize-none bg-transparent text-xs leading-relaxed outline-none placeholder:opacity-50"
                   style={{ color: "var(--t-text)" }}
                 />
-                <div className="mt-1 flex items-center justify-between text-[10px]" style={{ color: "var(--t-text-muted)" }}>
+                <div className="mt-1 flex items-center justify-between text-xs" style={{ color: "var(--t-text-muted)" }}>
                   <span>{t("projectAppliesNote")}</span>
                   <button
                     type="button"
@@ -306,7 +313,7 @@ export function Sidebar({
                     }}
                   >
                     <span className="size-2 shrink-0 rounded-full" style={{ background: m?.primary ?? "var(--t-primary)" }} />
-                    <span className="min-w-0 flex-1 pr-10">
+                    <span className={cn("min-w-0 flex-1", projects.length > 0 ? "pr-[72px]" : "pr-10")}>
                       <span className="block truncate">{convTitle(c.title, t)}</span>
                       {snippets[id] && (
                         <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>{snippets[id]}</span>
@@ -317,7 +324,7 @@ export function Sidebar({
                     <button
                       type="button"
                       onClick={() => moveToProject(id, c.projectId ? null : activeProjectId ?? projects[0].id)}
-                      className="absolute right-8 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
+                      className={cn(ROW_ACTION, "right-9")}
                       style={{ color: c.projectId ? "var(--t-accent)" : "var(--t-text-muted)" }}
                       aria-label={c.projectId ? t("chRemoveFromProject") : t("chAddToProject")}
                       title={c.projectId ? t("chRemoveFromProject") : fmt(t("chAddToProjectNamed"), { name: (activeProject ?? projects[0]).name })}
@@ -328,9 +335,10 @@ export function Sidebar({
                   <button
                     type="button"
                     onClick={() => onDelete(id)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
+                    className={cn(ROW_ACTION, "right-1")}
                     style={{ color: "var(--t-text-muted)" }}
-                    aria-label={t("delete")}
+                    aria-label={fmt(t("uxDeleteChatNamed"), { name: convTitle(c.title, t) })}
+                    title={t("delete")}
                   >
                     <Trash2 className="size-3.5" />
                   </button>

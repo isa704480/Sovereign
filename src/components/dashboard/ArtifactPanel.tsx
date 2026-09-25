@@ -4,7 +4,7 @@ import { Check, Code2, Copy, Download, Eye, RefreshCw, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { Markdown } from "./Markdown";
-import { isRenderable, isReact, type ArtifactPayload } from "./artifact-context";
+import { isRenderable, type ArtifactPayload } from "./artifact-context";
 import { EASE } from "@/lib/motion";
 import { useT } from "@/store/chat";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,10 @@ interface BootMessages {
 const jsxBoot = (m: BootMessages) => [
   // Matnlar JSON sifatida — tirnoq/maxsus belgilar skriptni buzmaydi (tarjimalarda "</" yo'q).
   "window.__E=" + JSON.stringify(m) + ";",
+  // Opaque origin'da (sandbox, allow-same-origin yo'q) localStorage/sessionStorage
+  // SecurityError tashlaydi — kutubxonalar yiqilmasligi uchun xotiradagi o'rinbosar.
+  "(function(){function mk(){var d={};return{getItem:function(k){return Object.prototype.hasOwnProperty.call(d,k)?d[k]:null;},setItem:function(k,v){d[k]=String(v);},removeItem:function(k){delete d[k];},clear:function(){d={};},key:function(i){return Object.keys(d)[i]||null;},get length(){return Object.keys(d).length;}};}",
+  "['localStorage','sessionStorage'].forEach(function(n){try{window[n].length;}catch(_){try{Object.defineProperty(window,n,{value:mk(),configurable:true});}catch(__){}}});})();",
   "(function(){",
   "var raw=document.getElementById('__src').textContent;",
   "var CDN='https://esm.sh/';",
@@ -214,10 +218,11 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
             key={reloadKey}
             title={t("chArtPreviewTitle")}
             srcDoc={srcDoc}
-            // React/kutubxonali kod ESM modul ishlatadi — u faqat allow-same-origin
-            // bilan yuklanadi (opaque origin'da native modul bloklanadi). HTML/SVG
-            // esa qat'iy sandbox'da qoladi.
-            sandbox={isReact(lang) ? "allow-scripts allow-same-origin" : "allow-scripts"}
+            // XAVFSIZLIK: hech qachon allow-same-origin YO'Q — model yozgan kod
+            // ilova origin'ida ishlasa cookie/localStorage/parent.document'ni
+            // o'qiy oladi. Opaque origin'da ham esm.sh modullari CORS (ACAO: *)
+            // orqali yuklanadi; storage esa jsxBoot ichida xotiradagi shim bilan.
+            sandbox="allow-scripts"
             className="h-full w-full border-0 bg-white"
           />
         ) : (

@@ -26,6 +26,36 @@ interface MessageItemProps {
   tts?: { speaking: boolean; onToggle: () => void };
 }
 
+/** 👍/👎 — shu qurilmada saqlanadi (serverga yuborilmaydi). */
+type Feedback = "up" | "down";
+const FEEDBACK_KEY = "sov-feedback";
+
+function readFeedback(id: string): Feedback | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const all = JSON.parse(localStorage.getItem(FEEDBACK_KEY) ?? "{}") as Record<string, Feedback>;
+    return all[id] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeFeedback(id: string, v: Feedback | null) {
+  try {
+    const all = JSON.parse(localStorage.getItem(FEEDBACK_KEY) ?? "{}") as Record<string, Feedback>;
+    if (v) all[id] = v;
+    else delete all[id];
+    // Cheksiz o'smasin — oxirgi 500 ta baho.
+    const entries = Object.entries(all).slice(-500);
+    localStorage.setItem(FEEDBACK_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {
+    /* saqlab bo'lmadi — faqat shu sessiyada */
+  }
+}
+
+/** Xabar ostidagi kichik ikonka-tugma: 32px nishon. */
+const ACTION_BTN = "inline-flex size-8 items-center justify-center rounded-md hover:bg-white/10";
+
 function timeLabel(iso: string, lang: Lang) {
   try {
     return new Date(iso).toLocaleTimeString(localeOf(lang), { hour: "2-digit", minute: "2-digit" });
@@ -48,10 +78,19 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
     if (text && text !== message.content) onEdit?.(message.id, text);
   }
   const [showReasoning, setShowReasoning] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback | null>(() => readFeedback(message.id));
+  function rate(v: Feedback) {
+    const next = feedback === v ? null : v;
+    setFeedback(next);
+    writeFeedback(message.id, next);
+  }
   const isUser = message.role === "user";
   const model = (message.modelId && MODEL_BY_ID[message.modelId]) || activeModel;
   const streaming = message.status === "streaming";
   const failed = message.status === "error";
+  // Oqim yarmida uzildi: qisman matn saqlangan, xato ham bor.
+  const interrupted = !streaming && !failed && !!message.error && !!message.content;
+  const canRetry = isLast && !!onRegenerate;
 
   async function copy() {
     try {
@@ -127,7 +166,10 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
                     e.preventDefault();
                     submitEdit();
                   }
-                  if (e.key === "Escape") setEditing(false);
+                  if (e.key === "Escape") {
+                    e.preventDefault();
+                    setEditing(false);
+                  }
                 }}
                 rows={Math.min(8, Math.max(2, draft.split("\n").length))}
                 className="tt w-full resize-none rounded-2xl border px-4 py-2.5 text-[15px] leading-relaxed outline-none"
@@ -166,11 +208,11 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
           )}
           {!editing && (
             <div
-              className="flex items-center gap-0.5 pr-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+              className="flex items-center gap-0.5 pr-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"
               style={{ color: "var(--t-text-muted)" }}
             >
               <span className="mr-1 text-[11px]">{timeLabel(message.createdAt, lang)}</span>
-              <button type="button" onClick={copy} className="rounded-md p-1 hover:bg-white/10" title={t("copy")} aria-label={t("copy")}>
+              <button type="button" onClick={copy} className={ACTION_BTN} title={t("copy")} aria-label={copied ? t("copied") : t("copy")}>
                 {copied ? <Check className="size-3.5" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-3.5" />}
               </button>
               {onEdit && (
@@ -180,7 +222,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
                     setDraft(message.content);
                     setEditing(true);
                   }}
-                  className="rounded-md p-1 hover:bg-white/10"
+                  className={ACTION_BTN}
                   title={t("edit")}
                   aria-label={t("edit")}
                 >
@@ -309,9 +351,19 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
           }
         >
           {failed ? (
-            <div className="flex items-start gap-2 text-sm" style={{ color: "var(--error)" }}>
+            <div className="flex flex-wrap items-start gap-2 text-sm" style={{ color: "var(--error)" }} role="alert">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-              <span>{message.error ?? t("answerError")}</span>
+              <span className="min-w-0 flex-1">{message.error ?? t("answerError")}</span>
+              {canRetry && (
+                <button
+                  type="button"
+                  onClick={onRegenerate}
+                  className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors hover:bg-white/10"
+                  style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
+                >
+                  <RefreshCw className="size-3.5" /> {t("uxRetry")}
+                </button>
+              )}
             </div>
           ) : message.content ? (
             <>
@@ -321,6 +373,29 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
                   className="ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[3px] animate-pulse"
                   style={{ background: model.primary }}
                 />
+              )}
+              {interrupted && (
+                <div
+                  className="mt-3 flex flex-wrap items-center gap-2 border-t pt-2.5 text-xs"
+                  style={{ borderColor: "var(--t-border)", color: "var(--warning, #F59E0B)" }}
+                  role="status"
+                >
+                  <AlertTriangle className="size-3.5 shrink-0" />
+                  <span title={message.error}>{t("uxInterrupted")}</span>
+                  {canRetry && (
+                    <>
+                      <span aria-hidden>·</span>
+                      <button
+                        type="button"
+                        onClick={onRegenerate}
+                        className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 font-semibold underline-offset-2 hover:underline"
+                        style={{ color: "var(--t-accent)" }}
+                      >
+                        <RefreshCw className="size-3" /> {t("uxRetry")}
+                      </button>
+                    </>
+                  )}
+                </div>
               )}
             </>
           ) : (
@@ -378,34 +453,54 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
           <div
             className={cn(
               "mt-1.5 flex items-center gap-1 text-xs transition-opacity",
-              isLast ? "opacity-70" : "opacity-0 group-hover:opacity-70",
+              isLast
+                ? "opacity-70 focus-within:opacity-100"
+                : "opacity-0 group-hover:opacity-70 group-focus-within:opacity-100 [@media(hover:none)]:opacity-70",
             )}
             style={{ color: "var(--t-text-muted)" }}
           >
-            <button type="button" onClick={copy} className="rounded-md p-1.5 hover:bg-white/10" title={t("copy")}>
+            <button type="button" onClick={copy} className={ACTION_BTN} title={t("copy")} aria-label={copied ? t("copied") : t("copy")}>
               {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
             </button>
             {tts && (
               <button
                 type="button"
                 onClick={tts.onToggle}
-                className="rounded-md p-1.5 hover:bg-white/10"
+                className={ACTION_BTN}
                 title={tts.speaking ? t("stop") : t("readAloud")}
+                aria-label={tts.speaking ? t("stop") : t("readAloud")}
+                aria-pressed={tts.speaking}
                 style={tts.speaking ? { color: model.primary } : undefined}
               >
                 {tts.speaking ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
               </button>
             )}
             {isLast && onRegenerate && (
-              <button type="button" onClick={onRegenerate} className="rounded-md p-1.5 hover:bg-white/10" title={t("regenerate")}>
+              <button type="button" onClick={onRegenerate} className={ACTION_BTN} title={t("regenerate")} aria-label={t("regenerate")}>
                 <RefreshCw className="size-3.5" />
               </button>
             )}
-            <button type="button" className="rounded-md p-1.5 hover:bg-white/10" title={t("helpful")}>
-              <ThumbsUp className="size-3.5" />
+            <button
+              type="button"
+              onClick={() => rate("up")}
+              className={ACTION_BTN}
+              title={t("helpful")}
+              aria-label={t("helpful")}
+              aria-pressed={feedback === "up"}
+              style={feedback === "up" ? { color: "var(--t-accent)" } : undefined}
+            >
+              <ThumbsUp className={cn("size-3.5", feedback === "up" && "fill-current")} />
             </button>
-            <button type="button" className="rounded-md p-1.5 hover:bg-white/10" title={t("notHelpful")}>
-              <ThumbsDown className="size-3.5" />
+            <button
+              type="button"
+              onClick={() => rate("down")}
+              className={ACTION_BTN}
+              title={t("notHelpful")}
+              aria-label={t("notHelpful")}
+              aria-pressed={feedback === "down"}
+              style={feedback === "down" ? { color: "var(--t-accent)" } : undefined}
+            >
+              <ThumbsDown className={cn("size-3.5", feedback === "down" && "fill-current")} />
             </button>
             <span className="ml-2 hidden sm:inline">{model.name}</span>
           </div>

@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Bitcoin, Check, CreditCard, Loader2, QrCode, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { formatRub, PLAN_BY_ID, PLANS, planPriceRub, type BillingPeriod, type PlanId } from "@/config/plans";
 import { BillingToggle, priceFontSize, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
@@ -19,6 +19,10 @@ interface PricingDialogProps {
   reason?: string | null;
   /** Highlight this plan as the one that unlocks the requested feature. */
   suggestedPlan?: PlanId | null;
+  /** Ochilganda shu tarif darhol tanlanadi (landing → ro'yxatdan o'tish → to'lov). */
+  initialPlan?: PlanId | null;
+  /** Ochilganda shu to'lov davri tanlanadi. */
+  initialPeriod?: BillingPeriod;
 }
 
 type Method = "card" | "crypto" | "sbp";
@@ -50,11 +54,23 @@ const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoin
   },
 ];
 
-export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPlan }: PricingDialogProps) {
+export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPlan, initialPlan, initialPeriod }: PricingDialogProps) {
   const t = useT();
   const lang = useLang();
+  const titleId = useId();
   const [selected, setSelected] = useState<PlanId | null>(null);
   const [period, setPeriod] = useState<BillingPeriod>("month");
+
+  // Ochilish lahzasida boshlang'ich tarif/davrni qo'llaymiz (render vaqtida — effektsiz).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (open) {
+      if (initialPeriod) setPeriod(initialPeriod);
+      const ip = initialPlan ? PLAN_BY_ID[initialPlan] : null;
+      if (ip && ip.price > 0 && ip.id !== currentPlan) setSelected(ip.id);
+    }
+  }
   const hint = usePriceHint();
   const [loading, setLoading] = useState<Method | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -71,6 +87,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || loading) return;
+      // Dashboard'ning global Esc (oqimni to'xtatish) ishlamasin.
+      e.preventDefault();
       if (selected) setSelected(null);
       else {
         setMessage(null);
@@ -125,6 +143,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
           onClick={close}
           role="dialog"
           aria-modal
+          aria-labelledby={titleId}
         >
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -167,7 +186,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     <p className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: "var(--t-accent, #7C6FF7)" }}>
                       {t("pricingPlans")}
                     </p>
-                    <h2 className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em] md:text-3xl">
+                    <h2 id={titleId} className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em] md:text-3xl">
                       {t("pricingHeadline")}
                     </h2>
                     {reason && (
@@ -217,7 +236,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             </span>
                           </div>
                           {p.price > 0 && (
-                            <p className="mt-1 text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                            <p className="mt-1 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                               {hint(p, period)}
                             </p>
                           )}
@@ -249,7 +268,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                                 : { background: p.color, color: "#fff" }
                             }
                           >
-                            {current ? t("currentPlan") : p.price === 0 ? "Free" : `${priceLabel(p, period)} — ${t("selectSuffix")}`}
+                            {current ? t("currentPlan") : p.price === 0 ? t("uxFree") : `${priceLabel(p, period)} — ${t("selectSuffix")}`}
                           </button>
                         </div>
                       );
@@ -277,13 +296,32 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                   <p className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: plan.color }}>
                     {plan.name} · {priceLabel(plan, period)}/{period === "year" ? t("ldPerYear") : t("perMonth")}
                   </p>
-                  <h2 className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em]">{t("choosePayment")}</h2>
+                  <h2 id={titleId} className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em]">{t("choosePayment")}</h2>
+
+                  {/* Promo kod — to'lov usulini bosishdan OLDIN kiritiladi. */}
+                  <label className="mt-5 block">
+                    <span className="sr-only">{t("chPromoLabel")}</span>
+                    <input
+                      value={promo}
+                      onChange={(e) => setPromo(e.target.value.toUpperCase())}
+                      disabled={!!loading}
+                      maxLength={32}
+                      autoComplete="off"
+                      spellCheck={false}
+                      placeholder={t("chPromoPlaceholder")}
+                      className="tt h-11 w-full rounded-xl bg-transparent px-4 text-sm tracking-wider outline-none transition-colors focus:border-[var(--t-accent,#7C6FF7)] disabled:opacity-40"
+                      style={{ border: "1px solid var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
+                    />
+                    <span className="mt-1.5 block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                      {t("chPromoHint")}
+                    </span>
+                  </label>
 
                   {/* Two siblings → one panel, hairline between them. */}
                   <div
-                    role="radiogroup"
+                    role="group"
                     aria-label={t("paymentMethod")}
-                    className="tt mt-6 overflow-hidden"
+                    className="tt mt-4 overflow-hidden"
                     style={{ border: "1px solid var(--t-border)", borderRadius: 18 }}
                   >
                     {(lang === "ru" ? [...METHODS.filter((m) => m.id === "sbp"), ...METHODS.filter((m) => m.id !== "sbp")] : METHODS)
@@ -294,8 +332,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                         <button
                           key={id}
                           type="button"
-                          role="radio"
-                          aria-checked={busy}
+                          aria-busy={busy}
                           disabled={!!loading}
                           onClick={() => pay(id)}
                           className={cn(
@@ -317,7 +354,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           <span className="min-w-0 flex-1">
                             <span className="block font-semibold">{t(titleKey)}</span>
                             <span className="block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{sub}</span>
-                            <span className="mt-1 block text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t(noteKey)}</span>
+                            <span className="mt-1 block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t(noteKey)}</span>
                           </span>
                           <span className="nums shrink-0 text-sm font-semibold" style={{ color: plan.color }}>
                             {id === "sbp" ? formatRub(planPriceRub(plan, period)) : priceLabel(plan, period)}
@@ -327,25 +364,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     })}
                   </div>
 
-                  <label className="mt-4 block">
-                    <span className="sr-only">{t("chPromoLabel")}</span>
-                    <input
-                      value={promo}
-                      onChange={(e) => setPromo(e.target.value.toUpperCase())}
-                      disabled={!!loading}
-                      maxLength={32}
-                      autoComplete="off"
-                      spellCheck={false}
-                      placeholder={t("chPromoPlaceholder")}
-                      className="tt h-11 w-full rounded-xl bg-transparent px-4 text-sm tracking-wider outline-none transition-colors focus:border-[var(--t-accent,#7C6FF7)] disabled:opacity-40"
-                      style={{ border: "1px solid var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
-                    />
-                    <span className="mt-1.5 block text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                      {t("chPromoHint")}
-                    </span>
-                  </label>
-
-                  <p className="mt-5 text-center text-[11px]" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                  <p className="mt-5 text-center text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                     {t("pricingSecureNote")}
                   </p>
                 </motion.div>

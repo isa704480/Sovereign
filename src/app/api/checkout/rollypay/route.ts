@@ -38,7 +38,16 @@ export async function POST(req: Request) {
   if (!user) return Response.json({ error: t("chLoginFirst") }, { status: 401 });
 
   const orderId = `sov_${crypto.randomUUID()}`;
-  const { error: insErr } = await supabase.from("orders").insert({
+  // Buyurtmani faqat server (service role) yozadi — foydalanuvchi summa/valyuta/
+  // provider'ni o'zi belgilay olmaydi (0028: "orders: own insert" olib tashlandi).
+  let service: ReturnType<typeof createServiceClient>;
+  try {
+    service = createServiceClient();
+  } catch (e) {
+    console.error("[checkout/rollypay] service client:", e);
+    return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
+  }
+  const { error: insErr } = await service.from("orders").insert({
     id: orderId,
     user_id: user.id,
     plan: planId,
@@ -48,7 +57,10 @@ export async function POST(req: Request) {
     provider: "rollypay",
     ...(period === "year" ? { billing_period: "year" } : {}),
   });
-  if (insErr) return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
+  if (insErr) {
+    console.error("[checkout/rollypay] order insert:", insErr.message);
+    return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
+  }
 
   const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? new URL(req.url).origin).replace(/\/$/, "");
   try {
@@ -62,14 +74,15 @@ export async function POST(req: Request) {
       metadata: { user_id: user.id, plan: planId, period },
     });
     try {
-      await createServiceClient().from("orders").update({ checkout_id: pay.paymentId }).eq("id", orderId);
+      await service.from("orders").update({ checkout_id: pay.paymentId }).eq("id", orderId);
     } catch {
       /* faqat solishtirish uchun */
     }
     return Response.json({ checkoutUrl: pay.payUrl, orderId });
-  } catch {
+  } catch (e) {
+    console.error("[checkout/rollypay] create payment:", e);
     try {
-      await createServiceClient().from("orders").update({ status: "cancelled" }).eq("id", orderId);
+      await service.from("orders").update({ status: "cancelled" }).eq("id", orderId);
     } catch {
       /* ignore */
     }

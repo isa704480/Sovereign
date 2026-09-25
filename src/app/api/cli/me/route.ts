@@ -55,7 +55,8 @@ export async function GET(req: Request) {
       memory_enabled: row.memory_enabled,
     });
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : "Server xatosi" }, { status: 500 });
+    console.error("[cli/me]", e);
+    return Response.json({ error: "Server xatosi" }, { status: 500 });
   }
 }
 

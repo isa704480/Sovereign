@@ -1,9 +1,7 @@
 "use client";
 
-import { motion } from "motion/react";
 import { Logo } from "@/components/brand/Logo";
 import { AuthScene } from "@/components/three/scenes";
-import { EASE_OUT_EXPO } from "@/lib/motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useT } from "@/store/chat";
 
@@ -20,23 +18,19 @@ export function VisualPanel() {
         }}
       />
       <div className="noise absolute inset-0" />
-      {isDesktop && <AuthScene className="absolute inset-0" />}
+      {isDesktop && (
+        <div aria-hidden="true" className="absolute inset-0">
+          <AuthScene className="absolute inset-0" />
+        </div>
+      )}
 
       <div className="relative z-10 flex flex-1 flex-col justify-between p-10">
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}
-        >
+        {/* CSS kirish animatsiyasi (.hero-in) — JS'siz ham ko'rinadi, reduced-motion'da o'chadi. */}
+        <div className="hero-in">
           <Logo size={32} />
-        </motion.div>
+        </div>
 
-        <motion.blockquote
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: EASE_OUT_EXPO, delay: 0.3 }}
-          className="max-w-md"
-        >
+        <blockquote className="hero-in max-w-md" style={{ animationDelay: "0.3s" }}>
           <p className="font-display text-3xl font-extrabold leading-tight text-text-primary">
             {t("auHeroA")}
             <span className="text-gradient-brand">{t("auHeroB")}</span>
@@ -45,11 +39,11 @@ export function VisualPanel() {
           <p className="mt-4 text-sm text-text-secondary">
             {t("auHeroDesc")}
           </p>
-          <div className="mt-6 flex items-center gap-2 font-mono text-[11px] text-text-muted">
+          <div className="mt-6 flex items-center gap-2 font-mono text-xs text-text-muted">
             <span className="size-1.5 rounded-full bg-success" />
             AES-256-GCM · Zero-knowledge · GDPR
           </div>
-        </motion.blockquote>
+        </blockquote>
       </div>
     </aside>
   );

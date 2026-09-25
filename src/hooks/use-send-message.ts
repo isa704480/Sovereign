@@ -8,7 +8,7 @@ import { detectImageIntent } from "@/lib/chat/image-intent";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
 import { CUSTOM_SKILL_PREFIX, useChat, uuid, type ChatMessage, type Project } from "@/store/chat";
-import { translate, type Lang } from "@/lib/i18n";
+import { fmt, translate, type Lang } from "@/lib/i18n";
 
 /** Cowork papka ro'yxati + loyiha ko'rsatmasi — bitta kontekst matni (server 6000 belgi qabul qiladi). */
 function buildContext(cowork: string | null, project?: Project): string | undefined {
@@ -165,7 +165,15 @@ export function useSendMessage() {
       s.updateMessage(conversationId, assistant.id, { status: "error", error: failed });
     } else {
       const finalContent = hasMask ? applyTokenMap(text, tokenMap) : text;
-      s.updateMessage(conversationId, assistant.id, { status: "done", content: finalContent, citations, skills });
+      // Oqim yarmida uzilsa — qisman matnni saqlaymiz va "uzildi · qayta urinish" ko'rsatamiz
+      // (status "done" qoladi, shunda qisman javob ham sinxronlanadi).
+      s.updateMessage(conversationId, assistant.id, {
+        status: "done",
+        content: finalContent,
+        citations,
+        skills,
+        ...(failed ? { error: failed } : {}),
+      });
     }
 
     // First exchange names the conversation.
@@ -211,6 +219,68 @@ export function useSendMessage() {
     }
   }, []);
 
+  /**
+   * Rasm yaratish: LLM'siz to'g'ridan-to'g'ri /api/image. "To'xtatish" (stop) bekor qiladi;
+   * kutish paytida o'tgan soniyalar ko'rsatiladi; server HTML/xato qaytarsa — tarjima qilingan xabar.
+   */
+  const generateImage = useCallback(async (conversationId: string, prompt: string) => {
+    const lang = useChat.getState().lang;
+    const drawing = translate(lang, "chImageDrawing");
+    const placeholder = (sec: number) => `${drawing}\n\n_${fmt(translate(lang, "uxImageElapsed"), { s: sec })}_`;
+    const assistant: ChatMessage = {
+      id: uuid(),
+      role: "assistant",
+      content: placeholder(0),
+      createdAt: new Date().toISOString(),
+      status: "streaming",
+    };
+    useChat.getState().appendMessage(conversationId, assistant);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setStreaming(true);
+    const started = Date.now();
+    const tick = setInterval(() => {
+      const sec = Math.round((Date.now() - started) / 1000);
+      useChat.getState().updateMessage(conversationId, assistant.id, { content: placeholder(sec) });
+    }, 1000);
+
+    const fail = (error: string) =>
+      useChat.getState().updateMessage(conversationId, assistant.id, { status: "error", content: "", error });
+
+    try {
+      const res = await fetch("/api/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+        signal: controller.signal,
+      });
+      let data: { urls?: string[]; error?: string } = {};
+      try {
+        data = (await res.json()) as typeof data;
+      } catch {
+        // HTML xato sahifasi / bo'sh javob — xom "Unexpected token <" ko'rsatmaymiz.
+        data = {};
+      }
+      if (!res.ok || !data.urls?.length) {
+        fail(typeof data.error === "string" && data.error ? data.error : translate(lang, "chImageFailed"));
+      } else {
+        const md = data.urls.map((u) => `![](${u})`).join("\n\n");
+        useChat.getState().updateMessage(conversationId, assistant.id, {
+          status: "done",
+          content: `${translate(lang, "chImageHere")}\n\n${md}`,
+        });
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === "AbortError") fail(translate(lang, "uxImageStopped"));
+      else fail(translate(lang, "chImageFailed"));
+    } finally {
+      clearInterval(tick);
+      if (abortRef.current === controller) abortRef.current = null;
+      setStreaming(false);
+    }
+  }, []);
+
   const send = useCallback(
     async (text: string, attachments?: Attachment[], docIds?: string[]) => {
       const state = useChat.getState();
@@ -230,48 +300,14 @@ export function useSendMessage() {
 
       // Image-generation shortcut: skip the LLM and call the image endpoint.
       if (detectImageIntent(text) && !attachments?.length) {
-        const assistant: ChatMessage = {
-          id: uuid(),
-          role: "assistant",
-          content: translate(state.lang, "chImageDrawing"),
-          createdAt: new Date().toISOString(),
-          status: "streaming",
-        };
-        state.appendMessage(conversationId, assistant);
-        setStreaming(true);
-        try {
-          const res = await fetch("/api/image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: text }),
-          });
-          const data = (await res.json()) as { urls?: string[]; error?: string };
-          if (!res.ok || !data.urls?.length) {
-            useChat.getState().updateMessage(conversationId, assistant.id, {
-              status: "error",
-              error: data.error ?? translate(state.lang, "chImageFailed"),
-            });
-          } else {
-            const md = data.urls.map((u) => `![](${u})`).join("\n\n");
-            useChat.getState().updateMessage(conversationId, assistant.id, {
-              status: "done",
-              content: `${translate(state.lang, "chImageHere")}\n\n${md}`,
-            });
-          }
-        } catch (err) {
-          useChat.getState().updateMessage(conversationId, assistant.id, {
-            status: "error",
-            error: err instanceof Error ? err.message : translate(state.lang, "chConnectionError"),
-          });
-        }
-        setStreaming(false);
+        await generateImage(conversationId, text);
         return;
       }
 
       const history = useChat.getState().conversations[conversationId]?.messages ?? [user];
       await run(conversationId, history, docIds);
     },
-    [run],
+    [run, generateImage],
   );
 
   const regenerate = useCallback(async () => {
@@ -288,8 +324,14 @@ export function useSendMessage() {
         conversations: { ...s.conversations, [id]: { ...conv, messages: history } },
       }));
     }
+    // Rasm so'rovi bo'lsa — qayta urinish ham rasm yo'lidan boradi.
+    const lastUser = [...history].reverse().find((m) => m.role === "user");
+    if (lastUser && typeof lastUser.content === "string" && !lastUser.attachments?.length && detectImageIntent(lastUser.content)) {
+      await generateImage(id, lastUser.content);
+      return;
+    }
     await run(id, history);
-  }, [run]);
+  }, [run, generateImage]);
 
   /**
    * Foydalanuvchi o'z xabarini tahrirladi: o'sha xabardan keyingi hamma narsa

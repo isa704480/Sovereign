@@ -41,7 +41,16 @@ export async function POST(req: Request) {
   if (!user?.email) return Response.json({ error: t("chLoginFirst") }, { status: 401 });
 
   const orderId = `sov_${crypto.randomUUID()}`;
-  const { error: insErr } = await supabase.from("orders").insert({
+  // Buyurtmani faqat server (service role) yozadi — foydalanuvchi summa/valyuta/
+  // provider'ni o'zi belgilay olmaydi (0028: "orders: own insert" olib tashlandi).
+  let service: ReturnType<typeof createServiceClient>;
+  try {
+    service = createServiceClient();
+  } catch (e) {
+    console.error("[checkout/dodo] service client:", e);
+    return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
+  }
+  const { error: insErr } = await service.from("orders").insert({
     id: orderId,
     user_id: user.id,
     plan: planId,
@@ -52,7 +61,10 @@ export async function POST(req: Request) {
     // Oylik buyurtma ustunsiz ham yoziladi (0025 migratsiyasidan oldin ham ishlaydi).
     ...(period === "year" ? { billing_period: "year" } : {}),
   });
-  if (insErr) return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
+  if (insErr) {
+    console.error("[checkout/dodo] order insert:", insErr.message);
+    return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
+  }
 
   const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? new URL(req.url).origin).replace(/\/$/, "");
   try {
@@ -66,14 +78,15 @@ export async function POST(req: Request) {
       ...(promo ? { discountCode: promo } : {}),
     });
     try {
-      await createServiceClient().from("orders").update({ checkout_id: checkout.sessionId }).eq("id", orderId);
+      await service.from("orders").update({ checkout_id: checkout.sessionId }).eq("id", orderId);
     } catch {
       /* reconciliation-only field */
     }
     return Response.json({ checkoutUrl: checkout.checkoutUrl, orderId, mode: dodoMode() });
   } catch (e) {
+    console.error("[checkout/dodo] create checkout:", e);
     try {
-      await createServiceClient().from("orders").update({ status: "cancelled" }).eq("id", orderId);
+      await service.from("orders").update({ status: "cancelled" }).eq("id", orderId);
     } catch {
       /* ignore */
     }

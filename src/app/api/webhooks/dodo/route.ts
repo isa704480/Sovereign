@@ -16,6 +16,10 @@ interface DodoEvent {
   };
 }
 
+function isPaidPlan(v: unknown): v is "starter" | "pro" | "ultra" {
+  return v === "starter" || v === "pro" || v === "ultra";
+}
+
 const ACTIVATING = new Set(["subscription.active", "subscription.renewed", "payment.succeeded"]);
 
 /**
@@ -59,11 +63,19 @@ export async function POST(req: Request) {
 
   const data = event.data ?? {};
   const meta = data.metadata ?? {};
-  const plan = meta.plan ?? planForDodoProduct(data.product_id ?? data.product_cart?.[0]?.product_id);
+  // Haqiqatda to'langan mahsulot ustun: metadata.plan faqat mahsulot noma'lum bo'lsa.
+  const productPlan = planForDodoProduct(data.product_id ?? data.product_cart?.[0]?.product_id);
+  const plan = productPlan ?? (isPaidPlan(meta.plan) ? meta.plan : null);
 
   let userId = meta.user_id;
   if (!userId && data.customer?.email) {
-    const { data: prof } = await supabase.from("profiles").select("id").eq("email", data.customer.email).maybeSingle();
+    // profiles.email'ni foydalanuvchi o'zi o'zgartira olmaydi (0028 trigger) —
+    // shu bois bu qidiruvni birovning emailiga "ulanib" o'g'irlab bo'lmaydi.
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", data.customer.email.trim().toLowerCase())
+      .maybeSingle();
     userId = prof?.id;
   }
   if (!userId || !plan) return Response.json({ received: true, skipped: "unmatched" });

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld("sovereign", {
   fsRead: (path) => ipcRenderer.invoke("fs:read", path),
   fsWrite: (path, content) => ipcRenderer.invoke("fs:write", { path, content }),
   setModel: (id) => ipcRenderer.invoke("app:set-model", id),
+  models: (qs) => ipcRenderer.invoke("app:models", qs),
   send: (text, mode) => ipcRenderer.send("agent:send", { text, mode }),
   remember: (fact) => ipcRenderer.send("agent:remember", fact),
   confirmReply: (id, ok) => ipcRenderer.send("agent:confirm-reply", { id, ok }),

@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Loader2, MailCheck } from "lucide-react";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { AnimatePresence, motion } from "motion/react";
 import { signUpWithEmail } from "@/app/actions/auth";
@@ -17,8 +17,25 @@ import { OAuthButtons } from "./OAuthButtons";
 import { PasswordInput } from "./PasswordInput";
 import { FieldError, FormAlert, SubmitButton, inputClass } from "./form-primitives";
 
+/** Landing'dagi tarif tugmasi: /register?plan=pro&period=year — Dashboard o'qiydi. */
+const PENDING_PLAN_KEY = "sov-pending-plan";
+const LINK_CLASS = "text-primary-soft underline underline-offset-4 hover:text-primary";
+
 export function RegisterForm() {
   const t = useT();
+
+  // Tanlangan tarifni eslab qolamiz: onboarding'dan keyin to'lov oynasi shu tarif bilan ochiladi.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const plan = q.get("plan");
+    if (!plan || !/^[a-z]{2,16}$/.test(plan)) return;
+    const period = q.get("period") === "year" ? "year" : "month";
+    try {
+      localStorage.setItem(PENDING_PLAN_KEY, JSON.stringify({ plan, period, at: Date.now() }));
+    } catch {
+      /* saqlab bo'lmadi — oddiy ro'yxatdan o'tish davom etadi */
+    }
+  }, []);
   const [pending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -126,8 +143,12 @@ export function RegisterForm() {
                 />
                 <span>
                   {t("auAcceptPrefix")}
-                  <Link href="#" className="text-primary-soft underline-offset-4 hover:underline">
+                  <Link href="/terms" target="_blank" rel="noopener noreferrer" className={LINK_CLASS}>
                     {t("auAcceptLink")}
+                  </Link>
+                  {t("uxAnd")}
+                  <Link href="/privacy" target="_blank" rel="noopener noreferrer" className={LINK_CLASS}>
+                    {t("uxPrivacyAccept")}
                   </Link>
                   {t("auAcceptSuffix")}
                 </span>

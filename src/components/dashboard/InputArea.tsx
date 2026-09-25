@@ -144,8 +144,17 @@ export function InputArea({
     const onDown = (e: MouseEvent) => {
       if (modeRef.current && !modeRef.current.contains(e.target as Node)) setModeMenu(false);
     };
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault(); // global Esc (oqimni to'xtatish) ishlamasin
+      setModeMenu(false);
+    };
     document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [modeMenu]);
 
   // Tashqariga bosilsa yoki Esc bo'lsa "+" menyusi yopiladi.
@@ -154,7 +163,11 @@ export function InputArea({
     const onDown = (e: MouseEvent) => {
       if (plusRef.current && !plusRef.current.contains(e.target as Node)) setPlusOpen(false);
     };
-    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && setPlusOpen(false);
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault(); // global Esc (oqimni to'xtatish) ishlamasin
+      setPlusOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -317,6 +330,8 @@ export function InputArea({
       className="rounded-lg p-2 transition-colors hover:bg-white/10"
       style={{ color: "var(--t-text-muted)" }}
       title={t("chAttachTitle")}
+      aria-label={t("chAttachTitle")}
+      aria-busy={busy || undefined}
     >
       {busy ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
     </button>
@@ -329,6 +344,8 @@ export function InputArea({
       className="rounded-lg p-2 transition-colors hover:bg-white/10"
       style={{ color: speech.listening ? model.primary : "var(--t-text-muted)" }}
       title={speech.listening ? t("stop") : t("chVoiceInput")}
+      aria-label={speech.listening ? t("stop") : t("chVoiceInput")}
+      aria-pressed={speech.listening}
     >
       {speech.listening ? (
         <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}>
@@ -424,7 +441,7 @@ export function InputArea({
               <span className="text-base">{m.glyph}</span>
               <span className="min-w-0">
                 <span className="block text-sm" style={{ color: "var(--t-text)" }}>{agentModeName(lang, m)}</span>
-                <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>{agentModeDescription(lang, m)}</span>
+                <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{agentModeDescription(lang, m)}</span>
               </span>
             </button>
           ))}
@@ -507,7 +524,7 @@ export function InputArea({
               </span>
             </button>
           ))}
-          <div className="px-3 pb-2 pt-1 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+          <div className="px-3 pb-2 pt-1 text-xs" style={{ color: "var(--t-text-muted)" }}>
             {t("chMentionHint")}
           </div>
         </div>
@@ -546,6 +563,7 @@ export function InputArea({
             onChange={onChangeText}
             onKeyDown={onKeyDown}
             placeholder={speech.listening ? "..." : t("typeMessage")}
+            aria-label={t("typeMessage")}
             rows={1}
             autoFocus={autoFocus}
             className={cn(
@@ -572,6 +590,7 @@ export function InputArea({
               className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full"
               style={{ background: "var(--t-text)", color: "var(--t-bg)" }}
               title={t("stop")}
+              aria-label={t("stop")}
             >
               <Square className="size-3.5 fill-current" />
             </motion.button>
@@ -588,6 +607,7 @@ export function InputArea({
                 boxShadow: canSend ? `0 0 18px color-mix(in srgb, ${model.primary} 45%, transparent)` : undefined,
               }}
               title={t("chSendEnter")}
+              aria-label={t("send")}
             >
               <ArrowUp className="size-4" strokeWidth={2.5} />
             </motion.button>
@@ -659,7 +679,7 @@ export function InputArea({
                         <Icon className="size-4 shrink-0" style={{ color: "var(--t-accent)" }} />
                         <span className="min-w-0">
                           <span className="block truncate text-sm" style={{ color: "var(--t-text)" }}>{label}</span>
-                          <span className="block truncate text-[11px]" style={{ color: "var(--t-text-muted)" }}>{hint}</span>
+                          <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{hint}</span>
                         </span>
                       </button>
                     ))}
@@ -696,7 +716,7 @@ export function InputArea({
         </div>
       )}
 
-      <div className="mt-2 hidden justify-center gap-4 text-[11px] sm:flex" style={{ color: "var(--t-text-muted)" }}>
+      <div className="mt-2 hidden justify-center gap-4 text-xs sm:flex" style={{ color: "var(--t-text-muted)" }}>
         <span>
           <kbd className="rounded border px-1 py-0.5" style={{ borderColor: "var(--t-border)" }}>↵</kbd> {t("send")}
         </span>

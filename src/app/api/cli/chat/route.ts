@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { createAnonClient } from "@/lib/supabase/anon";
-import { PLAN_BY_ID, isPlanId } from "@/config/plans";
+import { createServiceClient } from "@/lib/supabase/service";
+import { PLAN_BY_ID, isPlanId, planAllowsTier, type PlanId } from "@/config/plans";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
+import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -14,6 +16,9 @@ const OPENAI = "https://api.openai.com/v1/chat/completions";
 const OMNIROUTE = (process.env.OMNIROUTE_BASE_URL ?? "").replace(/\/$/, "");
 const LLM7 = "https://api.llm7.io/v1/chat/completions";
 const MISTRAL = "https://api.mistral.ai/v1/chat/completions";
+
+/** CLI: bitta foydalanuvchi vazifasi bir necha model qadamidan iborat. */
+const CLI_STEP_MULTIPLIER = 4;
 
 type Cand = { provider: string; model: string; url: string; auth: string; referer?: boolean };
 
@@ -141,40 +146,70 @@ export async function POST(req: Request) {
     return Response.json({ error: "Serverda hech qanday AI provider kaliti sozlanmagan" }, { status: 503 });
   }
 
-  // Resolve the token → user + plan.
-  let planId = "free";
-  let userId: string | null = null;
+  // Resolve the token → user + plan. Tarif serverda hisoblanadi: muddati
+  // o'tgan pullik tarif (plan_expires_at < hozir) = free.
+  let planId: PlanId = "free";
+  let userId: string;
   try {
     const supabase = createAnonClient();
     const { data, error } = await supabase.rpc("cli_whoami", { p_token: token });
-    const row = Array.isArray(data) ? data[0] : data;
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | { user_id?: string | null; plan?: string | null; plan_expires_at?: string | null }
+      | null;
     if (error || !row?.user_id) {
       return Response.json({ error: "Token yaroqsiz. Qayta `sovereign login` qiling." }, { status: 401 });
     }
     userId = row.user_id;
-    planId = isPlanId(row.plan) ? row.plan : "free";
+    const rawPlan: PlanId = isPlanId(row.plan) ? row.plan : "free";
+    const expired = rawPlan !== "free" && !!row.plan_expires_at && new Date(row.plan_expires_at) < new Date();
+    planId = expired ? "free" : rawPlan;
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : "Server xatosi" }, { status: 500 });
+    console.error("[cli/chat] whoami:", e);
+    return Response.json({ error: (await getServerT())("secServerError") }, { status: 500 });
   }
 
-  const plan = (isPlanId(planId) && PLAN_BY_ID[planId]) || PLAN_BY_ID.free;
-  const cands = candidates(planId, parsed.data.model, Boolean(parsed.data.tools?.length));
+  const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
 
-  // CLI ham veb chat bilan bir xil kunlik chegaraga bo'ysunadi.
+  // Katalogdan tanlangan aniq model — faqat Pro+ tarifda. "auto/*" kombolari
+  // (tekin yo'naltirish) hammaga ochiq. Ruxsat yo'q bo'lsa tanlov e'tiborsiz.
+  const reqModel = parsed.data.model;
+  const chosen = reqModel && (reqModel.startsWith("auto/") || planAllowsTier(plan, "pro")) ? reqModel : undefined;
+  const cands = candidates(planId, chosen, Boolean(parsed.data.tools?.length));
+
+  // CLI ham veb chat bilan bir xil kunlik chegaraga bo'ysunadi. Har bir model
+  // chaqiruvi server tomonida atomik hisoblanadi (0027 consume_message_for —
+  // faqat service_role). Tool-natija qadamlari ham hisoblanadi: aks holda
+  // soxta "tool" xabari bilan limitni chetlab o'tish mumkin bo'lardi.
+  // Bitta agent vazifasi odatda 3-5 model chaqiruvi (reja → fayl → fayl → xulosa),
+  // shuning uchun CLI qadamlari uchun kunlik chegara veb xabarlardan 4 baravar katta.
+  const cliLimit = plan.limits.messagesPerDay * CLI_STEP_MULTIPLIER;
+  const limitMsg = `Kunlik limit tugadi (${cliLimit} qadam, ${plan.name}). Ertaga davom eting yoki /upgrade.`;
+  let counted = false;
   try {
-    const supabase = createAnonClient();
-    const { data: used } = await supabase.rpc("cli_messages_today", { p_token: token });
-    const usedToday = typeof used === "number" ? used : 0;
-    if (usedToday >= plan.limits.messagesPerDay) {
-      return Response.json(
-        { error: `Kunlik limit tugadi (${plan.limits.messagesPerDay}, ${plan.name}). Ertaga davom eting.` },
-        { status: 429 },
-      );
-    }
-  } catch {
-    /* limit tekshiruvi xato bo'lsa fail-open — chunki rate-limit yuqorida allaqachon bor */
+    const admin = createServiceClient();
+    const { data: allowed, error } = await admin.rpc("consume_message_for", {
+      p_user: userId,
+      p_limit: cliLimit,
+    });
+    if (error) console.error("[cli/chat] consume_message_for:", error.message);
+    else if (allowed !== true) return Response.json({ error: limitMsg }, { status: 429 });
+    else counted = true;
+  } catch (e) {
+    console.error("[cli/chat] consume_message_for:", e);
   }
-  void userId; // hozircha faqat log/attribute uchun
+  if (!counted) {
+    // Zaxira (migratsiya yoki servis kaliti hali yo'q bo'lsa): eski hisob.
+    try {
+      const supabase = createAnonClient();
+      const { data: used } = await supabase.rpc("cli_messages_today", { p_token: token });
+      const usedToday = typeof used === "number" ? used : 0;
+      if (usedToday >= cliLimit) {
+        return Response.json({ error: limitMsg }, { status: 429 });
+      }
+    } catch {
+      /* limit tekshiruvi xato bo'lsa fail-open — chunki rate-limit yuqorida allaqachon bor */
+    }
+  }
 
   const maxTokens = Math.min(plan.limits.maxTokens, 4096);
   const body = (model: string) =>
@@ -187,7 +222,7 @@ export async function POST(req: Request) {
       max_tokens: maxTokens,
     });
 
-  // Har provayder xatosi — foydalanuvchi faqat oxirgisini emas, butun zanjirni ko'rsin.
+  // Har provayder xatosi yig'iladi — butun zanjir server logiga yoziladi.
   const failures: string[] = [];
   const short = (m: string) => m.replace(/\s+/g, " ").slice(0, 90);
   for (const cand of cands) {
@@ -228,8 +263,7 @@ export async function POST(req: Request) {
     // to'xtamasin. Zanjir oxirigacha muvaffaqiyat bo'lmasa, quyida xato qaytadi.
   }
 
-  return Response.json(
-    { error: `Barcha providerlar band yoki xato:\n  - ${failures.join("\n  - ")}` },
-    { status: 502 },
-  );
+  // Provayder/model zanjiri tafsiloti faqat server logida — mijozga umumiy xabar.
+  console.error(`[cli/chat] barcha providerlar xato:\n  - ${failures.join("\n  - ")}`);
+  return Response.json({ error: (await getServerT())("secAllProvidersBusy") }, { status: 502 });
 }

@@ -1,5 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Mono, DM_Sans, Syne } from "next/font/google";
+import { LangSync } from "@/components/LangSync";
+import { MotionProvider } from "@/components/motion/MotionProvider";
+import { translate } from "@/lib/i18n";
 import "./globals.css";
 
 const syne = Syne({
@@ -23,33 +26,50 @@ const dmMono = DM_Mono({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: {
-    default: "SOVEREIGN AI — Your AI. Your Truth. Your Data. Forever.",
-    template: "%s · SOVEREIGN AI",
-  },
-  description:
-    "GPT-4o, Claude, Gemini, Mistral — hamma bitta interfeys orqali. Suhbatlaringiz shifrlangan. Xotirangiz sizda.",
-  applicationName: "SOVEREIGN AI",
-  keywords: ["AI", "Claude", "ChatGPT", "Gemini", "privacy", "maxfiylik", "O'zbek"],
-  icons: {
-    icon: [
-      { url: "/logo.svg", type: "image/svg+xml" },
-      { url: "/favicon.ico", sizes: "any" },
-    ],
-    apple: "/logo.svg",
-  },
-  manifest: "/site.webmanifest",
-  openGraph: {
-    title: "SOVEREIGN AI",
-    description: "Barcha AI'lar bitta joyda. Faqat sizniki.",
-    url: "https://sovhq.vercel.app",
-    siteName: "SOVEREIGN",
-    images: [{ url: "/logo.svg", width: 512, height: 512 }],
-    locale: "uz_UZ",
-    type: "website",
-  },
-};
+const SITE_URL = "https://sovhq.vercel.app";
+
+/**
+ * Metadata va <html lang> STATIK (uz): cookie o'qilsa har sahifa har so'rovda
+ * qayta render bo'lardi va CDN keshi yo'qolardi — yuqori yuklamada qimmat.
+ * Til brauzerda LangSync orqali o'rnatiladi. OG rasm — app/opengraph-image.tsx.
+ */
+const description = translate("uz", "uxMetaDescription");
+const ogDescription = translate("uz", "uxOgDescription");
+
+export const metadata: Metadata = (() => {
+  return {
+    metadataBase: new URL(SITE_URL),
+    title: {
+      default: "SOVEREIGN AI — Your AI. Your Truth. Your Data. Forever.",
+      template: "%s · SOVEREIGN AI",
+    },
+    description,
+    applicationName: "SOVEREIGN AI",
+    keywords: ["AI", "Claude", "ChatGPT", "Gemini", "privacy", "maxfiylik", "O'zbek"],
+    icons: {
+      icon: [
+        { url: "/logo.svg", type: "image/svg+xml" },
+        { url: "/favicon.ico", sizes: "any" },
+      ],
+      apple: "/logo.svg",
+    },
+    manifest: "/site.webmanifest",
+    openGraph: {
+      title: "SOVEREIGN AI",
+      description: ogDescription,
+      url: SITE_URL,
+      siteName: "SOVEREIGN",
+      locale: "uz_UZ",
+      alternateLocale: ["ru_RU", "en_US"],
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "SOVEREIGN AI",
+      description: ogDescription,
+    },
+  };
+})();
 
 export const viewport: Viewport = {
   themeColor: "#060812",
@@ -57,8 +77,6 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
 };
-
-import { LangSync } from "@/components/LangSync";
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -69,7 +87,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col bg-bg-base text-text-primary">
         <LangSync />
-        {children}
+        <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
   );

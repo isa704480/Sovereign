@@ -20,6 +20,24 @@ const DEFAULTS = {
   perplexityKey: "",
 };
 
+/**
+ * baseUrl'ni tekshiradi: faqat https (yoki localhost uchun http). Aks holda
+ * token boshqa sxema/xostga (file:, javascript:, ochiq http) ketmasligi uchun
+ * standart manzilga qaytadi.
+ */
+export function sanitizeBaseUrl(raw) {
+  try {
+    const u = new URL(String(raw));
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+    if (u.protocol === "https:" || (u.protocol === "http:" && local)) {
+      return `${u.origin}${u.pathname}`.replace(/\/+$/, "");
+    }
+  } catch {
+    /* noto'g'ri URL */
+  }
+  return DEFAULTS.baseUrl;
+}
+
 export function loadConfig() {
   let file = {};
   if (existsSync(FILE)) {
@@ -32,7 +50,7 @@ export function loadConfig() {
   return {
     ...DEFAULTS,
     ...file,
-    baseUrl: process.env.SOVEREIGN_URL || file.baseUrl || DEFAULTS.baseUrl,
+    baseUrl: sanitizeBaseUrl(process.env.SOVEREIGN_URL || file.baseUrl || DEFAULTS.baseUrl),
     token: process.env.SOVEREIGN_TOKEN || file.token || "",
     openrouterKey: process.env.OPENROUTER_API_KEY || file.openrouterKey || "",
     perplexityKey: process.env.PERPLEXITY_API_KEY || file.perplexityKey || "",

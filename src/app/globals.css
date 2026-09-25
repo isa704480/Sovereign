@@ -133,7 +133,8 @@
   /* Text */
   --text-primary: #f0f2ff;
   --text-secondary: #9ba3cc;
-  --text-muted: #5c6490;
+  /* #5c6490 → #7a82b0: bg-base ustida ~4.9:1 (WCAG AA) */
+  --text-muted: #7a82b0;
   --text-disabled: #3a3f6a;
 
   /* Brand */
@@ -240,6 +241,12 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--text-disabled);
+  }
+
+  /* Global klaviatura fokusi — .theme-root ichida o'z uslubi bor (quyida). */
+  :where(a, button, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
+    outline: 2px solid var(--primary-soft);
+    outline-offset: 2px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -485,4 +492,41 @@
     mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 100%);
     -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 100%);
   }
+}
+
+/* ------------------------------------------------------------------
+   Landing hero kirishi — CSS'da, JS'siz ham matn ko'rinadi.
+------------------------------------------------------------------- */
+@keyframes hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+.hero-in {
+  animation: hero-in 0.6s var(--ease-out-expo) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-in {
+    animation: none;
+  }
+}
+
+/* Sozlamalar → "Animatsiyani kamaytirish" (MotionProvider <html data-reduced-motion> qo'yadi). */
+html[data-reduced-motion="true"] .hero-in {
+  animation: none;
+}
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }

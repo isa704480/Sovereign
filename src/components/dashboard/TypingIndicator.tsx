@@ -16,6 +16,8 @@ export function TypingIndicator() {
         style={{ background: "var(--t-text)" }}
         animate={{ opacity: [1, 0.2, 1] }}
         transition={{ duration: 1, repeat: Infinity }}
+        role="status"
+        aria-live="polite"
         aria-label={t("typing")}
       />
     );
@@ -23,10 +25,11 @@ export function TypingIndicator() {
 
   if (theme.id === "perplexity") {
     return (
-      <span className="inline-flex items-center gap-2.5 text-sm" style={{ color: "var(--t-text-muted)" }}>
+      <span className="inline-flex items-center gap-2.5 text-sm" style={{ color: "var(--t-text-muted)" }} role="status" aria-live="polite">
         <motion.span
           className="size-4 rounded-full border-2 border-transparent"
           style={{ borderTopColor: "var(--t-primary)", borderRightColor: "var(--t-primary)" }}
+          aria-hidden
           animate={{ rotate: 360 }}
           transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
         />
@@ -42,6 +45,8 @@ export function TypingIndicator() {
         style={{ color: model.primary }}
         animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.05, 0.9] }}
         transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+        role="status"
+        aria-live="polite"
         aria-label={t("typing")}
       >
         ✦
@@ -53,7 +58,7 @@ export function TypingIndicator() {
     theme.id === "gemini" ? ["#4285F4", "#9B72CB", "#D96570"] : [model.primary, model.primary, model.primary];
 
   return (
-    <span className="inline-flex items-center gap-1.5" aria-label={t("typing")}>
+    <span className="inline-flex items-center gap-1.5" role="status" aria-live="polite" aria-label={t("typing")}>
       {colors.map((c, i) => (
         <motion.span
           key={i}

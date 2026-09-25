@@ -51,11 +51,15 @@ function Ring({ radius, duration, reverse, items }: { radius: number; duration: 
 
 export function OrbitField() {
   return (
-    <div className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center overflow-hidden">
+    // Bezak — ekran o'quvchilar uchun yashirin. Kichik ekranda tashqi halqalar matn ustiga
+    // tushib qolmasligi uchun faqat ichki ikkitasi ko'rinadi.
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center overflow-hidden">
       <Ring radius={150} duration={50} items={RING_1} />
       <Ring radius={258} duration={68} reverse items={RING_2} />
-      <Ring radius={372} duration={86} items={RING_3} />
-      <Ring radius={488} duration={108} reverse items={RING_4} />
+      <div className="hidden md:contents">
+        <Ring radius={372} duration={86} items={RING_3} />
+        <Ring radius={488} duration={108} reverse items={RING_4} />
+      </div>
     </div>
   );
 }

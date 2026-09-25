@@ -81,23 +81,41 @@ async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
   authed: boolean;
   plan: Plan;
   usedToday: number;
+  tokensUsedMonth: number;
   memoryText: string;
   knowledgeText: string;
   trainingOptIn: boolean;
 }> {
+  const none = { usedToday: 0, tokensUsedMonth: 0, memoryText: "", knowledgeText: "", trainingOptIn: false };
   if (!isSupabaseConfigured()) {
     // Local development-only: Supabase sozlanmagan bo'lsa demo rejim.
-    return { authed: false, plan: PLAN_BY_ID.ultra, usedToday: 0, memoryText: "", knowledgeText: "", trainingOptIn: false };
+    return { authed: false, plan: PLAN_BY_ID.ultra, ...none };
   }
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { authed: false, plan: PLAN_BY_ID.free, usedToday: 0, memoryText: "", knowledgeText: "", trainingOptIn: false };
+    return { authed: false, plan: PLAN_BY_ID.free, ...none };
   }
   const profile = await getProfile(supabase, user.id);
+  // Oylik token sarfi (0015: record_token_usage yozadi). Yangi oy boshlangan
+  // bo'lsa hisob hali nollanmagan — eski qiymat hisobga olinmaydi.
+  const { data: usage } = await supabase
+    .from("profiles")
+    .select("tokens_used_month, tokens_month_start")
+    .eq("id", user.id)
+    .maybeSingle();
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const usageRow = usage as { tokens_used_month?: number | string | null; tokens_month_start?: string | null } | null;
+  const tokensUsedMonth =
+    usageRow?.tokens_month_start && new Date(usageRow.tokens_month_start) >= monthStart
+      ? Number(usageRow.tokens_used_month ?? 0) || 0
+      : 0;
   // Migration 0010 dan keyin messages_today() argumentsiz — auth.uid()'ni ishlatadi.
+  // (Faqat zaxira: asosiy kunlik limit — consume_message, 0027.)
   const { data: used } = await supabase.rpc("messages_today");
   const memoryText = profile?.memory_enabled === false ? "" : memoryPrompt(await getMemories(supabase, user.id));
   // "@hujjat" mentions win over similarity search: the user named the source.
@@ -111,6 +129,7 @@ async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
     authed: true,
     plan: effectivePlan(profile),
     usedToday: typeof used === "number" ? used : 0,
+    tokensUsedMonth,
     memoryText,
     knowledgeText,
     // Ustunsiz (eski) bazada ham xavfsiz: faqat aniq false bo'lsa o'chiq.
@@ -146,7 +165,7 @@ export async function POST(req: Request) {
     modelId,
     research: reqResearch,
     skills: enabledSkills,
-    messages,
+    messages: rawMessages,
     docIds,
     customSkills,
     context: coworkContext,
@@ -155,6 +174,10 @@ export async function POST(req: Request) {
   } = parsed.data;
   // Foydalanuvchiga ko'rinadigan xabarlar — interfeys tilida.
   const t = (key: TKey) => translate(lang, key);
+  // System xabarlarni faqat server qo'shadi — mijoz yuborgan role:"system"
+  // (prompt-injection / guardrail'ni chetlash) tashlab yuboriladi.
+  const messages = rawMessages.filter((m) => m.role !== "system");
+  if (!messages.some((m) => m.role === "user")) return Response.json({ error: t("chBadRequest") }, { status: 400 });
   const mode = AGENT_MODE_BY_ID[agentMode];
   const research = reqResearch || !!mode?.autoResearch;
   const langText = `JAVOB TILI: foydalanuvchi boshqa tilda yozmasa, ${LANG_FOR_AI[lang]} javob ber.`;
@@ -177,7 +200,7 @@ export async function POST(req: Request) {
   // Skills (user-enabled ∪ auto-detected).
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
   const lastText = lastUser ? textOf(lastUser) : "";
-  const { authed, plan, usedToday, memoryText, knowledgeText, trainingOptIn } = await resolveEntitlement(
+  const { authed, plan, usedToday, tokensUsedMonth, memoryText, knowledgeText, trainingOptIn } = await resolveEntitlement(
     lastText,
     docIds,
   );
@@ -193,8 +216,13 @@ export async function POST(req: Request) {
     return refuse(`${UPGRADE} ${t("chLoginRequired")}`);
   }
 
+  const dailyLimitMsg = `${UPGRADE} ${fmt(t("chDailyLimit"), { n: plan.limits.messagesPerDay, plan: plan.name })}`;
   if (usedToday >= plan.limits.messagesPerDay) {
-    return refuse(`${UPGRADE} ${fmt(t("chDailyLimit"), { n: plan.limits.messagesPerDay, plan: plan.name })}`);
+    return refuse(dailyLimitMsg);
+  }
+  // Oylik token limiti (0015 tokens_used_month) — endi majburiy.
+  if (authed && tokensUsedMonth >= plan.limits.tokensPerMonth) {
+    return refuse(`${UPGRADE} ${fmt(t("secMonthlyTokenLimit"), { plan: plan.name })}`);
   }
 
   // ---- Build the execution plan (single model, or Auto orchestration) ----
@@ -231,6 +259,24 @@ export async function POST(req: Request) {
     }
     if (model.id === "sonar-pro-online" && !plan.limits.deepResearch) {
       return refuse(`${UPGRADE} ${t("chDeepResearchUltra")}`);
+    }
+  }
+
+  // Kunlik limit — server tomonida atomik hisob (0027 consume_message). Barcha
+  // rad etish tekshiruvlaridan KEYIN: rad etilgan so'rov limitni yemaydi.
+  // (Eski messages_today brauzer yozadigan `messages`ni sanardi — to'g'ridan-
+  // to'g'ri POST bilan chetlab o'tilardi.)
+  if (authed) {
+    try {
+      const supabase = await createClient();
+      const { data: allowed, error } = await supabase.rpc("consume_message", {
+        p_limit: plan.limits.messagesPerDay,
+      });
+      if (error) console.error("[chat] consume_message:", error.message);
+      else if (allowed !== true) return refuse(dailyLimitMsg);
+    } catch (e) {
+      // Migratsiya hali qo'llanmagan bo'lsa — yuqoridagi messages_today zaxira.
+      console.error("[chat] consume_message:", e);
     }
   }
 
@@ -424,7 +470,11 @@ ${connectorContext}`
             question: lastText,
             answer: cacheableAnswer,
             model: steps[steps.length - 1]?.modelId ?? modelId,
-            hasPrivateContext: Boolean(docIds.length || coworkContext || knowledgeText),
+            // Xotira, ulangan servis (GitHub/Figma) va o'qilgan sahifalar ham
+            // shaxsiy kontekst — bunday javob trening bazasiga tushmaydi.
+            hasPrivateContext: Boolean(
+              docIds.length || coworkContext || knowledgeText || memoryText || connectorContext || webContext || customText,
+            ),
             optedIn: trainingOptIn,
           });
         }

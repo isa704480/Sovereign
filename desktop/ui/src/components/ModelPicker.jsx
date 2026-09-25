@@ -11,7 +11,11 @@ export default function ModelPicker({ baseUrl, label, onSelect }) {
   const [models, setModels] = useState(null);
   const [q, setQ] = useState("");
   const ref = useRef(null);
-  const api = (qs) => fetch(`${baseUrl.replace(/\/$/, "")}/api/models${qs}`).then((r) => r.json()).catch(() => ({}));
+  // Katalog main jarayon orqali olinadi (CSP: renderer tashqi serverga ulanmaydi).
+  const api = (qs) =>
+    S?.models
+      ? S.models(qs).then((d) => d ?? {}).catch(() => ({}))
+      : fetch(`${baseUrl.replace(/\/$/, "")}/api/models${qs}`).then((r) => r.json()).catch(() => ({}));
 
   useEffect(() => { if (open && !families) api("?families=1").then((d) => { setFamilies(d.families ?? []); setFeatured(d.featured ?? []); setFam((d.families ?? [])[0] ?? null); }); }, [open]);
   useEffect(() => {

@@ -105,9 +105,15 @@ export async function restartOmniRoute(reason: string): Promise<RestartResult> {
   }
 }
 
-/** Chat/CLI OmniRoute'dan xato olganda chaqiriladi — tiqilib qolgan bo'lsa fonda restart. */
+/**
+ * Chat/CLI OmniRoute'dan xato olganda chaqiriladi — tiqilib qolgan bo'lsa fonda restart.
+ * Faqat aniq "resource pressure" 503 da: foydalanuvchi trafigidagi har qanday 502
+ * (tarmoq uzilishi, provayder xatosi) restartga sabab bo'lmasin — aks holda
+ * foydalanuvchilar ataylab restart qo'zg'ata olardi. 502/javobsiz holatni cron
+ * watchdog (ikki marta probe) hal qiladi.
+ */
 export function healOmniRouteIfStuck(status: number, message: string): void {
-  if (!isOmniStuck(status, message)) return;
+  if (status !== 503 || !/resource.pressure/i.test(message)) return;
   void restartOmniRoute(`auto: ${status} ${message.slice(0, 80)}`).catch(() => {});
 }
 

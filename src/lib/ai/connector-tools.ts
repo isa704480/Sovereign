@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { assertPublicUrl, safeFetch } from "@/lib/ai/web-read";
 
 /**
  * Connector tool-calling. Javobdan OLDIN ishlaydi: model ulangan connectorlardan
@@ -115,7 +116,16 @@ async function refreshGoogleToken(refreshToken: string): Promise<string | null> 
 async function mcpRpc(url: string, method: string, params: unknown, sessionId?: string): Promise<{ result?: unknown; sessionId?: string }> {
   const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json, text/event-stream" };
   if (sessionId) headers["Mcp-Session-Id"] = sessionId;
-  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }) });
+  // SSRF: foydalanuvchi bergan URL — faqat https/443, har so'rovda ommaviy IP
+  // tekshiruvi (ulanish paytida ham), redirect'lar qo'lda va qayta tekshiriladi.
+  const { res } = await safeFetch(url, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
+    httpsOnly: true,
+    timeoutMs: 15_000,
+    maxBytes: 2_000_000,
+  });
   const sid = res.headers.get("Mcp-Session-Id") ?? sessionId;
   const text = await res.text();
   const line = text.split("\n").find((l) => l.trim().startsWith("{") || l.startsWith("data:"));
@@ -136,6 +146,7 @@ interface McpEndpoint {
 
 async function mcpConnect(url: string): Promise<McpEndpoint | null> {
   try {
+    await assertPublicUrl(url, { httpsOnly: true });
     const init = await mcpRpc(url, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "SOVEREIGN", version: "1.0" } });
     const sessionId = init.sessionId;
     if (sessionId) await mcpRpc(url, "notifications/initialized", {}, sessionId);

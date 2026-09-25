@@ -1,6 +1,6 @@
 // SOVEREIGN CLI — slash buyruqlar, skillar va brauzer helperlari.
 
-import { exec } from "node:child_process";
+import { spawn } from "node:child_process";
 
 /** Web'dagi 6 ta skil bilan bir xil. */
 export const SKILLS = [
@@ -53,13 +53,34 @@ export const SLASH_COMMANDS = [
 
 export const SLASH_NAMES = SLASH_COMMANDS.map((s) => s.cmd);
 
-/** Brauzerni platformaga qarab ochish (zero-dep). */
+/**
+ * Brauzerni platformaga qarab ochish (zero-dep). Shell ISHLATILMAYDI —
+ * argumentlar massiv sifatida uzatiladi, URL faqat http(s) bo'lishi shart.
+ * Windows'da `cmd /c start` o'rniga rundll32 (cmd `&`, `^`, `%` ni talqin qiladi).
+ * @returns {boolean} ochildi/ochilmadi
+ */
 export function openBrowser(url) {
-  const command =
-    process.platform === "darwin"
-      ? `open "${url}"`
-      : process.platform === "win32"
-      ? `start "" "${url}"`
-      : `xdg-open "${url}"`;
-  exec(command, () => {});
+  let href;
+  try {
+    const u = new URL(String(url));
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    href = u.href;
+  } catch {
+    return false;
+  }
+  const p = process.platform;
+  const [cmd, args] =
+    p === "win32"
+      ? ["rundll32.exe", ["url.dll,FileProtocolHandler", href]]
+      : p === "darwin"
+      ? ["open", [href]]
+      : ["xdg-open", [href]];
+  try {
+    const child = spawn(cmd, args, { detached: true, stdio: "ignore", shell: false, windowsHide: true });
+    child.on("error", () => {});
+    child.unref();
+    return true;
+  } catch {
+    return false;
+  }
 }

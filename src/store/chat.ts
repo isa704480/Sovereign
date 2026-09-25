@@ -410,6 +410,7 @@ export const useChat = create<ChatState>()(
         projects: s.projects,
         activeProjectId: s.activeProjectId,
         lang: s.lang,
+        reducedMotion: s.reducedMotion,
         agentMode: s.agentMode,
         blindPrompting: s.blindPrompting,
       }),

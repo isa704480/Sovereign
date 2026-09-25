@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { ArrowRight, Lock } from "lucide-react";
-import { Stagger, StaggerItem } from "@/components/motion/Stagger";
 import { MagneticButton } from "@/components/motion/MagneticButton";
 import { OrbitField } from "./OrbitField";
 import { useT } from "@/store/chat";
@@ -23,29 +22,31 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
       {/* aylanuvchi AI logolari */}
       <OrbitField />
 
-      <Stagger stagger={0.09} delay={0.1} className="relative flex max-w-3xl flex-col items-center">
-        <StaggerItem>
+      {/* Kirish animatsiyasi CSS'da (.hero-in): JS yuklanmasa ham matn ko'rinadi,
+          prefers-reduced-motion / "animatsiyani kamaytirish" da o'chadi. */}
+      <div className="relative flex max-w-3xl flex-col items-center">
+        <div className="hero-in" style={{ animationDelay: "0.10s" }}>
           <span className="inline-flex items-center gap-2 rounded-full border border-border bg-white/[0.03] px-3.5 py-1.5 text-xs font-medium tracking-wide text-text-secondary">
             <span className="size-1.5 rounded-full bg-primary shadow-glow" />
             {t("ldHeroBadge")}
           </span>
-        </StaggerItem>
+        </div>
 
-        <StaggerItem>
+        <div className="hero-in" style={{ animationDelay: "0.19s" }}>
           <h1 className="font-display mt-7 text-5xl font-extrabold leading-[1.03] tracking-tight text-text-primary md:text-7xl">
             {t("ldHeroTitle1")}
             <br />
             <span className="text-gradient-brand">{t("ldHeroTitle2")}</span>
           </h1>
-        </StaggerItem>
+        </div>
 
-        <StaggerItem>
+        <div className="hero-in" style={{ animationDelay: "0.28s" }}>
           <p className="mt-7 max-w-xl text-lg leading-relaxed text-text-secondary">
             {t("ldHeroSub")}
           </p>
-        </StaggerItem>
+        </div>
 
-        <StaggerItem>
+        <div className="hero-in" style={{ animationDelay: "0.37s" }}>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <MagneticButton>
               <Link
@@ -63,14 +64,14 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
               {t("ldHeroWhy")}
             </a>
           </div>
-        </StaggerItem>
+        </div>
 
-        <StaggerItem>
+        <div className="hero-in" style={{ animationDelay: "0.46s" }}>
           <div className="mt-7 flex items-center gap-2 text-sm text-text-muted">
             <Lock className="size-3.5 text-success" /> {t("ldHeroNoCard")}
           </div>
-        </StaggerItem>
-      </Stagger>
+        </div>
+      </div>
     </section>
   );
 }

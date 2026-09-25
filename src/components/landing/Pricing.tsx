@@ -28,6 +28,7 @@ export function Pricing() {
         <div className="mt-8 flex justify-center">
           <BillingToggle value={period} onChange={setPeriod} />
         </div>
+        <p className="mt-3 text-center text-xs text-text-muted">Visa/Mastercard · USDT/BTC · СБП (₽)</p>
       </FadeIn>
 
       <Stagger inView stagger={0.06} className="mt-14 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -71,7 +72,7 @@ export function Pricing() {
                 </ul>
   
                 <Link
-                  href="/register"
+                  href={p.price === 0 ? "/register" : `/register?plan=${p.id}&period=${period}`}
                   className={cn(
                     "mt-6 inline-flex h-11 items-center justify-center rounded-full text-sm font-semibold transition-transform hover:-translate-y-0.5",
                     p.highlight ? "bg-primary text-white" : "border border-border text-text-primary hover:border-white/20",

@@ -2,6 +2,16 @@
 <html lang="uz">
   <head>
     <meta charset="utf-8" />
+    <!--
+      Qat'iy CSP: faqat ilovaning o'z skriptlari; tashqi skript, inline skript,
+      eval, iframe, object yo'q. Tashqi so'rovlar (model katalogi, chat) main
+      jarayon orqali IPC bilan o'tadi. Dev rejimda vite.config.mjs bu siyosatni
+      HMR uchun (ws://localhost:5173) kengaytiradi.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://sovhq.vercel.app; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'self'"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SOVEREIGN Cowork</title>
   </head>

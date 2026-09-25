@@ -34,16 +34,20 @@ export function normalizePromo(raw: unknown): string {
 }
 
 export type PromoResult =
-  | { ok: true; code: string; percent: number; amount: string }
+  | { ok: true; code: string; percent: number; maxUses: number; amount: string }
   | { ok: false; error: TKey };
 
-/** Kodni tekshiradi va chegirmali summani qaytaradi (USD, "12.34" ko'rinishida). */
+/**
+ * Kodni tekshiradi va chegirmali summani qaytaradi (USD, "12.34" ko'rinishida).
+ * Bu faqat oldindan tekshiruv — haqiqiy band qilish (limit/bir martalik) order
+ * bilan birga `reservePromoOrder` da atomik bajariladi.
+ */
 export async function resolvePromo(code: string, userId: string, price: number): Promise<PromoResult> {
   const def = promoDefs().find((d) => d.code === code);
   if (!def) return { ok: false, error: "chPromoInvalid" };
 
   const db = createServiceClient();
-  // Shu foydalanuvchi bu kodni allaqachon to'lov bilan ishlatganmi?
+  // Shu foydalanuvchi bu kodni allaqachon to'lov bilan ishlatganmi? (tezkor javob uchun)
   const mine = await db
     .from("orders")
     .select("id", { count: "exact", head: true })
@@ -53,18 +57,48 @@ export async function resolvePromo(code: string, userId: string, price: number):
   if (mine.error) return { ok: false, error: "chPromoUnavailable" };
   if ((mine.count ?? 0) > 0) return { ok: false, error: "chPromoAlreadyUsed" };
 
-  // Umumiy limit: to'langanlar + oxirgi 1 soatdagi ochiq checkout'lar (parallel suiiste'molga qarshi).
-  const since = new Date(Date.now() - 3600_000).toISOString();
-  const used = await db
-    .from("orders")
-    .select("id", { count: "exact", head: true })
-    .eq("promo_code", code)
-    .or(`status.eq.paid,and(status.eq.pending,created_at.gte."${since}")`);
-  if (used.error) return { ok: false, error: "chPromoUnavailable" };
-  if ((used.count ?? 0) >= def.maxUses) return { ok: false, error: "chPromoUsedUp" };
-
   const min = Number(process.env.PROMO_MIN_USD ?? "1") || 1;
   const discounted = Math.round(price * (100 - def.percent)) / 100;
   const amount = Math.min(price, Math.max(min, discounted)).toFixed(2);
-  return { ok: true, code, percent: def.percent, amount };
+  return { ok: true, code, percent: def.percent, maxUses: def.maxUses, amount };
+}
+
+export interface PromoOrderInput {
+  orderId: string;
+  userId: string;
+  plan: string;
+  amount: string;
+  currency: string;
+  provider: string;
+  billingPeriod: "month" | "year";
+  code: string;
+  maxUses: number;
+}
+
+/**
+ * Promokodli buyurtmani ATOMIK yaratadi (0028 create_promo_order): kod bo'yicha
+ * advisory lock ostida "ishlatilganmi / limit tugaganmi" tekshiruvi va INSERT
+ * bitta tranzaksiyada — parallel so'rovlar limitni aylanib o'ta olmaydi.
+ */
+export async function reservePromoOrder(input: PromoOrderInput): Promise<{ ok: true } | { ok: false; error: TKey }> {
+  const db = createServiceClient();
+  const { data, error } = await db.rpc("create_promo_order", {
+    p_order_id: input.orderId,
+    p_user_id: input.userId,
+    p_plan: input.plan,
+    p_amount: input.amount,
+    p_currency: input.currency,
+    p_provider: input.provider,
+    p_billing_period: input.billingPeriod,
+    p_promo_code: input.code,
+    p_max_uses: input.maxUses,
+  });
+  if (error) {
+    console.error("[promo] create_promo_order:", error.message);
+    return { ok: false, error: "chPromoUnavailable" };
+  }
+  if (data === "ok") return { ok: true };
+  if (data === "already_used") return { ok: false, error: "chPromoAlreadyUsed" };
+  if (data === "used_up") return { ok: false, error: "chPromoUsedUp" };
+  return { ok: false, error: "chPromoUnavailable" };
 }

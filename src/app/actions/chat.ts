@@ -30,6 +30,12 @@ const conversationSchema = z.object({
 export type ServerConversation = z.infer<typeof conversationSchema>;
 type SyncResult = { ok: true; skipped?: boolean } | { ok: false; error: string };
 
+/** DB xatosi tafsiloti (jadval/constraint nomlari) mijozga chiqmaydi — faqat logga. */
+async function syncError(where: string, detail: string): Promise<SyncResult> {
+  console.error(`[sync] ${where}:`, detail);
+  return { ok: false, error: (await getServerT())("secSyncFailed") };
+}
+
 async function session() {
   if (!isSupabaseConfigured()) return null;
   const supabase = await createClient();
@@ -58,7 +64,7 @@ export async function syncConversation(raw: unknown): Promise<SyncResult> {
     },
     { onConflict: "id" },
   );
-  if (cErr) return { ok: false, error: cErr.message };
+  if (cErr) return syncError("conversations", cErr.message);
 
   if (c.messages.length) {
     const { error: mErr } = await s.supabase.from("messages").upsert(
@@ -74,7 +80,7 @@ export async function syncConversation(raw: unknown): Promise<SyncResult> {
       })),
       { onConflict: "id" },
     );
-    if (mErr) return { ok: false, error: mErr.message };
+    if (mErr) return syncError("messages", mErr.message);
   }
   return { ok: true };
 }
@@ -84,7 +90,7 @@ export async function deleteConversationAction(id: string): Promise<SyncResult> 
   const s = await session();
   if (!s) return { ok: true, skipped: true };
   const { error } = await s.supabase.from("conversations").delete().eq("id", id).eq("user_id", s.user.id);
-  return error ? { ok: false, error: error.message } : { ok: true };
+  return error ? syncError("delete", error.message) : { ok: true };
 }
 
 export async function listConversations(): Promise<ServerConversation[]> {

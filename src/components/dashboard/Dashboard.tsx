@@ -6,7 +6,7 @@ import { deleteConversationAction } from "@/app/actions/chat";
 import { shareConversation } from "@/app/actions/share";
 import { AUTO_MODEL_ID, MODEL_BY_ID, DEFAULT_MODEL_ID, RESEARCH_MODEL_ID, resolveModel } from "@/config/models";
 import { MODEL_THEMES, themeVars } from "@/config/model-themes";
-import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type PlanId } from "@/config/plans";
+import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type BillingPeriod, type PlanId } from "@/config/plans";
 import { PricingDialog } from "./PricingDialog";
 import { useSendMessage } from "@/hooks/use-send-message";
 import { EASE } from "@/lib/motion";
@@ -32,6 +32,11 @@ import { SourcesPanel } from "./SourcesPanel";
 import { Welcome } from "./Welcome";
 import { ThemeProvider } from "./theme-context";
 
+/** Suhbat o'chirilgandan keyin "Qaytarish" uchun vaqt. */
+const UNDO_MS = 5000;
+/** RegisterForm yozadi: landing'da tanlangan tarif (post-signup checkout). */
+const PENDING_PLAN_KEY = "sov-pending-plan";
+
 interface DashboardProps {
   user: { name: string; email: string; avatarUrl?: string | null };
   defaultModelId?: string;
@@ -48,13 +53,18 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   // Barqaror t — useCallback bog'liqliklari har renderda yangilanmasin.
   const lang = useLang();
   const t = useCallback((key: TKey) => translate(lang, key), [lang]);
-  const [pricing, setPricing] = useState<{ open: boolean; reason: string | null; suggested: PlanId | null }>({
+  const [pricing, setPricing] = useState<{
+    open: boolean;
+    reason: string | null;
+    suggested: PlanId | null;
+    period?: BillingPeriod;
+  }>({
     open: false,
     reason: null,
     suggested: null,
   });
-  const openPricing = useCallback((reason: string | null = null, suggested: PlanId | null = null) => {
-    setPricing({ open: true, reason, suggested });
+  const openPricing = useCallback((reason: string | null = null, suggested: PlanId | null = null, period?: BillingPeriod) => {
+    setPricing({ open: true, reason, suggested, period });
   }, []);
   const hydrated = useChatHydrated();
   const {
@@ -131,8 +141,12 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       } else if (mod && e.key === "/") {
         e.preventDefault();
         inputRef.current?.focus();
-      } else if (e.key === "Escape" && isStreaming) {
-        stop();
+      } else if (e.key === "Escape" && isStreaming && !e.defaultPrevented) {
+        // Menyu/dialog Esc'ni o'zi yopgan bo'lsa (preventDefault) — oqimni to'xtatmaymiz.
+        // Fokus biror ochiq menyu/dialog ichida bo'lsa ham to'xtatmaymiz.
+        const el = document.activeElement;
+        const inOverlay = el instanceof Element && !!el.closest('[role="dialog"], [role="menu"], [role="listbox"]');
+        if (!inOverlay) stop();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -179,13 +193,60 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     [setResearch, setModel, model.category, plan.limits.research, openPricing, t],
   );
 
+  // O'chirish — darhol lokal olib tashlanadi, serverdan esa ~5s dan keyin
+  // (shu vaqt ichida "Qaytarish" bosilsa — suhbat joyiga qaytadi).
+  const pendingDeletes = useRef(new Map<string, { conv: Conversation; wasActive: boolean; timer: ReturnType<typeof setTimeout> }>());
+  const [undoToast, setUndoToast] = useState<string | null>(null);
+
+  const commitDelete = useCallback((id: string) => {
+    const p = pendingDeletes.current.get(id);
+    if (!p) return;
+    clearTimeout(p.timer);
+    pendingDeletes.current.delete(id);
+    void deleteConversationAction(id).catch(() => {});
+    setUndoToast((cur) => (cur === id ? null : cur));
+  }, []);
+
   const handleDelete = useCallback(
     (id: string) => {
+      const s = useChat.getState();
+      const conv = s.conversations[id];
+      if (!conv) return;
+      const timer = setTimeout(() => commitDelete(id), UNDO_MS);
+      pendingDeletes.current.set(id, { conv, wasActive: s.activeId === id, timer });
       remove(id);
-      void deleteConversationAction(id).catch(() => {});
+      setUndoToast(id);
     },
-    [remove],
+    [remove, commitDelete],
   );
+
+  const undoDelete = useCallback((id: string) => {
+    const p = pendingDeletes.current.get(id);
+    if (!p) return;
+    clearTimeout(p.timer);
+    pendingDeletes.current.delete(id);
+    useChat.setState((s) => {
+      const conversations = { ...s.conversations, [id]: p.conv };
+      const order = Object.values(conversations)
+        .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        .map((c) => c.id);
+      return { conversations, order, activeId: p.wasActive ? id : s.activeId };
+    });
+    setUndoToast(null);
+  }, []);
+
+  // Sahifa yopilsa yoki Dashboard chiqib ketsa — kutayotgan o'chirishlarni yakunlaymiz.
+  useEffect(() => {
+    const pending = pendingDeletes.current;
+    const flush = () => {
+      for (const id of [...pending.keys()]) commitDelete(id);
+    };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, [commitDelete]);
 
   /** Model change with plan gating: locked models open the pricing dialog. */
   const handleModelChange = useCallback(
@@ -207,6 +268,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   );
 
   // Auto-open the artifact panel when a finished answer contains a site (HTML/SVG).
+  // JSX/TSX/React avtomatik ochilmaydi — foydalanuvchi o'zi "Preview" ni bosadi.
   const autoOpenedRef = useRef<string | null>(null);
   useEffect(() => {
     const check = () => {
@@ -215,7 +277,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       const last = conv?.messages[conv.messages.length - 1];
       if (!last || last.role !== "assistant" || last.status === "streaming") return;
       if (autoOpenedRef.current === last.id) return;
-      const m = /```(html|svg|jsx|tsx|react)\s*\n([\s\S]*?)```/i.exec(last.content);
+      const m = /```(html|svg)\s*\n([\s\S]*?)```/i.exec(last.content);
       if (m && m[2].trim().length > 40) {
         autoOpenedRef.current = last.id;
         setArtifact({ code: m[2].trim(), lang: m[1].toLowerCase() });
@@ -223,6 +285,34 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     };
     return useChat.subscribe(check);
   }, []);
+
+  // Landing'dagi tarif tugmasi → /register?plan=pro&period=year → onboarding'dan
+  // keyin shu yerda to'lov oynasi o'sha tarif bilan ochiladi (bir marta).
+  useEffect(() => {
+    if (!hydrated) return;
+    let raw: string | null = null;
+    try {
+      raw = localStorage.getItem(PENDING_PLAN_KEY);
+      if (raw) localStorage.removeItem(PENDING_PLAN_KEY);
+    } catch {
+      return;
+    }
+    if (!raw) return;
+    let target: (typeof PLAN_BY_ID)[PlanId] | undefined;
+    let period: BillingPeriod = "month";
+    try {
+      const p = JSON.parse(raw) as { plan?: string; period?: string; at?: number };
+      const fresh = typeof p.at === "number" && Date.now() - p.at < 24 * 60 * 60 * 1000;
+      target = fresh && p.plan && p.plan in PLAN_BY_ID ? PLAN_BY_ID[p.plan as PlanId] : undefined;
+      period = p.period === "year" ? "year" : "month";
+    } catch {
+      return; // buzilgan qiymat — e'tiborsiz
+    }
+    if (!target || target.price === 0 || target.id === plan.id) return;
+    const planId = target.id;
+    const id = setTimeout(() => openPricing(null, planId, period), 600);
+    return () => clearTimeout(id);
+  }, [hydrated, openPricing, plan.id]);
 
   // Server-side refusals ([upgrade] errors) open the pricing dialog.
   useEffect(() => {
@@ -340,7 +430,10 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
                   />
                 </AnimatePresence>
               ) : (
-                <MessageList messages={messages} onRegenerate={regenerate} onEdit={editAndResend} />
+                // Ekran o'quvchilar: javob tugagach (aria-busy tushgach) muloyim e'lon qilinadi.
+                <div className="flex min-h-0 flex-1 flex-col" aria-live="polite" aria-busy={isStreaming}>
+                  <MessageList messages={messages} onRegenerate={regenerate} onEdit={editAndResend} />
+                </div>
               )}
 
               {!centered && (
@@ -376,7 +469,35 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           currentPlan={plan.id}
           reason={pricing.reason}
           suggestedPlan={pricing.suggested}
+          initialPlan={pricing.period ? pricing.suggested : null}
+          initialPeriod={pricing.period}
         />
+
+        {/* O'chirilgan suhbat — "Qaytarish" (5s) */}
+        <AnimatePresence>
+          {undoToast && (
+            <motion.div
+              key={undoToast}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.2, ease: EASE }}
+              role="status"
+              className="tt fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 border py-2 pl-4 pr-2 text-sm shadow-lg"
+              style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", borderRadius: 14, color: "var(--t-text)" }}
+            >
+              <span>{t("uxDeleted")}</span>
+              <button
+                type="button"
+                onClick={() => undoDelete(undoToast)}
+                className="min-h-8 rounded-lg px-3 font-semibold transition-colors hover:bg-white/10"
+                style={{ color: "var(--t-accent)" }}
+              >
+                {t("uxUndo")}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
         <SkillsMarket open={skillsOpen} onClose={() => setSkillsOpen(false)} enabled={enabledSkills} onToggle={toggleSkill} />
         <CoworkPanel open={coworkOpen} onClose={() => setCoworkOpen(false)} messages={messages} />

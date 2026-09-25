@@ -7,8 +7,9 @@ import { createServiceClient } from "@/lib/supabase/service";
  * QLoRA fine-tune uchun JSONL sifatida eksport qilinadi.
  *
  * Maxfiylik chegaralari (shu yerda majburlanadi — chaqiruvchiga ishonmaymiz):
- *   • Maxfiy rejim (Blind Prompting), biriktirilgan fayl, bilim bazasi hujjati
- *     yoki Cowork papkasi ishlatilgan suhbat YOZILMAYDI.
+ *   • Maxfiy rejim (Blind Prompting), biriktirilgan fayl, bilim bazasi hujjati,
+ *     Cowork papkasi, shaxsiy xotira, ulangan servis (connector), o'qilgan veb
+ *     sahifa yoki foydalanuvchi skili ishlatilgan suhbat YOZILMAYDI.
  *   • user_id saqlanmaydi.
  *   • Foydalanuvchi sozlamalarda o'chirib qo'ysa — yozilmaydi.
  */
@@ -30,7 +31,10 @@ export interface CaptureInput {
   question: string;
   answer: string;
   model: string;
-  /** Suhbatda maxfiy manba ishlatilganmi (fayl / KB / Cowork / Blind Prompting). */
+  /**
+   * Suhbatda maxfiy manba ishlatilganmi (fayl / KB / Cowork / xotira /
+   * connector / veb sahifa / custom skill / Blind Prompting).
+   */
   hasPrivateContext: boolean;
   optedIn: boolean;
 }

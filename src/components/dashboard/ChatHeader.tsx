@@ -65,6 +65,7 @@ export function ChatHeader({
               key={m.id}
               type="button"
               onClick={() => onModelChange(m.id)}
+              aria-pressed={active}
               className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-white/5"
               style={{
                 borderColor: active ? m.primary : "var(--t-border)",
@@ -80,6 +81,7 @@ export function ChatHeader({
         <button
           type="button"
           onClick={() => onModelChange(RESEARCH_MODEL_ID)}
+          aria-pressed={modelId === RESEARCH_MODEL_ID}
           className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-white/5"
           style={{
             borderColor: modelId === RESEARCH_MODEL_ID ? "#20808D" : "var(--t-border)",
@@ -87,7 +89,7 @@ export function ChatHeader({
             background: modelId === RESEARCH_MODEL_ID ? "rgba(32,128,141,0.14)" : "transparent",
           }}
         >
-          <Globe className="size-3.5" /> Research
+          <Globe className="size-3.5" /> {t("uxResearch")}
         </button>
       </div>
 
@@ -103,6 +105,7 @@ export function ChatHeader({
             className="hidden rounded-lg p-2 transition-colors hover:bg-white/10 lg:block"
             style={{ color: sourcesOpen ? model.primary : "var(--t-text-muted)" }}
             title={t("sourcesPanel")}
+            aria-label={t("sourcesPanel")}
             aria-pressed={sourcesOpen}
           >
             <PanelRight className="size-4" />

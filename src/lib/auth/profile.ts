@@ -47,9 +47,20 @@ export function effectivePlan(profile: Pick<Profile, "plan" | "plan_expires_at">
   return PLAN_BY_ID[profile.plan] ?? PLAN_BY_ID.free;
 }
 
+/**
+ * Ichki yo'l: "/" bilan boshlanadi, "//" yoki "/\" emas (brauzerlar "\" ni "/"
+ * deb o'qiydi → //evil.com), birinchi segmentda "\" yoki boshqaruv belgisi yo'q.
+ */
+export function isSafeNextPath(next: string | null | undefined): next is string {
+  if (!next || !/^\/(?![/\\])/.test(next)) return false;
+  if (/[\u0000-\u001f\u007f]/.test(next)) return false;
+  const firstSegment = next.slice(1).split(/[/?#]/)[0];
+  return !firstSegment.includes("\\");
+}
+
 /** Where a signed-in user should land. */
 export function postAuthPath(profile: Profile | null, next?: string | null): string {
-  const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+  const safeNext = isSafeNextPath(next) ? next : null;
   if (!profile?.onboarding_completed) return "/onboarding";
   if (safeNext && safeNext !== "/onboarding") return safeNext;
   return "/app";

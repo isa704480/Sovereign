@@ -1,19 +1,7 @@
-import { spawn } from "node:child_process";
 import { hostname, platform } from "node:os";
 import { saveConfig } from "./config.mjs";
 import { c, logo } from "./ui.mjs";
-
-function openBrowser(url) {
-  const p = platform();
-  const cmd = p === "win32" ? "cmd" : p === "darwin" ? "open" : "xdg-open";
-  const args = p === "win32" ? ["/c", "start", "", url] : [url];
-  try {
-    spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { openBrowser } from "./commands.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

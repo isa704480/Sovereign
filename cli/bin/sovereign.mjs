@@ -10,6 +10,7 @@ import { selectMenu } from "../src/menu.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu, spinner } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
+import { isTrustableDir, resolvePath as resolveWs } from "../src/tools.mjs";
 import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
 import { countTurns, listSessions, loadSession, rewind, saveSession } from "../src/sessions.mjs";
 
@@ -18,8 +19,10 @@ const AUTO_YES = rawArgs.includes("--yes") || rawArgs.includes("-y");
 
 /**
  * VIBE rejim — `sov` deb chaqirilganda (yoki --vibe bilan) yoqiladi: kodni
- * faqat AI yozadi, fayl yaratish/o'zgartirish har safar so'ralmaydi. Xavfli
- * terminal buyruqlari baribir tasdiq so'raydi — bu chegara hech qachon ochilmaydi.
+ * faqat AI yozadi, ish papkasi ICHIDA fayl yaratish/o'zgartirish va faqat-o'qish
+ * (safe) buyruqlar har safar so'ralmaydi. Xavfli buyruqlar (interpretator, paket
+ * menejeri, tarmoq, fayl o'zgartiruvchi...) va ish papkasidan tashqaridagi yo'llar
+ * baribir tasdiq so'raydi — bu chegara hech qachon ochilmaydi.
  */
 const invokedAs = (process.argv[1] ?? "").split(/[\\/]/).pop()?.replace(/\.(mjs|js)$/, "") ?? "";
 const vibe = { on: invokedAs === "sov" || rawArgs.includes("--vibe") };
@@ -73,37 +76,40 @@ async function askRequired(rl, q, tries = 4) {
 }
 
 async function confirmer(rl) {
-  // "a" (hammasiga ha) — shu sessiya davomida: barcha fayl amallari, xavfsiz
-  // buyruqlar va tasdiqlangan papka ichidagi hamma narsa qayta so'ralmaydi.
-  // Xavfli buyruqlar (rm -rf, format...) baribir har doim so'raladi.
+  // "a" (hammasiga ha) — shu sessiya davomida: ish papkasi ICHIDAGI fayl amallari
+  // va faqat-o'qish (safe) buyruqlar qayta so'ralmaydi. `forcePrompt` so'rovlar
+  // (ish papkasidan TASHQARIDAGI yo'l yoki xavfli buyruq) uchun "a" taklif
+  // qilinmaydi va ular --yes / vibe / "a" bilan ham HAR DOIM so'raladi.
   const trust = { all: false, dirs: new Set() };
   const inTrustedDir = (p) => {
-    if (!p) return false;
+    if (!p || resolveWs(p).outside) return false; // /cwd o'zgargan bo'lsa ham qayta tekshiriladi
     const full = pathResolve(p).toLowerCase();
     for (const d of trust.dirs) if (full === d || full.startsWith(d + pathSep)) return true;
     return false;
   };
   return async (question, forcePrompt = false, meta = null) => {
-    const riskyCmd = meta?.tool === "run_command" && forcePrompt;
-    if (!riskyCmd && (inTrustedDir(meta?.path) || (trust.all && !forcePrompt))) {
+    const mustAsk = Boolean(forcePrompt || meta?.risky || meta?.outside);
+    if (!mustAsk && (trust.all || inTrustedDir(meta?.path))) {
       console.log(`  ${c.dim("✓")} ${c.dim(question.replace(/\x1b\[[0-9;]*m/g, ""))} ${c.green("auto")}`);
       return true;
     }
-    if ((AUTO_YES || vibe.on) && !forcePrompt) {
+    if ((AUTO_YES || vibe.on) && !mustAsk) {
       console.log(`  ${c.amber("?")} ${question} ${c.green("auto-yes")}`);
       return true;
     }
-    // `forcePrompt` — xavfli buyruqlar uchun --yes bo'lsa ham majburiy tasdiq.
-    const prefix = forcePrompt ? c.red("!") : c.amber("?");
-    const opts = riskyCmd ? "[y/N] " : "[y/N/a] ";
+    // `mustAsk` — tashqi yo'l / xavfli buyruq: --yes bo'lsa ham majburiy tasdiq, "a" yo'q.
+    const prefix = mustAsk ? c.red("!") : c.amber("?");
+    const opts = mustAsk ? "[y/N] " : "[y/N/a] ";
     const a = (await ask(rl, `  ${prefix} ${question} ${c.dim(opts)}`)).trim().toLowerCase();
-    if (!riskyCmd && ["a", "all", "hammasi", "hammasiga", "doim"].includes(a)) {
+    if (!mustAsk && ["a", "all", "hammasi", "hammasiga", "doim"].includes(a)) {
       trust.all = true;
       if (meta?.path) {
         const full = pathResolve(meta.path);
-        trust.dirs.add((meta.dir ? full : pathDirname(full)).toLowerCase());
+        const dir = meta.dir ? full : pathDirname(full);
+        // Faqat ish papkasi ichidagi papka; uy/disk ildizi/himoyalangan hech qachon.
+        if (isTrustableDir(dir)) trust.dirs.add(dir.toLowerCase());
       }
-      console.log(`  ${c.green("✓ shu sessiyada qolgan amallar so'ralmaydi")} ${c.dim("(xavfli buyruqlardan tashqari)")}`);
+      console.log(`  ${c.green("✓ shu sessiyada ish papkasi ichidagi amallar so'ralmaydi")} ${c.dim("(tashqi yo'llar va xavfli buyruqlardan tashqari)")}`);
       return true;
     }
     return a === "y" || a === "yes" || a === "ha";
@@ -506,7 +512,7 @@ async function repl() {
       vibe.on = !vibe.on;
       say(
         vibe.on
-          ? `${c.emerald("◆ VIBE")} ${c.dim("yoqildi — kodni AI yozadi, fayllar uchun tasdiq so'ralmaydi.")}`
+          ? `${c.emerald("◆ VIBE")} ${c.dim("yoqildi — kodni AI yozadi, ish papkasidagi fayllar uchun tasdiq so'ralmaydi (xavfli buyruqlar baribir so'raladi).")}`
           : `${c.amber("○ VIBE")} ${c.dim("o'chirildi — har bir o'zgarish tasdiqlanadi.")}`,
       );
       rewritePrompt();

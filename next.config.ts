@@ -16,7 +16,7 @@ const securityHeaders = [
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
       "media-src 'self' blob: data:",
-      "connect-src 'self' https://esm.sh https://*.supabase.co wss://*.supabase.co https://openrouter.ai https://api.perplexity.ai https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://dashboard.zenobank.io https://*.dodopayments.com",
+      "connect-src 'self' https://esm.sh https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://dashboard.zenobank.io https://*.dodopayments.com",
       "frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://checkout.dodopayments.com https://test.checkout.dodopayments.com",
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
@@ -30,9 +30,13 @@ const securityHeaders = [
   { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), interest-cohort=()" },
   { key: "X-DNS-Prefetch-Control", value: "on" },
+  // Google (Firebase) popup login oynasi opener'ga javob qaytara olishi uchun "allow-popups".
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
 ];
 
 const nextConfig: NextConfig = {
+  poweredByHeader: false,
   async headers() {
     return [
       {

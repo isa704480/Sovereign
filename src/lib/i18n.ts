@@ -7,6 +7,8 @@ import { LANDING } from "@/lib/locales/landing";
 import { CHAT } from "@/lib/locales/chat";
 import { PANELS } from "@/lib/locales/panels";
 import { AUTH } from "@/lib/locales/auth";
+import { SECURITY } from "@/lib/locales/security";
+import { UX } from "@/lib/locales/ux";
 
 export type Lang = "uz" | "uz-cyrl" | "ru" | "en";
 
@@ -500,7 +502,7 @@ const CORE = {
   onbEnter: { uz: "SOVEREIGN'ga kirish", "uz-cyrl": "SOVEREIGN'га кириш", ru: "Войти в SOVEREIGN", en: "Enter SOVEREIGN" },
 } as const;
 
-const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH };
+const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX };
 
 export type TKey = keyof typeof DICT;
 

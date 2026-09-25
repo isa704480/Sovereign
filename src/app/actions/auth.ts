@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { getProfile, postAuthPath } from "@/lib/auth/profile";
+import { getProfile, postAuthPath, isSafeNextPath } from "@/lib/auth/profile";
 import { getServerT } from "@/lib/i18n-server";
 import { authErrorKey, isAuthKey } from "@/lib/locales/auth";
 import {
@@ -102,7 +102,7 @@ export async function signInWithEmail(input: LoginInput, next?: string | null): 
 export async function signInWithOAuth(provider: OAuthProvider, next?: string | null): Promise<AuthResult> {
   const supabase = await getSupabase();
   if (!supabase) return fail("auErrSupabaseMissing");
-  const safeNext = next && next.startsWith("/") ? next : "/onboarding";
+  const safeNext = isSafeNextPath(next) ? next : "/onboarding";
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider,
     options: {

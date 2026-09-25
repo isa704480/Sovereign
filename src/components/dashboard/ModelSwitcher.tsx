@@ -21,6 +21,23 @@ interface ModelSwitcherProps {
 type OmniModel = { id: string; label: string; owner: string; context: number; tools: boolean; vision: boolean; reasoning: boolean };
 type ModelFamily = { key: string; label: string; count: number; auto?: string };
 
+/**
+ * Katalog id → o'qiladigan nom: "cfp/deepseek-ai/deepseek-v4-flash" → "Deepseek V4 Flash".
+ * Provayder prefikslari (cfp/, groq/ ...) foydalanuvchiga ko'rsatilmaydi.
+ */
+function prettyModelId(id: string): string {
+  const tail = id.split("/").pop() || id;
+  return tail
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (ch) => ch.toUpperCase())
+    .trim();
+}
+
+/** Ichki marshrutlovchi nomini foydalanuvchidan yashiramiz. */
+function publicOwner(owner: string): string {
+  return /omni\s*-?route/i.test(owner) ? "" : owner;
+}
+
 export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherProps) {
   const t = useT();
   const lang = useLang();
@@ -41,6 +58,14 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
   // Katalog (OmniRoute) modellari Pro+ tarifda ochiladi. Free/Starter — qulf.
   // Tekin ✦ tavsiya modellari va Auto barcha tariflarda ochiq.
   const catalogLocked = !planAllowsTier(plan, "pro");
+  // Tanlangan katalog modelining nomi (ro'yxatdan kelgan label) — tugmada id o'rniga.
+  const [pickedLabel, setPickedLabel] = useState<{ id: string; label: string } | null>(null);
+  const valueLabel = pickedLabel?.id === value ? pickedLabel.label : prettyModelId(value);
+  const choose = (id: string, label?: string) => {
+    if (label) setPickedLabel({ id, label });
+    onChange(id);
+    setOpen(false);
+  };
   const upgrade = () => {
     setOpen(false);
     window.dispatchEvent(new CustomEvent("sovereign:upgrade"));
@@ -108,7 +133,12 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Dashboard'ning global Esc (oqimni to'xtatish) ishlamasin — Esc faqat menyuni yopadi.
+      e.preventDefault();
+      setOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -123,7 +153,9 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="tt flex items-center gap-2.5 border px-2.5 py-1.5 text-left transition-colors hover:bg-white/5"
+        aria-haspopup="dialog"
+        aria-label={compact ? t("selectModel") : undefined}
+        className="tt flex min-w-0 items-center gap-2.5 border px-2.5 py-1.5 text-left transition-colors hover:bg-white/5"
         style={{ borderColor: "var(--t-border)", borderRadius: "var(--t-radius)", background: "var(--t-surface)" }}
       >
         <span
@@ -133,12 +165,16 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
           {model.glyph}
         </span>
         {!compact && (
-          <span className="leading-tight">
-            <span className="block text-sm font-semibold" style={{ color: "var(--t-text)" }}>
-              {isOmniValue ? (value.split("/").pop() ?? value) : model.name}
+          <span className="min-w-0 leading-tight">
+            <span className="block max-w-[200px] truncate text-sm font-semibold" style={{ color: "var(--t-text)" }}>
+              {isOmniValue ? valueLabel : model.name}
             </span>
-            <span className="block text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-              {isOmniValue ? t("chOmniFree") : `${modelProvider(lang, model)} · ${modelPrice(lang, model)}`}
+            <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>
+              {isOmniValue
+                ? catalogLocked
+                  ? t("uxFreeModel")
+                  : t("uxCatalogModel")
+                : `${modelProvider(lang, model)} · ${modelPrice(lang, model)}`}
             </span>
           </span>
         )}
@@ -152,19 +188,18 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.18, ease: EASE }}
-            className="tt absolute left-0 z-40 mt-2 max-h-[480px] w-[340px] overflow-y-auto border p-2 shadow-lg"
+            className="tt absolute left-0 z-40 mt-2 max-h-[min(480px,calc(100svh-96px))] w-[min(340px,calc(100vw-24px))] overflow-y-auto border p-2 shadow-lg"
             style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", borderRadius: 16 }}
-            role="listbox"
+            role="dialog"
+            aria-label={t("selectModel")}
           >
             <div className="px-2 pb-2 pt-1 text-xs font-semibold" style={{ color: "var(--t-text)" }}>{t("selectModel")}</div>
 
             {/* Auto — smart routing */}
             <button
               type="button"
-              onClick={() => {
-                onChange(AUTO_MODEL_ID);
-                setOpen(false);
-              }}
+              aria-current={value === AUTO_MODEL_ID || undefined}
+              onClick={() => choose(AUTO_MODEL_ID)}
               className="tt mb-1 flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/5"
               style={value === AUTO_MODEL_ID ? { background: "color-mix(in srgb, var(--t-primary) 14%, transparent)" } : undefined}
             >
@@ -181,7 +216,21 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
               {value === AUTO_MODEL_ID && <Check className="mt-1 size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
             </button>
 
-            {/* OmniRoute katalog — Cursor uslubi: oila → ichida modellar */}
+            {/* Free/Starter: bitta tushuntirish — nima ochiq, nima Pro'da */}
+            {catalogLocked && (
+              <button
+                type="button"
+                onClick={upgrade}
+                className="mb-1 flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs transition-colors hover:opacity-90"
+                style={{ background: "rgba(245,158,11,0.10)", color: "#F5B544" }}
+              >
+                <Lock className="size-3.5 shrink-0" />
+                <span className="flex-1">{t("uxFreePlanBanner")}</span>
+                <ChevronRight className="size-3.5 shrink-0" />
+              </button>
+            )}
+
+            {/* Katalog — Cursor uslubi: oila → ichida modellar */}
             {configured !== false && (
               <div className="mt-1.5">
                 <div
@@ -195,10 +244,16 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                   ) : (
                     <>{t("chAllModels")}</>
                   )}
-                  <span className="ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-semibold normal-case tracking-normal" style={{ background: "rgba(16,212,160,0.15)", color: "#10D4A0" }}>
-                    {t("chFreeBadge")}
+                  {/* Belgilar izohi: 🔧 asboblar · 👁 rasm · 🧠 fikrlash */}
+                  <span className="ml-auto flex items-center gap-1.5 normal-case tracking-normal" aria-hidden>
+                    <span title={t("uxCapTools")}>🔧</span>
+                    <span title={t("uxCapVision")}>👁</span>
+                    <span title={t("uxCapReasoning")}>🧠</span>
                   </span>
                 </div>
+                <p className="sr-only">
+                  🔧 {t("uxCapTools")} · 👁 {t("uxCapVision")} · 🧠 {t("uxCapReasoning")}
+                </p>
 
                 {/* Qidiruv — istalgan bosqichda hamma bo'yicha qidiradi */}
                 <div className="relative mb-1 px-1">
@@ -207,6 +262,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     placeholder={t("chSearchModels")}
+                    aria-label={t("chSearchModels")}
                     className="w-full rounded-lg border bg-transparent py-1.5 pl-8 pr-2 text-xs outline-none"
                     style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                   />
@@ -223,15 +279,15 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                       <button
                         key={m.id}
                         type="button"
-                        onClick={() => { onChange(m.id); setOpen(false); }}
+                        aria-current={value === m.id || undefined}
+                        onClick={() => choose(m.id, featuredLabel(lang, m.id, m.label))}
                         className="tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5"
                         style={value === m.id ? { background: "color-mix(in srgb, #10D4A0 12%, transparent)" } : undefined}
-                        title={m.id}
                       >
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "rgba(16,212,160,0.18)", color: "#10D4A0" }}>✦</span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{featuredLabel(lang, m.id, m.label)}</span>
-                          <span className="block truncate text-[10px]" style={{ color: "var(--t-text-muted)" }}>{featuredNote(lang, m.id, m.note)}</span>
+                          <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{featuredNote(lang, m.id, m.note)}</span>
                         </span>
                         {value === m.id && <Check className="size-4 shrink-0" style={{ color: "#10D4A0" }} />}
                       </button>
@@ -274,8 +330,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                         type="button"
                         onClick={() => {
                           if (catalogLocked) { upgrade(); return; }
-                          onChange(activeFamily.auto!);
-                          setOpen(false);
+                          choose(activeFamily.auto!, `${activeFamily.label} Auto`);
                         }}
                         className="tt mb-0.5 flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5"
                         style={value === activeFamily.auto ? { background: "color-mix(in srgb, #7C6FF7 14%, transparent)" } : undefined}
@@ -283,7 +338,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "rgba(91,80,240,0.22)", color: "#7C6FF7" }}>✦</span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{activeFamily.label} — Auto</span>
-                          <span className="block text-[10px]" style={{ color: "var(--t-text-muted)" }}>{t("chFamilyAutoDesc")}</span>
+                          <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>{t("chFamilyAutoDesc")}</span>
                         </span>
                         {value === activeFamily.auto && <Check className="size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
                       </button>
@@ -299,26 +354,23 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                           <button
                             key={m.id}
                             type="button"
-                            role="option"
-                            aria-selected={active}
+                            aria-current={active || undefined}
                             onClick={() => {
                               if (catalogLocked) { upgrade(); return; }
-                              onChange(m.id);
-                              setOpen(false);
+                              choose(m.id, prettyModelId(m.id));
                             }}
                             className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", catalogLocked && "opacity-70")}
                             style={active ? { background: "color-mix(in srgb, #7C6FF7 14%, transparent)" } : undefined}
-                            title={catalogLocked ? t("chProUnlock") : m.id}
+                            title={catalogLocked ? t("chProUnlock") : undefined}
                           >
                             <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "color-mix(in srgb, #7C6FF7 20%, transparent)", color: "#7C6FF7" }}>✦</span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{m.id}</span>
-                              <span className="block truncate text-[10px]" style={{ color: "var(--t-text-muted)" }}>
-                                {m.owner}
-                                {m.context ? ` · ${Math.round(m.context / 1000)}k` : ""}
-                                {m.tools ? " · 🔧" : ""}
-                                {m.vision ? " · 👁" : ""}
-                                {m.reasoning ? " · 🧠" : ""}
+                              <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{prettyModelId(m.id)}</span>
+                              <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>
+                                {[publicOwner(m.owner), m.context ? `${Math.round(m.context / 1000)}k` : ""].filter(Boolean).join(" · ")}
+                                {m.tools ? <span title={t("uxCapTools")}> · 🔧</span> : null}
+                                {m.vision ? <span title={t("uxCapVision")}> · 👁</span> : null}
+                                {m.reasoning ? <span title={t("uxCapReasoning")}> · 🧠</span> : null}
                               </span>
                             </span>
                             {catalogLocked ? <Lock className="size-3.5 shrink-0" style={{ color: "#F59E0B" }} /> : active && <Check className="size-4 shrink-0" style={{ color: "#7C6FF7" }} />}

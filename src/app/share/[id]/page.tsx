@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { MODEL_BY_ID } from "@/config/models";
 import { MODEL_THEMES, themeVars } from "@/config/model-themes";
@@ -19,17 +20,21 @@ interface SharedRow {
   views: number;
 }
 
-async function load(id: string): Promise<SharedRow | null> {
+// cache: generateMetadata va sahifa bitta so'rov ichida bir marta o'qiydi (views ikki marta sanalmaydi).
+const load = cache(async (id: string): Promise<SharedRow | null> => {
   if (!/^[A-Za-z0-9]{16}$/.test(id) || !isSupabaseConfigured()) return null;
   const supabase = createAnonClient();
-  const { data } = await supabase
-    .from("shared_conversations")
-    .select("id, title, model_id, messages, created_at, views")
-    .eq("id", id)
-    .maybeSingle();
-  if (data) void supabase.rpc("shared_conversation_view", { p_id: id });
-  return (data as SharedRow | null) ?? null;
-}
+  // Jadvalni ommaga ochmaymiz (0028): faqat aniq id bo'yicha, user_id'siz RPC.
+  const { data, error } = await supabase.rpc("get_shared_conversation", { p_id: id });
+  if (error) {
+    console.error("[share] get_shared_conversation:", error.message);
+    return null;
+  }
+  const row = (Array.isArray(data) ? data[0] : data) as SharedRow | undefined;
+  // PostgREST builder faqat then() da yuboriladi — shuning uchun .then().
+  if (row) void supabase.rpc("shared_conversation_view", { p_id: id }).then(() => undefined, () => undefined);
+  return row ?? null;
+});
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
