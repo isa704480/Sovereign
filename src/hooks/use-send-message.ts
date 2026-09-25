@@ -282,7 +282,7 @@ export function useSendMessage() {
   }, []);
 
   const send = useCallback(
-    async (text: string, attachments?: Attachment[], docIds?: string[]) => {
+    async (text: string, attachments?: Attachment[], docIds?: string[], opts?: { image?: boolean }) => {
       const state = useChat.getState();
       let conversationId = state.activeId;
       if (!conversationId || !state.conversations[conversationId]) {
@@ -298,8 +298,8 @@ export function useSendMessage() {
       };
       state.appendMessage(conversationId, user);
 
-      // Image-generation shortcut: skip the LLM and call the image endpoint.
-      if (detectImageIntent(text) && !attachments?.length) {
+      // Rasm: "+" → "Rasm yaratish" (majburiy) yoki matndan aniqlangan so'rov.
+      if (opts?.image || (detectImageIntent(text) && !attachments?.length)) {
         await generateImage(conversationId, text);
         return;
       }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Brain, ChevronDown, FileText, FolderOpen, FolderTree, Globe, Loader2, Mic, Paperclip, Plus, ShieldCheck, Square, X } from "lucide-react";
+import { ArrowUp, Brain, ChevronDown, Clapperboard, FileText, FolderOpen, FolderTree, Globe, ImageIcon, Loader2, Mic, Music, Paperclip, Plus, ShieldCheck, Square, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import {
   useCallback,
@@ -33,7 +33,7 @@ export interface InputAreaHandle {
 }
 
 interface InputAreaProps {
-  onSend: (text: string, attachments?: Attachment[], docIds?: string[]) => void;
+  onSend: (text: string, attachments?: Attachment[], docIds?: string[], opts?: { image?: boolean }) => void;
   onStop?: () => void;
   isStreaming: boolean;
   research: boolean;
@@ -134,6 +134,8 @@ export function InputArea({
   const [modeMenu, setModeMenu] = useState(false);
   const modeRef = useRef<HTMLDivElement>(null);
   const [plusOpen, setPlusOpen] = useState(false);
+  // "+" → "Rasm yaratish": keyingi xabar(lar) rasm sifatida yaratiladi (o'chirilguncha).
+  const [imageMode, setImageMode] = useState(false);
   const plusRef = useRef<HTMLDivElement>(null);
   // Event handler sifatida (useCallback) — render paytida ref o'qilmaydi.
   const attachFromMenu = useCallback(() => fileRef.current?.click(), []);
@@ -213,12 +215,18 @@ export function InputArea({
     if (speech.listening) speech.stop();
     // Only send mentions the user did not delete again.
     const docIds = mentioned.filter((m) => text.includes(`@${m.label}`)).map((m) => m.id);
-    onSend(text, attachments.length ? attachments : undefined, docIds.length ? docIds : undefined);
+    if (imageMode && !text) return;
+    onSend(
+      text,
+      attachments.length ? attachments : undefined,
+      docIds.length ? docIds : undefined,
+      imageMode ? { image: true } : undefined,
+    );
     setValue("");
     setAttachments([]);
     setMentioned([]);
     setMention(null);
-  }, [value, attachments, isStreaming, busy, onSend, speech, mentioned]);
+  }, [value, attachments, isStreaming, busy, onSend, speech, mentioned, imageMode]);
 
   /** Loads the document list once, the first time "@" is typed. */
   function onChangeText(e: ChangeEvent<HTMLTextAreaElement>) {
@@ -562,7 +570,7 @@ export function InputArea({
             value={value}
             onChange={onChangeText}
             onKeyDown={onKeyDown}
-            placeholder={speech.listening ? "..." : t("typeMessage")}
+            placeholder={speech.listening ? "..." : imageMode ? t("uxImagePlaceholder") : t("typeMessage")}
             aria-label={t("typeMessage")}
             rows={1}
             autoFocus={autoFocus}
@@ -575,6 +583,18 @@ export function InputArea({
 
           {isPill && (
             <div className="flex shrink-0 items-center gap-1 self-center">
+              {imageMode && (
+                <button
+                  type="button"
+                  onClick={() => setImageMode(false)}
+                  aria-label={t("uxImageModeOff")}
+                  title={t("uxImageModeOff")}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium"
+                  style={{ background: "color-mix(in srgb, var(--t-accent) 18%, transparent)", color: "var(--t-accent)" }}
+                >
+                  <ImageIcon className="size-3.5" /> {t("uxImageMode")} <X className="size-3" />
+                </button>
+              )}
               {modeChip}
               {modeToggle}
               {modelChip}
@@ -659,6 +679,9 @@ export function InputArea({
                         { id: "file", label: t("attachFile"), hint: t("chFileHint"), Icon: Paperclip, enabled: true },
                         { id: "kb", label: t("knowledgeBase"), hint: t("chKbHint"), Icon: FolderOpen, enabled: !!onOpenKnowledge },
                         { id: "memory", label: t("memory"), hint: t("chMemoryHint"), Icon: Brain, enabled: !!onOpenMemory },
+                        { id: "image", label: t("uxCreateImage"), hint: t("uxCreateImageHint"), Icon: ImageIcon, enabled: true },
+                        { id: "music", label: t("uxCreateMusic"), hint: t("uxComingSoon"), Icon: Music, enabled: false },
+                        { id: "video", label: t("uxCreateVideo"), hint: t("uxComingSoon"), Icon: Clapperboard, enabled: false },
                       ] as const
                     ).map(({ id, label, hint, Icon, enabled }, i) => (
                       <button
@@ -671,7 +694,11 @@ export function InputArea({
                           if (id === "cowork") onOpenCowork?.();
                           else if (id === "file") attachFromMenu();
                           else if (id === "kb") onOpenKnowledge?.();
-                          else onOpenMemory?.();
+                          else if (id === "memory") onOpenMemory?.();
+                          else if (id === "image") {
+                            setImageMode(true);
+                            taRef.current?.focus();
+                          }
                         }}
                         className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/5 disabled:opacity-40"
                         style={{ borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)" }}
@@ -687,7 +714,19 @@ export function InputArea({
                 )}
               </AnimatePresence>
             </div>
-            {modeChip}
+            {imageMode && (
+                <button
+                  type="button"
+                  onClick={() => setImageMode(false)}
+                  aria-label={t("uxImageModeOff")}
+                  title={t("uxImageModeOff")}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium"
+                  style={{ background: "color-mix(in srgb, var(--t-accent) 18%, transparent)", color: "var(--t-accent)" }}
+                >
+                  <ImageIcon className="size-3.5" /> {t("uxImageMode")} <X className="size-3" />
+                </button>
+              )}
+              {modeChip}
             {modeToggle}
             <SkillPicker enabled={enabledSkills} onToggle={onToggleSkill} />
             <Chip

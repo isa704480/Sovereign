@@ -84,10 +84,15 @@ const IMAGE_MODELS: [string, number][] = [
   ["aihorde/AlbedoBase XL (SDXL)", 60_000],
 ];
 
-export async function omniImage(prompt: string): Promise<{ urls: string[]; provider: string } | null> {
+export async function omniImage(
+  prompt: string,
+  deadline = Date.now() + 170_000,
+): Promise<{ urls: string[]; provider: string } | null> {
   const o = omni();
   if (!o) return null;
-  for (const [model, timeout] of IMAGE_MODELS) {
+  for (const [model, max] of IMAGE_MODELS) {
+    const timeout = Math.min(max, deadline - Date.now());
+    if (timeout < 10_000) break;
     try {
       const res = await fetch(`${o.base}/images/generations`, {
         method: "POST",
@@ -103,6 +108,50 @@ export async function omniImage(prompt: string): Promise<{ urls: string[]; provi
       if (urls.length) return { urls, provider: model };
     } catch {
       /* navbat uzun — keyingi model */
+    }
+  }
+  return null;
+}
+
+/**
+ * Rasm modellari (Flux/SDXL) faqat inglizchani yaxshi tushunadi: "tog'da quyosh
+ * chiqishi" o'rniga tasodifiy rasm chiqardi. So'rovni tez LLM bilan inglizcha
+ * rasm promptiga aylantiramiz (sinovda ~1-1.5 s). Xato bo'lsa — null (asl matn).
+ */
+const PROMPT_MODELS = ["groq/qwen/qwen3.8-27b", "groq/openai/gpt-oss-20b"];
+
+export async function omniImagePrompt(request: string): Promise<string | null> {
+  const o = omni();
+  if (!o) return null;
+  for (const model of PROMPT_MODELS) {
+    try {
+      const res = await fetch(`${o.base}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${o.key}` },
+        body: JSON.stringify({
+          model,
+          max_tokens: 300,
+          temperature: 0.3,
+          messages: [
+            {
+              role: "system",
+              content:
+                "You turn a user's image request (any language) into one concise, vivid English prompt for an image generator. Keep all subjects, text, colors and style the user asked for. Output only the prompt.",
+            },
+            { role: "user", content: request },
+          ],
+        }),
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) continue;
+      const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      const out = data.choices?.[0]?.message?.content
+        ?.replace(/<think>[\s\S]*?<\/think>/g, "")
+        .trim()
+        .replace(/^["']|["']$/g, "");
+      if (out && out.length >= 3) return out.slice(0, 1000);
+    } catch {
+      /* keyingi model */
     }
   }
   return null;

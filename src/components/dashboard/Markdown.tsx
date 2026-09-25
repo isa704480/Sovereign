@@ -2,7 +2,7 @@
 
 import { Check, Copy, FileCode2, FileDown, Loader2, PanelRightOpen } from "lucide-react";
 import { memo, useEffect, useMemo, useState, type ComponentProps } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { parseWriteBlock } from "@/lib/cowork/folder";
 import { fmt } from "@/lib/i18n";
@@ -256,6 +256,16 @@ function CodeBlock({ className, children }: { className?: string; children: stri
   );
 }
 
+/**
+ * react-markdown sukut bo'yicha data: URL'larni o'chiradi — generatsiya qilingan
+ * rasmlar (data:image/...) ko'rinmay qolardi. Faqat rasm uchun data:image/ ga
+ * ruxsat beramiz (svg emas — skript yashirishi mumkin); qolgani odatdagidek.
+ */
+function urlTransform(url: string, key: string): string {
+  if (key === "src" && /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(url)) return url;
+  return defaultUrlTransform(url);
+}
+
 /** data:/blob: yoki shu sayt rasmi — tashqi so'rov yo'q, darhol ko'rsatsa bo'ladi. */
 function isLocalImage(src: string): boolean {
   if (/^data:image\//i.test(src) || /^blob:/i.test(src)) return true;
@@ -397,7 +407,7 @@ export const Markdown = memo(function Markdown({ content, citations }: MarkdownP
 
   return (
     <div className="prose-chat">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} urlTransform={urlTransform}>
         {text}
       </ReactMarkdown>
     </div>

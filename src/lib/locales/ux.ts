@@ -72,4 +72,23 @@ export const UX = {
     ru: "Все ИИ. Одно окно.",
     en: "Every AI. One window.",
   },
+  uxCreateImage: { uz: "Rasm yaratish", "uz-cyrl": "Расм яратиш", ru: "Создать изображение", en: "Create image" },
+  uxCreateImageHint: { uz: "Matndan rasm · ~30 soniya", "uz-cyrl": "Матндан расм · ~30 сония", ru: "Картинка по тексту · ~30 с", en: "Image from text · ~30s" },
+  uxCreateMusic: { uz: "Musiqa yaratish", "uz-cyrl": "Мусиқа яратиш", ru: "Создать музыку", en: "Create music" },
+  uxCreateVideo: { uz: "Video yaratish", "uz-cyrl": "Видео яратиш", ru: "Создать видео", en: "Create video" },
+  uxComingSoon: { uz: "Tez orada", "uz-cyrl": "Тез орада", ru: "Скоро", en: "Coming soon" },
+  uxImageMode: { uz: "Rasm", "uz-cyrl": "Расм", ru: "Картинка", en: "Image" },
+  uxImageModeOff: { uz: "Rasm rejimini o'chirish", "uz-cyrl": "Расм режимини ўчириш", ru: "Выключить режим картинки", en: "Turn off image mode" },
+  uxImagePlaceholder: {
+    uz: "Qanday rasm yaratay? Masalan: tog'lar ortidan chiqayotgan quyosh, akvarel",
+    "uz-cyrl": "Қандай расм яратай? Масалан: тоғлар ортидан чиқаётган қуёш, акварел",
+    ru: "Какую картинку создать? Например: рассвет над горами, акварель",
+    en: "What should I draw? e.g. sunrise over mountains, watercolor",
+  },
+  uxImageDailyLimit: {
+    uz: "Bugungi rasm limiti tugadi ({n} ta). Ertaga davom eting yoki tarifni oshiring.",
+    "uz-cyrl": "Бугунги расм лимити тугади ({n} та). Эртага давом этинг ёки тарифни оширинг.",
+    ru: "Дневной лимит картинок исчерпан ({n}). Продолжите завтра или повысьте тариф.",
+    en: "Today's image limit is used up ({n}). Continue tomorrow or upgrade your plan.",
+  },
 } satisfies Dict;
