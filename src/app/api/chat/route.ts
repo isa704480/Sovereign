@@ -491,7 +491,9 @@ ${connectorContext}`
         }
       } catch (err) {
         if (!(err instanceof Error && err.name === "AbortError")) {
-          send({ type: "error", message: err instanceof Error ? err.message : t("chUnknownError") });
+          // Xom xato (provayder/infra tafsiloti) foydalanuvchiga emas — logga.
+          console.error("[chat] stream xato:", err);
+          send({ type: "error", message: t("chUnknownError") });
         }
       } finally {
         controller.enqueue(done);

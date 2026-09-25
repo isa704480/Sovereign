@@ -30,7 +30,8 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
 
   return (
     <motion.header
-      initial={{ y: -24, opacity: 0 }}
+      // initial={false}: SSR HTML'da navbar darhol ko'rinadi (JS kutilmaydi).
+      initial={false}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: EASE, delay: 0.1 }}
       className="fixed inset-x-0 top-0 z-50"

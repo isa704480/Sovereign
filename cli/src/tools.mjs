@@ -361,6 +361,23 @@ function tree(dir, prefix = "", depth = 0, max = 2) {
  * Runs one tool call. `confirm(question)` must return a boolean promise for
  * side-effectful ops (write_file, make_dir, run_command).
  */
+/**
+ * Keyinroq avtomatik ishga tushadigan fayllar: prompt-injection orqali agent
+ * shularga yozsa, kod foydalanuvchi keyingi `npm install`, VS Code task yoki
+ * git commit'da bajarilib ketadi. Ish papkasi ichida bo'lsa ham tasdiq kerak.
+ */
+const AUTO_RUN_FILES = new Set([
+  "package.json", ".npmrc", ".yarnrc", ".yarnrc.yml", "makefile", "justfile",
+  "taskfile.yml", "taskfile.yaml", ".envrc", "pyproject.toml", "setup.py", "setup.cfg",
+]);
+const AUTO_RUN_DIRS = [".vscode", ".idea", ".github", ".husky", ".devcontainer", ".circleci", ".gitlab"];
+function isAutoRunPath(real) {
+  const rel = relative(process.cwd(), real).split(sep).join("/").toLowerCase();
+  const base = rel.split("/").pop() ?? "";
+  if (AUTO_RUN_FILES.has(base) || base.startsWith(".env") || base === ".gitlab-ci.yml") return true;
+  return AUTO_RUN_DIRS.some((d) => rel === d || rel.startsWith(d + "/"));
+}
+
 export async function runTool(name, args, confirm) {
   switch (name) {
     case "list_dir": {
@@ -385,12 +402,15 @@ export async function runTool(name, args, confirm) {
     }
     case "write_file": {
       const r = resolvePath(args.path);
+      // Ishga tushganda kod bajaradigan fayllar (npm skriptlari, VS Code tasks, CI,
+      // git hooks, .env) — vibe/"a" rejimida ham HAR DOIM so'raladi.
+      const autoRun = !r.outside && isAutoRunPath(r.real);
       if (isProtected(r.real, { write: true, outside: r.outside })) return `XATO: "${args.path}" — himoyalangan yo'l (kalit/parol/tizim/git hook), yozilmaydi.`;
       const exists = existsSync(r.real);
       const ok = await confirm(
         `${outsideNote(r)}${exists ? "Almashtirilsinmi" : "Yaratilsinmi"}: ${c.white(r.outside ? r.real : args.path)} (${(args.content ?? "").length} belgi)?`,
-        /*forcePrompt=*/ r.outside,
-        { tool: "write_file", path: r.outside ? r.real : args.path, content: args.content ?? "", exists, outside: r.outside },
+        /*forcePrompt=*/ r.outside || autoRun,
+        { tool: "write_file", path: r.outside ? r.real : args.path, content: args.content ?? "", exists, outside: r.outside, autoRun },
       );
       if (!ok) return "Foydalanuvchi rad etdi.";
       mkdirSync(dirname(r.real), { recursive: true });
