@@ -29,12 +29,12 @@ const dmMono = DM_Mono({
 const SITE_URL = "https://sovhq.vercel.app";
 
 /**
- * Metadata va <html lang> STATIK (uz): cookie o'qilsa har sahifa har so'rovda
+ * Metadata va <html lang> STATIK (en — sayt standart tili): cookie o'qilsa har sahifa har so'rovda
  * qayta render bo'lardi va CDN keshi yo'qolardi — yuqori yuklamada qimmat.
  * Til brauzerda LangSync orqali o'rnatiladi. OG rasm — app/opengraph-image.tsx.
  */
-const description = translate("uz", "uxMetaDescription");
-const ogDescription = translate("uz", "uxOgDescription");
+const description = translate("en", "uxMetaDescription");
+const ogDescription = translate("en", "uxOgDescription");
 
 export const metadata: Metadata = (() => {
   return {
@@ -59,8 +59,8 @@ export const metadata: Metadata = (() => {
       description: ogDescription,
       url: SITE_URL,
       siteName: "SOVEREIGN",
-      locale: "uz_UZ",
-      alternateLocale: ["ru_RU", "en_US"],
+      locale: "en_US",
+      alternateLocale: ["uz_UZ", "ru_RU"],
       type: "website",
     },
     twitter: {
@@ -81,7 +81,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="uz"
+      lang="en"
       className={`${syne.variable} ${dmSans.variable} ${dmMono.variable} dark h-full antialiased`}
       suppressHydrationWarning
     >

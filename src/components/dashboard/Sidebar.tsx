@@ -1,6 +1,6 @@
 "use client";
 
-import { Brain, ChevronDown, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LayoutGrid, LogOut, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Plug, Search, Sparkles, Settings, Trash2 } from "lucide-react";
+import { Brain, ChevronDown, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LayoutGrid, LogOut, MessageSquareHeart, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Plug, Search, Sparkles, Settings, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
@@ -13,6 +13,7 @@ import { groupByDate, useChat, useT, type Conversation } from "@/store/chat";
 import { fmt } from "@/lib/i18n";
 import { convTitle } from "@/lib/locales/chat-data";
 import { useTheme } from "./theme-context";
+import { FeedbackDialog } from "./FeedbackDialog";
 
 interface SidebarProps {
   open: boolean;
@@ -89,6 +90,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { theme, model } = useTheme();
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [q, setQ] = useState("");
   const openSearch = useCallback(() => {
     onOpen();
@@ -453,6 +455,19 @@ export function Sidebar({
               <span className="flex-1">{t("researchMode")}</span>
               <Toggle on={research} onChange={onToggleResearch} label={t("researchMode")} />
             </div>
+
+            <div style={{ height: 1, background: "var(--t-border)" }} />
+
+            {/* Fikr bildirish — taklif / xato / shikoyat */}
+            <button
+              type="button"
+              onClick={() => setFeedbackOpen(true)}
+              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              style={{ color: "var(--t-text)" }}
+            >
+              <MessageSquareHeart className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <span className="flex-1 text-left">{t("fbButton")}</span>
+            </button>
               </motion.div>
             )}
           </AnimatePresence>
@@ -655,6 +670,8 @@ export function Sidebar({
           </motion.div>
         )}
       </AnimatePresence>
+
+      <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </>
   );
 }

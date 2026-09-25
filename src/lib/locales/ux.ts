@@ -91,4 +91,55 @@ export const UX = {
     ru: "Дневной лимит картинок исчерпан ({n}). Продолжите завтра или повысьте тариф.",
     en: "Today's image limit is used up ({n}). Continue tomorrow or upgrade your plan.",
   },
+
+  // Fikr-mulohaza (taklif / xato / shikoyat)
+  fbButton: { uz: "Fikr bildirish", "uz-cyrl": "Фикр билдириш", ru: "Оставить отзыв", en: "Send feedback" },
+  fbTitle: { uz: "Fikringizni yozing", "uz-cyrl": "Фикрингизни ёзинг", ru: "Напишите нам", en: "Tell us what you think" },
+  fbSub: {
+    uz: "Taklif, xato yoki shikoyat — hammasini o'qiymiz.",
+    "uz-cyrl": "Таклиф, хато ёки шикоят — ҳаммасини ўқиймиз.",
+    ru: "Идея, ошибка или жалоба — мы читаем всё.",
+    en: "Ideas, bugs or complaints — we read every one.",
+  },
+  fbKindIdea: { uz: "Taklif", "uz-cyrl": "Таклиф", ru: "Идея", en: "Idea" },
+  fbKindBug: { uz: "Xato", "uz-cyrl": "Хато", ru: "Ошибка", en: "Bug" },
+  fbKindComplaint: { uz: "Shikoyat", "uz-cyrl": "Шикоят", ru: "Жалоба", en: "Complaint" },
+  fbKindOther: { uz: "Boshqa", "uz-cyrl": "Бошқа", ru: "Другое", en: "Other" },
+  fbPlaceholder: {
+    uz: "Nima yoqdi, nima yoqmadi yoki nima ishlamadi?",
+    "uz-cyrl": "Нима ёқди, нима ёқмади ёки нима ишламади?",
+    ru: "Что понравилось, что нет или что не работает?",
+    en: "What do you like, what don't you, or what's broken?",
+  },
+  fbSend: { uz: "Yuborish", "uz-cyrl": "Юбориш", ru: "Отправить", en: "Send" },
+  fbSent: {
+    uz: "Rahmat! Fikringiz yetib keldi.",
+    "uz-cyrl": "Раҳмат! Фикрингиз етиб келди.",
+    ru: "Спасибо! Ваш отзыв получен.",
+    en: "Thank you! We got your feedback.",
+  },
+  fbTooShort: {
+    uz: "Kamida 3 ta belgi yozing.",
+    "uz-cyrl": "Камида 3 та белги ёзинг.",
+    ru: "Напишите хотя бы 3 символа.",
+    en: "Please write at least 3 characters.",
+  },
+  fbFailed: {
+    uz: "Yuborib bo'lmadi. Birozdan keyin qayta urinib ko'ring.",
+    "uz-cyrl": "Юбориб бўлмади. Бироздан кейин қайта уриниб кўринг.",
+    ru: "Не удалось отправить. Попробуйте чуть позже.",
+    en: "Couldn't send. Please try again in a moment.",
+  },
+
+  // CLI o'rnatish
+  cliButton: { uz: "Terminalda ishlatish", "uz-cyrl": "Терминалда ишлатиш", ru: "В терминале", en: "Use in terminal" },
+  cliTitle: { uz: "SOVEREIGN CLI", "uz-cyrl": "SOVEREIGN CLI", ru: "SOVEREIGN CLI", en: "SOVEREIGN CLI" },
+  cliSub: {
+    uz: "Kod yozadigan AI agent — to'g'ridan-to'g'ri terminalingizda. Node.js 20+ kerak.",
+    "uz-cyrl": "Код ёзадиган AI агент — тўғридан-тўғри терминалингизда. Node.js 20+ керак.",
+    ru: "AI-агент для кода прямо в вашем терминале. Нужен Node.js 20+.",
+    en: "A coding AI agent right in your terminal. Requires Node.js 20+.",
+  },
+  cliThenRun: { uz: "So'ng ishga tushiring:", "uz-cyrl": "Сўнг ишга туширинг:", ru: "Затем запустите:", en: "Then run:" },
+  cliOrNpm: { uz: "Yoki npm orqali:", "uz-cyrl": "Ёки npm орқали:", ru: "Или через npm:", en: "Or with npm:" },
 } satisfies Dict;

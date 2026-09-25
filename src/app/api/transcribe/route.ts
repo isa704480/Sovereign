@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
-import { getServerT } from "@/lib/i18n-server";
+import { getServerLang, getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -44,7 +44,8 @@ export async function POST(req: Request) {
 
   try {
     const name = (form.get("name") as string) || "audio.webm";
-    const language = (form.get("language") as string) || "uz";
+    // Whisper uchun til ishorasi: aniq berilmasa — interfeys tili (uz-cyrl ham "uz").
+    const language = (form.get("language") as string) || (await getServerLang()).slice(0, 2);
     const text = await transcribe(file, name, language);
     return Response.json({ text });
   } catch (e) {

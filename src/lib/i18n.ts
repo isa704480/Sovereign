@@ -1,5 +1,5 @@
 /**
- * Interfeys tillari. O'zbek (lotin) — asosiy; kirill, rus va ingliz qo'shimcha.
+ * Interfeys tillari. Ingliz — standart (yangi tashrif); o'zbek (lotin/kirill) va rus.
  * Kalitlar qisqa, tarjimalar bir joyda — yangi til qo'shish = bitta ustun.
  */
 
@@ -19,7 +19,7 @@ export const LANGS: { id: Lang; label: string; short: string; htmlLang: string }
   { id: "en", label: "English", short: "EN", htmlLang: "en" },
 ];
 
-export const DEFAULT_LANG: Lang = "uz";
+export const DEFAULT_LANG: Lang = "en";
 
 /** Bitta matnning 4 tildagi varianti. */
 export type L10n = Record<Lang, string>;
@@ -31,7 +31,7 @@ export const LANG_COOKIE = "sov-lang";
 /** Oddiy matn yoki L10n obyektdan kerakli tilni oladi. */
 export function pick(lang: Lang, v: string | L10n | undefined | null): string {
   if (v == null) return "";
-  return typeof v === "string" ? v : (v[lang] ?? v.uz);
+  return typeof v === "string" ? v : (v[lang] ?? v.en ?? v.uz);
 }
 
 /** "{n} ta model" → fmt(s, { n: 5 }) */
@@ -508,7 +508,7 @@ export type TKey = keyof typeof DICT;
 
 export function translate(lang: Lang, key: TKey): string {
   const row = DICT[key] as Record<Lang, string>;
-  return row[lang] ?? row.uz;
+  return row[lang] ?? row.en ?? row.uz;
 }
 
 export function isLang(v: unknown): v is Lang {

@@ -1,6 +1,7 @@
 "use client";
 
 import type { StreamEvent } from "@/lib/ai/providers";
+import { DEFAULT_LANG } from "@/lib/i18n";
 
 export interface StreamChatOptions {
   modelId: string;
@@ -46,7 +47,7 @@ export async function streamChat({
       docIds: docIds ?? [],
       customSkills: customSkills ?? [],
       context: context ?? "",
-      lang: lang ?? "uz",
+      lang: lang ?? DEFAULT_LANG,
       agentMode: agentMode ?? "general",
       messages,
     }),

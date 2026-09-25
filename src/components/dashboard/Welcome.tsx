@@ -1,13 +1,16 @@
 "use client";
 
-import { motion } from "motion/react";
-import type { ReactNode } from "react";
+import { MessageSquareHeart, Terminal } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useState, type ReactNode } from "react";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { LogoMark } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme-context";
 import { useLang, useT } from "@/store/chat";
 import { themeSuggestions } from "@/lib/locales/chat-data";
+import { CliInstall } from "./CliInstall";
+import { FeedbackDialog } from "./FeedbackDialog";
 
 interface WelcomeProps {
   userName: string;
@@ -77,6 +80,54 @@ function Suggestions({
   );
 }
 
+/** Bo'sh ekran pastida: fikr bildirish va CLI o'rnatish (barcha mavzularda bir xil). */
+function WelcomeExtras() {
+  const tr = useT();
+  const [cli, setCli] = useState(false);
+  const [feedback, setFeedback] = useState(false);
+  const pill =
+    "tt inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium transition-colors hover:bg-white/5";
+  return (
+    <div className="flex w-full flex-col items-center gap-4">
+      <div className="flex flex-wrap justify-center gap-2">
+        <button
+          type="button"
+          onClick={() => setCli((o) => !o)}
+          aria-expanded={cli}
+          className={pill}
+          style={{ borderColor: "var(--t-border)", color: cli ? "var(--t-text)" : "var(--t-text-muted)" }}
+        >
+          <Terminal className="size-3.5" />
+          {tr("cliButton")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setFeedback(true)}
+          className={pill}
+          style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
+        >
+          <MessageSquareHeart className="size-3.5" />
+          {tr("fbButton")}
+        </button>
+      </div>
+      <AnimatePresence initial={false}>
+        {cli && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
+            className="flex w-full justify-center"
+          >
+            <CliInstall />
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <FeedbackDialog open={feedback} onClose={() => setFeedback(false)} />
+    </div>
+  );
+}
+
 /** Empty-state screen, one layout per provider (DESIGN.md Ekran 5). */
 export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
   const { theme, model } = useTheme();
@@ -94,6 +145,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
       className={cn("mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-8 px-4 py-10", className)}
     >
       {children}
+      <WelcomeExtras />
     </motion.div>
   );
 

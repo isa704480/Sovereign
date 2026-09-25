@@ -43,6 +43,14 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: securityHeaders,
       },
+      // CLI o'rnatuvchilari: `curl | sh` va `irm | iex` matn sifatida o'qishi uchun.
+      {
+        source: "/install.:ext(sh|ps1)",
+        headers: [
+          { key: "Content-Type", value: "text/plain; charset=utf-8" },
+          { key: "Cache-Control", value: "public, max-age=300" },
+        ],
+      },
     ];
   },
 };
