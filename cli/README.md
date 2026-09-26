@@ -53,6 +53,7 @@ Lokal serverga (test): `sov login --local`.
 | `sov -p "savol"` | interaktivsiz: faqat javob stdout'ga, progress stderr'ga |
 | `sov login` / `logout` / `whoami` | akkaunt |
 | `sov doctor` | diagnostika: Node/binary, versiya, config, server, login, ish papkasi, PATH |
+| `sov init` · `sov init --ai` | `SOVEREIGN.md` — jamoa uchun loyiha xotirasi (`--ai`: agent loyihani o'rganib to'ldiradi) |
 | `sov models` · `sov sessions` | modellar · saqlangan suhbatlar |
 | `sov key <kalit>` · `sov config` | o'z kalitingiz · sozlash |
 | `sov help [buyruq]` · `sov --version` | yordam · versiya |
@@ -78,7 +79,23 @@ sov -p -y "README'ga o'rnatish bo'limini qo'sh"
 - `/` yoki `/help` — barcha buyruqlar; `Tab` — to'ldirish; `@fayl` — biriktirish; `↑/↓` — tarix (`~/.sovereign/history`, kalitlar yozilmaydi).
 - **Ctrl+C** — joriy ishni (so'rov, tasdiq, buyruq) bekor qiladi; bo'sh promptda ikki marta — chiqish.
 - Fayl yozishdan oldin **diff** ko'rsatiladi (`- eski` / `+ yangi`).
-- `/model`, `/models`, `/cwd`, `/attach`, `/sessions`, `/resume`, `/rewind`, `/fork`, `/vibe`, `/swarm`, `/memory`, `/doctor`, `/exit` va boshqalar.
+- `/model`, `/models`, `/cwd`, `/attach`, `/sessions`, `/resume`, `/rewind`, `/fork`, `/vibe`, `/swarm`, `/memory`, `/project`, `/doctor`, `/exit` va boshqalar.
+
+## Loyiha xotirasi: `SOVEREIGN.md`
+
+Har bir AI sessiya noldan boshlanmasin: loyiha qoidalari, buyruqlar va "tegma" ro'yxati bitta faylda — **git orqali butun jamoaga ulashiladi**.
+
+```bash
+sov init          # SOVEREIGN.md shabloni (stek va buyruqlar package.json'dan taxmin qilinadi)
+sov init --ai     # agent loyihani o'rganib faylni o'zi to'ldiradi (yozishdan oldin tasdiq)
+git add SOVEREIGN.md && git commit -m "Loyiha xotirasi"
+```
+
+- Agent (CLI va Cowork) `SOVEREIGN.md` ni (yoki `.sovereign/PROJECT.md`; ikkalasi bo'lsa — birlashtiriladi) har suhbat boshida o'qiydi. Qidiruv: joriy papkadan git ildizigacha.
+- Chegara — 16 KB (oshsa, boshi beriladi va ogohlantiriladi). Symlink fayllar o'qilmaydi.
+- `/project` — fayl yo'li va qisqa mazmun; `/project init` — shablon; `/project-remember <fakt>` — `## Eslatmalar` bo'limiga sanali band qo'shadi.
+- Fayl mazmuni loyiha konventsiyasi sifatida bajariladi, lekin undagi "kalitni yubor / ruxsatni o'chir" kabi buyruqlarga agent amal qilmaydi.
+- Individual xotira (`/memory`, `/remember`) — faqat sizniki; `SOVEREIGN.md` — loyihaniki.
 
 ## Halollik: "Aslida nima bo'ldi"
 

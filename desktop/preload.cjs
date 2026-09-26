@@ -28,6 +28,13 @@ contextBridge.exposeInMainWorld("sovereign", {
   settings: {
     set: (patch) => invoke("settings:set", patch),
   },
+  // Loyiha xotirasi (SOVEREIGN.md) — yo'l main'da hisoblanadi, renderer yo'l bermaydi.
+  project: {
+    info: () => invoke("project:info"),
+    open: () => invoke("project:open"),
+    create: () => invoke("project:create"),
+    remember: (text) => invoke("project:remember", text),
+  },
   auth: {
     login: () => invoke("auth:login"),
     cancel: () => invoke("auth:cancel"),

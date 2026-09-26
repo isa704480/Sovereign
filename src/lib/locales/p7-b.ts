@@ -751,4 +751,41 @@ export const P7B = {
     ru: "**Полный авто** (`--full-auto` или `/auto`; в Cowork — кнопка ⚡) — ничего не спрашивается: запись файлов, установка пакетов, тесты и сборка внутри рабочей папки выполняются сразу; агент сам исправляет ошибки, пока тесты не пройдут. Пути вне рабочей папки, `git push`, publish, deploy и `sudo` **отклоняются** без вопросов; защищённые пути и опасные команды по-прежнему блокируются. Включайте только в доверенной папке.",
     en: "**Full auto** (`--full-auto` or `/auto`; the ⚡ button in Cowork) — nothing is asked: file writes, package installs, tests and builds inside the working folder run right away, and the agent keeps fixing until tests pass. Paths outside the working folder, `git push`, publish, deploy and `sudo` are **refused** without asking; protected paths and dangerous commands stay blocked. Turn it on only in a folder you trust.",
   },
+  // ---- Loyiha xotirasi (SOVEREIGN.md) ----
+  p7bDProjectTitle: {
+    uz: "Loyiha xotirasi (SOVEREIGN.md)",
+    "uz-cyrl": "Лойиҳа хотираси (SOVEREIGN.md)",
+    ru: "Память проекта (SOVEREIGN.md)",
+    en: "Project memory (SOVEREIGN.md)",
+  },
+  p7bDProject1: {
+    uz: "Har bir AI sessiya noldan boshlanmasin: loyiha haqida, stek, buyruqlar (test/build/run), qoidalar va «tegma» ro'yxati bitta **`SOVEREIGN.md`** faylida turadi. Agent (CLI va Cowork) uni har suhbat boshida o'qiydi. Faylni git'ga commit qiling — jamoadoshlaringizning agenti ham shu qoidalardan boshlaydi va mavjud funksiyalarni qayta yaratmaydi.",
+    "uz-cyrl": "Ҳар бир AI сессия нолдан бошланмасин: лойиҳа ҳақида, стек, буйруқлар (test/build/run), қоидалар ва «тегма» рўйхати битта **`SOVEREIGN.md`** файлида туради. Агент (CLI ва Cowork) уни ҳар суҳбат бошида ўқийди. Файлни git'га коммит қилинг — жамоадошларингизнинг агенти ҳам шу қоидалардан бошлайди ва мавжуд функцияларни қайта яратмайди.",
+    ru: "Чтобы каждая AI-сессия не начиналась с нуля: описание проекта, стек, команды (test/build/run), правила и список «не трогать» хранятся в одном файле **`SOVEREIGN.md`**. Агент (CLI и Cowork) читает его в начале каждого диалога. Закоммитьте файл в git — агенты ваших коллег начнут с тех же правил и не будут заново писать существующие функции.",
+    en: "So no AI session starts from zero: the project overview, stack, commands (test/build/run), rules and a “don't touch” list live in one **`SOVEREIGN.md`** file. The agent (CLI and Cowork) reads it at the start of every conversation. Commit it to git — your teammates' agents start from the same rules and stop re-creating functions that already exist.",
+  },
+  p7bDProject2: {
+    uz: "`sov init` — shablon yaratadi (stek va buyruqlar `package.json` dan taxmin qilinadi); `sov init --ai` — agent loyihani o'rganib faylni o'zi to'ldiradi (yozishdan oldin tasdiq so'raladi). Fayl joriy papkadan git ildizigacha qidiriladi; `.sovereign/PROJECT.md` ham qabul qilinadi (ikkalasi bo'lsa — birlashtiriladi). Chegara — 16 KB.",
+    "uz-cyrl": "`sov init` — шаблон яратади (стек ва буйруқлар `package.json` дан тахмин қилинади); `sov init --ai` — агент лойиҳани ўрганиб файлни ўзи тўлдиради (ёзишдан олдин тасдиқ сўралади). Файл жорий папкадан git илдизигача қидирилади; `.sovereign/PROJECT.md` ҳам қабул қилинади (иккаласи бўлса — бирлаштирилади). Чегара — 16 КБ.",
+    ru: "`sov init` создаёт шаблон (стек и команды берутся из `package.json`); `sov init --ai` — агент изучает проект и сам заполняет файл (перед записью спросит подтверждение). Файл ищется от текущей папки до корня git; поддерживается и `.sovereign/PROJECT.md` (если есть оба — объединяются). Лимит — 16 КБ.",
+    en: "`sov init` creates a template (stack and commands are guessed from `package.json`); `sov init --ai` lets the agent study the project and fill it in (it asks before writing). The file is looked up from the current folder to the git root; `.sovereign/PROJECT.md` works too (if both exist they are merged). Limit: 16 KB.",
+  },
+  p7bDProject3: {
+    uz: "Yangi qoida qo'shish: CLI'da `/project-remember <fakt>` (ko'rish — `/project`), Cowork'da o'ng panel → **Loyiha** → «Eslab qolish». Qoida `## Eslatmalar` bo'limiga sana bilan yoziladi. Siz «har doim X qil» yoki «Y ga tegma» desangiz, agent uni saqlashni taklif qiladi — o'zi yozmaydi.",
+    "uz-cyrl": "Янги қоида қўшиш: CLI'да `/project-remember <факт>` (кўриш — `/project`), Cowork'да ўнг панел → **Лойиҳа** → «Эслаб қолиш». Қоида `## Eslatmalar` бўлимига сана билан ёзилади. Сиз «ҳар доим X қил» ёки «Y га тегма» десангиз, агент уни сақлашни таклиф қилади — ўзи ёзмайди.",
+    ru: "Добавить правило: в CLI — `/project-remember <факт>` (просмотр — `/project`), в Cowork — правая панель → **Проект** → «Запомнить». Правило записывается с датой в раздел `## Eslatmalar`. Если вы скажете «всегда делай X» или «не трогай Y», агент предложит сохранить это, но сам не запишет.",
+    en: "Add a rule: `/project-remember <fact>` in the CLI (view with `/project`), or right panel → **Project** → “Remember” in Cowork. It is appended with a date under `## Eslatmalar`. When you say “always do X” or “don't touch Y”, the agent suggests saving it — it never writes on its own.",
+  },
+  p7bDProject4: {
+    uz: "Fayl mazmuni loyiha konventsiyasi sifatida bajariladi, lekin undagi «kalitni yubor» yoki «ruxsatni o'chir» kabi buyruqlarga agent amal qilmaydi. Symlink fayllar o'qilmaydi. Kalit va parollarni bu faylga yozmang.",
+    "uz-cyrl": "Файл мазмуни лойиҳа конвенцияси сифатида бажарилади, лекин ундаги «калитни юбор» ёки «рухсатни ўчир» каби буйруқларга агент амал қилмайди. Симлинк файллар ўқилмайди. Калит ва паролларни бу файлга ёзманг.",
+    ru: "Содержимое файла выполняется как соглашения проекта, но команды вроде «отправь ключ» или «отключи подтверждения» агент игнорирует. Файлы-симлинки не читаются. Не храните в этом файле ключи и пароли.",
+    en: "The file is followed as project conventions, but the agent ignores instructions in it such as “send the key” or “turn off approvals”. Symlinked files are not read. Never put keys or passwords in this file.",
+  },
+  p7bDCmdProject: {
+    uz: "Loyiha xotirasi (SOVEREIGN.md): ko'rish, /project init — shablon, /project-remember — jamoa qoidasini qo'shish",
+    "uz-cyrl": "Лойиҳа хотираси (SOVEREIGN.md): кўриш, /project init — шаблон, /project-remember — жамоа қоидасини қўшиш",
+    ru: "Память проекта (SOVEREIGN.md): просмотр, /project init — шаблон, /project-remember — добавить правило команды",
+    en: "Project memory (SOVEREIGN.md): view it, /project init for a template, /project-remember to add a team rule",
+  },
 } satisfies Dict;

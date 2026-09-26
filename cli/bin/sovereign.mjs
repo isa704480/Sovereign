@@ -6,6 +6,7 @@ import { dirname as pathDirname, resolve as pathResolve, sep as pathSep } from "
 import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
 import { loadMemory, addMemory, removeMemory, clearMemory, syncMemory } from "../src/memory.mjs";
+import { addProjectNote, createProjectFile, projectInfo, refreshProjectMessage, PROJECT_MAX_BYTES } from "../src/project-memory.mjs";
 import { login } from "../src/login.mjs";
 import { printModels, resolveModelId, isOmniId, fetchCatalog, printCatalog, fetchFamilies, matchFamily, CLI_MODELS } from "../src/models.mjs";
 import { selectMenu } from "../src/menu.mjs";
@@ -233,6 +234,11 @@ const COMMAND_HELP = {
   logout: ["sov logout", "Akkauntdan chiqish (lokal token o'chiriladi).", []],
   whoami: ["sov whoami [--json]", "Ulanish holati: akkaunt yoki o'z OpenRouter kalitingiz.", ["sov whoami --json"]],
   doctor: ["sov doctor [--json]", "Diagnostika: Node/binary, versiya, config, server, login, ish papkasi, PATH. Muammo bo'lsa chiqish kodi 1.", ["sov doctor", "sov doctor --json"]],
+  init: [
+    "sov init [--ai]",
+    "Loyiha xotirasi: joriy papkada SOVEREIGN.md yaratadi (loyiha haqida, stek, buyruqlar, qoidalar, \"tegma\" ro'yxati, eslatmalar). Agent (CLI va Cowork) uni har suhbat boshida o'qiydi — git'ga commit qiling, jamoa bilan ulashiladi. --ai: agent loyihani o'rganib faylni o'zi to'ldiradi (yozishdan oldin tasdiq so'raladi).",
+    ["sov init", "sov init --ai"],
+  ],
   models: ["sov models", "Mahalliy model ro'yxati (interaktiv rejimda /model — to'liq katalog).", []],
   sessions: ["sov sessions [--json]", "Saqlangan suhbatlar. Davom ettirish: interaktiv rejimda /resume <id>.", []],
   key: ["sov key <sk-or-...>", "O'z OpenRouter kalitingizni saqlash (akkauntsiz rejim).", ["sov key sk-or-v1-..."]],
@@ -265,6 +271,7 @@ function handleHelp(topic) {
       `    ${w("logout")}                   akkauntdan chiqish`,
       `    ${w("whoami")}                   ulanish holati`,
       `    ${w("doctor")}                   diagnostika va yechim ko'rsatmalari`,
+      `    ${w("init")} [--ai]              SOVEREIGN.md — jamoa uchun loyiha xotirasi (--ai: agent to'ldiradi)`,
       `    ${w("models")}                   modellar ro'yxati`,
       `    ${w("sessions")}                 saqlangan suhbatlar`,
       `    ${w("key")} <sk-or-...>          o'z OpenRouter kalitingiz`,
@@ -295,9 +302,13 @@ function handleHelp(topic) {
     `    sov --full-auto "todo API yoz, test qil va xatolarni tuzat"`,
       `    sov "shu dizaynga HTML yoz" -f mockup.png`,
       `    sov doctor`,
+      `    sov init --ai`,
       "",
       `  ${w("Interaktiv rejimda:")} / — buyruqlar menyusi, /help, @fayl — biriktirish, ↑/↓ — tarix,`,
       `    Ctrl+C — joriy ishni bekor qilish, ikki marta — chiqish.`,
+      "",
+      `  ${w("Loyiha xotirasi:")} papkadagi SOVEREIGN.md (yoki .sovereign/PROJECT.md) har suhbatga qo'shiladi;`,
+      `    /project — ko'rish, /project-remember <fakt> — jamoa qoidasini qo'shish. Git'ga commit qiling.`,
       "",
       `  ${w("Xavfsizlik:")} ish papkasidan tashqaridagi yo'l va xavfli buyruqlar HAR DOIM so'raladi`,
       `    (--yes/vibe ham o'tkazib yubormaydi); -p rejimida ular avtomatik rad etiladi.`,
@@ -310,6 +321,33 @@ function handleHelp(topic) {
       "",
     ].join("\n"),
   );
+}
+
+// ---- loyiha xotirasi (SOVEREIGN.md) ---------------------------------
+const PROJECT_ERR = {
+  empty: "Bo'sh fakt — /project-remember <qoida yoki fakt>",
+  duplicate: "Bu eslatma SOVEREIGN.md da allaqachon bor.",
+  unsafe: "SOVEREIGN.md oddiy fayl emas (symlink yoki papka) — xavfsizlik uchun yozilmadi.",
+  io: "SOVEREIGN.md ga yozib bo'lmadi (ruxsat yoki disk xatosi).",
+};
+
+/** /project va `sov init` uchun qisqa holat qatorlari. */
+function projectLines(info) {
+  if (!info.exists) {
+    return [
+      c.dim("Loyiha xotirasi yo'q:") + " " + c.white(info.path),
+      c.faint("Yaratish: /project init (yoki terminalda: sov init, sov init --ai). Keyin git'ga commit qiling."),
+    ];
+  }
+  const kb = (info.bytes / 1024).toFixed(1);
+  const out = [
+    c.faint("LOYIHA XOTIRASI") + "  " + c.dim(`(${kb} KB · ${info.notes} ta eslatma · jamoa bilan git orqali)`),
+    ...info.files.map((f) => c.white(f)),
+  ];
+  if (info.sections.length) out.push(c.dim("Bo'limlar: ") + info.sections.join(" · "));
+  if (info.truncated) out.push(c.warn(`⚠ Fayl ${PROJECT_MAX_BYTES / 1024} KB dan katta — agentga faqat boshi beriladi. Qisqartiring.`));
+  out.push(c.faint("/project-remember <fakt> — qo'shish · faylni muharrirda tahrirlang · agent har suhbat boshida o'qiydi"));
+  return out;
 }
 
 function versionLine() {
@@ -862,6 +900,44 @@ async function repl() {
       continue;
     }
 
+    // ── Loyiha xotirasi (SOVEREIGN.md, jamoa bilan git orqali) ──
+    if (input === "/project-remember" || input.startsWith("/project-remember ")) {
+      const r = addProjectNote(input.slice("/project-remember".length));
+      console.log("");
+      if (r.ok) {
+        refreshProjectMessage(messages); // suhbat saqlanadi — agent yangi qoidani darhol ko'radi
+        console.log("  " + c.ok("✓") + " " + c.dim(r.created ? "SOVEREIGN.md yaratildi va eslatma qo'shildi:" : "SOVEREIGN.md ga qo'shildi:") + " " + c.white(r.path));
+        if (r.overLimit) console.log("  " + c.warn(`⚠ Fayl ${PROJECT_MAX_BYTES / 1024} KB dan oshdi — qisqartiring.`));
+        console.log("  " + c.faint("Jamoa ko'rishi uchun faylni git'ga commit qiling."));
+      } else {
+        console.log("  " + c.warn(PROJECT_ERR[r.error] ?? PROJECT_ERR.io));
+      }
+      console.log("");
+      rl.prompt();
+      continue;
+    }
+    if (input === "/project" || input.startsWith("/project ")) {
+      const arg = input.slice("/project".length).trim();
+      console.log("");
+      if (arg === "init") {
+        const r = createProjectFile();
+        if (r.ok) {
+          refreshProjectMessage(messages);
+          console.log("  " + c.ok("✓") + " " + c.dim(r.created ? "Shablon yaratildi:" : "Allaqachon bor:") + " " + c.white(r.path));
+          if (r.created) console.log("  " + c.faint("To'ldiring (yoki agentga: \"loyihani o'rganib SOVEREIGN.md ni to'ldir\") va git'ga commit qiling."));
+        } else {
+          console.log("  " + c.warn(PROJECT_ERR[r.error] ?? PROJECT_ERR.io));
+        }
+      } else if (arg) {
+        console.log("  " + c.warn("Foydalanish:") + " /project · /project init · /project-remember <fakt>");
+      } else {
+        for (const l of projectLines(projectInfo())) console.log("  " + l);
+      }
+      console.log("");
+      rl.prompt();
+      continue;
+    }
+
     // ── Yordam ──
     if (input === "/help" || input === "/?") {
       console.log(renderSlashMenu());
@@ -1324,6 +1400,30 @@ function handleSessions() {
   return EXIT.OK;
 }
 
+/** sov init [--ai] — SOVEREIGN.md shabloni; --ai bilan agent loyihani o'rganib to'ldiradi. */
+async function handleInit() {
+  const r = createProjectFile();
+  if (!r.ok) {
+    console.error(`\n  ${c.red("✕")} ${PROJECT_ERR[r.error] ?? PROJECT_ERR.io} ${c.dim(r.path)}\n`);
+    return EXIT.ERROR;
+  }
+  console.log(`\n  ${c.green(r.created ? "Yaratildi:" : "Allaqachon bor:")} ${c.white(r.path)}`);
+  if (!flags.ai) {
+    console.log(`  ${c.dim("To'ldiring va git'ga commit qiling — jamoadagi har bir AI sessiya shu qoidalardan boshlaydi.")}`);
+    console.log(`  ${c.dim("Agent to'ldirsin:")} ${c.white("sov init --ai")}\n`);
+    return EXIT.OK;
+  }
+  console.log("");
+  const task =
+    `Loyihani o'rganib SOVEREIGN.md ni to'ldir (fayl: ${r.path}). Avval list_dir va read_file bilan README, package.json (yoki pyproject/go.mod/Cargo.toml), ` +
+    "asosiy papkalar va konfiglarni ko'r. Keyin SOVEREIGN.md dagi '…' joylarni HAQIQIY ma'lumot bilan almashtir: loyiha nima qiladi, " +
+    "asosiy papkalar, stek, buyruqlar (o'rnatish/ishga tushirish/test/build/lint — faqat loyihada haqiqatan bor buyruqlar), " +
+    "kod uslubi va qoidalar, \"Tegma\" ro'yxati (generatsiya qilingan kod, lock fayllar va h.k.). Mavjud qoidalar va '## Eslatmalar' " +
+    `bo'limini SAQLAB QOL. Qisqa yoz (${PROJECT_MAX_BYTES / 1024} KB dan oshmasin), kalit/parol/token yozma. Faqat SOVEREIGN.md ni o'zgartir, buyruq ishga tushirma.`;
+  if (!process.stdin.isTTY) return printMode(task);
+  return oneShot(task);
+}
+
 // ---- dispatch ---------------------------------------------------------
 async function main() {
   if (parsed.errors.length) {
@@ -1365,6 +1465,8 @@ async function main() {
       return handleKey(restArgs[0]);
     case "doctor":
       return handleDoctor();
+    case "init":
+      return handleInit();
     case "sessions":
       return handleSessions();
     default:

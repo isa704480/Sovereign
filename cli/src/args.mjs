@@ -8,7 +8,7 @@ export const EXIT = Object.freeze({
   INTERRUPTED: 130, // Ctrl+C
 });
 
-export const SUBCOMMANDS = ["login", "logout", "whoami", "who", "doctor", "models", "sessions", "key", "config", "version", "help"];
+export const SUBCOMMANDS = ["login", "logout", "whoami", "who", "doctor", "init", "models", "sessions", "key", "config", "version", "help"];
 
 /** Qiymat talab qiladigan flaglar. */
 const VALUE_FLAGS = {
@@ -39,6 +39,7 @@ const BOOL_FLAGS = {
   "--no-verify": "noVerify",
   "--local": "local",
   "--verbose": "verbose",
+  "--ai": "ai", // sov init --ai — SOVEREIGN.md ni agent to'ldiradi
 };
 
 /**
