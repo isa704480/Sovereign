@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Icon from "./Icon.jsx";
 import DiffView from "./DiffView.jsx";
+import ProjectMemory from "./ProjectMemory.jsx";
 import { lineDiff, diffStats } from "../lib/diff.js";
 import { useT } from "../lib/i18n.js";
 import { localizeTerminal } from "../lib/cliText.js";
@@ -64,14 +65,14 @@ function Terminal({ term, onClear }) {
   );
 }
 
-/** O'ng panel: o'zgarishlar (diff + Undo) va terminal. */
-export default function RightPanel({ tab, setTab, changes, term, onUndo, onUndoAll, onClearTerm, onClose }) {
+/** O'ng panel: o'zgarishlar (diff + Undo), terminal va loyiha xotirasi (SOVEREIGN.md). */
+export default function RightPanel({ tab, setTab, changes, term, onUndo, onUndoAll, onClearTerm, onClose, cwd, toast }) {
   const t = useT();
   const [openPath, setOpenPath] = useState(null);
   return (
     <aside className="rpanel" aria-label={t("panel.label")}>
       <div className="tabs" role="tablist">
-        {[["changes", t("panel.changes"), changes.length], ["terminal", t("panel.terminal"), term.length]].map(([k, l, n]) => (
+        {[["changes", t("panel.changes"), changes.length], ["terminal", t("panel.terminal"), term.length], ["project", t("panel.project"), 0]].map(([k, l, n]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className={`tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
             {l}{n ? <span className="count">{n}</span> : null}
           </button>
@@ -100,6 +101,8 @@ export default function RightPanel({ tab, setTab, changes, term, onUndo, onUndoA
               <p className="faint small pad-sm">{t("changes.note")}</p>
             </>
           )
+        ) : tab === "project" ? (
+          <ProjectMemory cwd={cwd} toast={toast} />
         ) : (
           <Terminal term={term} onClear={onClearTerm} />
         )}

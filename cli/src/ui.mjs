@@ -252,6 +252,7 @@ export function slashMenu(items) {
     { label: "Model",    cmds: ["/model", "/models"] },
     { label: "Skillar",  cmds: ["/skills", "/skill"] },
     { label: "Xotira",   cmds: ["/memory", "/remember", "/forget"] },
+    { label: "Loyiha",   cmds: ["/project", "/project-remember"] },
     { label: "Akkaunt",  cmds: ["/whoami", "/login", "/logout", "/register", "/upgrade"] },
     { label: "Tizim",    cmds: ["/cwd", "/doctor", "/version", "/exit"] },
   ];
@@ -261,14 +262,16 @@ export function slashMenu(items) {
   if (rest.length) groups.push({ label: "Boshqa", cmds: rest });
 
   const byName = Object.fromEntries(items.map((i) => [i.cmd, i]));
+  // Buyruq ustuni eng uzun nomga moslashadi (mas. /project-remember), 18 dan oshmaydi.
+  const cmdW = Math.min(18, Math.max(11, ...items.map((i) => i.cmd.length)));
 
   const sections = groups.filter((grp) => grp.cmds.some((cmd) => byName[cmd])).map((g) => {
     const rows = [c.faint(g.label.toUpperCase())];
     for (const cmdName of g.cmds) {
       const item = byName[cmdName];
       if (!item) continue;
-      const name = pad(c.text(item.cmd), 11);
-      const room = Math.max(10, width - 6 - 2 - 11 - 2);
+      const name = pad(c.text(item.cmd), cmdW);
+      const room = Math.max(10, width - 6 - 2 - cmdW - 2);
       const desc = item.desc.length > room ? item.desc.slice(0, room - 1) + "…" : item.desc;
       rows.push("  " + name + "  " + c.subtle(desc));
     }

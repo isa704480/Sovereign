@@ -108,6 +108,7 @@ const CLI_COMMANDS: readonly [string, TKey][] = [
   ["/sessions, /resume <id>", "p7bDCmdSessions"],
   ["/rewind [n], /fork", "p7bDCmdRewind"],
   ["/memory, /remember, /forget", "p7bDCmdMemory"],
+  ["/project, /project-remember <fact>", "p7bDCmdProject"],
   ["/skills, /skill <id>", "p7bDCmdSkills"],
   ["/login, /logout, /whoami", "p7bDCmdLogin"],
   ["/register, /upgrade", "p7bDCmdRegister"],
@@ -125,6 +126,7 @@ const CLI_USAGE = [
   "sov logout                        # sign out",
   "sov whoami                        # connection status",
   "sov key sk-or-v1-...              # use your own OpenRouter key",
+  "sov init --ai                     # SOVEREIGN.md: shared project memory for the team",
   "sov models                        # list models",
   "sov help                          # help",
 ].join("\n");
@@ -182,6 +184,7 @@ export function DocsContent({ data }: { data: DocsData }) {
         { id: "cli-install", label: t("p7bDInstallTitle") },
         { id: "cli-usage", label: t("p7bDUsageTitle") },
         { id: "cli-commands", label: t("p7bDCmdsTitle") },
+        { id: "cli-project", label: t("p7bDProjectTitle") },
         { id: "cli-safety", label: t("p7bDSafetyTitle") },
       ],
     },
@@ -453,6 +456,14 @@ export function DocsContent({ data }: { data: DocsData }) {
                     </tbody>
                   </table>
                 </div>
+              </Sub>
+
+              <Sub id="cli-project" title={t("p7bDProjectTitle")}>
+                <p>{r("p7bDProject1")}</p>
+                <CopyCode label={t("p7bDCommands")} code={"sov init          # SOVEREIGN.md template\nsov init --ai     # let the agent fill it in\ngit add SOVEREIGN.md && git commit -m \"Project memory\""} />
+                <p>{r("p7bDProject2")}</p>
+                <p>{r("p7bDProject3")}</p>
+                <Note>{r("p7bDProject4")}</Note>
               </Sub>
 
               <Sub id="cli-safety" title={t("p7bDSafetyTitle")}>

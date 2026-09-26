@@ -15,6 +15,7 @@ import {
 } from "./tools.mjs";
 import { c, spinner, renderMarkdown, markdownStream } from "./ui.mjs";
 import { memorySystemMessage } from "./memory.mjs";
+import { projectMemoryMessage } from "./project-memory.mjs";
 import { shouldVerify, verifyClaims } from "./verify.mjs";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
@@ -32,6 +33,7 @@ const SYSTEM = [
   "Kod toza, ishlaydigan va xavfsiz bo'lsin. Fayl uchun write_file, papka uchun make_dir vositasidan foydalan.",
   "Foydalanuvchi rasm biriktirsa — uni ko'rib, tavsifla; PDF/matn biriktirsa — mazmunini o'qib xulosa qil.",
   HONESTY_RULE,
+  "LOYIHA XOTIRASI: foydalanuvchi loyiha uchun doimiy qoida aytsa ('har doim X qil', 'Y ga tegma', 'testni Z bilan ishga tushir') — javob oxirida uni `/project-remember <qoida>` bilan SOVEREIGN.md ga saqlashni taklif qil. O'zing SOVEREIGN.md ga foydalanuvchisiz yozma.",
   "Ish tugagach, vosita natijalari TASDIQLAGAN ishni 1-2 gapda xulosala.",
 ].join(" ");
 
@@ -508,6 +510,9 @@ export function initialMessages(config) {
     { role: "system", content: SYSTEM },
     { role: "system", content: contextSummary() },
   ];
+  // Loyiha xotirasi (SOVEREIGN.md) — joriy ish papkasidan; /cwd da initialMessages qayta chaqiriladi.
+  const proj = projectMemoryMessage();
+  if (proj) base.push(proj);
   const mem = config ? memorySystemMessage(config) : null;
   if (mem) base.push(mem);
   return base;

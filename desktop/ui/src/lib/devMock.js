@@ -134,6 +134,17 @@ export function install() {
     remember: () => {},
     confirmReply: (id, ok) => { const r = pending.get(id); if (r) { pending.delete(id); r(!!ok); } },
     settings: { set: async (p) => { Object.assign(settings, p); return { ...settings }; } },
+    project: (() => {
+      let notes = 0;
+      let exists = false;
+      const info = () => (cwd ? { exists, path: `${cwd}\\SOVEREIGN.md`, files: exists ? [`${cwd}\\SOVEREIGN.md`] : [], bytes: exists ? 900 + notes * 40 : 0, truncated: false, notes, sections: exists ? ["Loyiha haqida", "Stek", "Buyruqlar", "Qoidalar", "Tegma", "Eslatmalar"] : [] } : { exists: false, noFolder: true });
+      return {
+        info: async () => info(),
+        open: async () => ({ ok: exists }),
+        create: async () => { const created = !exists; exists = true; return { ok: true, created, info: info() }; },
+        remember: async (text) => { if (!String(text).trim()) return { ok: false, error: "empty", info: info() }; const created = !exists; exists = true; notes++; return { ok: true, created, info: info() }; },
+      };
+    })(),
     auth: {
       login: async () => { emit({ type: "auth", state: "waiting", code: "QX7-4KD" }); await sleep(2500); authed = true; emit({ type: "auth", state: "approved", email: "islombek@example.com" }); return { ok: true, ...state() }; },
       cancel: async () => ({ ok: true }),

@@ -382,6 +382,15 @@ button.update-card:hover { border-color: var(--accent-soft); filter: brightness(
 .rpanel { width: 420px; flex: none; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-left: 1px solid var(--border); animation: fade 0.15s; }
 .panel-scroll { flex: 1; min-height: 0; overflow-y: auto; }
 .panel-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--panel); z-index: 1; }
+/* Loyiha xotirasi (SOVEREIGN.md) */
+.proj { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.proj p { margin: 0; }
+.proj-head { display: flex; align-items: center; gap: 8px; }
+.proj-file { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: var(--r); border: 1px solid var(--border); background: var(--surface-2); min-width: 0; }
+.proj-actions { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.proj-warn { color: var(--warn); }
+.proj-note { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.proj-note .tree-filter { margin: 0; width: 100%; height: 32px; }
 .change { border-bottom: 1px solid var(--border); }
 .change-row { display: flex; align-items: center; gap: 4px; padding: 4px 8px 4px 4px; }
 .change-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 5px 6px; border-radius: 7px; text-align: left; }

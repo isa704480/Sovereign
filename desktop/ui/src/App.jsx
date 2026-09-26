@@ -298,6 +298,7 @@ export default function App() {
       { id: "sidebar", label: t("sc.sidebar"), icon: "sidebar", hint: "Ctrl B", group: g.view, run: toggleSidebar },
       { id: "changes", label: t("palette.showChanges"), icon: "diff", group: g.view, run: () => togglePanel("changes") },
       { id: "terminal", label: t("palette.showTerminal"), icon: "terminal", hint: "Ctrl J", group: g.view, run: () => togglePanel("terminal") },
+      { id: "project", label: t("palette.showProject"), keywords: "SOVEREIGN.md", icon: "list", group: g.view, run: () => togglePanel("project") },
       { id: "theme-dark", label: `${t("settings.theme")}: ${t("theme.dark")}`, icon: "moon", group: g.view, run: () => setSetting({ theme: "dark" }) },
       { id: "theme-light", label: `${t("settings.theme")}: ${t("theme.light")}`, icon: "sun", group: g.view, run: () => setSetting({ theme: "light" }) },
       { id: "theme-system", label: `${t("settings.theme")}: ${t("theme.system")}`, icon: "monitor", group: g.view, run: () => setSetting({ theme: "system" }) },
@@ -420,7 +421,7 @@ export default function App() {
             />
           </main>
           {settings.rightPanel && (
-            <RightPanel tab={panelTab} setTab={setPanelTab} changes={agent.changes} term={agent.term} onUndo={undoChange} onUndoAll={undoAll} onClearTerm={() => dispatch({ type: "clear-term" })} onClose={() => togglePanel()} />
+            <RightPanel tab={panelTab} setTab={setPanelTab} changes={agent.changes} term={agent.term} onUndo={undoChange} onUndoAll={undoAll} onClearTerm={() => dispatch({ type: "clear-term" })} onClose={() => togglePanel()} cwd={info.cwd} toast={toast} />
           )}
         </div>
         <StatusBar info={info} mode={mode} model={info.model} busy={agent.busy} onShortcuts={() => setShortcuts(true)} update={update} onUpdate={() => setSettingsOpen("about")} />

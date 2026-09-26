@@ -40,6 +40,8 @@ export const SLASH_COMMANDS = [
   { cmd: "/skill",    desc: "Skilni ON/OFF — /skill <id>" },
   { cmd: "/memory",   desc: "Individual xotira — eslab qolinganlar" },
   { cmd: "/remember", desc: "Eslab qolish — /remember <fakt>" },
+  { cmd: "/project",  desc: "Loyiha xotirasi (SOVEREIGN.md) — /project init yaratadi" },
+  { cmd: "/project-remember", desc: "Jamoa qoidasini SOVEREIGN.md ga yozish — /project-remember <fakt>" },
   { cmd: "/forget",   desc: "Xotirani o'chirish — /forget [n]" },
 
   { cmd: "/whoami",   desc: "Ulanish holati" },
