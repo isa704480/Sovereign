@@ -863,7 +863,7 @@ export function createTurnTracker(exec) {
     loop: null,
     async run(name, args) {
       const r = await runOnce(name, args);
-      if (!tracker.loop) tracker.loop = detectLoop(name, args, r.status);
+      if (!tracker.loop) tracker.loop = detectLoop(name, args, r.status, r.result);
       return r;
     },
     /** Modelga beriladigan jurnal (ko'rsatishga arzimasa — bo'sh). */
@@ -872,14 +872,20 @@ export function createTurnTracker(exec) {
     },
   };
 
-  function detectLoop(name, args, status) {
+  function detectLoop(name, args, status, result) {
     const fp = `${name}:${JSON.stringify(args ?? {})}`;
     const cnt = repeats.get(fp) ?? { fails: 0, writes: 0, skips: 0 };
     repeats.set(fp, cnt);
     const target = name === "run_command" ? oneLine(args?.command) : oneLine(args?.path ?? ".");
-    // Bir xil buyruq qayta-qayta yiqilyapti (o'zgarishsiz takror ham hisoblanadi).
+    // Bir xil buyruq qayta-qayta AYNAN BIR XIL xato bilan yiqilyapti (o'zgarishsiz takror ham
+    // hisoblanadi). Xato matni o'zgarsa — tuzatish jarayoni ketyapti (yoz → testla → tuzat),
+    // hisoblagich qaytadan boshlanadi: full auto'dagi haqiqiy tuzatish sikli to'xtatilmaydi.
     if (name === "run_command" && (status === "failed" || (status === "skipped" && seen.get(fp)?.status === "failed"))) {
-      if (++cnt.fails >= LOOP_MAX) return { kind: "command", tool: name, target, count: cnt.fails };
+      // To'liq chiqish solishtiriladi; raqamlar (vaqt, duration_ms, PID) har safar o'zgaradi — normallashtiriladi.
+      const detail = status === "failed" ? String(result ?? "").replace(/\d+(\.\d+)?/g, "#") : cnt.lastDetail;
+      cnt.fails = cnt.fails > 0 && detail === cnt.lastDetail ? cnt.fails + 1 : 1;
+      cnt.lastDetail = detail;
+      if (cnt.fails >= LOOP_MAX) return { kind: "command", tool: name, target, count: cnt.fails };
     }
     // Aynan bir xil tarkib bilan bitta fayl qayta-qayta yozilyapti (A→B→A "tuzatish" tebranishi ham).
     if (name === "write_file" && (status === "ok" || status === "skipped")) {
