@@ -19,28 +19,57 @@ function buildContext(cowork: string | null, project?: Project): string | undefi
   return text ? text.slice(0, 6000) : undefined;
 }
 
+/** Server bitta matn qismiga 20 000 belgigacha ruxsat beradi (chat route zod sxemasi). */
+const WIRE_TEXT_MAX = 20_000;
+
+/** Uzun matnni server limitiga sig'diradi — butun suhbat 400 bilan buzilmasin. */
+function clampText(text: string): string {
+  if (text.length <= WIRE_TEXT_MAX) return text;
+  const note = "\n\n[…truncated]";
+  return text.slice(0, WIRE_TEXT_MAX - note.length) + note;
+}
+
+/**
+ * Yaratilgan rasmlar (markdown ichidagi data:image URL, yuzlab KB) tarixda qolsa, keyingi
+ * har xabar limitdan oshib 400 olardi — modelga faqat belgisi yuboriladi.
+ */
+function stripInlineImages(text: string): string {
+  return text.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, (_m, alt: string) => `[image${alt ? `: ${alt}` : ""}]`);
+}
+
 /**
  * Maps stored messages to the API wire format. When Blind Prompting is on,
- * PII in the *latest* user message is replaced with tokens; the returned
- * `tokenMap` is used to un-mask the streamed answer on the client.
+ * PII in user messages (and their attached file text) is replaced with tokens;
+ * the returned `tokenMap` is used to un-mask the streamed answer on the client.
  */
 function toWire(messages: ChatMessage[], blind: boolean, lang: Lang) {
   const tokenMap: Record<string, string> = {};
+  const maskText = (text: string) => {
+    const r = mask(text);
+    Object.assign(tokenMap, r.tokenMap);
+    return r.masked;
+  };
   const wire = messages.map((m) => {
     // Blind Prompting yoqilganda BARCHA user xabarlari (nafaqat oxirgi)
     // maskalanadi — chunki avvalgi turlarda ham PII kelishi mumkin.
     const isMaskable = blind && m.role === "user" && typeof m.content === "string";
-    const raw = isMaskable
-      ? (() => {
-          const r = mask(m.content as string);
-          Object.assign(tokenMap, r.tokenMap);
-          return r.masked;
-        })()
-      : m.content;
-    return {
-      role: m.role,
-      content: m.role === "user" && m.attachments?.length ? buildUserContent(raw as string, m.attachments, lang) : raw,
-    };
+    let raw = isMaskable ? maskText(m.content as string) : m.content;
+    if (typeof raw === "string") raw = stripInlineImages(raw);
+    if (m.role === "user" && m.attachments?.length) {
+      // Biriktirilgan fayl/transkript matni ham maskalanadi (aks holda PII ochiq ketardi).
+      const atts = blind ? m.attachments.map((a) => (a.text ? { ...a, text: maskText(a.text) } : a)) : m.attachments;
+      const built = buildUserContent(raw as string, atts, lang);
+      return {
+        role: m.role,
+        content:
+          typeof built === "string"
+            ? clampText(built)
+            : (built as { type: string; text?: string }[]).map((part) =>
+                part.type === "text" && typeof part.text === "string" ? { ...part, text: clampText(part.text) } : part,
+              ),
+      };
+    }
+    return { role: m.role, content: typeof raw === "string" ? clampText(raw) : raw };
   });
   return { wire, tokenMap };
 }

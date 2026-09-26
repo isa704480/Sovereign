@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { lineDiff, diffStats } from "../lib/diff.js";
 
 const C = { surface: "#1A1A1C", surface2: "#232327", border: "rgba(255,255,255,0.08)", text: "#ECECEC", muted: "#9B9BA0", faint: "#6A6A70", accent: "#7C6FF7", warn: "#E0A458", addFg: "#7FD6A0", addBg: "#16281E", delFg: "#F08A94", delBg: "#2A1619" };
@@ -10,8 +10,13 @@ export default function ConfirmDialog({ req, onReply }) {
   const rows = useMemo(() => (isWrite ? lineDiff(req._change.before || "", req._change.after || "") : []), [req]);
   const stat = isWrite ? diffStats(rows) : { add: 0, del: 0 };
 
+  // Hujjat darajasidagi Enter xavfli buyruqni avtomatik tasdiqlardi (hatto fokus
+  // "Bekor qilish"da yoki orqadagi textarea'da bo'lsa ham). Endi: fokus xavfsiz
+  // tugmaga o'tadi, Enter faqat fokusdagi tugmani bosadi; Escape — bekor qilish.
+  const cancelRef = useRef(null);
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Enter") onReply(true); if (e.key === "Escape") onReply(false); };
+    cancelRef.current?.focus();
+    const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); onReply(false); } };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onReply]);
@@ -21,7 +26,7 @@ export default function ConfirmDialog({ req, onReply }) {
 
   return (
     <div style={{ position: "absolute", inset: 0, zIndex: 80, display: "flex", alignItems: "center", justifyContent: "center", padding: 36, background: "rgba(10,10,11,0.58)", backdropFilter: "blur(10px)", WebkitBackdropFilter: "blur(10px)", animation: "dcFade 160ms ease-out" }}>
-      <div style={{ width: "100%", maxWidth: isWrite ? 820 : 480, maxHeight: "100%", display: "flex", flexDirection: "column", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 16, boxShadow: "0 28px 64px rgba(0,0,0,.6)", overflow: "hidden", animation: "dcRise 200ms ease-out" }}>
+      <div role="dialog" aria-modal="true" aria-label={title} style={{ width: "100%", maxWidth: isWrite ? 820 : 480, maxHeight: "100%", display: "flex", flexDirection: "column", background: C.surface2, border: `1px solid ${C.border}`, borderRadius: 16, boxShadow: "0 28px 64px rgba(0,0,0,.6)", overflow: "hidden", animation: "dcRise 200ms ease-out" }}>
         <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 11, padding: "14px 18px", borderBottom: `1px solid ${C.border}` }}>
           <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.warn }} />
           <span style={{ flex: "none", fontSize: 13.5, fontWeight: 600, letterSpacing: "-0.01em" }}>{title}</span>
@@ -55,7 +60,7 @@ export default function ConfirmDialog({ req, onReply }) {
         <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 9, padding: "12px 18px", borderTop: `1px solid ${C.border}` }}>
           <span style={{ fontSize: 11.5, color: C.faint }}>{isWrite ? meta.path?.split(/[\\/]/).pop() : ""}</span>
           <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-            <button className="h-text" onClick={() => onReply(false)} style={{ height: 32, padding: "0 14px", borderRadius: 9, fontSize: 12.5, color: C.muted, background: C.surface, border: `1px solid ${C.border}` }}>Bekor qilish</button>
+            <button ref={cancelRef} className="h-text" onClick={() => onReply(false)} style={{ height: 32, padding: "0 14px", borderRadius: 9, fontSize: 12.5, color: C.muted, background: C.surface, border: `1px solid ${C.border}` }}>Bekor qilish</button>
             <button className="h-bright" onClick={() => onReply(true)} style={{ height: 32, padding: "0 16px", borderRadius: 9, fontSize: 12.5, fontWeight: 600, background: C.accent, color: "#ffffff" }}>Qo‘llash</button>
           </span>
         </div>

@@ -246,6 +246,12 @@ export async function POST(req: Request) {
     return refuse(`${UPGRADE} ${t("chOmniProOnly")}`);
   }
 
+  // Research (Perplexity) — Starter/Free'da yopiq. Aniq model tekshiruvidan tashqari
+  // auto/* va OmniRoute modellarida ham: aks holda `research:true` bilan chetlab o'tilardi.
+  if ((isAuto || isOmni) && research && !plan.limits.research) {
+    return refuse(`${UPGRADE} ${t("chResearchPro")}`);
+  }
+
   // Plan gating for a concrete (non-auto) model.
   if (!isAuto && !isOmni) {
     const model = MODEL_BY_ID[modelId];
@@ -336,6 +342,8 @@ export async function POST(req: Request) {
 
         let researchContext = "";
         let cacheableAnswer = "";
+        // Oylik token hisobi uchun: BARCHA qadamlar (research ham) chiqishi.
+        let billedOutChars = 0;
 
         // Connector tool bosqichi — AI ulangan Figma/GitHub'dan ma'lumot oladi,
         // natija javob konteksti sifatida qo'shiladi (streaming'ga tegmaydi).
@@ -348,7 +356,8 @@ export async function POST(req: Request) {
               const enabled = await getEnabledConnectors(sbc, cu.id);
               if (enabled.length) {
                 const answerStep = steps.find((s) => s.kind === "answer") ?? steps[steps.length - 1];
-                const pm = MODEL_BY_ID[answerStep.modelId]?.providerModel ?? answerStep.modelId;
+                // Faqat katalog modeli (tarif tekshiruvidan o'tgan); OmniRoute/xom id → null (standart model).
+                const pm = MODEL_BY_ID[answerStep.modelId]?.providerModel ?? null;
                 const ctx = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: pm, messages, enabled, signal: req.signal });
                 if (ctx) connectorContext = ctx;
               }
@@ -426,6 +435,7 @@ ${connectorContext}`
             }
             send({ type: "switch", from: candidate, to: next, reason: failure });
           }
+          billedOutChars += stepText.length;
           if (step.kind === "research") {
             researchContext = stepText;
             if (steps.length > 1) send({ type: "text", text: "\n\n---\n\n" });
@@ -447,11 +457,15 @@ ${connectorContext}`
         // Token hisobini yozib qo'yamiz (billing va admin analytics uchun).
         // Aniq son hisob qilinmaydi — modelning javob uzunligi asosida taxminlaymiz
         // (~4 char = 1 token).
-        if (authed && cacheableAnswer) {
+        if (authed && billedOutChars > 0) {
           try {
             const supabase = await createClient();
-            const inputEstimate = Math.round(lastText.length / 4);
-            const outputEstimate = Math.round(cacheableAnswer.length / 4);
+            // Kirish: butun tarix + qo'shimcha kontekst (xotira, bilim bazasi, web, connector)
+            // har qadamda qayta yuboriladi — faqat oxirgi savol emas.
+            const historyChars = messages.reduce((n, m) => n + textOf(m.content).length, 0);
+            const contextChars = [webContext, coworkContext, knowledgeText, memoryText, skillText, connectorContext].join("").length;
+            const inputEstimate = Math.round(((historyChars + contextChars) * steps.length) / 4);
+            const outputEstimate = Math.round(billedOutChars / 4);
             void supabase.rpc("record_token_usage", {
               p_input_tokens: inputEstimate,
               p_output_tokens: outputEstimate,

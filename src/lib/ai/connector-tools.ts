@@ -21,10 +21,17 @@ type ORTool = {
   function: { name: string; description: string; parameters: Record<string, unknown> };
 };
 
+/**
+ * Tool bosqichi uchun arzon standart model. Mijoz tanlagan xom id (OmniRoute/katalogdan
+ * tashqari) HECH QACHON platforma OpenRouter kalitiga berilmaydi — aks holda tarif
+ * cheklovi chetlab o'tilib, qimmat modellar platforma hisobidan chaqirilardi.
+ */
+const TOOL_MODEL = process.env.CONNECTOR_TOOL_MODEL ?? "google/gemini-2.5-flash";
+
 /** Tool bosqichi uchun provayder: OpenRouter → OmniRoute → Groq (mavjudiga qarab). */
-function pickToolProvider(providerModel: string): { url: string; auth: string; model: string; referer: boolean } | null {
+function pickToolProvider(providerModel: string | null): { url: string; auth: string; model: string; referer: boolean } | null {
   if (process.env.OPENROUTER_API_KEY) {
-    return { url: "https://openrouter.ai/api/v1/chat/completions", auth: process.env.OPENROUTER_API_KEY, model: providerModel, referer: true };
+    return { url: "https://openrouter.ai/api/v1/chat/completions", auth: process.env.OPENROUTER_API_KEY, model: providerModel ?? TOOL_MODEL, referer: true };
   }
   const ob = process.env.OMNIROUTE_BASE_URL;
   const ok = process.env.OMNIROUTE_API_KEY;
@@ -387,7 +394,8 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
 interface RunOpts {
   supabase: SupabaseClient;
   userId: string;
-  providerModel: string;
+  /** Faqat server katalogidagi (tarif tekshiruvidan o'tgan) modelning providerModel'i; aks holda null. */
+  providerModel: string | null;
   messages: { role: string; content: unknown }[];
   enabled: EnabledConnector[];
   signal?: AbortSignal;

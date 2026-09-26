@@ -110,7 +110,7 @@ zeno().webhooks.verify({ secret, rawBody, headers })
 ## Env variables
 
 ```
-ZENOBANK_API_KEY=sk_xFYGG4A7CaJFxzwY0j4ypSnyfH4
+ZENOBANK_API_KEY=sk_... (Dashboard → Developers → API Keys)
 ZENOBANK_WEBHOOK_SECRET=whsec_... (Dashboard → Developers → Webhook → Signing Secret)
 ```
 
