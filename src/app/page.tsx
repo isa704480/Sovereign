@@ -2,6 +2,7 @@ import { Navbar } from "@/components/landing/Navbar";
 import { Hero } from "@/components/landing/Hero";
 import { ModelCompare } from "@/components/landing/ModelCompare";
 import { HowItWorks } from "@/components/landing/HowItWorks";
+import { Download } from "@/components/landing/Download";
 import { Features } from "@/components/landing/Features";
 import { Audience } from "@/components/landing/Audience";
 import { ModelShowcase } from "@/components/landing/ModelShowcase";
@@ -99,6 +100,7 @@ export default async function HomePage() {
       <Hero signedIn={signedIn} />
       <ModelCompare />
       <HowItWorks />
+      <Download />
       <Features />
       <Audience />
       <ModelShowcase />

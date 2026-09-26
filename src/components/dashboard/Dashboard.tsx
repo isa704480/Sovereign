@@ -56,13 +56,15 @@ interface DashboardProps {
   planRenews?: boolean;
   /** /app?paid=1|0 — to'lov sahifasidan qaytish natijasi. */
   paymentReturn?: "success" | "failed" | null;
+  /** Landing'dagi to'lov chipi (/app?checkout=crypto) — tarif oynasi shu usul bilan ochiladi. */
+  checkoutMethod?: "card" | "crypto" | "sbp" | null;
 }
 
 /** ?paid=1 dan keyin tarif yangilanishini kutish: shuncha marta, shuncha ms oralig'ida. */
 const PAID_POLL_TRIES = 15;
 const PAID_POLL_MS = 4000;
 
-export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null, planExpiresAt = null, paidPlan = "free", planRenews = false, paymentReturn = null }: DashboardProps) {
+export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null, planExpiresAt = null, paidPlan = "free", planRenews = false, paymentReturn = null, checkoutMethod = null }: DashboardProps) {
   const router = useRouter();
   const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
   // Barqaror t — useCallback bog'liqliklari har renderda yangilanmasin.
@@ -73,11 +75,24 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     reason: string | null;
     suggested: PlanId | null;
     period?: BillingPeriod;
-  }>({
-    open: false,
-    reason: null,
-    suggested: null,
-  });
+    method?: "card" | "crypto" | "sbp" | null;
+  }>(() =>
+    // Landing'dagi "Kripto / СБП / Karta" chipi: tarif oynasi darhol shu usul bilan ochiladi.
+    checkoutMethod
+      ? { open: true, reason: null, suggested: null, method: checkoutMethod }
+      : { open: false, reason: null, suggested: null },
+  );
+  // URL'dagi ?checkout= olib tashlanadi (reload qayta ochmasin).
+  useEffect(() => {
+    if (!checkoutMethod) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("checkout");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    } catch {
+      /* ignore */
+    }
+  }, [checkoutMethod]);
   const openPricing = useCallback((reason: string | null = null, suggested: PlanId | null = null, period?: BillingPeriod) => {
     setPricing({ open: true, reason, suggested, period });
   }, []);
@@ -577,6 +592,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           suggestedPlan={pricing.suggested}
           initialPlan={pricing.period ? pricing.suggested : null}
           initialPeriod={pricing.period}
+          preferredMethod={pricing.method ?? null}
         />
 
         {/* O'chirilgan suhbat — "Qaytarish" (5s) */}

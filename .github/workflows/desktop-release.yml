@@ -1,8 +1,15 @@
 name: Desktop release (SOVEREIGN Cowork)
 
 # Faqat `desktop-v*` tegi push qilinganda ishlaydi, masalan:
-#   git tag desktop-v0.5.0 && git push origin desktop-v0.5.0
+#   git tag desktop-v0.5.1 && git push origin desktop-v0.5.1
 # Teg versiyasi desktop/package.json "version" bilan bir xil bo'lishi shart.
+#
+# Tartib (poyga bo'lmasligi uchun):
+#   1) prepare — tegni tekshiradi va GitHub Release'ni DRAFT holatda yaratadi (bitta job).
+#   2) build   — Windows / macOS / Linux parallel yig'iladi; electron-builder mavjud
+#                draft relizni topib, faqat o'z fayllarini yuklaydi (reliz yaratmaydi).
+#   3) publish — hamma fayllar joyida bo'lsa draft → ommaviy (Latest) qilinadi.
+#      Biror OS yiqilsa reliz draft bo'lib qoladi — foydalanuvchilarga chala reliz chiqmaydi.
 on:
   push:
     tags:
@@ -15,10 +22,84 @@ concurrency:
   group: desktop-release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  TAG: ${{ github.ref_name }}
+
 jobs:
-  windows:
-    name: Windows installer (NSIS)
-    runs-on: windows-latest
+  prepare:
+    name: Verify tag and create draft release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify tag matches package version
+        id: ver
+        shell: bash
+        working-directory: desktop
+        run: |
+          TAG_VER="${TAG#desktop-v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VER" != "$PKG" ]; then
+            echo "Tag version ($TAG_VER) != desktop/package.json version ($PKG)"; exit 1
+          fi
+          echo "version=$PKG" >> "$GITHUB_OUTPUT"
+
+      - name: Create draft release (idempotent)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          if gh release view "$TAG" --json isDraft >/dev/null 2>&1; then
+            if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != "true" ]; then
+              echo "Release $TAG is already published — bump the version and push a new tag."; exit 1
+            fi
+            echo "Draft release $TAG already exists (re-run) — reusing it."
+          else
+            gh release create "$TAG" --draft --verify-tag \
+              --title "SOVEREIGN Cowork $VERSION" \
+              --notes "SOVEREIGN Cowork $VERSION — Windows (.exe), macOS (.dmg: Apple Silicon / Intel), Linux (.AppImage).
+
+          Builds are not code-signed yet:
+          - Windows SmartScreen: More info → Run anyway.
+          - macOS: right-click the app → Open (or System Settings → Privacy & Security → Open Anyway).
+          - Linux: chmod +x SOVEREIGN-Cowork-$VERSION-x86_64.AppImage, then run it."
+          fi
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows NSIS
+            os: windows-latest
+            platform: --win
+            artifact: sovereign-cowork-windows
+            files: |
+              desktop/release/*.exe
+              desktop/release/*.blockmap
+              desktop/release/latest.yml
+          - name: macOS dmg
+            os: macos-latest
+            platform: --mac
+            artifact: sovereign-cowork-macos
+            files: |
+              desktop/release/*.dmg
+              desktop/release/*.blockmap
+              desktop/release/latest-mac.yml
+          - name: Linux AppImage
+            os: ubuntu-latest
+            platform: --linux
+            artifact: sovereign-cowork-linux
+            files: |
+              desktop/release/*.AppImage
+              desktop/release/latest-linux.yml
     defaults:
       run:
         working-directory: desktop
@@ -31,19 +112,11 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - name: Verify tag matches package version
-        shell: bash
-        run: |
-          TAG="${GITHUB_REF_NAME#desktop-v}"
-          PKG="$(node -p "require('./package.json').version")"
-          if [ "$TAG" != "$PKG" ]; then
-            echo "Tag version ($TAG) != desktop/package.json version ($PKG)"; exit 1
-          fi
-
       - name: Install dependencies
         run: npm ci
 
       - name: Syntax check (main / preload)
+        shell: bash
         run: |
           node --check main.mjs
           node --check preload.cjs
@@ -51,20 +124,48 @@ jobs:
       - name: Build renderer
         run: npx vite build
 
-      # Imzo sertifikati hali yo'q — electron-builder imzolashni o'tkazib yuboradi.
-      # Sertifikat paydo bo'lganda: CSC_LINK / CSC_KEY_PASSWORD secret'larini qo'shing.
-      - name: Build and publish installer
+      # Imzo sertifikati hali yo'q. Windows: imzosiz. macOS: ad-hoc imzo (mac.identity "-"),
+      # Apple Silicon'da ilova ochilishi uchun shart; notarizatsiya yo'q.
+      # Sertifikat paydo bo'lganda: CSC_LINK / CSC_KEY_PASSWORD (va Apple notarize) secret'larini qo'shing.
+      - name: Build and upload to draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder --win --publish always
+        run: npx electron-builder ${{ matrix.platform }} --publish always
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: sovereign-cowork-windows
-          path: |
-            desktop/release/*.exe
-            desktop/release/*.blockmap
-            desktop/release/latest.yml
-          if-no-files-found: error
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.files }}
+          if-no-files-found: warn
+
+  publish:
+    name: Publish release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check assets and publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          ASSETS="$(gh release view "$TAG" --json assets --jq '.assets[].name')"
+          echo "$ASSETS"
+          missing=0
+          for f in \
+            "SOVEREIGN-Cowork-Setup-$VERSION.exe" \
+            "SOVEREIGN-Cowork-$VERSION-arm64.dmg" \
+            "SOVEREIGN-Cowork-$VERSION-x64.dmg" \
+            "SOVEREIGN-Cowork-$VERSION-x86_64.AppImage" \
+            "latest.yml" \
+            "latest-linux.yml"; do
+            if ! printf '%s\n' "$ASSETS" | grep -qxF "$f"; then
+              echo "::error::Missing release asset: $f"; missing=1
+            fi
+          done
+          [ "$missing" = 0 ] || exit 1
+          # --latest: electron-updater (Windows/Linux) yangilanishni /releases/latest orqali topadi.
+          gh release edit "$TAG" --draft=false --latest

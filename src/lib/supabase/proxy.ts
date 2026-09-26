@@ -65,7 +65,9 @@ export async function updateSession(request: NextRequest) {
   if (!user && isProtected) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", pathname);
+    // So'rov qismi ham saqlanadi (masalan /app?checkout=crypto) — login'dan keyin shu yerga qaytadi.
+    url.search = "";
+    url.searchParams.set("next", pathname + request.nextUrl.search);
     return NextResponse.redirect(url);
   }
 

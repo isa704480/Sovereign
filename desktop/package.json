@@ -1,7 +1,7 @@
 {
   "name": "sovereign-cowork",
   "productName": "SOVEREIGN Cowork",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "SOVEREIGN Cowork — ish stolidagi AI koding hamkori.",
   "type": "module",
   "main": "main.mjs",
@@ -22,7 +22,9 @@
     "dist:win": "vite build && electron-builder --win --publish never",
     "dist:mac": "vite build && electron-builder --mac --publish never",
     "dist:linux": "vite build && electron-builder --linux --publish never",
-    "release:win": "vite build && electron-builder --win --publish always"
+    "release:win": "vite build && electron-builder --win --publish always",
+    "release:mac": "vite build && electron-builder --mac --publish always",
+    "release:linux": "vite build && electron-builder --linux --publish always"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
@@ -90,14 +92,27 @@
       "artifactName": "SOVEREIGN-Cowork-Setup-${version}.${ext}"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
       "category": "public.app-category.developer-tools",
-      "icon": "build/icon.png"
+      "icon": "build/icon.icns",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false,
+      "artifactName": "SOVEREIGN-Cowork-${version}-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "SOVEREIGN Cowork ${version}",
+      "artifactName": "SOVEREIGN-Cowork-${version}-${arch}.${ext}"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [{ "target": "AppImage", "arch": ["x64"] }],
       "category": "Development",
-      "icon": "build/icon.png"
+      "icon": "build/icon.png",
+      "synopsis": "AI coding coworker for your desktop",
+      "artifactName": "SOVEREIGN-Cowork-${version}-${arch}.${ext}"
+    },
+    "appImage": {
+      "artifactName": "SOVEREIGN-Cowork-${version}-${arch}.${ext}"
     }
   }
 }

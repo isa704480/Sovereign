@@ -14,7 +14,12 @@ const GROUPS: { icon: typeof GraduationCap; title: TKey; body: TKey }[] = [
   { icon: Briefcase, title: "p4dAudBizTitle", body: "p4dAudBizBody" },
 ];
 
-const PAYMENTS: TKey[] = ["p4dPayCard", "p4dPayCrypto", "p4dPaySbp"];
+/** Bosilsa — to'g'ridan-to'g'ri shu usul bilan tarif oynasi (login bo'lmasa login → qaytadi). */
+const PAYMENTS: { key: TKey; href: string }[] = [
+  { key: "p4dPayCard", href: "/app?checkout=card" }, // Dodo
+  { key: "p4dPayCrypto", href: "/app?checkout=crypto" }, // RollyPay
+  { key: "p4dPaySbp", href: "/app?checkout=sbp" }, // RollyPay
+];
 
 function Chip({ children }: { children: ReactNode }) {
   return (
@@ -65,10 +70,18 @@ export function Audience() {
               <CreditCard className="size-4 text-primary-soft" aria-hidden="true" /> {t("p4dAudPay")}
             </h3>
             <ul className="mt-3 flex flex-wrap gap-2">
-              {PAYMENTS.map((k) => (
-                <Chip key={k}>{t(k)}</Chip>
+              {PAYMENTS.map((p) => (
+                <li key={p.key}>
+                  <a
+                    href={p.href}
+                    className="inline-flex min-h-8 items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-text-secondary transition-colors hover:border-primary-soft/50 hover:bg-white/[0.06] hover:text-text-primary focus-visible:outline-2 focus-visible:outline-primary-soft"
+                  >
+                    {t(p.key)} <span aria-hidden="true">→</span>
+                  </a>
+                </li>
               ))}
             </ul>
+            <p className="mt-3 text-xs leading-relaxed text-text-muted">{t("p5aPayNote")}</p>
           </div>
         </div>
       </FadeIn>

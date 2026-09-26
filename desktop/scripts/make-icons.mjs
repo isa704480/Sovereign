@@ -1,5 +1,5 @@
 // SOVEREIGN logotipidan (public/logo.svg geometriyasi) ilova ikonlarini yaratadi:
-//   desktop/build/icon.png (1024), icon.ico (16–256), installer uchun ham shu .ico.
+//   desktop/build/icon.png (1024, Linux), icon.ico (16–256, Windows + installer), icon.icns (macOS).
 // Ishlatish: npm run icons   (sharp repo ildizidagi node_modules'dan olinadi — faqat dev vositasi)
 import { createRequire } from "node:module";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -97,8 +97,39 @@ async function ico(sizes) {
   return Buffer.concat([head, dir, ...images]);
 }
 
+/**
+ * macOS .icns — har yozuv PNG (macOS 10.7+ qo'llaydi). OSType → piksel o'lchami:
+ * ic11 16@2x, ic12 32@2x, ic07 128, ic13 128@2x, ic08 256, ic14 256@2x, ic09 512, ic10 512@2x.
+ */
+async function icns() {
+  const entries = [
+    ["ic11", 32],
+    ["ic12", 64],
+    ["ic07", 128],
+    ["ic13", 256],
+    ["ic08", 256],
+    ["ic14", 512],
+    ["ic09", 512],
+    ["ic10", 1024],
+  ];
+  const chunks = [];
+  for (const [type, size] of entries) {
+    const data = await png(size);
+    const head = Buffer.alloc(8);
+    head.write(type, 0, "ascii");
+    head.writeUInt32BE(data.length + 8, 4);
+    chunks.push(head, data);
+  }
+  const body = Buffer.concat(chunks);
+  const head = Buffer.alloc(8);
+  head.write("icns", 0, "ascii");
+  head.writeUInt32BE(body.length + 8, 4);
+  return Buffer.concat([head, body]);
+}
+
 mkdirSync(out, { recursive: true });
 writeFileSync(join(out, "icon.png"), await png(1024));
 writeFileSync(join(out, "icon-256.png"), await png(256));
 writeFileSync(join(out, "icon.ico"), await ico([16, 20, 24, 32, 40, 48, 64, 128, 256]));
+writeFileSync(join(out, "icon.icns"), await icns());
 console.log("ikonlar yaratildi:", out);

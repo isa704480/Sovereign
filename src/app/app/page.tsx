@@ -16,8 +16,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AppPage({ searchParams }: PageProps<"/app">) {
   // To'lovdan qaytish: checkout /app?paid=1 (muvaffaqiyat) yoki ?paid=0 (bekor/xato) ga yo'naltiradi.
   // Dashboard xabar ko'rsatadi, URL'ni tozalaydi va tarif yangilanguncha kutadi.
-  const paidParam = (await searchParams).paid;
+  const sp = await searchParams;
+  const paidParam = sp.paid;
   const paymentReturn = paidParam === "1" ? "success" : paidParam === "0" ? "failed" : null;
+  // Landing'dagi to'lov chipi: /app?checkout=card|crypto|sbp — tarif oynasi shu usul bilan ochiladi.
+  const checkoutMethod = sp.checkout === "card" || sp.checkout === "crypto" || sp.checkout === "sbp" ? sp.checkout : null;
 
   // Local design preview without Supabase (development only).
   if (!isSupabaseConfigured()) {
@@ -28,6 +31,7 @@ export default async function AppPage({ searchParams }: PageProps<"/app">) {
         defaultModelId="claude-sonnet-4-5"
         isDev
         paymentReturn={paymentReturn}
+        checkoutMethod={checkoutMethod}
       />
     );
   }
@@ -65,6 +69,7 @@ export default async function AppPage({ searchParams }: PageProps<"/app">) {
       paidPlan={status.paidPlan}
       planRenews={renews}
       paymentReturn={paymentReturn}
+      checkoutMethod={checkoutMethod}
     />
   );
 }

@@ -44,6 +44,10 @@ export default defineConfig({
   root: "ui",
   base: "./",
   plugins: [react(), cspPlugin()],
+  // Desktop UI oddiy CSS — PostCSS kerak emas. Aks holda Vite yuqoriga qarab qidirib,
+  // repo ildizidagi (Next.js) postcss.config.mjs'ni topadi va CI'da @tailwindcss/postcss
+  // o'rnatilmagani uchun build yiqiladi.
+  css: { postcss: { plugins: [] } },
   build: {
     outDir: "../ui-dist",
     emptyOutDir: true,

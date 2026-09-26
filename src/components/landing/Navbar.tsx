@@ -14,6 +14,7 @@ import { DOCS_URL } from "./company";
 
 const NAV = [
   { href: "#how", key: "p4dNavHow" },
+  { href: "#download", key: "dlNav" },
   { href: "#features", key: "navFeatures" },
   { href: "#pricing", key: "navPricing" },
   { href: "#roadmap", key: "p4dNavRoadmap" },

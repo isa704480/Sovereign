@@ -23,6 +23,8 @@ interface PricingDialogProps {
   initialPlan?: PlanId | null;
   /** Ochilganda shu to'lov davri tanlanadi. */
   initialPeriod?: BillingPeriod;
+  /** Landing'dagi "Kripto / СБП / Karta" chipidan kelganda — shu usul birinchi va ajratilgan. */
+  preferredMethod?: "card" | "crypto" | "sbp" | null;
 }
 
 type Method = "card" | "crypto" | "sbp";
@@ -32,7 +34,8 @@ const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoin
   {
     id: "card",
     titleKey: "payByCard",
-    sub: "Visa · Mastercard · Apple Pay · Google Pay",
+    // Dodo qabul qiladi (docs.dodopayments.com/features/payment-methods).
+    sub: "Visa · Mastercard · Amex · JCB · UnionPay · Apple Pay · Google Pay",
     noteKey: "payByCardNote",
     endpoint: "/api/checkout/dodo",
     Icon: CreditCard,
@@ -55,7 +58,7 @@ const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoin
   },
 ];
 
-export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPlan, initialPlan, initialPeriod }: PricingDialogProps) {
+export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPlan, initialPlan, initialPeriod, preferredMethod = null }: PricingDialogProps) {
   const t = useT();
   const lang = useLang();
   const titleId = useId();
@@ -340,7 +343,11 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     className="tt mt-4 overflow-hidden"
                     style={{ border: "1px solid var(--t-border)", borderRadius: 18 }}
                   >
-                    {(lang === "ru" ? [...METHODS.filter((m) => m.id === "sbp"), ...METHODS.filter((m) => m.id !== "sbp")] : METHODS)
+                    {(preferredMethod
+                      ? [...METHODS.filter((m) => m.id === preferredMethod), ...METHODS.filter((m) => m.id !== preferredMethod)]
+                      : lang === "ru"
+                        ? [...METHODS.filter((m) => m.id === "sbp"), ...METHODS.filter((m) => m.id !== "sbp")]
+                        : METHODS)
                       .filter((m) => m.id === "card" || planPriceRub(plan, period) > 0)
                       .map(({ id, titleKey, sub, noteKey, Icon }, idx) => {
                       const busy = loading === id;
@@ -351,6 +358,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           aria-busy={busy}
                           disabled={!!loading}
                           onClick={() => pay(id)}
+                          // Landing chipidan tanlangan usul — fokus shu tugmada (Enter bilan darhol to'lov).
+                          autoFocus={id === preferredMethod}
                           className={cn(
                             "group flex w-full items-center gap-4 p-4 text-left transition-colors",
                             "hover:bg-white/5 disabled:cursor-default",
@@ -358,7 +367,12 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           )}
                           style={{
                             borderTop: idx === 0 ? "none" : "1px solid var(--border-subtle)",
-                            background: busy ? "color-mix(in srgb, var(--t-primary) 10%, transparent)" : undefined,
+                            background: busy
+                              ? "color-mix(in srgb, var(--t-primary) 10%, transparent)"
+                              : id === preferredMethod
+                                ? "color-mix(in srgb, var(--t-primary) 7%, transparent)"
+                                : undefined,
+                            boxShadow: id === preferredMethod ? "inset 3px 0 0 var(--t-primary)" : undefined,
                           }}
                         >
                           <span
