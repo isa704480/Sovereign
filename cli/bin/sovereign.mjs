@@ -280,13 +280,34 @@ function versionLine() {
   return `sov ${VERSION} (${process.platform}-${process.arch}, ${IS_BINARY ? "binary" : "node"} v${process.versions.node})`;
 }
 
+const SKILLS_MARK = "Foydalanuvchi tomonidan yoqilgan SOVEREIGN Skills:";
+
+/** Skillar system xabarini joyiga qo'yadi/yangilaydi (yoqilgan skil yo'q bo'lsa — olib tashlaydi). */
+function syncSkillsMessage(messages, enabledSkills) {
+  const idx = messages.findIndex((m) => m.role === "system" && typeof m.content === "string" && m.content.startsWith(SKILLS_MARK));
+  const activeNames = SKILLS.filter((s) => enabledSkills.has(s.id)).map((s) => `- ${s.name}: ${s.desc}`);
+  if (!activeNames.length) {
+    if (idx !== -1) messages.splice(idx, 1);
+    return;
+  }
+  const msg = { role: "system", content: `${SKILLS_MARK}\n${activeNames.join("\n")}\nUlarni javob berayotganda qo'llang.` };
+  if (idx !== -1) {
+    messages[idx] = msg;
+    return;
+  }
+  // Boshlang'ich system blokining oxiriga (SYSTEM, kontekst, xotira'dan keyin).
+  const firstNonSystem = messages.findIndex((m) => m.role !== "system");
+  messages.splice(firstNonSystem === -1 ? messages.length : firstNonSystem, 0, msg);
+}
+
 // ---- subcommands ------------------------------------------------------
 async function handleConfig() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log(`\n  ${logo()} ${c.dim("sozlash")}\n`);
   const key = (await ask(rl, `  OpenRouter kalit (bo'sh = o'zgarmasin): `)).trim();
   const pkey = (await ask(rl, `  Perplexity kalit (ixtiyoriy): `)).trim();
-  const model = (await ask(rl, `  Model [enter = gpt-4o-mini]: `)).trim();
+  // Enter — joriy (saqlangan yoki standart) model o'zgarmaydi; aynan o'shani ko'rsatamiz.
+  const model = (await ask(rl, `  Model [enter = ${loadConfig().model}]: `)).trim();
   const patch = {};
   if (key) patch.openrouterKey = key;
   if (pkey) patch.perplexityKey = pkey;
@@ -413,25 +434,24 @@ async function repl() {
   console.log();
   const confirm = await confirmer(rl);
 
-  // Fon rejimidagi sinxronlash — web tarafida qilingan o'zgarishlar CLI ga keladi
-  const stopSync = config.token
-    ? startBackgroundSync(config, (changed) => {
-        if (changed.enabledSkills) {
-          enabledSkills.clear();
-          for (const s of changed.enabledSkills) enabledSkills.add(s);
-          say(c.dim("↻ Skillar web bilan sinxronlandi"));
-        }
-        if (changed.model && !flags.model) {
-          config.model = changed.model;
-          say(c.dim(`↻ Model o'zgardi: ${changed.model}`));
-        }
-        if (changed.planState === "expired") {
-          say(c.red("● Tarifingiz muddati tugadi.") + " " + c.dim("Yangilash uchun: /upgrade"));
-        } else if (changed.planState === "expiring_soon" && changed.daysLeft != null) {
-          say(c.amber(`● Tarif ${changed.daysLeft} kundan keyin tugaydi.`));
-        }
-      })
-    : () => {};
+  // Fon rejimidagi sinxronlash — web tarafida qilingan o'zgarishlar CLI ga keladi.
+  // Getter: /logout'dan keyin to'xtaydi, /login'dan keyin YANGI akkaunt tokeni bilan ishlaydi.
+  const stopSync = startBackgroundSync(() => config, (changed) => {
+    if (changed.enabledSkills) {
+      enabledSkills.clear();
+      for (const s of changed.enabledSkills) enabledSkills.add(s);
+      say(c.dim("↻ Skillar web bilan sinxronlandi"));
+    }
+    if (changed.model && !flags.model) {
+      config.model = changed.model;
+      say(c.dim(`↻ Model o'zgardi: ${changed.model}`));
+    }
+    if (changed.planState === "expired") {
+      say(c.red("● Tarifingiz muddati tugadi.") + " " + c.dim("Yangilash uchun: /upgrade"));
+    } else if (changed.planState === "expiring_soon" && changed.daysLeft != null) {
+      say(c.amber(`● Tarif ${changed.daysLeft} kundan keyin tugaydi.`));
+    }
+  });
 
   // Apple-style prompt: minimal single chevron, restrained color.
   // MUHIM: promptni readline'ning o'ziga beramiz. Aks holda u har qayta
@@ -968,14 +988,10 @@ async function repl() {
     } else {
       messages.push({ role: "user", content: input });
     }
-    // Yoqilgan skillar system-prompt sifatida agentga uzatiladi (birinchi turda).
-    if (enabledSkills.size && messages.filter((m) => m.role === "system").length < 3) {
-      const activeNames = SKILLS.filter((s) => enabledSkills.has(s.id)).map((s) => `- ${s.name}: ${s.desc}`);
-      messages.splice(2, 0, {
-        role: "system",
-        content: `Foydalanuvchi tomonidan yoqilgan SOVEREIGN Skills:\n${activeNames.join("\n")}\nUlarni javob berayotganda qo'llang.`,
-      });
-    }
+    // Yoqilgan skillar system-prompt sifatida agentga uzatiladi. Xabar belgisi (SKILLS_MARK)
+    // orqali topiladi va har navbatda yangilanadi — system xabarlar soniga (xotira xabari
+    // qo'shilganda 3 ta bo'ladi) tayanilmaydi; /skill bilan o'chirish/yoqish ham darhol ta'sir qiladi.
+    syncSkillsMessage(messages, enabledSkills);
     await runTurn();
     sessionId = saveSession({ id: sessionId, messages, model: config.model });
     rewritePrompt();

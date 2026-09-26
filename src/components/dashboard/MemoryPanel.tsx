@@ -6,8 +6,9 @@ import { useEffect, useState, useTransition } from "react";
 import { clearMemories, deleteMemory, listMemories, setMemoryEnabled } from "@/app/actions/memory";
 import type { MemoryNode } from "@/lib/ai/memory";
 import { EASE_OUT_EXPO } from "@/lib/motion";
-import { useT } from "@/store/chat";
-import type { TKey } from "@/lib/i18n";
+import { useLang, useT } from "@/store/chat";
+import { fmt, type TKey } from "@/lib/i18n";
+import { plural } from "@/lib/plural";
 import { useDialogA11y } from "./use-dialog-a11y";
 
 interface MemoryPanelProps {
@@ -21,6 +22,7 @@ const KIND_LABEL: Record<string, TKey> = { fact: "memoryKindFact", preference: "
 
 export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryPanelProps) {
   const t = useT();
+  const lang = useLang();
   const [items, setItems] = useState<MemoryNode[] | null>(null);
   const [, startTransition] = useTransition();
   const { panelRef, titleId, dialogProps } = useDialogA11y(open, onClose);
@@ -36,17 +38,55 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
     };
   }, [open]);
 
+  // "Hammasini o'chirish" ikki bosqichli (Sozlamalardagi kabi); panel yopilsa qurolsizlanadi.
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (!open) {
+      setConfirmClear(false);
+      setMsg(null);
+    }
+  }
+
   function remove(id: string) {
+    const before = items;
     setItems((prev) => prev?.filter((m) => m.id !== id) ?? null);
-    startTransition(() => void deleteMemory(id));
+    startTransition(async () => {
+      const res = await deleteMemory(id).catch(() => ({ ok: false }));
+      if (!res.ok) {
+        setItems(before);
+        setMsg(t("stDeleteFailed"));
+      }
+    });
   }
   function clearAll() {
+    if (!confirmClear) {
+      setConfirmClear(true);
+      return;
+    }
+    setConfirmClear(false);
+    const before = items;
     setItems([]);
-    startTransition(() => void clearMemories());
+    startTransition(async () => {
+      const res = await clearMemories().catch(() => ({ ok: false }));
+      if (!res.ok) {
+        // Serverda o'chmadi — ro'yxatni qaytaramiz, bo'sh deb aldamaymiz.
+        setItems(before);
+        setMsg(t("stDeleteFailed"));
+      }
+    });
   }
   function toggle(v: boolean) {
     onEnabledChange(v);
-    startTransition(() => void setMemoryEnabled(v));
+    startTransition(async () => {
+      const res = await setMemoryEnabled(v).catch(() => ({ ok: false }));
+      if (!res.ok) {
+        onEnabledChange(!v);
+        setMsg(t("stSaveFailed"));
+      }
+    });
   }
 
   return (
@@ -67,16 +107,20 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[86vh] w-full max-w-lg flex-col rounded-3xl border shadow-lg outline-none"
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-lg flex-col rounded-3xl border shadow-lg outline-none md:max-h-[86vh]"
             style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <div className="flex items-center gap-2">
                 <Brain className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
                 <h2 id={titleId} className="font-display text-lg font-bold">{t("memory")}</h2>
-                {items && <span className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{items.length} {t("memoryNodes")}</span>}
+                {items && (
+                  <span className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                    {plural(lang, items.length, { one: "p8bNodesOne", few: "p8bNodesFew", many: "p8bNodesMany" })}
+                  </span>
+                )}
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                 <X className="size-5" />
               </button>
             </div>
@@ -123,7 +167,14 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
                         {KIND_LABEL[m.kind] ? t(KIND_LABEL[m.kind]) : m.kind}
                       </span>
                       <span className="min-w-0 flex-1 text-sm">{m.content}</span>
-                      <button type="button" onClick={() => remove(m.id)} className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100 focus-visible:opacity-100" aria-label={t("delete")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                      <button
+                        type="button"
+                        onClick={() => remove(m.id)}
+                        className="flex size-8 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-white/10 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                        aria-label={fmt(t("p8bDeleteNamed"), { name: m.content.slice(0, 40) })}
+                        title={t("delete")}
+                        style={{ color: "var(--t-text-muted, #9BA3CC)" }}
+                      >
                         <Trash2 className="size-3.5" />
                       </button>
                     </li>
@@ -132,11 +183,26 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
               )}
             </div>
 
+            {msg && (
+              <p role="status" className="px-5 pb-2 text-xs" style={{ color: "var(--error, #EF4444)" }}>
+                {msg}
+              </p>
+            )}
             {items && items.length > 0 && (
-              <div className="border-t px-5 py-3" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
-                <button type="button" onClick={clearAll} className="text-xs font-medium" style={{ color: "var(--error, #EF4444)" }}>
-                  {t("memoryClearAll")}
+              <div className="flex items-center gap-3 border-t px-5 py-3" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className={confirmClear ? "min-h-8 rounded-lg border px-3 text-xs font-semibold" : "min-h-8 text-xs font-medium"}
+                  style={{ color: "var(--error, #EF4444)", borderColor: "var(--error, #EF4444)" }}
+                >
+                  {confirmClear ? t("confirmDelete") : t("memoryClearAll")}
                 </button>
+                {confirmClear && (
+                  <button type="button" onClick={() => setConfirmClear(false)} className="min-h-8 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                    {t("cancel")}
+                  </button>
+                )}
               </div>
             )}
           </motion.div>

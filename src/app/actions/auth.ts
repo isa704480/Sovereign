@@ -53,6 +53,9 @@ async function translate(message: string): Promise<string> {
   if (isAuthMsgKey(message)) return t(message);
   const key = authErrorKey(message);
   if (key) return t(key);
+  // authErrorKey tanimaydigan keng tarqalgan Supabase xabarlari.
+  if (/for security purposes|only request this (after|once)/i.test(message)) return t("auErrRateLimit");
+  if (/weak and easy to guess|pwned|leaked password/i.test(message)) return t("auErrWeakPassword");
   // Tanilmagan provayder xatosi UI'ga xom holda chiqmaydi — logga yoziladi.
   console.error("[auth] unmapped error:", message);
   return t("p7cErrGeneric");

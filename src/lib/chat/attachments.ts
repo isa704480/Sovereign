@@ -139,8 +139,16 @@ export function buildUserContent(text: string, attachments: Attachment[], lang: 
   const images = attachments.filter((a) => a.kind === "image" && a.dataUrl);
   const docs = attachments.filter((a) => (a.kind === "pdf" || a.kind === "text") && a.text);
   const media = attachments.filter((a) => a.kind === "audio" || a.kind === "video");
+  // Sahifa yangilangach localStorage'dan tiklangan xabarlarda fayl mazmuni yo'q (faqat nomi):
+  // model faylni "ko'rgandek" to'qib javob bermasin — yo'qligini aytamiz.
+  const missing = attachments.filter(
+    (a) => (a.kind === "image" && !a.dataUrl) || ((a.kind === "pdf" || a.kind === "text") && !a.text),
+  );
 
   let prefix = "";
+  for (const m of missing) {
+    prefix += `\n\n[Fayl endi mavjud emas: ${m.name} — mazmuni yuborilmadi. Kerak bo'lsa foydalanuvchidan faylni qayta biriktirishni so'ra.]`;
+  }
   for (const d of docs) {
     prefix += `\n\n[Fayl: ${d.name}]\n${d.text}\n[/Fayl]`;
   }

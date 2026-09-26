@@ -2,6 +2,7 @@
 
 import { AlertCircle } from "lucide-react";
 import { motion } from "motion/react";
+import { unstable_rethrow } from "next/navigation";
 import type { ReactNode } from "react";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,16 @@ import { isAuthMsgKey } from "./messages";
 export function useAuthMsg(): (message: string) => string {
   const t = useT();
   return (message) => (isAuthMsgKey(message) ? t(message) : message);
+}
+
+/**
+ * Server action reject bo'lganda (tarmoq uzildi, server javob bermadi) forma ichida ko'rsatiladigan
+ * kalit. redirect() ham mijozda reject bilan keladi — uni qayta otamiz, navigatsiyani Next bajaradi.
+ */
+export function actionFailed(e: unknown, scope: string): "auErrNetwork" {
+  unstable_rethrow(e);
+  console.error(`[auth] ${scope}:`, e);
+  return "auErrNetwork";
 }
 
 export const inputClass =

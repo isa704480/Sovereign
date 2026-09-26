@@ -66,12 +66,6 @@ export const UX = {
     ru: "Claude, GPT, Gemini, DeepSeek и 1700+ моделей ИИ в одном окне. Ваши чаты принадлежат вам.",
     en: "Claude, GPT, Gemini, DeepSeek and 1700+ AI models in one window. Your chats stay yours.",
   },
-  uxOgDescription: {
-    uz: "Barcha AI. Bitta oyna.",
-    "uz-cyrl": "Барча AI. Битта ойна.",
-    ru: "Все ИИ. Одно окно.",
-    en: "Every AI. One window.",
-  },
   uxCreateImage: { uz: "Rasm yaratish", "uz-cyrl": "Расм яратиш", ru: "Создать изображение", en: "Create image" },
   uxCreateImageHint: { uz: "Matndan rasm · ~30 soniya", "uz-cyrl": "Матндан расм · ~30 сония", ru: "Картинка по тексту · ~30 с", en: "Image from text · ~30s" },
   uxCreateMusic: { uz: "Musiqa yaratish", "uz-cyrl": "Мусиқа яратиш", ru: "Создать музыку", en: "Create music" },

@@ -11,16 +11,20 @@ export const metadata: Metadata = {
   title: "Product updates",
   description: "What's new in SOVEREIGN AI — new features, improvements and fixes.",
   alternates: { canonical: "/updates" },
+  // openGraph shallow-merge'da ildizdagini to'liq almashtiradi — url/siteName shu yerda.
   openGraph: {
     title: "SOVEREIGN — Product updates",
     description: "What's new in SOVEREIGN AI — new features, improvements and fixes.",
+    url: "/updates",
+    siteName: "SOVEREIGN",
+    type: "website",
   },
 };
 
 export default function UpdatesPage() {
   return (
     <main className="flex-1">
-      <Navbar signedIn={false} />
+      <Navbar />
       <UpdatesList />
       <Footer />
     </main>

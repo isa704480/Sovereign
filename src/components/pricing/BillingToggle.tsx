@@ -25,7 +25,7 @@ export function BillingToggle({
     <div
       role="radiogroup"
       aria-label={t("ldBillingPeriod")}
-      className={cn("inline-flex items-center gap-1 rounded-full p-1", className)}
+      className={cn("inline-flex max-w-full items-center gap-1 rounded-full p-1", className)}
       style={{ border: "1px solid var(--t-border, rgba(255,255,255,0.1))", background: "rgba(255,255,255,0.03)" }}
     >
       {opts.map((o) => {
@@ -38,19 +38,22 @@ export function BillingToggle({
             aria-checked={on}
             onClick={() => onChange(o.id)}
             className={cn(
-              "inline-flex h-9 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors",
+              // Tor ekranda (375px, ruscha) ixchamroq — nishon ikki qatorga bo'linmaydi.
+              "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition-colors sm:gap-2 sm:px-4",
               on ? "text-white" : "hover:bg-white/5",
             )}
             style={{
-              background: on ? "var(--t-primary, #7C6FF7)" : "transparent",
+              // Landing'da --t-primary yo'q: to'q brend rangi (#5B50F0, oq matn bilan ~5.5:1, WCAG AA).
+              background: on ? "var(--t-primary, #5B50F0)" : "transparent",
               color: on ? "#fff" : "var(--t-text-muted, #9BA3CC)",
             }}
           >
             {o.label}
             {o.id === "year" && (
               <span
-                className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
-                style={{ background: on ? "rgba(255,255,255,0.22)" : "rgba(34,197,94,0.15)", color: on ? "#fff" : "#22C55E" }}
+                className="whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-normal sm:px-2 sm:tracking-wide"
+                // Faol holatda oq ustida oq emas — to'qroq fon (kontrast AA).
+                style={{ background: on ? "rgba(0,0,0,0.28)" : "rgba(34,197,94,0.15)", color: on ? "#fff" : "#22C55E" }}
               >
                 {t("ldTwoMonthsFree")}
               </span>

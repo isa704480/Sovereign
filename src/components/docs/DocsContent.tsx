@@ -5,7 +5,7 @@ import { ArrowUpRight } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { CopyCode } from "@/components/docs/CopyCode";
 import { DocsMobileNav, DocsSidebar, type DocsNavItem } from "@/components/docs/DocsNav";
-import { LangSwitcher } from "@/components/docs/LangSwitcher";
+import { LangSwitcher } from "@/components/LangSwitcher";
 import { rich } from "@/components/docs/rich";
 import { fmt, type TKey } from "@/lib/i18n";
 import { useT } from "@/store/chat";
@@ -239,7 +239,7 @@ export function DocsContent({ data }: { data: DocsData }) {
             >
               soveregn.xyz
             </a>
-            <LangSwitcher />
+            <LangSwitcher className="h-8 shrink-0 cursor-pointer px-1.5" />
             <a
               href={APP}
               className="inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 sm:px-3 text-sm font-medium text-white shadow-glow transition-colors hover:bg-primary-dark"

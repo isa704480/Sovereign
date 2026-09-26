@@ -21,8 +21,6 @@ import {
 } from "@/components/landing/company";
 import { PLANS, formatPrice } from "@/config/plans";
 import { translate } from "@/lib/i18n";
-import { createClient } from "@/lib/supabase/server";
-import { isSupabaseConfigured } from "@/lib/supabase/env";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://soveregn.xyz").replace(/\/$/, "");
 
@@ -75,29 +73,19 @@ function jsonLd() {
   };
 }
 
-async function isSignedIn() {
-  if (!isSupabaseConfigured()) return false;
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    return !!user;
-  } catch {
-    return false;
-  }
-}
-
-export default async function HomePage() {
-  const signedIn = await isSignedIn();
+/**
+ * Landing STATIK (CDN keshi): cookies()/getUser() chaqirilmaydi. Kirgan foydalanuvchi
+ * holati (Navbar/Hero/Pricing tugmalari) brauzerda useSignedIn() orqali aniqlanadi.
+ */
+export default function HomePage() {
   return (
     <main className="flex-1 overflow-x-clip">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()).replace(/</g, "\\u003c") }}
       />
-      <Navbar signedIn={signedIn} />
-      <Hero signedIn={signedIn} />
+      <Navbar />
+      <Hero />
       <ModelCompare />
       <HowItWorks />
       <Download />

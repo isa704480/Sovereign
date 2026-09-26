@@ -3,13 +3,14 @@
 import { Brain, ChevronDown, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LayoutGrid, LogOut, MessageSquareHeart, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Plug, Search, Sparkles, Settings, Trash2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { MODEL_BY_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { groupByDate, useChat, useT, type Conversation } from "@/store/chat";
+import { groupByDate, useChat, useChatHydrated, useT, type Conversation } from "@/store/chat";
 import { fmt } from "@/lib/i18n";
 import { convTitle } from "@/lib/locales/chat-data";
 import { useTheme } from "./theme-context";
@@ -92,6 +93,9 @@ export function Sidebar({
   const [toolsOpen, setToolsOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [q, setQ] = useState("");
+  // Oqim paytida har token'da qayta filtrlash yozishni sekinlashtirmasin.
+  const deferredQ = useDeferredValue(q);
+  const lang = useChat((s) => s.lang);
   const openSearch = useCallback(() => {
     onOpen();
     // Focus the desktop panel's input once it has expanded enough to be visible.
@@ -111,16 +115,63 @@ export function Sidebar({
   const [newProject, setNewProject] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
 
+  // Mobil drawer: dialog sifatida — ochilganda fokus ichiga kiradi, Esc yopadi, Tab ichida aylanadi,
+  // yopilganda fokus menyu tugmasiga qaytadi.
+  const hydrated = useChatHydrated();
+  const narrow = useMediaQuery("(max-width: 767px)");
+  const drawerOpen = hydrated && open && narrow;
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const node = drawerRef.current;
+    const id = window.setTimeout(() => {
+      (node ?? drawerRef.current)?.querySelector<HTMLElement>("[data-drawer-autofocus]")?.focus();
+    }, 0);
+    return () => {
+      window.clearTimeout(id);
+      const el = document.activeElement;
+      if (!el || el === document.body || node?.contains(el)) {
+        document.querySelector<HTMLElement>("[data-sidebar-menu]")?.focus();
+      }
+    };
+  }, [drawerOpen]);
+  const onDrawerKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.defaultPrevented) return;
+    if (e.key === "Escape") {
+      // preventDefault: Dashboard'ning global Esc'i oqimni to'xtatmasin.
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    if (e.key !== "Tab" || !drawerRef.current) return;
+    const items = [
+      ...drawerRef.current.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ),
+    ].filter((n) => n.offsetParent !== null);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
   // Qidiruv: sarlavha YOKI xabar matni bo'yicha; matndan topilsa parcha ko'rsatiladi.
   const { filteredOrder, snippets } = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+    const needle = deferredQ.trim().toLowerCase();
     const scoped = activeProjectId ? order.filter((id) => conversations[id]?.projectId === activeProjectId) : order;
     if (!needle) return { filteredOrder: scoped, snippets: {} as Record<string, string> };
     const snippets: Record<string, string> = {};
     const hits = scoped.filter((id) => {
       const c = conversations[id];
       if (!c) return false;
-      if (c.title.toLowerCase().includes(needle)) return true;
+      // Ko'rsatilgan (tarjima qilingan) sarlavha bo'yicha — "Yangi suhbat" → "New chat".
+      if (convTitle(c.title, t).toLowerCase().includes(needle)) return true;
       const m = c.messages.find((x) => typeof x.content === "string" && x.content.toLowerCase().includes(needle));
       if (!m) return false;
       const text = m.content;
@@ -129,7 +180,8 @@ export function Sidebar({
       return true;
     });
     return { filteredOrder: hits, snippets };
-  }, [q, order, conversations, activeProjectId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- t faqat lang bilan o'zgaradi
+  }, [deferredQ, order, conversations, activeProjectId, lang]);
 
   const groups = useMemo(() => groupByDate(filteredOrder, conversations), [filteredOrder, conversations]);
   const initials = user.name
@@ -159,7 +211,7 @@ export function Sidebar({
             </span>
           )}
         </Link>
-        <button type="button" onClick={onClose} className="rounded-lg p-1.5 transition-colors hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")}>
+        <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-white/10 md:size-8" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")}>
           <PanelLeftClose className="size-4" />
         </button>
       </div>
@@ -168,13 +220,14 @@ export function Sidebar({
         <button
           type="button"
           onClick={onNew}
+          data-drawer-autofocus
           className="tt flex w-full items-center gap-2 px-3 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
           style={{ background: model.primary, borderRadius: "var(--t-radius)", boxShadow: `0 0 20px color-mix(in srgb, ${model.primary} 35%, transparent)` }}
         >
           <MessageSquarePlus className="size-4" /> {t("newChat")}
         </button>
         <label
-          className="tt mt-2 flex items-center gap-2 border px-2.5 py-2 text-sm"
+          className="tt mt-2 flex items-center gap-2 border px-2.5 py-2 text-sm focus-within:ring-2 focus-within:ring-[var(--t-primary)]"
           style={{ borderColor: "var(--t-border)", borderRadius: "var(--t-radius)", background: "color-mix(in srgb, var(--t-text) 4%, transparent)" }}
         >
           <Search className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
@@ -183,7 +236,8 @@ export function Sidebar({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t("searchChats")}
-            className="w-full bg-transparent text-sm outline-none placeholder:opacity-60"
+            aria-label={t("searchChats")}
+            className="w-full bg-transparent text-base outline-none placeholder:opacity-60 md:text-sm"
           />
         </label>
       </div>
@@ -213,11 +267,15 @@ export function Sidebar({
                 createProject(newProject);
                 setNewProject(null);
               }
-              if (e.key === "Escape") setNewProject(null);
+              if (e.key === "Escape") {
+                // Faqat maydonni yopadi: drawer yopilmasin, oqim to'xtamasin.
+                e.preventDefault();
+                setNewProject(null);
+              }
             }}
             onBlur={() => setNewProject(null)}
             placeholder={t("projectName")}
-            className="tt mt-1.5 w-full border bg-transparent px-2.5 py-1.5 text-sm outline-none"
+            className="tt mt-1.5 w-full border bg-transparent px-2.5 py-1.5 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] md:text-sm"
             style={{ borderColor: "var(--t-primary)", borderRadius: "var(--t-radius)" }}
           />
         )}
@@ -264,7 +322,8 @@ export function Sidebar({
                   placeholder={t("projectInstrHint")}
                   rows={3}
                   maxLength={4000}
-                  className="w-full resize-none bg-transparent text-xs leading-relaxed outline-none placeholder:opacity-50"
+                  aria-label={t("projectInstructions")}
+                  className="w-full resize-none rounded bg-transparent text-base leading-relaxed outline-none placeholder:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] md:text-xs"
                   style={{ color: "var(--t-text)" }}
                 />
                 <div className="mt-1 flex items-center justify-between text-xs" style={{ color: "var(--t-text-muted)" }}>
@@ -645,9 +704,9 @@ export function Sidebar({
         </motion.div>
       </motion.aside>
 
-      {/* mobile overlay */}
+      {/* mobile overlay — faqat store tiklangandan keyin (SSR standart open=true miltillamasin) */}
       <AnimatePresence>
-        {open && (
+        {hydrated && open && (
           <motion.div
             key="overlay"
             initial={{ opacity: 0 }}
@@ -657,12 +716,17 @@ export function Sidebar({
             onClick={onClose}
           >
             <motion.div
+              ref={drawerRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={t("menu")}
+              onKeyDown={onDrawerKey}
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{ duration: 0.28, ease: EASE }}
               onClick={(e) => e.stopPropagation()}
-              className="tt h-full w-[280px] border-r"
+              className="tt h-full w-[280px] max-w-[85vw] border-r"
               style={{ background: "var(--t-sidebar)", borderColor: "var(--t-border)" }}
             >
               {body}

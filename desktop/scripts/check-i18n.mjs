@@ -50,7 +50,7 @@ for (const k of all) {
 }
 
 // Kirill: lotin harfi qolgan so'zlar faqat ruxsat etilgan texnik atamalar bo'lsin.
-const LATIN_OK = /^(SOVEREIGN|Cowork|CLI|AI|API|SQL|VS|CI|OK|UNC|MB|PC|README|md|env|ssh|aws|sovereign|Ctrl|Shift|Enter|Esc|Explorer|Windows|SmartScreen|GitHub|Releases|Undo|Auto|diff|Diff|src|npm|git|Git|rebase|merge|hook|hooks|tasks|Code|React|Express|preload|claude|gemini|deepseek|exit|Shell|grep|R|C|foo|O|More|info|Run|anyway|protected|your)$/;
+const LATIN_OK = /^(SOVEREIGN|Cowork|CLI|AI|API|SQL|VS|CI|OK|UNC|MB|PC|README|md|env|ssh|aws|sovereign|Ctrl|Shift|Enter|Esc|Explorer|Windows|SmartScreen|GitHub|Releases|Undo|Auto|diff|Diff|src|npm|git|Git|rebase|merge|hook|hooks|tasks|Code|React|Express|preload|claude|gemini|deepseek|exit|Shell|grep|R|C|foo|O|More|info|Run|anyway|protected|your|v)$/; // v — versiya belgisi (v0.5.3)
 for (const k of Object.keys(uz)) {
   const v = cyrlValue(k).replace(/\{\w+\}/g, "");
   for (const w of v.match(/[A-Za-z]+/g) ?? []) {

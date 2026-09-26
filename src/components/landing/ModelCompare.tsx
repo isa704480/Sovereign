@@ -2,19 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { useT } from "@/store/chat";
+import type { TKey } from "@/lib/i18n";
+import { localeOf } from "@/lib/locales/chat-data";
+import { useLang, useT } from "@/store/chat";
 
 type Family = { key: string; label: string; count: number; auto?: string };
 
+/** "{n} model." gapining son shakli (ru: модель / модели / моделей; en: model / models). */
+function modelsKey(n: number, locale: string): TKey {
+  const form = new Intl.PluralRules(locale).select(n);
+  if (form === "one") return "p8cCompareModelsOne";
+  if (form === "few") return "p8cCompareModelsFew";
+  return "ldCompareModels";
+}
+
 export function ModelCompare() {
   const t = useT();
+  const locale = localeOf(useLang());
   const [families, setFamilies] = useState<Family[] | null>(null);
 
   useEffect(() => {
     let alive = true;
     fetch("/api/models?families=1")
-      .then((r) => r.json())
-      .then((d) => alive && setFamilies(d.families ?? []))
+      // 429 / 5xx javobi ham JSON — lekin families'siz; bo'sh ro'yxat sifatida olinadi.
+      .then((r) => (r.ok ? r.json() : { families: [] }))
+      .then((d: { families?: Family[] }) => alive && setFamilies(Array.isArray(d.families) ? d.families : []))
       .catch(() => alive && setFamilies([]));
     return () => {
       alive = false;
@@ -25,7 +37,8 @@ export function ModelCompare() {
   const max = families?.[0]?.count ?? 1;
   const shown = (families ?? []).slice(0, 12);
   // "{n} model." — son alohida rangda, shuning uchun gapni {n} atrofida bo'lamiz.
-  const [modelsPre, modelsPost = ""] = t("ldCompareModels").split("{n}");
+  // Son hali yo'q bo'lsa "1700+" — ko'plik shakli (many/other) bilan.
+  const [modelsPre, modelsPost = ""] = t(total ? modelsKey(total, locale) : "ldCompareModels").split("{n}");
 
   return (
     <section aria-labelledby="compare-title" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-28">
@@ -33,7 +46,7 @@ export function ModelCompare() {
         <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("ldCompareEyebrow")}</span>
         <h2 id="compare-title" className="font-display mt-3 text-[1.85rem] font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl text-text-primary md:text-5xl">
           {modelsPre}
-          <span className="tabular-nums text-gradient-brand">{total ? total.toLocaleString() : "1700+"}</span>
+          <span className="tabular-nums text-gradient-brand">{total ? total.toLocaleString(locale) : "1700+"}</span>
           {modelsPost}
           <br />
           {t("ldCompareFamilies")}
@@ -41,7 +54,9 @@ export function ModelCompare() {
         <p className="mt-4 text-base text-text-secondary">{t("ldCompareSub")}</p>
       </div>
 
-      {/* solishtiruv paneli — bitta yuza, hairline qatorlar */}
+      {/* solishtiruv paneli — bitta yuza, hairline qatorlar. Katalog bo'sh / API xato
+          bo'lsa panel umuman chizilmaydi (bo'sh ramka qolmasin). */}
+      {(!families || shown.length > 0) && (
       <div className="mx-auto mt-12 max-w-3xl overflow-hidden rounded-2xl border border-border bg-white/[0.015]">
         {!families && <div className="px-5 py-8 text-center text-sm text-text-muted">{t("ldLoading")}</div>}
         {shown.map((f, i) => (
@@ -69,6 +84,7 @@ export function ModelCompare() {
           </motion.div>
         ))}
       </div>
+      )}
 
       <p className="mt-6 text-center text-xs text-text-muted">{t("ldCompareFootnote")}</p>
     </section>

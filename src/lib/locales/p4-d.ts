@@ -12,27 +12,7 @@ export const P4D = {
   p4dNavContact: { uz: "Aloqa", "uz-cyrl": "Алоқа", ru: "Контакты", en: "Contact" },
 
   // Hero
-  p4dHeroValue: {
-    uz: "SOVEREIGN AI — Claude, GPT, Gemini, DeepSeek va yana 1700+ AI modeli uchun bitta xavfsiz ish maydoni: xotira shifrlangan, shaxsiy ma'lumotlaringiz esa provayderga yetib borishidan oldin maskalanadi.",
-    "uz-cyrl":
-      "SOVEREIGN AI — Claude, GPT, Gemini, DeepSeek ва яна 1700+ AI модели учун битта хавфсиз иш майдони: хотира шифрланган, шахсий маълумотларингиз эса провайдерга етиб боришидан олдин маскаланади.",
-    ru: "SOVEREIGN AI — единое приватное рабочее пространство для Claude, GPT, Gemini, DeepSeek и ещё 1700+ моделей ИИ: память зашифрована, а личные данные маскируются до отправки провайдеру.",
-    en: "SOVEREIGN AI is one private workspace for Claude, GPT, Gemini, DeepSeek and 1700+ other AI models — with encrypted memory, and your personal data masked before it reaches any provider.",
-  },
-  p4dHeroAudience: {
-    uz: "O'zbekiston va MDHdagi talabalar, dasturchilar va bizneslar uchun — o'zbek, rus va ingliz tillarida; karta, kripto yoki SBP orqali to'lov.",
-    "uz-cyrl":
-      "Ўзбекистон ва МДҲдаги талабалар, дастурчилар ва бизнеслар учун — ўзбек, рус ва инглиз тилларида; карта, крипто ёки СБП орқали тўлов.",
-    ru: "Для студентов, разработчиков и бизнеса в Узбекистане и СНГ — на узбекском, русском и английском, с оплатой картой, криптовалютой или через СБП.",
-    en: "Built for students, developers and businesses in Uzbekistan and the CIS — in Uzbek, Russian and English, paid by card, crypto or SBP.",
-  },
   p4dHeroDocs: { uz: "Hujjatlarni ko'rish", "uz-cyrl": "Ҳужжатларни кўриш", ru: "Открыть документацию", en: "View docs" },
-  p4dHeroLive: {
-    uz: "app.soveregn.xyz da ishlamoqda",
-    "uz-cyrl": "app.soveregn.xyz да ишламоқда",
-    ru: "Работает на app.soveregn.xyz",
-    en: "Live at app.soveregn.xyz",
-  },
 
   // Mahsulot ko'rinishi (hero ostidagi chat maketi)
   p4dPvLabel: {

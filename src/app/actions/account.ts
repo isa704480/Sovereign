@@ -43,10 +43,16 @@ export async function exportMyData(): Promise<{ ok: true; data: unknown } | { ok
 export async function deleteMyData(): Promise<{ ok: boolean }> {
   const s = await session();
   if (!s) return { ok: false };
-  await Promise.all([
+  const results = await Promise.all([
     s.supabase.from("conversations").delete().eq("user_id", s.user.id),
     s.supabase.from("memory_nodes").delete().eq("user_id", s.user.id),
   ]);
+  // Biror jadval o'chmasa — "o'chirildi" deb aldamaymiz (mijoz xato ko'rsatadi).
+  const failed = results.find((r) => r.error);
+  if (failed?.error) {
+    console.error("[account] deleteMyData:", failed.error.message);
+    return { ok: false };
+  }
   return { ok: true };
 }
 

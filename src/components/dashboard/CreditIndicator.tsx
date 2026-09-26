@@ -84,7 +84,7 @@ export function CreditIndicator({ plan, onUpgrade }: CreditIndicatorProps) {
           className="text-xs font-medium hover:underline"
           style={{ color }}
         >
-          {t("refresh")} →
+          {t("upgrade")} →
         </button>
       )}
     </div>

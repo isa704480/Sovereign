@@ -8,6 +8,16 @@ import { parseWriteBlock } from "@/lib/cowork/folder";
 import { fmt } from "@/lib/i18n";
 import { plural, type PluralKeys } from "@/lib/plural";
 import { useLang, useT } from "@/store/chat";
+import { localeOf } from "@/lib/locales/chat-data";
+
+/** Hajm KB da, interfeys tili lokalida ("1,5 КБ" / "1.5 kB"). */
+function kbLabel(bytes: number, locale: string): string {
+  try {
+    return new Intl.NumberFormat(locale, { style: "unit", unit: "kilobyte", unitDisplay: "short", maximumFractionDigits: 1 }).format(bytes / 1024);
+  } catch {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+}
 import { isRenderable, useArtifact } from "./artifact-context";
 import { useCowork } from "./cowork-context";
 import { GenerativeUI, parseGenUi } from "./GenerativeUI";
@@ -180,7 +190,7 @@ function FileCard({ code, lang }: { code: string; lang: string }) {
       <button type="button" onClick={() => artifact.open({ code, lang, title: name })} className="min-w-0 flex-1 text-left">
         <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>{name}</span>
         <span className="nums block text-xs" style={{ color: "var(--t-text-muted)" }}>
-          {plural(uiLang, lines, LINES)} · {(code.length / 1024).toFixed(1)} KB
+          {plural(uiLang, lines, LINES)} · {kbLabel(code.length, localeOf(uiLang))}
         </span>
       </button>
       <button
@@ -473,7 +483,7 @@ export const Markdown = memo(function Markdown({ content, citations, unsourced }
   );
 
   return (
-    <div className="prose-chat">
+    <div className="prose-chat" style={{ fontSize: "var(--chat-fs, 15px)" }}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} urlTransform={urlTransform}>
         {text}
       </ReactMarkdown>

@@ -1,13 +1,14 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
+import { unstable_rethrow } from "next/navigation";
 import { useState, useTransition } from "react";
 import { signInWithOAuth } from "@/app/actions/auth";
 import { createClient } from "@/lib/supabase/client";
-import { googleIdTokenViaFirebase, isFirebaseConfigured } from "@/lib/firebase/client";
 import { authErrorKey } from "@/lib/locales/auth";
 import type { OAuthProvider } from "@/lib/validations/auth";
 import type { AuthMsgKey } from "./messages";
+import { actionFailed } from "./form-primitives";
 import { safeNextPath } from "./next-path";
 import { cn } from "@/lib/utils";
 import { useT } from "@/store/chat";
@@ -31,6 +32,23 @@ function GitHubIcon() {
   );
 }
 
+/**
+ * Firebase Auth SDK (katta) /login va /register birinchi yuklanishiga kirmaydi: faqat Google
+ * tugmasi bosilganda (yoki ustiga kursor/fokus kelganda — oldindan) yuklanadi. Oldindan
+ * yuklash popup'gacha bo'lgan kutishni qisqartiradi (Safari popup blocker).
+ */
+const loadFirebase = () => import("@/lib/firebase/client");
+
+/**
+ * lib/firebase/client.ts dagi isFirebaseConfigured bilan bir xil shart — lekin SDK'ni
+ * import qilmasdan (NEXT_PUBLIC_* build vaqtida satrga almashtiriladi).
+ */
+const FIREBASE_CONFIGURED = Boolean(
+  process.env.NEXT_PUBLIC_FIREBASE_API_KEY &&
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN &&
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+);
+
 /** Firebase/Supabase Google xatosi → lug'at kaliti (tanilmagani — umumiy "auErrGoogle"). */
 function googleErrorKey(message: string): AuthMsgKey {
   if (/popup-closed|cancelled-popup|cancelled|closed by user/i.test(message)) return "auErrPopupClosed";
@@ -52,7 +70,7 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
 
   async function google() {
     setActive("google");
-    if (!isFirebaseConfigured()) {
+    if (!FIREBASE_CONFIGURED) {
       // Fallback: Supabase redirect OAuth. Server xatoni allaqachon tarjima qilib qaytaradi.
       try {
         const res = await signInWithOAuth("google", next);
@@ -61,7 +79,8 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
           setActive(null);
         }
       } catch (e) {
-        // redirect() ichki xatosi emas — tarmoq va h.k.
+        // redirect() (provayderga o'tish) ham mijozda reject bo'lib keladi — uni Next'ga qaytaramiz.
+        unstable_rethrow(e);
         console.error("[auth] Google OAuth:", e);
         onError?.("auErrGoogle");
         setActive(null);
@@ -70,6 +89,7 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
     }
     try {
       // Firebase Google popup → Supabase session via ID token + nonce.
+      const { googleIdTokenViaFirebase } = await loadFirebase();
       const { idToken, accessToken, nonce } = await googleIdTokenViaFirebase();
       const supabase = createClient();
       const { error } = await supabase.auth.signInWithIdToken({
@@ -95,9 +115,14 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
   function github() {
     setActive("github");
     startTransition(async () => {
-      const res = await signInWithOAuth("github", next);
-      if (res && !res.ok) {
-        onError?.(res.error);
+      try {
+        const res = await signInWithOAuth("github", next);
+        if (res && !res.ok) {
+          onError?.(res.error);
+          setActive(null);
+        }
+      } catch (e) {
+        onError?.(actionFailed(e, "GitHub OAuth"));
         setActive(null);
       }
     });
@@ -111,6 +136,8 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
         type="button"
         disabled={busy}
         onClick={google}
+        onPointerEnter={FIREBASE_CONFIGURED ? () => void loadFirebase() : undefined}
+        onFocus={FIREBASE_CONFIGURED ? () => void loadFirebase() : undefined}
         className={cn(
           "inline-flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-border bg-bg-base/60 text-sm font-medium text-text-primary transition-all",
           "hover:border-[var(--border-strong)] hover:bg-bg-hover focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",

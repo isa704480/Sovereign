@@ -44,16 +44,17 @@ export function Footer() {
 
         <nav className="grid grid-cols-2 gap-10 text-sm sm:grid-cols-4">
           <Col title={t("ldFooterProduct")}>
-            <li><a href="#how" className={linkCls}>{t("p4dNavHow")}</a></li>
-            <li><a href="#features" className={linkCls}>{t("navFeatures")}</a></li>
-            <li><a href="#models" className={linkCls}>{t("navModels")}</a></li>
-            <li><a href="#privacy" className={linkCls}>{t("navPrivacy")}</a></li>
-            <li><a href="#pricing" className={linkCls}>{t("navPricing")}</a></li>
+            {/* "/#…" — Footer huquqiy sahifalarda ham bor; nisbiy "#…" u yerda o'lik havola edi. */}
+            <li><Link href="/#how" className={linkCls}>{t("p4dNavHow")}</Link></li>
+            <li><Link href="/#features" className={linkCls}>{t("navFeatures")}</Link></li>
+            <li><Link href="/#models" className={linkCls}>{t("navModels")}</Link></li>
+            <li><Link href="/#privacy" className={linkCls}>{t("navPrivacy")}</Link></li>
+            <li><Link href="/#pricing" className={linkCls}>{t("navPricing")}</Link></li>
           </Col>
           <Col title={t("p4dFooterCompany")}>
-            <li><a href="#about" className={linkCls}>{t("p4dNavAbout")}</a></li>
-            <li><a href="#roadmap" className={linkCls}>{t("p4dNavRoadmap")}</a></li>
-            <li><a href="#contact" className={linkCls}>{t("p4dNavContact")}</a></li>
+            <li><Link href="/#about" className={linkCls}>{t("p4dNavAbout")}</Link></li>
+            <li><Link href="/#roadmap" className={linkCls}>{t("p4dNavRoadmap")}</Link></li>
+            <li><Link href="/#contact" className={linkCls}>{t("p4dNavContact")}</Link></li>
             <li><Link href="/login" className={linkCls}>{t("login")}</Link></li>
             <li><Link href="/register" className={linkCls}>{t("ldRegister")}</Link></li>
           </Col>

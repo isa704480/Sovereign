@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { passwordSchema } from "@/lib/validations/auth";
 import { useT } from "@/store/chat";
 import { PasswordInput } from "./PasswordInput";
-import { FieldError, FormAlert, SubmitButton, inputClass } from "./form-primitives";
+import { FieldError, FormAlert, SubmitButton, actionFailed, inputClass } from "./form-primitives";
 
 const schema = z
   .object({ password: passwordSchema, confirmPassword: z.string() })
@@ -33,8 +33,13 @@ export function ResetPasswordForm() {
   function onSubmit(values: Values) {
     setServerError(null);
     startTransition(async () => {
-      const res = await updatePassword(values);
-      if (res && !res.ok) setServerError(res.error);
+      // Tarmoq uzilsa server action reject bo'ladi — Next xato ekrani o'rniga forma ichida xabar.
+      try {
+        const res = await updatePassword(values);
+        if (res && !res.ok) setServerError(res.error);
+      } catch (e) {
+        setServerError(actionFailed(e, "updatePassword"));
+      }
     });
   }
 

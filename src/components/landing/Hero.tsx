@@ -6,10 +6,13 @@ import { MagneticButton } from "@/components/motion/MagneticButton";
 import { OrbitField } from "./OrbitField";
 import { ProductPreview } from "./ProductPreview";
 import { DOCS_URL } from "./company";
+import { useSignedIn } from "./use-signed-in";
 import { useT } from "@/store/chat";
 
-export function Hero({ signedIn = false }: { signedIn?: boolean }) {
+export function Hero({ signedIn: signedInProp = false }: { signedIn?: boolean }) {
   const t = useT();
+  // Landing statik: kirgan foydalanuvchi brauzerdagi sessiya cookie'sidan aniqlanadi.
+  const signedIn = useSignedIn() || signedInProp;
 
   return (
     <section id="main-content" tabIndex={-1} aria-labelledby="hero-title" className="relative isolate overflow-hidden outline-none focus-visible:outline-none">

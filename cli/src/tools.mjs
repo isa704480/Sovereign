@@ -170,9 +170,10 @@ const GIT_READONLY = new Set(["status", "diff", "log", "show", "rev-parse", "ls-
 const GIT_BAD_ARG = /^(--output|--ext-diff|--textconv|--exec|--upload-pack|--receive-pack|--config-env|-c$|-o$)/i;
 
 // Shell metasimvollari: zanjir, subshell, yo'naltirish, o'zgaruvchi (sh/cmd), uy (~), brace, escape.
-// POSIX: glob belgilari (*?[]) ham — sh ularni kengaytiradi va symlink orqali
-// ish papkasidan tashqaridagi fayllarni o'qish mumkin bo'lardi.
-const RISKY_CHARS = IS_WIN ? /[;&|$()`<>\n\r~%^@{}!,]/ : /[;&|$()`<>\n\r~%^@{}!\\*?[\]]/;
+// Glob belgilari (*?[]) ham — sh (POSIX) hamda cmd `type`/`dir` va Git-for-Windows'ning
+// MSYS cat/grep'i (Windows) ularni o'zi kengaytiradi: tekshiruv literal tokenni ko'radi,
+// kengaytirilgan nom esa symlink orqali ish papkasidan tashqaridagi faylni o'qishi mumkin.
+const RISKY_CHARS = IS_WIN ? /[;&|$()`<>\n\r~%^@{}!,*?[\]]/ : /[;&|$()`<>\n\r~%^@{}!\\*?[\]]/;
 
 const HARD_BLOCKED = [
   /\brm\s+-[a-z]*r[a-z]*\s+(\/|~|\$HOME)/i,
@@ -199,8 +200,11 @@ function stripQuotes(t) {
 function pathCandidates(tok) {
   const out = new Set([tok]);
   for (const part of tok.split(/[=,;]/)) if (part) out.add(part);
+  // Yopishgan opsiya qiymati (`-f/x`, `-o../y`) — faqat opsiya ko'rinishidagi tokenda.
+  // Oddiy nisbiy yo'l ("src/a.ts") bo'lagi ("/a.ts") absolyut deb olinib, noto'g'ri
+  // "tashqarida" bo'lmasin — u yuqorida butunligicha tekshiriladi.
   const sepIdx = tok.search(/[\\/.]/);
-  if (sepIdx > 0) out.add(tok.slice(sepIdx));
+  if (sepIdx > 0 && /^[-+]/.test(tok)) out.add(tok.slice(sepIdx));
   const drive = tok.search(/[a-z]:/i);
   if (drive > 0) out.add(tok.slice(drive));
   return [...out];
@@ -380,10 +384,15 @@ const AUTO_RUN_FILES = new Set([
   "package.json", ".npmrc", ".yarnrc", ".yarnrc.yml", "makefile", "justfile",
   "taskfile.yml", "taskfile.yaml", ".envrc", "pyproject.toml", "setup.py", "setup.cfg",
   ".pre-commit-config.yaml", "lefthook.yml", "lefthook.yaml", ".lefthook.yml", ".gitlab-ci.yml",
+  // pnpm/bun install va run'da, IDE loyiha importida (Gradle/Maven/MSBuild, rust-analyzer
+  // build.rs), mise papkaga kirganda, Codespaces/Gitpod ochilganda bajariladi.
+  ".pnpmfile.cjs", "bunfig.toml", ".devcontainer.json", ".gitpod.yml",
+  "build.gradle", "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "gradlew", "mvnw", "pom.xml",
+  "directory.build.props", "directory.build.targets", "build.rs", ".mise.toml", "mise.toml",
 ]);
-const AUTO_RUN_DIRS = [".vscode", ".idea", ".github", ".husky", ".devcontainer", ".circleci", ".gitlab", ".claude", ".cargo"];
-/** IDE/linter avtomatik yuklaydigan konfiglar (eslint.config.mjs, .prettierrc.js ...). */
-const AUTO_RUN_CONFIG = /^(eslint\.config\.|\.eslintrc|prettier\.config\.|\.prettierrc)/;
+const AUTO_RUN_DIRS = [".vscode", ".idea", ".github", ".husky", ".devcontainer", ".circleci", ".gitlab", ".claude", ".cargo", ".mvn", ".mise"];
+/** IDE/linter/git-hook avtomatik yuklaydigan konfiglar (eslint.config.mjs, .prettierrc.js, lint-staged ...). */
+const AUTO_RUN_CONFIG = /^(eslint\.config\.|\.eslintrc|prettier\.config\.|\.prettierrc|stylelint\.config\.|\.stylelintrc|lint-staged\.config\.|\.lintstagedrc|commitlint\.config\.|\.commitlintrc|tailwind\.config\.)/;
 /** Windows'da nomi bilan chaqirilsa ishga tushadigan fayllar (git.bat, npm.cmd ...). */
 const EXEC_EXT = /\.(bat|cmd|com|exe|ps1|psm1|vbs|vbe|wsf|wsh|msc|cpl|scr|lnk)$/;
 function isAutoRunPath(real) {

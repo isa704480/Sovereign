@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { Markdown } from "./Markdown";
 import { isRenderable, type ArtifactPayload } from "./artifact-context";
 import { EASE } from "@/lib/motion";
-import { useT } from "@/store/chat";
+import { useLang, useT } from "@/store/chat";
+import { plural } from "@/lib/plural";
 import { cn } from "@/lib/utils";
 
 interface ArtifactPanelProps {
@@ -110,6 +111,7 @@ function extOf(lang: string): string {
 
 export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
   const t = useT();
+  const uiLang = useLang();
   const { lang, title } = artifact;
   const l = lang.toLowerCase();
   const isMarkdown = l === "markdown" || l === "md";
@@ -202,7 +204,8 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
           <button type="button" onClick={download} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title={t("download")}>
             <Download className="size-4" />
           </button>
-          <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")}>
+          {/* Mobil to'liq ekranda yagona chiqish — 44px nishon, boshqa amallardan ajratilgan. */}
+          <button type="button" onClick={onClose} className="ml-1 flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:ml-0 md:size-8" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")} title={t("close")}>
             <X className="size-4" />
           </button>
         </div>
@@ -231,7 +234,8 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
               value={code}
               onChange={(e) => setCode(e.target.value)}
               spellCheck={false}
-              className="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-[13px] leading-relaxed outline-none"
+              aria-label={t("editTab")}
+              className="min-h-0 flex-1 resize-none bg-transparent p-4 font-mono text-base leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--t-primary)] md:text-[13px]"
               style={{ color: "var(--t-text)" }}
             />
             <div
@@ -239,7 +243,7 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
               style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
             >
               <span>{t("artifactAutoUpdate")}</span>
-              <span>{code.length} {t("artifactChars")}</span>
+              <span>{plural(uiLang, code.length, { one: "p8bCharsOne", few: "p8bCharsFew", many: "p8bCharsMany" })}</span>
             </div>
           </div>
         )}

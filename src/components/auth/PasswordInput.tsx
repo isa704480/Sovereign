@@ -16,8 +16,9 @@ export function PasswordInput({ className, ...props }: ComponentProps<typeof Inp
         type="button"
         onClick={() => setShow((s) => !s)}
         aria-label={show ? t("auHidePassword") : t("auShowPassword")}
-        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-muted transition-colors hover:text-text-primary"
-        tabIndex={-1}
+        aria-pressed={show}
+        // Klaviatura bilan ham yetib boriladi (WCAG 2.1.1) — avval tabIndex={-1} edi.
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-text-muted transition-colors outline-none hover:text-text-primary focus-visible:text-text-primary focus-visible:ring-2 focus-visible:ring-primary/40"
       >
         {show ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>

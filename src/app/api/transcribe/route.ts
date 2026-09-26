@@ -9,6 +9,10 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const MAX = 25 * 1024 * 1024;
+/** Foydalanuvchi bo'yicha kunlik transkripsiya chegarasi (Whisper pullik). */
+const TRANSCRIBE_PER_DAY: Record<string, number> = { pro: 60, ultra: 150 };
+/** Whisper til ishorasi — faqat qo'llanadigan tillar. */
+const LANGS = new Set(["uz", "ru", "en"]);
 
 /** POST /api/transcribe — multipart form with a "file" field. Pro+ only. */
 export async function POST(req: Request) {
@@ -24,9 +28,14 @@ export async function POST(req: Request) {
     } = await supabase.auth.getUser();
     if (user) {
       const profile = await getProfile(supabase, user.id);
-      if (!effectivePlan(profile).limits.fullCode) {
+      const plan = effectivePlan(profile);
+      if (!plan.limits.fullCode) {
         return Response.json({ error: t("chTranscribePro"), upgrade: "pro" }, { status: 402 });
       }
+      // IP chegarasi bir necha IP bilan chetlab o'tiladi — hisob bo'yicha kunlik kvota.
+      const perDay = TRANSCRIBE_PER_DAY[plan.id] ?? TRANSCRIBE_PER_DAY.pro;
+      const day = await rateLimit(`trs:day:${user.id}`, perDay, 24 * 60 * 60 * 1000);
+      if (!day.ok) return Response.json({ error: t("chTooManyTranscribe") }, { status: 429 });
     } else if (process.env.NODE_ENV !== "development") {
       return Response.json({ error: t("chLoginFirst") }, { status: 401 });
     }
@@ -45,10 +54,13 @@ export async function POST(req: Request) {
   try {
     const name = (form.get("name") as string) || "audio.webm";
     // Whisper uchun til ishorasi: aniq berilmasa — interfeys tili (uz-cyrl ham "uz").
-    const language = (form.get("language") as string) || (await getServerLang()).slice(0, 2);
+    const asked = String(form.get("language") ?? "").slice(0, 2).toLowerCase();
+    const language = LANGS.has(asked) ? asked : (await getServerLang()).slice(0, 2);
     const text = await transcribe(file, name, language);
     return Response.json({ text });
   } catch (e) {
-    return Response.json({ error: e instanceof Error ? e.message : t("chTranscribeFailed") }, { status: 502 });
+    // Provayderning xom xatosi (kalit qoldig'i, balans holati) faqat logga.
+    console.error("[transcribe]", e instanceof Error ? e.message : e);
+    return Response.json({ error: t("chTranscribeFailed") }, { status: 502 });
   }
 }

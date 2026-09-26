@@ -38,12 +38,15 @@ function sharedLimiter(limit: number, windowMs: number): Ratelimit | null {
 }
 
 // ---- Mahalliy (zaxira) --------------------------------------------------
-type Bucket = { tokens: number; last: number };
+// windowMs bucket ichida: tozalash har bucketni O'Z oynasi o'tgandan keyin o'chiradi
+// (aks holda 24 soatlik limitlar 10 daqiqada yangilanib qolardi).
+type Bucket = { tokens: number; last: number; windowMs: number };
 const buckets = new Map<string, Bucket>();
 
 function localLimit(key: string, limit: number, windowMs: number): Result {
   const now = Date.now();
-  const b = buckets.get(key) ?? { tokens: limit, last: now };
+  const b = buckets.get(key) ?? { tokens: limit, last: now, windowMs };
+  b.windowMs = windowMs;
   // Doldirish: o'tgan vaqtga proporsional tokenlar qaytadi.
   const refill = ((now - b.last) / windowMs) * limit;
   b.tokens = Math.min(limit, b.tokens + refill);
@@ -81,8 +84,25 @@ export function clientIp(req: Request): string {
   );
 }
 
-/** Periodik tozalash: 10 daqiqadan yosh bo'lgan bucketlarni saqlab, qolganini o'chirish. */
+/**
+ * Rate-limit kaliti uchun IP: IPv6 manzil /64 prefiksga keltiriladi — bitta
+ * foydalanuvchi o'z /64 tarmog'ida manzil almashtirib cheklovni chetlab o'tmasin.
+ */
+export function ipKey(ip: string): string {
+  if (!ip.includes(":")) return ip;
+  const [head] = ip.split("%");
+  const parts = head.split("::");
+  const left = parts[0] ? parts[0].split(":") : [];
+  const right = parts.length > 1 && parts[1] ? parts[1].split(":") : [];
+  const groups = parts.length > 1 ? [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right] : left;
+  return `${groups.slice(0, 4).map((g) => (g || "0").toLowerCase()).join(":")}::/64`;
+}
+
+/**
+ * Periodik tozalash: bucket o'z oynasi (windowMs) davomida ishlatilmagan bo'lsa —
+ * u baribir to'liq to'lgan, o'chirish xatti-harakatni o'zgartirmaydi.
+ */
 setInterval(() => {
-  const cutoff = Date.now() - 10 * 60 * 1000;
-  for (const [k, b] of buckets) if (b.last < cutoff) buckets.delete(k);
+  const now = Date.now();
+  for (const [k, b] of buckets) if (b.last < now - b.windowMs) buckets.delete(k);
 }, 5 * 60 * 1000).unref?.();

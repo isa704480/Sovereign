@@ -34,42 +34,46 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://soveregn.xyz").re
  * Til brauzerda LangSync orqali o'rnatiladi. OG rasm — app/opengraph-image.tsx.
  */
 const description = translate("en", "uxMetaDescription");
-const ogDescription = translate("en", "uxOgDescription");
 
-export const metadata: Metadata = (() => {
-  return {
-    metadataBase: new URL(SITE_URL),
-    title: {
-      default: "SOVEREIGN AI — Your AI. Your Truth. Your Data. Forever.",
-      template: "%s · SOVEREIGN AI",
-    },
-    description,
-    applicationName: "SOVEREIGN AI",
-    keywords: ["AI", "Claude", "ChatGPT", "Gemini", "privacy", "maxfiylik", "O'zbek"],
-    icons: {
-      icon: [
-        { url: "/logo.svg", type: "image/svg+xml" },
-        { url: "/favicon.ico", sizes: "any" },
-      ],
-      apple: "/logo.svg",
-    },
-    manifest: "/site.webmanifest",
-    openGraph: {
-      title: "SOVEREIGN AI",
-      description: ogDescription,
-      url: SITE_URL,
-      siteName: "SOVEREIGN",
-      locale: "en_US",
-      alternateLocale: ["uz_UZ", "ru_RU"],
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: "SOVEREIGN AI",
-      description: ogDescription,
-    },
-  };
-})();
+/*
+ * SEO:
+ *  - canonical / og:url "./" — metadataBase + har sahifaning O'Z yo'li (/terms, /share/<id>);
+ *    ?next=, ?error=, ?lang= kabi query variantlari alohida URL bo'lib qolmaydi.
+ *  - og:title / og:description / twitter ATAYLAB berilmagan: Next ularni sahifaning
+ *    title (shablon bilan) va description'idan to'ldiradi — /share, /terms preview'lari
+ *    bosh sahifaniki bo'lib qolmaydi. (Bola sahifa openGraph bersa, u to'liq almashtiradi.)
+ *  - og:locale:alternate yo'q: tilga xos URL (hreflang) hali yo'q — til faqat brauzerda.
+ */
+export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "SOVEREIGN AI — Your AI. Your Truth. Your Data. Forever.",
+    template: "%s · SOVEREIGN AI",
+  },
+  description,
+  applicationName: "SOVEREIGN AI",
+  keywords: ["AI", "Claude", "ChatGPT", "Gemini", "privacy", "maxfiylik", "O'zbek"],
+  alternates: { canonical: "./" },
+  icons: {
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    // iOS apple-touch-icon uchun SVG'ni qabul qilmaydi — app/apple-icon.png (180px). metadata.icons
+    // berilganda fayl-konvensiya ikonkalari avtomatik qo'shilmaydi, shuning uchun aniq ko'rsatiladi.
+    apple: [{ url: "/apple-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  manifest: "/site.webmanifest",
+  openGraph: {
+    url: "./",
+    siteName: "SOVEREIGN",
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
+};
 
 export const viewport: Viewport = {
   themeColor: "#060812",

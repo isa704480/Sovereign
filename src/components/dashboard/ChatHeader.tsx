@@ -15,6 +15,8 @@ interface ChatHeaderProps {
   onModelChange: (id: string) => void;
   plan: Plan;
   onOpenSidebar: () => void;
+  /** Mobil drawer ochiqmi (menyu tugmasining aria-expanded holati). */
+  sidebarOpen?: boolean;
   hasSources: boolean;
   sourcesOpen: boolean;
   onToggleSources: () => void;
@@ -30,6 +32,7 @@ export function ChatHeader({
   onModelChange,
   plan,
   onOpenSidebar,
+  sidebarOpen = false,
   hasSources,
   sourcesOpen,
   onToggleSources,
@@ -49,9 +52,11 @@ export function ChatHeader({
       <button
         type="button"
         onClick={onOpenSidebar}
-        className="rounded-lg p-2 transition-colors hover:bg-white/10 md:hidden"
+        data-sidebar-menu
+        className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-white/10 md:hidden"
         style={{ color: "var(--t-text-muted)" }}
         aria-label={t("menu")}
+        aria-expanded={sidebarOpen}
       >
         <Menu className="size-5" />
       </button>

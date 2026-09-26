@@ -96,14 +96,20 @@ const ACTION_HONESTY = [
 
 async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
   authed: boolean;
+  userId: string | null;
   plan: Plan;
   usedToday: number;
   tokensUsedMonth: number;
   memoryText: string;
-  knowledgeText: string;
+  /**
+   * Bilim bazasi konteksti — embedding (pullik) chaqiruvi bor, shuning uchun kunlik
+   * kvota tekshiruvidan KEYIN chaqiriladi: limiti tugagan foydalanuvchi uni ishlatmaydi.
+   */
+  loadKnowledge: () => Promise<string>;
   trainingOptIn: boolean;
 }> {
-  const none = { usedToday: 0, tokensUsedMonth: 0, memoryText: "", knowledgeText: "", trainingOptIn: false };
+  const noKnowledge = async () => "";
+  const none = { userId: null, usedToday: 0, tokensUsedMonth: 0, memoryText: "", loadKnowledge: noKnowledge, trainingOptIn: false };
   if (!isSupabaseConfigured()) {
     // Local development-only: Supabase sozlanmagan bo'lsa demo rejim.
     return { authed: false, plan: PLAN_BY_ID.ultra, ...none };
@@ -135,20 +141,23 @@ async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
   // (Faqat zaxira: asosiy kunlik limit — consume_message, 0027.)
   const { data: used } = await supabase.rpc("messages_today");
   const memoryText = profile?.memory_enabled === false ? "" : memoryPrompt(await getMemories(supabase, user.id));
-  // "@hujjat" mentions win over similarity search: the user named the source.
-  const hits = docIds.length
-    ? await fetchMentionedDocs(supabase, docIds)
-    : lastText
-      ? await retrieveKnowledge(supabase, user.id, lastText, 6)
-      : [];
-  const knowledgeText = knowledgePrompt(hits);
+  const loadKnowledge = async () => {
+    // "@hujjat" mentions win over similarity search: the user named the source.
+    const hits = docIds.length
+      ? await fetchMentionedDocs(supabase, docIds)
+      : lastText
+        ? await retrieveKnowledge(supabase, user.id, lastText, 6)
+        : [];
+    return knowledgePrompt(hits);
+  };
   return {
     authed: true,
+    userId: user.id,
     plan: effectivePlan(profile),
     usedToday: typeof used === "number" ? used : 0,
     tokensUsedMonth,
     memoryText,
-    knowledgeText,
+    loadKnowledge,
     // Ustunsiz (eski) bazada ham xavfsiz: faqat aniq false bo'lsa o'chiq.
     trainingOptIn: profile?.training_opt_in !== false,
   };
@@ -245,10 +254,8 @@ export async function POST(req: Request) {
   // Skills (user-enabled ∪ auto-detected).
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
   const lastText = lastUser ? textOf(lastUser) : "";
-  const { authed, plan, usedToday, tokensUsedMonth, memoryText, knowledgeText, trainingOptIn } = await resolveEntitlement(
-    lastText,
-    docIds,
-  );
+  const { authed, userId, plan, usedToday, tokensUsedMonth, memoryText, loadKnowledge, trainingOptIn } =
+    await resolveEntitlement(lastText, docIds);
   const activeSkills = resolveActiveSkills(enabledSkills, lastText);
   const customText = customSkills
     .filter((s) => s.name.trim() && s.instructions.trim())
@@ -269,21 +276,6 @@ export async function POST(req: Request) {
   if (authed && tokensUsedMonth >= plan.limits.tokensPerMonth) {
     return refuse(`${UPGRADE} ${fmt(t("secMonthlyTokenLimit"), { plan: plan.name })}`);
   }
-
-  // ---- Build the execution plan (single model, or Auto orchestration) ----
-  const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan, lang, req.signal) : null;
-  const steps = routePlan
-    ? routePlan.steps
-    : [
-        {
-          modelId,
-          kind: (research || (!isOmni && MODEL_BY_ID[modelId].category === "research") ? "research" : "answer") as
-            | "research"
-            | "answer",
-          purpose: "",
-        },
-      ];
-  const routeReason = routePlan?.reason ?? "";
 
   // OmniRoute katalog gating: aniq modellar (mas. "dva/claude-opus-5-high") Pro+
   // tarifda ochiladi. "auto/*" kombolari (tekin yo'naltirish) barcha tarifda ochiq.
@@ -317,7 +309,10 @@ export async function POST(req: Request) {
   // rad etish tekshiruvlaridan KEYIN: rad etilgan so'rov limitni yemaydi.
   // (Eski messages_today brauzer yozadigan `messages`ni sanardi — to'g'ridan-
   // to'g'ri POST bilan chetlab o'tilardi.)
+  // Pullik planner LLM va embedding shu tekshiruvdan KEYIN — limiti tugagan
+  // foydalanuvchi ularni har so'rovda ishga tushirmaydi.
   if (authed) {
+    let counted = false;
     try {
       const supabase = await createClient();
       const { data: allowed, error } = await supabase.rpc("consume_message", {
@@ -325,11 +320,35 @@ export async function POST(req: Request) {
       });
       if (error) console.error("[chat] consume_message:", error.message);
       else if (allowed !== true) return refuse(dailyLimitMsg);
+      else counted = true;
     } catch (e) {
-      // Migratsiya hali qo'llanmagan bo'lsa — yuqoridagi messages_today zaxira.
       console.error("[chat] consume_message:", e);
     }
+    // DB hisobi ishlamasa (timeout, migratsiya yo'q) limit ochiq qolmasin:
+    // foydalanuvchi bo'yicha kunlik zaxira hisob (Upstash, bo'lmasa mahalliy).
+    if (!counted && userId) {
+      const day = await rateLimit(`chat:day:${userId}`, plan.limits.messagesPerDay, 24 * 60 * 60 * 1000);
+      if (!day.ok) return refuse(dailyLimitMsg);
+    }
   }
+
+  // Bilim bazasi (embedding) — kvota o'tgandan keyin.
+  const knowledgeText = await loadKnowledge();
+
+  // ---- Build the execution plan (single model, or Auto orchestration) ----
+  const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan, lang, req.signal) : null;
+  const steps = routePlan
+    ? routePlan.steps
+    : [
+        {
+          modelId,
+          kind: (research || (!isOmni && MODEL_BY_ID[modelId].category === "research") ? "research" : "answer") as
+            | "research"
+            | "answer",
+          purpose: "",
+        },
+      ];
+  const routeReason = routePlan?.reason ?? "";
 
   // Semantic cache: faqat oddiy savol (RAG/xotira/attach yo'q, research emas)
   // — foydalanuvchi savoli o'xshash bo'lsa modelga bormay javob qaytariladi.
@@ -384,6 +403,31 @@ export async function POST(req: Request) {
         send({ type: "verifier", issues: all });
       };
 
+      // Oylik token hisobi uchun (finally'da yoziladi — oqim uzilsa/bekor qilinsa ham).
+      let webContext = "";
+      let connectorContext = "";
+      // BARCHA qadamlar (research ham) va barcha nomzodlar chiqishi — kelgan har bo'lak.
+      let billedOutChars = 0;
+      // Modelga haqiqatan yuborilgan qadam/nomzod chaqiruvlari soni (kirish har safar qayta yuboriladi).
+      let modelCalls = 0;
+
+      /** Taxminiy token hisobi (~4 belgi = 1 token): butun tarix + kontekst har chaqiruvda. */
+      const recordUsage = async () => {
+        if (!authed || modelCalls === 0) return;
+        const historyChars = messages.reduce((n, m) => n + textOf(m.content).length, 0);
+        const contextChars = [webContext, coworkContext, knowledgeText, memoryText, skillText, connectorContext].join("").length;
+        const inputEstimate = Math.round(((historyChars + contextChars) * modelCalls) / 4);
+        const outputEstimate = Math.round(billedOutChars / 4);
+        const supabase = await createClient();
+        const { error } = await supabase.rpc("record_token_usage", {
+          p_input_tokens: inputEstimate,
+          p_output_tokens: outputEstimate,
+          p_model: steps[steps.length - 1]?.modelId ?? modelId,
+          p_provider: null,
+        });
+        if (error) console.error("[chat] record_token_usage:", error.message);
+      };
+
       try {
         if (activeSkills.length) send({ type: "skills", skills: activeSkills.map((s) => s.id) });
         if (isAuto) send({ type: "route", reason: routeReason, steps });
@@ -392,7 +436,7 @@ export async function POST(req: Request) {
         if (canCache) {
           try {
             const supabase = await createClient();
-            const hit = await lookupSemanticCache(supabase, lastText);
+            const hit = await lookupSemanticCache(supabase, lastText, lang);
             if (hit) {
               send({ type: "cache", model: hit.model, similarity: hit.similarity });
               // Javobni bo'laklab yuborish — foydalanuvchi streaming his qiladi.
@@ -405,9 +449,7 @@ export async function POST(req: Request) {
               // connector chaqirilmagan (jurnal bo'sh).
               await postChecks({ text: hit.answer, ledger: [], unsourced: [], verify: null }).catch(() => {});
               send({ type: "done" });
-              controller.enqueue(done);
-              controller.close();
-              return;
+              return; // [DONE] va close — finally'da (ikki marta yopilmasin)
             }
           } catch {
             /* kesh xatosi indamay o'tadi */
@@ -415,7 +457,6 @@ export async function POST(req: Request) {
         }
 
         // Havola yuborilgan bo'lsa — sahifani o'qib, kontekstga qo'shamiz.
-        let webContext = "";
         // Mijozdagi citations ro'yxati (oxirgi yuborilgani) — [n] belgilari shunga solishtiriladi.
         let clientCitations: string[] = [];
         // Research qidiruv natijalari (sarlavha/snippet) — faqat server ichida, verifier uchun.
@@ -435,12 +476,9 @@ export async function POST(req: Request) {
         // Modellar yozgan barcha matn (research + answer) — da'vo va [n] tekshiruvi uchun.
         let modelText = "";
         let researchRan = false;
-        // Oylik token hisobi uchun: BARCHA qadamlar (research ham) chiqishi.
-        let billedOutChars = 0;
 
         // Connector tool bosqichi — AI ulangan Figma/GitHub'dan ma'lumot oladi,
         // natija javob konteksti sifatida qo'shiladi (streaming'ga tegmaydi).
-        let connectorContext = "";
         // Tizim jurnali: bu so'rovda haqiqatan chaqirilgan connector toollari va natijasi.
         let actionLedger: ActionRecord[] = [];
         try {
@@ -467,16 +505,16 @@ export async function POST(req: Request) {
           const step = steps[i];
           if (isAuto || steps.length > 1) send({ type: "step", modelId: step.modelId, kind: step.kind, purpose: step.purpose, index: i });
 
-          // Feed prior research into the answer step.
+          // Feed prior research into the answer step. streamCompletion role:"system"
+          // xabarlarni tashlab yuboradi — shuning uchun extraSystem orqali beriladi.
           const stepMessages = [...messages];
-          if (step.kind === "answer" && researchContext) {
-            stepMessages.push({
-              role: "system",
-              content: `Quyidagi TADQIQOT NATIJALARIDAN foydalanib to'liq javob/kod yoz. Manba raqamlarini [n] saqlab qol.\n\n${researchContext.slice(0, 12_000)}`,
-            });
-          }
+          const researchBlock =
+            step.kind === "answer" && researchContext
+              ? `Quyidagi TADQIQOT NATIJALARIDAN foydalanib to'liq javob/kod yoz. Manba raqamlarini [n] saqlab qol.\n\n${researchContext.slice(0, 12_000)}`
+              : "";
 
           const extra = [
+            researchBlock,
             langText,
             webContext,
             coworkContext,
@@ -505,6 +543,7 @@ ${connectorContext}`
           for (let ci = 0; ci < candidates.length; ci++) {
             const candidate = candidates[ci];
             let failure = "";
+            modelCalls++;
             for await (const ev of streamCompletion({
               modelId: candidate,
               research: step.kind === "research",
@@ -521,7 +560,10 @@ ${connectorContext}`
                 failure = ev.message;
                 break;
               }
-              if (ev.type === "text") stepText += ev.text;
+              if (ev.type === "text") {
+                stepText += ev.text;
+                billedOutChars += ev.text.length;
+              }
               if (ev.type === "citations") {
                 // Qidiruv snippetlari faqat verifier uchun — mijozga faqat URL ro'yxati.
                 clientCitations = ev.citations;
@@ -541,7 +583,6 @@ ${connectorContext}`
             }
             send({ type: "switch", from: candidate, to: next, reason: failure });
           }
-          billedOutChars += stepText.length;
           modelText += `${stepText}\n\n`;
           if (step.kind === "research") {
             researchRan = true;
@@ -556,32 +597,9 @@ ${connectorContext}`
         if (canCache && cacheableAnswer && steps.length === 1) {
           try {
             const supabase = await createClient();
-            void saveSemanticCache(supabase, lastText, cacheableAnswer, steps[0].modelId);
+            void saveSemanticCache(supabase, lastText, cacheableAnswer, steps[0].modelId, lang);
           } catch {
             /* ignore */
-          }
-        }
-
-        // Token hisobini yozib qo'yamiz (billing va admin analytics uchun).
-        // Aniq son hisob qilinmaydi — modelning javob uzunligi asosida taxminlaymiz
-        // (~4 char = 1 token).
-        if (authed && billedOutChars > 0) {
-          try {
-            const supabase = await createClient();
-            // Kirish: butun tarix + qo'shimcha kontekst (xotira, bilim bazasi, web, connector)
-            // har qadamda qayta yuboriladi — faqat oxirgi savol emas.
-            const historyChars = messages.reduce((n, m) => n + textOf(m.content).length, 0);
-            const contextChars = [webContext, coworkContext, knowledgeText, memoryText, skillText, connectorContext].join("").length;
-            const inputEstimate = Math.round(((historyChars + contextChars) * steps.length) / 4);
-            const outputEstimate = Math.round(billedOutChars / 4);
-            void supabase.rpc("record_token_usage", {
-              p_input_tokens: inputEstimate,
-              p_output_tokens: outputEstimate,
-              p_model: steps[steps.length - 1]?.modelId ?? modelId,
-              p_provider: null,
-            });
-          } catch {
-            /* jim */
           }
         }
 
@@ -643,8 +661,14 @@ ${connectorContext}`
           send({ type: "error", message: t("chUnknownError") });
         }
       } finally {
-        controller.enqueue(done);
-        controller.close();
+        // Bekor qilingan / uzilgan oqim ham hisobga olinadi (oylik token limiti).
+        await recordUsage().catch((e) => console.error("[chat] record_token_usage:", e));
+        try {
+          controller.enqueue(done);
+          controller.close();
+        } catch {
+          /* mijoz uzilgan — oqim allaqachon yopiq */
+        }
       }
     },
   });

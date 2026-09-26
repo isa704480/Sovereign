@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Bitcoin, Check, CreditCard, Loader2, QrCode, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { formatRub, PLAN_BY_ID, PLANS, planPriceRub, type BillingPeriod, type PlanId } from "@/config/plans";
 import { BillingToggle, priceFontSize, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
@@ -28,6 +28,9 @@ interface PricingDialogProps {
 }
 
 type Method = "card" | "crypto" | "sbp";
+
+/** Checkout so'rovi uchun kutish chegarasi (ms). */
+const PAY_TIMEOUT_MS = 25_000;
 
 // Karta — Dodo; kripto va СБП — RollyPay (ZenoBank endi ishlatilmaydi, /api/checkout zaxira).
 // `sub` — brend nomlari (tarjima qilinmaydi); oddiy so'z bo'lsa `subKey` (4 tilda).
@@ -85,6 +88,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
     if (loading) return;
     setSelected(null);
     setMessage(null);
+    lastPicked.current = null;
     onClose();
   }
 
@@ -114,9 +118,13 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
     if (!selected || loading) return;
     setLoading(method);
     setMessage(null);
+    // To'lov provayderi sekinlashsa dialog daqiqalab qulflanib qolmasin.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), PAY_TIMEOUT_MS);
     try {
       const res = await fetch(METHODS.find((m) => m.id === method)!.endpoint, {
         method: "POST",
+        signal: ctrl.signal,
         headers: { "Content-Type": "application/json" },
         // Karta: kod Dodo chegirmasi sifatida qo'llanadi; kripto/СБП: sayt PROMO_CODES.
         body: JSON.stringify({
@@ -133,11 +141,26 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
         return; // keep the spinner while the browser navigates away
       }
       setMessage(data.error ?? t("paymentNotCreated"));
-    } catch {
-      setMessage(t("serverUnreachable"));
+    } catch (err) {
+      setMessage(err instanceof DOMException && err.name === "AbortError" ? t("p8bPayTimeout") : t("serverUnreachable"));
+    } finally {
+      clearTimeout(timer);
     }
     setLoading(null);
   }
+
+  // Klaviatura: tarif tanlangach fokus to'lov bosqichi sarlavhasiga, "orqaga"da esa tanlangan
+  // tarif tugmasiga qaytadi (aks holda ko'rinish almashganda fokus body'ga tushardi).
+  const methodHeadingRef = useRef<HTMLHeadingElement>(null);
+  const lastPicked = useRef<PlanId | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const id = window.setTimeout(() => {
+      if (selected) methodHeadingRef.current?.focus();
+      else if (lastPicked.current) document.querySelector<HTMLElement>(`[data-plan-select="${lastPicked.current}"]`)?.focus();
+    }, 260);
+    return () => clearTimeout(id);
+  }, [selected, open]);
 
   const plan = selected ? PLAN_BY_ID[selected] : null;
 
@@ -162,7 +185,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
             transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
             className={cn(
-              "tt relative max-h-[92vh] w-full overflow-y-auto rounded-[22px] border p-6 transition-[max-width] duration-300 md:p-8",
+              // svh: iOS Safari'da toolbar ko'ringanda ham yopish (X) tugmasi ekrandan chiqmaydi.
+              "tt relative max-h-[calc(100svh-2rem)] w-full overflow-y-auto rounded-[22px] border p-6 transition-[max-width] duration-300 md:max-h-[92vh] md:p-8",
               plan ? "max-w-xl" : "max-w-6xl",
             )}
             style={{
@@ -176,7 +200,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
               type="button"
               onClick={close}
               disabled={!!loading}
-              className="absolute right-4 top-4 rounded-lg p-2 transition-colors hover:bg-white/10 disabled:opacity-40"
+              className="absolute right-3 top-3 flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-white/10 disabled:opacity-40"
               aria-label={t("close")}
               style={{ color: "var(--t-text-muted, #9BA3CC)" }}
             >
@@ -242,7 +266,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             className="t-display nums mt-1 whitespace-nowrap font-extrabold leading-tight tracking-[-0.02em]"
                             style={{ fontSize: priceFontSize(priceLabel(p, period), 1.875) }}
                           >
-                            {p.price === 0 ? "0" : priceLabel(p, period)}
+                            {priceLabel(p, period)}
                             <span className="text-sm font-normal" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                               /{p.price > 0 && period === "year" ? t("ldPerYear") : t("perMonth")}
                             </span>
@@ -266,8 +290,10 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           <button
                             type="button"
                             disabled={lower || p.price === 0}
+                            data-plan-select={p.id}
                             onClick={() => {
                               setMessage(null);
+                              lastPicked.current = p.id;
                               setSelected(p.id);
                             }}
                             className={cn(
@@ -316,7 +342,9 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                   <p className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: plan.color }}>
                     {plan.name} · {priceLabel(plan, period)}/{period === "year" ? t("ldPerYear") : t("perMonth")}
                   </p>
-                  <h2 id={titleId} className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em]">{t("choosePayment")}</h2>
+                  <h2 id={titleId} ref={methodHeadingRef} tabIndex={-1} className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em] outline-none">
+                    {t("choosePayment")}
+                  </h2>
 
                   {/* Promo kod — to'lov usulini bosishdan OLDIN kiritiladi. */}
                   <label className="mt-5 block">
@@ -333,7 +361,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                       style={{ border: "1px solid var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
                     />
                     <span className="mt-1.5 block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                      {t("chPromoHint")}
+                      {/* Karta (Dodo) va kripto/СБП kodlari alohida — "hamma usulga" deb va'da bermaymiz. */}
+                      {t("p8bPromoHint")}
                     </span>
                   </label>
 
@@ -385,7 +414,12 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           <span className="min-w-0 flex-1">
                             <span className="block font-semibold">{t(titleKey)}</span>
                             <span className="block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{subKey ? t(subKey) : sub}</span>
-                            <span className="mt-1 block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t(noteKey)}</span>
+                            <span className="mt-1 block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                              {/* Yillik davrda karta "har oy" emas, "har yil" yangilanadi; kripto 3% provayder
+                                  to'lovi bilan hisoblanadi (checkout/rollypay CRYPTO_FEE). */}
+                              {id === "card" && period === "year" ? t("p8bPayByCardNoteYear") : t(noteKey)}
+                              {id === "crypto" && ` ${t("p8bCryptoFeeNote")}`}
+                            </span>
                           </span>
                           <span className="nums shrink-0 text-sm font-semibold" style={{ color: plan.color }}>
                             {id === "sbp" ? formatRub(planPriceRub(plan, period)) : priceLabel(plan, period)}

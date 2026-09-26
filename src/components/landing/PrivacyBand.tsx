@@ -21,7 +21,7 @@ export function PrivacyBand() {
           <div className="noise absolute inset-0" />
           <div className="relative grid grid-cols-1 gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-soft">Blind Prompting</p>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-soft">{t("p8cPrivacyEyebrow")}</p>
               <h2 id="privacy-title" className="font-display mt-3 text-[1.6rem] font-extrabold text-text-primary [overflow-wrap:anywhere] sm:text-3xl md:text-4xl">
                 {t("ldPrivacyTitle1")}
                 <br />

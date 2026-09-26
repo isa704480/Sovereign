@@ -11,12 +11,27 @@ import { cn } from "@/lib/utils";
 import { fmt } from "@/lib/i18n";
 import { planText } from "@/lib/locales/plans";
 import { useLang, useT } from "@/store/chat";
+import { useSignedIn } from "./use-signed-in";
+
+/** Tanlangan tarif — Dashboard shu kalitni o'qib to'lov oynasini ochadi (RegisterForm ham yozadi). */
+const PENDING_PLAN_KEY = "sov-pending-plan";
+
+function rememberPlan(plan: string, period: BillingPeriod) {
+  try {
+    localStorage.setItem(PENDING_PLAN_KEY, JSON.stringify({ plan, period, at: Date.now() }));
+  } catch {
+    /* saqlab bo'lmadi — oddiy o'tish davom etadi */
+  }
+}
 
 export function Pricing() {
   const t = useT();
   const lang = useLang();
   const [period, setPeriod] = useState<BillingPeriod>("month");
   const hint = usePriceHint();
+  // Kirgan foydalanuvchi /register'ga borsa proxy uni /app ga query'siz yo'naltiradi va
+  // tanlangan tarif yo'qolardi — shuning uchun to'g'ridan-to'g'ri /app + tarifni eslab qolamiz.
+  const signedIn = useSignedIn();
   return (
     <section
       id="pricing"
@@ -57,7 +72,7 @@ export function Pricing() {
                   className="font-display nums mt-2 whitespace-nowrap font-extrabold leading-tight tracking-tight text-text-primary"
                   style={{ fontSize: priceFontSize(priceLabel(p, period), 2.25) }}
                 >
-                  {p.price === 0 ? "0" : priceLabel(p, period)}
+                  {priceLabel(p, period)}
                   <span className="text-sm font-normal text-text-muted">
                     /{p.price > 0 && period === "year" ? t("ldPerYear") : t("perMonth")}
                   </span>
@@ -76,13 +91,24 @@ export function Pricing() {
                 </ul>
   
                 <Link
-                  href={p.price === 0 ? "/register" : `/register?plan=${p.id}&period=${period}`}
+                  href={
+                    p.price === 0
+                      ? signedIn
+                        ? "/app"
+                        : "/register"
+                      : `${signedIn ? "/app" : "/register"}?plan=${p.id}&period=${period}`
+                  }
+                  onClick={p.price > 0 ? () => rememberPlan(p.id, period) : undefined}
                   className={cn(
                     "mt-6 inline-flex h-11 items-center justify-center rounded-full text-sm font-semibold transition-transform hover:-translate-y-0.5",
                     p.highlight ? "bg-primary text-white" : "border border-border text-text-primary hover:border-white/20",
                   )}
                 >
-                  {p.price === 0 ? t("startFree") : fmt(t("ldSelectPlan"), { plan: p.name })}
+                  {p.price > 0
+                    ? fmt(t("ldSelectPlan"), { plan: p.name })
+                    : signedIn
+                      ? t("backToChat")
+                      : t("startFree")}
                 </Link>
               </div>
             </StaggerItem>

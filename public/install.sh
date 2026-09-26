@@ -169,11 +169,30 @@ install_binary() {
   ensure_path "$BIN_DIR"
 }
 
+# `sov --version` haqiqatan ishlaydimi? Birinchi ishlagan nomzodning versiya qatorini
+# chiqaradi; hech biri ishlamasa — 1. "Done!" faqat shundan keyin.
+sov_version() {
+  for p in "$@"; do
+    [ -n "$p" ] && [ -f "$p" ] && [ -x "$p" ] || continue
+    out=$("$p" --version 2>/dev/null) || continue
+    first=$(printf '%s\n' "$out" | head -n 1)
+    if [ -n "$first" ]; then
+      printf '%s\n' "$first"
+      return 0
+    fi
+  done
+  return 1
+}
+
 if [ "$MODE" != binary ] && node_ok; then
   if install_npm; then
-    say ""
-    say "Done! Start it with:  sov      (check setup: sov doctor)"
-    exit 0
+    if ver=$(sov_version "$(command -v sov 2>/dev/null || true)" "$(npm prefix -g 2>/dev/null || true)/bin/sov" "$HOME/.local/bin/sov"); then
+      say ""
+      say "Done! $ver — start it with:  sov      (check setup: sov doctor)"
+      exit 0
+    fi
+    err "npm reported success, but 'sov --version' did not run. Open a new terminal and try: sov --version  (or reinstall with SOV_INSTALL=binary)"
+    exit 1
   fi
   err "npm install failed — falling back to the standalone binary"
 elif [ "$MODE" = npm ]; then
@@ -184,5 +203,9 @@ elif [ "$MODE" != binary ]; then
 fi
 
 install_binary || exit 1
+if ! ver=$(sov_version "$BIN_DIR/sov"); then
+  err "installed $BIN_DIR/sov, but 'sov --version' did not run on this system — not finished"
+  exit 1
+fi
 say ""
-say "Done! Start it with:  sov      (check setup: sov doctor)"
+say "Done! $ver — start it with:  sov      (check setup: sov doctor)"

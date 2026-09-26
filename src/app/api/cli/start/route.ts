@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createAnonClient } from "@/lib/supabase/anon";
+import { createServiceClient } from "@/lib/supabase/service";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
 
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
   let code: string;
   try {
-    const supabase = createAnonClient();
+    const supabase = createServiceClient(); // 0035: faqat service_role — IP limitini chetlab bo'lmaydi
     const { data, error } = await supabase.rpc("cli_start", { p_device: device ?? null });
     if (error || typeof data !== "string") {
       if (error) console.error("[cli/start]", error.message);

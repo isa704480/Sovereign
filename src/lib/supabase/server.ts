@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
-import { SUPABASE_ANON_KEY, SUPABASE_MISSING_MESSAGE, SUPABASE_URL, cookieDomainFor, isSupabaseConfigured } from "./env";
+import { SUPABASE_ANON_KEY, SUPABASE_MISSING_MESSAGE, SUPABASE_URL, cookieDomainFor, isSupabaseConfigured, sessionCookieOptions } from "./env";
 
 /**
  * Server-side Supabase client (Server Components, Server Actions, Route Handlers).
@@ -17,7 +17,7 @@ export async function createClient() {
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
     {
-      ...(domain ? { cookieOptions: { domain } } : {}),
+      cookieOptions: sessionCookieOptions(domain, process.env.NODE_ENV === "production"),
       cookies: {
         getAll() {
           return cookieStore.getAll();

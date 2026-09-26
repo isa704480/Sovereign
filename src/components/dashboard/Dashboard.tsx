@@ -3,12 +3,13 @@
 import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
+import { useShallow } from "zustand/react/shallow";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deleteConversationAction } from "@/app/actions/chat";
 import { shareConversation } from "@/app/actions/share";
 import { AUTO_MODEL_ID, MODEL_BY_ID, DEFAULT_MODEL_ID, RESEARCH_MODEL_ID, resolveModel } from "@/config/models";
 import { MODEL_THEMES, themeVars } from "@/config/model-themes";
-import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type BillingPeriod, type PlanId } from "@/config/plans";
+import { isPlanId, PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type BillingPeriod, type PlanId } from "@/config/plans";
 import { PricingDialog } from "./PricingDialog";
 import { useSendMessage } from "@/hooks/use-send-message";
 import { EASE } from "@/lib/motion";
@@ -59,6 +60,9 @@ interface DashboardProps {
   /** Landing'dagi to'lov chipi (/app?checkout=crypto) — tarif oynasi shu usul bilan ochiladi. */
   checkoutMethod?: "card" | "crypto" | "sbp" | null;
 }
+
+/** Tariflar tartibi (past → yuqori) — "kerakli tarif" tavsiyasi uchun. */
+const PLAN_ORDER: PlanId[] = ["free", "starter", "pro", "ultra"];
 
 /** ?paid=1 dan keyin tarif yangilanishini kutish: shuncha marta, shuncha ms oralig'ida. */
 const PAID_POLL_TRIES = 15;
@@ -115,8 +119,36 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     toggleSkill,
     blindPrompting,
     setBlindPrompting,
-  } = useChat();
+  } = useChat(
+    // Faqat kerakli maydonlar — boshqa holat (cowork outline, sozlamalar…) o'zgarsa qayta render yo'q.
+    useShallow((s) => ({
+      conversations: s.conversations,
+      order: s.order,
+      activeId: s.activeId,
+      modelId: s.modelId,
+      research: s.research,
+      sidebarOpen: s.sidebarOpen,
+      setModel: s.setModel,
+      setResearch: s.setResearch,
+      setSidebarOpen: s.setSidebarOpen,
+      newChat: s.newChat,
+      select: s.select,
+      remove: s.remove,
+      mergeFromServer: s.mergeFromServer,
+      enabledSkills: s.enabledSkills,
+      toggleSkill: s.toggleSkill,
+      blindPrompting: s.blindPrompting,
+      setBlindPrompting: s.setBlindPrompting,
+    })),
+  );
   const { send, regenerate, editAndResend, stop, isStreaming } = useSendMessage();
+  // Oqim tugagach "Javob tayyor" e'loni (render vaqtida, effektsiz).
+  const [prevStreaming, setPrevStreaming] = useState(isStreaming);
+  const [replyAnnouncement, setReplyAnnouncement] = useState("");
+  if (prevStreaming !== isStreaming) {
+    setPrevStreaming(isStreaming);
+    setReplyAnnouncement(isStreaming ? "" : translate(lang, "p8bReplyReady"));
+  }
   const inputRef = useRef<InputAreaHandle>(null);
   const seededRef = useRef(false);
   const [sourcesOpen, setSourcesOpen] = useState(true);
@@ -399,8 +431,15 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   // Server-side refusals ([upgrade] errors) open the pricing dialog.
   useEffect(() => {
     const onUpgrade = (e: Event) => {
-      const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason ?? null;
-      openPricing(reason, plan.id === "free" ? "starter" : plan.id === "starter" ? "pro" : "ultra");
+      const detail = (e as CustomEvent<{ reason?: string; plan?: string }>).detail;
+      const reason = detail?.reason ?? null;
+      // Server "[upgrade:ultra]" bilan kerakli tarifni aytsa — o'sha; aks holda keyingi tarif.
+      // Joriydan past/teng tarif "Kerakli" deb belgilanmaydi (Ultra'da limit — boshi berk ko'cha emas).
+      const rank = PLAN_ORDER.indexOf(plan.id);
+      const required = isPlanId(detail?.plan) && PLAN_ORDER.indexOf(detail.plan) > rank ? detail.plan : null;
+      let suggested: PlanId | null = required ?? PLAN_ORDER[rank + 1] ?? null;
+      if (!required && suggested && suggested !== "ultra" && reason && /\bultra\b/i.test(reason)) suggested = "ultra";
+      openPricing(reason, suggested);
     };
     window.addEventListener("sovereign:upgrade", onUpgrade);
     return () => window.removeEventListener("sovereign:upgrade", onUpgrade);
@@ -517,6 +556,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
             onModelChange={handleModelChange}
             plan={plan}
             onOpenSidebar={() => setSidebarOpen(true)}
+            sidebarOpen={sidebarOpen}
             hasSources={citations.length > 0}
             sourcesOpen={sourcesOpen}
             onToggleSources={() => setSourcesOpen((o) => !o)}
@@ -549,8 +589,9 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
                   />
                 </AnimatePresence>
               ) : (
-                // Ekran o'quvchilar: javob tugagach (aria-busy tushgach) muloyim e'lon qilinadi.
-                <div className="flex min-h-0 flex-1 flex-col" aria-live="polite" aria-busy={isStreaming}>
+                // Butun ro'yxat live region emas (suhbat almashtirilganda butun tarix o'qilardi);
+                // javob tugagani alohida yashirin region orqali qisqa e'lon qilinadi (quyida).
+                <div className="flex min-h-0 flex-1 flex-col" aria-busy={isStreaming}>
                   <MessageList messages={messages} onRegenerate={regenerate} onEdit={editAndResend} />
                 </div>
               )}
@@ -594,6 +635,11 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           initialPeriod={pricing.period}
           preferredMethod={pricing.method ?? null}
         />
+
+        {/* Ekran o'quvchilar uchun: javob tayyor bo'lganda qisqa e'lon */}
+        <div className="sr-only" role="status" aria-live="polite">
+          {replyAnnouncement}
+        </div>
 
         {/* O'chirilgan suhbat — "Qaytarish" (5s) */}
         <AnimatePresence>

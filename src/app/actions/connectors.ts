@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { CONNECT_COOKIE } from "@/lib/auth/connect-cookie";
 import { CONNECTOR_BY_ID } from "@/config/connectors";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
@@ -206,6 +208,16 @@ export async function connectGoogle(connectorId: string): Promise<{ ok: false; e
     console.error("[connectors] google oauth:", error.message);
     return { ok: false, error: t("pnErrNoOauthUrl") };
   }
+  // signInWithOAuth boshqa Google akkaunt tanlansa sessiyani o'sha akkauntga
+  // almashtiradi. Callback shu belgini (kim ulashni boshlagan) tekshiradi: boshqa
+  // foydalanuvchi bo'lib qaytsa — token saqlanmaydi va begona sessiya yopiladi.
+  (await cookies()).set(CONNECT_COOKIE, `${s.user.id}:${connectorId}`, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/auth/callback",
+    maxAge: 15 * 60,
+  });
   if (data.url) redirect(data.url);
   return { ok: false, error: t("pnErrNoOauthUrl") };
 }

@@ -17,12 +17,16 @@ export async function GET(req: Request) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!isWatchdogConfigured()) {
-    return Response.json({ ok: false, error: "RAILWAY_* env sozlanmagan" }, { status: 503 });
+    return Response.json({ ok: false, error: "not configured" }, { status: 503 });
   }
 
   const mode = new URL(req.url).searchParams.get("mode");
+  // Javob GitHub Actions logiga chiqadi — infra tafsiloti (deployment id, Railway/
+  // OmniRoute xom xatosi) faqat server logida; javobda faqat holat.
   if (mode === "preventive") {
-    return Response.json({ ok: true, mode, ...(await restartOmniRoute("preventive: kechki tozalash")) });
+    const r = await restartOmniRoute("preventive: kechki tozalash");
+    console.warn("[watchdog] preventive:", r);
+    return Response.json({ ok: true, mode, restarted: r.restarted });
   }
 
   const first = await probeOmniRoute();
@@ -33,5 +37,6 @@ export async function GET(req: Request) {
   if (second.healthy) return Response.json({ ok: true, healthy: true, recovered: true, status: second.status });
 
   const result = await restartOmniRoute(`watchdog: ${second.status} ${second.message.slice(0, 80)}`);
-  return Response.json({ ok: true, healthy: false, probe: second, ...result });
+  console.warn("[watchdog] unhealthy:", { probe: second, ...result });
+  return Response.json({ ok: true, healthy: false, status: second.status, restarted: result.restarted });
 }

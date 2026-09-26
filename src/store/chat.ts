@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { create } from "zustand";
-import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
+import { persist, type PersistStorage, type StateStorage, type StorageValue } from "zustand/middleware";
 import { AUTO_MODEL_ID, DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
 import type { Attachment } from "@/lib/chat/attachments";
@@ -263,6 +263,68 @@ const safeLocalStorage: StateStorage = {
   },
 };
 
+/** Persist yozuvlari orasidagi eng kam vaqt (ms). */
+const PERSIST_THROTTLE_MS = 400;
+
+/**
+ * Oqimdagi har token set() chaqiradi — har safar butun tarixni JSON.stringify qilib
+ * localStorage'ga sinxron yozish main thread'ni qotirardi. Bu storage yozuvni ko'pi bilan
+ * har 400ms da bir marta bajaradi (oxirgi holat doim yoziladi) va sahifa yopilganda /
+ * yashirilganda darhol flush qiladi.
+ */
+function throttledJSONStorage<S>(): PersistStorage<S> {
+  let pending: { name: string; value: StorageValue<S> } | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const flush = () => {
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (!pending) return;
+    const { name, value } = pending;
+    pending = null;
+    let json: string;
+    try {
+      json = JSON.stringify(value);
+    } catch {
+      return;
+    }
+    void safeLocalStorage.setItem(name, json);
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flush();
+    });
+  }
+  return {
+    getItem: (name) => {
+      if (pending?.name === name) return pending.value;
+      const raw = safeLocalStorage.getItem(name) as string | null;
+      if (!raw) return null;
+      try {
+        return JSON.parse(raw) as StorageValue<S>;
+      } catch {
+        return null;
+      }
+    },
+    setItem: (name, value) => {
+      pending = { name, value };
+      if (!timer) timer = setTimeout(flush, PERSIST_THROTTLE_MS);
+    },
+    removeItem: (name) => {
+      if (pending?.name === name) {
+        pending = null;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      }
+      void safeLocalStorage.removeItem(name);
+    },
+  };
+}
+
 /**
  * Oqim paytida sahifa yangilansa xabar "streaming" holatida saqlanib qolardi (abadiy kursor,
  * qayta urinish yo'q). Tiklashda bunday xabarlarni "uzildi" holatiga o'tkazamiz.
@@ -499,11 +561,18 @@ export const useChat = create<ChatState>()(
     {
       name: "sovereign.chat",
       skipHydration: true,
-      storage: createJSONStorage(() => safeLocalStorage),
+      storage: throttledJSONStorage(),
       merge: (persisted, current) => {
         const p = (persisted ?? {}) as Partial<ChatState>;
         const lang = isLang(p.lang) ? p.lang : current.lang;
-        return { ...current, ...p, conversations: settleStreaming(p.conversations, lang) ?? current.conversations };
+        // Telefonda drawer har yuklanishda (va birinchi tashrifda) chatni yopib turmasin.
+        const narrow = typeof window !== "undefined" && window.matchMedia?.("(max-width: 767px)").matches;
+        return {
+          ...current,
+          ...p,
+          ...(narrow ? { sidebarOpen: false } : {}),
+          conversations: settleStreaming(p.conversations, lang) ?? current.conversations,
+        };
       },
       partialize: (s) => ({
         // Strip heavy attachment payloads (data URLs / extracted text) from
@@ -541,6 +610,12 @@ export const useChat = create<ChatState>()(
         activeProjectId: s.activeProjectId,
         lang: s.lang,
         reducedMotion: s.reducedMotion,
+        // Sozlamalar paneli — reload'dan keyin ham saqlansin.
+        fontSize: s.fontSize,
+        density: s.density,
+        enterToSend: s.enterToSend,
+        streamingSpeed: s.streamingSpeed,
+        autoScroll: s.autoScroll,
         agentMode: s.agentMode,
         blindPrompting: s.blindPrompting,
       }),

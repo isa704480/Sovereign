@@ -2,13 +2,14 @@
 
 import { AlertTriangle, Check, ChevronDown, Copy, Globe, Lightbulb, Pencil, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
 import { SKILL_BY_ID } from "@/config/skills";
 import { attachmentGlyph } from "@/lib/chat/attachments";
 import { useLang, useT, type ChatMessage } from "@/store/chat";
 import { fmt, type Lang } from "@/lib/i18n";
 import { localeOf } from "@/lib/locales/chat-data";
+import { plural } from "@/lib/plural";
 import { skillText } from "@/lib/locales/panels-data";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -23,7 +24,9 @@ interface MessageItemProps {
   isLast: boolean;
   onRegenerate?: () => void;
   onEdit?: (messageId: string, text: string) => void;
-  tts?: { speaking: boolean; onToggle: () => void };
+  /** Ovozli o'qish: barqaror callback (memo buzilmasin) va shu xabar o'qilyaptimi. */
+  onTts?: (id: string, text: string) => void;
+  ttsSpeaking?: boolean;
 }
 
 /** 👍/👎 — shu qurilmada saqlanadi (serverga yuborilmaydi). */
@@ -56,6 +59,15 @@ function writeFeedback(id: string, v: Feedback | null) {
 /** Xabar ostidagi kichik ikonka-tugma: 32px nishon. */
 const ACTION_BTN = "inline-flex size-8 items-center justify-center rounded-md hover:bg-white/10";
 
+/** Iqtibos domeni; noto'g'ri URL render'da xato otib butun ro'yxatni buzmasin. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 function timeLabel(iso: string, lang: Lang) {
   try {
     return new Date(iso).toLocaleTimeString(localeOf(lang), { hour: "2-digit", minute: "2-digit" });
@@ -64,7 +76,11 @@ function timeLabel(iso: string, lang: Lang) {
   }
 }
 
-export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: MessageItemProps) {
+/**
+ * memo: oqimda faqat oxirgi xabar o'zgaradi — store o'zgarmagan xabarlarning obyektini
+ * saqlaydi, shuning uchun qolganlari har token'da qayta render qilinmaydi.
+ */
+export const MessageItem = memo(function MessageItem({ message, isLast, onRegenerate, onEdit, onTts, ttsSpeaking = false }: MessageItemProps) {
   const { theme, model: activeModel } = useTheme();
   const t = useT();
   const lang = useLang();
@@ -163,13 +179,15 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             </div>
           ) : null}
           {editing ? (
-            <div className="w-full min-w-[280px]">
+            <div className="w-full min-w-[min(280px,calc(100vw-5rem))]">
               <textarea
                 autoFocus
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  // Telefon klaviaturasida Shift+Enter yo'q — u yerda Enter yangi qator, yuborish tugma bilan.
+                  const touch = window.matchMedia?.("(hover: none) and (pointer: coarse)").matches === true;
+                  if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && (!touch || e.ctrlKey || e.metaKey)) {
                     e.preventDefault();
                     submitEdit();
                   }
@@ -179,7 +197,8 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
                   }
                 }}
                 rows={Math.min(8, Math.max(2, draft.split("\n").length))}
-                className="tt w-full resize-none rounded-2xl border px-4 py-2.5 text-[15px] leading-relaxed outline-none"
+                aria-label={t("edit")}
+                className="tt w-full resize-none rounded-2xl border px-4 py-2.5 text-base leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] md:text-[15px]"
                 style={{ background: "var(--t-user-bubble)", color: "var(--t-text)", borderColor: "var(--t-primary)" }}
               />
               <div className="mt-1.5 flex justify-end gap-2 text-xs">
@@ -201,6 +220,8 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
               <div
                 className="tt whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-relaxed"
                 style={{
+                  // Sozlamalar → matn o'lchami (MessageList --chat-fs beradi).
+                  fontSize: "var(--chat-fs, 15px)",
                   background: "var(--t-user-bubble)",
                   color: "var(--t-text)",
                   borderRadius:
@@ -310,7 +331,9 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             title={message.reading.join("\n")}
           >
             <Globe className="size-3" style={{ color: "var(--t-accent)" }} />
-            {message.reading.length === 1 ? t("pageRead") : `${message.reading.length} ${t("pagesRead")}`}
+            {message.reading.length === 1
+              ? t("pageRead")
+              : plural(lang, message.reading.length, { one: "p8bPagesOne", few: "p8bPagesFew", many: "p8bPagesMany" })}
           </div>
         ) : null}
 
@@ -449,7 +472,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
                 <span className="font-semibold" style={{ color: model.primary }}>
                   {i + 1}
                 </span>
-                <span className="truncate">{new URL(url).hostname.replace(/^www\./, "")}</span>
+                <span className="truncate">{hostOf(url)}</span>
               </a>
             ))}
           </div>
@@ -468,17 +491,17 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             <button type="button" onClick={copy} className={ACTION_BTN} title={t("copy")} aria-label={copied ? t("copied") : t("copy")}>
               {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
             </button>
-            {tts && (
+            {onTts && (
               <button
                 type="button"
-                onClick={tts.onToggle}
+                onClick={() => onTts(message.id, message.content)}
                 className={ACTION_BTN}
-                title={tts.speaking ? t("stop") : t("readAloud")}
-                aria-label={tts.speaking ? t("stop") : t("readAloud")}
-                aria-pressed={tts.speaking}
-                style={tts.speaking ? { color: model.primary } : undefined}
+                title={ttsSpeaking ? t("stop") : t("readAloud")}
+                aria-label={ttsSpeaking ? t("stop") : t("readAloud")}
+                aria-pressed={ttsSpeaking}
+                style={ttsSpeaking ? { color: model.primary } : undefined}
               >
-                {tts.speaking ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                {ttsSpeaking ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
               </button>
             )}
             {isLast && onRegenerate && (
@@ -514,7 +537,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
       </div>
     </motion.div>
   );
-}
+});
 
 /** OmniRoute id → o'qiladigan nom: "cfp/deepseek-ai/deepseek-v4-flash-0731" → "deepseek-v4-flash-0731". */
 function shortModelId(id: string): string {

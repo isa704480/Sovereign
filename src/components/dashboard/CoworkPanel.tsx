@@ -1,14 +1,14 @@
 "use client";
 
-import { Check, CheckCheck, FileCode2, FileDown, FolderOpen, Info, Loader2, Search, X } from "lucide-react";
+import { Check, CheckCheck, FileCode2, FileDown, FolderOpen, FolderPlus, Info, Loader2, Search, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useRef, useState } from "react";
 import { extractWriteBlocks, matchFiles } from "@/lib/cowork/folder";
-import { fmt } from "@/lib/i18n";
+import { fmt, type TKey } from "@/lib/i18n";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { useLang, useT, type ChatMessage } from "@/store/chat";
 import { plural } from "@/lib/plural";
-import { useCowork } from "./cowork-context";
+import { isValidFolderName, useCowork, type CreateFolderResult } from "./cowork-context";
 import { useDialogA11y } from "./use-dialog-a11y";
 
 interface CoworkPanelProps {
@@ -41,23 +41,35 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
   const isApplied = (c: Change) => applied[c.path] === c.content;
   const pending = changes.filter((c) => !isApplied(c));
 
-  const applyOne = async (c: Change) => {
+  /** Bitta faylni yozadi; xato matnini qaytaradi (null — muvaffaqiyat). */
+  const writeOne = async (c: Change): Promise<string | null> => {
     setBusy(c.path);
-    setErr(null);
     try {
       await applyWrite(c.path, c.content);
       setApplied((a) => ({ ...a, [c.path]: c.content }));
+      return null;
     } catch (e) {
-      setErr(e instanceof Error ? e.message : t("pnCwError"));
+      return e instanceof Error ? e.message : t("pnCwError");
     } finally {
       setBusy(null);
     }
   };
 
+  const applyOne = async (c: Change) => {
+    setErr(null);
+    const e = await writeOne(c);
+    if (e) setErr(e);
+  };
+
+  // Hammasini qo'llash: keyingi fayl oldingisining xatosini o'chirib yubormasin — yig'amiz.
   const applyAll = async () => {
+    setErr(null);
+    const failed: string[] = [];
     for (const c of pending) {
-      await applyOne(c);
+      const e = await writeOne(c);
+      if (e) failed.push(`${c.path}: ${e}`);
     }
+    if (failed.length) setErr(failed.join("\n"));
   };
 
   const download = (c: Change) => {
@@ -66,7 +78,8 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
     a.href = url;
     a.download = c.path.split("/").pop() ?? "file.txt";
     a.click();
-    URL.revokeObjectURL(url);
+    // Darhol bekor qilinsa ba'zi brauzerlar (Firefox/WebKit) yuklashni to'xtatadi.
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   return (
@@ -137,7 +150,7 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
           );
         })}
       </ul>
-      {err && <div className="mt-2 text-xs" style={{ color: "#EF4444" }}>{err}</div>}
+      {err && <div role="alert" className="mt-2 whitespace-pre-line text-xs" style={{ color: "#EF4444" }}>{err}</div>}
       {!canWrite && (
         <div className="mt-2 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
           {t("pnCwConnectHint")}
@@ -149,8 +162,52 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
 
 export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) {
   const t = useT();
-  const { folder, supported, open: pick, openFromInput, clear, shareOutline, setShareOutline } = useCowork();
+  const lang = useLang();
+  const {
+    folder,
+    supported,
+    open: pick,
+    openFromInput,
+    clear,
+    shareOutline,
+    setShareOutline,
+    active,
+    noFolder,
+    rememberedName,
+    activate,
+    continueWithoutFolder,
+    createFolder,
+  } = useCowork();
   const [q, setQ] = useState("");
+  // "Yangi papka yaratish" formasi.
+  const [newName, setNewName] = useState<string | null>(null);
+  const [createMsg, setCreateMsg] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const submitCreate = async () => {
+    const name = (newName ?? "").trim();
+    if (!isValidFolderName(name)) {
+      setCreateMsg(t("p8bCwBadName"));
+      return;
+    }
+    setCreating(true);
+    setCreateMsg(null);
+    const res = await createFolder(name).catch(() => "error" as const);
+    setCreating(false);
+    if (res === "ok") {
+      setNewName(null);
+      return;
+    }
+    if (res === "cancelled") return;
+    const key: Record<Exclude<CreateFolderResult, "ok" | "cancelled">, TKey> = {
+      invalid: "p8bCwBadName",
+      unsupported: "p8bCwCreateUnsupported",
+      exists: "p8bCwExists",
+      denied: "pnCwNoWritePerm",
+      error: "p8bCwCreateFailed",
+    };
+    setCreateMsg(fmt(t(key[res]), { name }));
+  };
   const inputRef = useRef<HTMLInputElement>(null);
   const changes = useMemo(() => collectChanges(messages), [messages]);
 
@@ -176,7 +233,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[88vh] w-full max-w-xl flex-col rounded-[22px] border outline-none"
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-xl flex-col rounded-[22px] border outline-none md:max-h-[88vh]"
             style={{
               background: "var(--t-surface, #0D1033)",
               borderColor: "var(--t-border)",
@@ -189,7 +246,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                 <FolderOpen className="size-5" style={{ color: "var(--t-accent)" }} />
                 <h2 id={titleId} className="font-display text-lg font-bold">Cowork</h2>
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
+              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
                 <X className="size-5" />
               </button>
             </div>
@@ -198,21 +255,60 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
               {changes.length > 0 && <CoworkChanges changes={changes} />}
               {!folder ? (
                 <div className="py-6 text-center">
-                  <p className="text-sm" style={{ color: "var(--t-text-muted)" }}>
-                    {t("coworkIntro1")}
-                    <br />
-                    {t("coworkIntro2a")} <span style={{ color: "var(--t-accent)" }}>{t("pnCwExampleFile")}</span> {t("coworkIntro2b")}
-                  </p>
+                  {active && noFolder ? (
+                    // "Papkasiz" rejim: chat odatdagidek ishlaydi, fayllar diskka yozilmaydi.
+                    <p
+                      role="status"
+                      className="mx-auto mb-4 flex max-w-sm items-start gap-2 rounded-xl border p-3 text-left text-xs"
+                      style={{ borderColor: "var(--t-primary)", color: "var(--t-text)" }}
+                    >
+                      <Info className="mt-0.5 size-3.5 shrink-0" style={{ color: "var(--t-accent)" }} />
+                      {t("p8bCwNoFolderNote")}
+                    </p>
+                  ) : (
+                    <p className="text-sm" style={{ color: "var(--t-text-muted)" }}>
+                      {t("coworkIntro1")}
+                      <br />
+                      {t("coworkIntro2a")} <span style={{ color: "var(--t-accent)" }}>{t("pnCwExampleFile")}</span> {t("coworkIntro2b")}
+                    </p>
+                  )}
                   <div className="mt-5 flex flex-col items-center gap-2">
-                    {supported ? (
+                    {rememberedName && (
                       <button
                         type="button"
-                        onClick={pick}
-                        className="rounded-xl px-4 py-2 text-sm font-semibold text-white"
-                        style={{ background: "var(--t-primary)" }}
+                        onClick={() => {
+                          activate();
+                          onClose();
+                        }}
+                        className="min-h-10 rounded-xl border px-4 py-2 text-sm font-semibold"
+                        style={{ borderColor: "var(--t-primary)", color: "var(--t-accent)" }}
                       >
-                        {t("coworkPickFolder")}
+                        {fmt(t("p8bCwUseAgain"), { name: rememberedName })}
                       </button>
+                    )}
+                    {supported ? (
+                      <div className="flex flex-wrap justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={pick}
+                          className="min-h-10 rounded-xl px-4 py-2 text-sm font-semibold text-white"
+                          style={{ background: "var(--t-primary)" }}
+                        >
+                          {t("coworkPickFolder")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewName((v) => (v === null ? "" : null));
+                            setCreateMsg(null);
+                          }}
+                          aria-expanded={newName !== null}
+                          className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-semibold"
+                          style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
+                        >
+                          <FolderPlus className="size-4" /> {t("p8bCwCreate")}
+                        </button>
+                      </div>
                     ) : (
                       <>
                         <button
@@ -237,6 +333,71 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                       webkitdirectory=""
                       onChange={(e) => e.target.files && openFromInput(e.target.files)}
                     />
+                    {supported && newName !== null && (
+                      <form
+                        className="mt-2 flex w-full max-w-sm flex-col gap-1.5 text-left"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          void submitCreate();
+                        }}
+                      >
+                        <label className="text-xs font-medium" htmlFor="cowork-new-folder" style={{ color: "var(--t-text-muted)" }}>
+                          {t("p8bCwNewName")}
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            id="cowork-new-folder"
+                            autoFocus
+                            value={newName}
+                            maxLength={100}
+                            onChange={(e) => setNewName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Escape") {
+                                // Faqat formani yopadi (panel yopilmasin).
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setNewName(null);
+                              }
+                            }}
+                            placeholder={t("p8bCwNamePlaceholder")}
+                            aria-invalid={!!createMsg}
+                            aria-describedby={createMsg ? "cowork-new-folder-msg" : "cowork-new-folder-hint"}
+                            className="min-w-0 flex-1 rounded-lg border bg-transparent px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-sm"
+                            style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
+                          />
+                          <button
+                            type="submit"
+                            disabled={creating || !newName.trim()}
+                            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white disabled:opacity-50"
+                            style={{ background: "var(--t-primary)" }}
+                          >
+                            {creating && <Loader2 className="size-3.5 animate-spin" />}
+                            {t("p8bCwCreateBtn")}
+                          </button>
+                        </div>
+                        <span id="cowork-new-folder-hint" className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+                          {t("p8bCwCreateHint")}
+                        </span>
+                        {createMsg && (
+                          <span id="cowork-new-folder-msg" role="alert" className="text-xs" style={{ color: "#EF4444" }}>
+                            {createMsg}
+                          </span>
+                        )}
+                      </form>
+                    )}
+                    {!(active && noFolder) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          continueWithoutFolder();
+                          onClose();
+                        }}
+                        className="mt-1 min-h-10 rounded-xl px-4 py-2 text-sm font-medium underline-offset-2 hover:underline"
+                        style={{ color: "var(--t-text-muted)" }}
+                      >
+                        {t("p8bCwContinueNoFolder")}
+                      </button>
+                    )}
                   </div>
                   <p className="mx-auto mt-6 flex max-w-sm items-start gap-2 rounded-xl border p-3 text-left text-[11px]" style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}>
                     <Info className="mt-0.5 size-3.5 shrink-0" />
@@ -249,20 +410,21 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                     <div className="min-w-0">
                       <div className="truncate text-sm font-semibold">{folder.name}</div>
                       <div className="nums text-xs" style={{ color: "var(--t-text-muted)" }}>
-                        {folder.files.length} {t("coworkFilesSuffix")}{folder.snapshot ? ` · ${t("coworkCopyLabel")}` : ""}
+                        {plural(lang, folder.files.length, { one: "p8bFilesOne", few: "p8bFilesFew", many: "p8bFilesMany" })}{folder.snapshot ? ` · ${t("coworkCopyLabel")}` : ""}
                       </div>
                     </div>
                     <button
                       type="button"
                       onClick={clear}
-                      className="rounded-lg border px-3 py-1.5 text-xs"
+                      className="min-h-8 shrink-0 rounded-lg border px-3 py-1.5 text-xs"
                       style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
+                      aria-label={fmt(t("p8bCwDisconnectNamed"), { name: folder.name })}
                     >
-                      {t("close")}
+                      {t("p8bCwDisconnect")}
                     </button>
                   </div>
 
-                  <label className="mb-3 flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: "var(--t-border)" }}>
+                  <label className="mb-3 flex items-center gap-2 rounded-xl border px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--t-primary)]" style={{ borderColor: "var(--t-border)" }}>
                     <Search className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
                     <input
                       value={q}

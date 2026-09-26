@@ -213,11 +213,8 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
         setMsg(t("stDeleteFailed"));
         return;
       }
-      try {
-        localStorage.removeItem("sovereign.chat");
-      } catch {
-        /* ignore */
-      }
+      // persist storage orqali: kutilayotgan (throttle) yozuv ham bekor qilinadi.
+      useChat.persist.clearStorage();
       window.location.reload();
     });
   }
@@ -240,7 +237,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[88vh] w-full max-w-lg flex-col rounded-3xl border shadow-lg outline-none"
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-lg flex-col rounded-3xl border shadow-lg outline-none md:max-h-[88vh]"
             style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
@@ -248,7 +245,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                 <Settings className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
                 <h2 id={titleId} className="font-display text-lg font-bold">{t("settings")}</h2>
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                 <X className="size-5" />
               </button>
             </div>

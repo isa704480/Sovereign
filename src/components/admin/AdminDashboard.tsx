@@ -36,6 +36,8 @@ interface DailyStat {
   messages_count: number;
   tokens_used: number;
   revenue_usd: number;
+  /** 0035: RUB (SBP) to'lovlari alohida — USD bilan qo'shilmaydi. */
+  revenue_rub?: number;
 }
 
 interface PlanRow {
@@ -191,6 +193,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
   }, [daily, locale]);
 
   const totalRevenue = daily.reduce((acc, d) => acc + Number(d.revenue_usd || 0), 0);
+  const totalRevenueRub = daily.reduce((acc, d) => acc + Number(d.revenue_rub || 0), 0);
   const totalTokens = daily.reduce((acc, d) => acc + Number(d.tokens_used || 0), 0);
 
   const planPie = plans.map((p) => ({
@@ -245,6 +248,11 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                 <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: "#10D4A0" }}>
                   {fmtMoney(totalRevenue)}
                 </div>
+                {totalRevenueRub > 0 && (
+                  <div className="mt-0.5 text-sm tabular-nums text-white/60">
+                    + {totalRevenueRub.toLocaleString(locale, { maximumFractionDigits: 0 })} ₽
+                  </div>
+                )}
               </div>
             </div>
             <div className="mt-4 h-56">

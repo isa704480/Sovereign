@@ -12,7 +12,7 @@ import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { useT } from "@/store/chat";
 import { OAuthButtons } from "./OAuthButtons";
 import { PasswordInput } from "./PasswordInput";
-import { FieldError, FormAlert, SubmitButton, inputClass } from "./form-primitives";
+import { FieldError, FormAlert, SubmitButton, actionFailed, inputClass } from "./form-primitives";
 
 interface LoginFormProps {
   next?: string | null;
@@ -36,8 +36,14 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
     setServerError(null);
     setNotice(null);
     startTransition(async () => {
-      const res = await signInWithEmail(values, next);
-      if (res && !res.ok) setServerError(res.error);
+      // Tarmoq uzilsa server action reject bo'ladi — Next xato ekrani o'rniga forma ichida xabar
+      // (redirect() xatosi actionFailed ichida qayta otiladi).
+      try {
+        const res = await signInWithEmail(values, next);
+        if (res && !res.ok) setServerError(res.error);
+      } catch (e) {
+        setServerError(actionFailed(e, "signIn"));
+      }
     });
   }
 
@@ -46,11 +52,15 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
     setNotice(null);
     const email = form.getValues("email");
     startTransition(async () => {
-      const res = await requestPasswordReset(email);
-      if (!res.ok) setServerError(res.error);
-      else {
-        setNotice("auResetSent");
-        setResetMode(false);
+      try {
+        const res = await requestPasswordReset(email);
+        if (!res.ok) setServerError(res.error);
+        else {
+          setNotice("auResetSent");
+          setResetMode(false);
+        }
+      } catch (e) {
+        setServerError(actionFailed(e, "reset request"));
       }
     });
   }

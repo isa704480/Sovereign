@@ -11,8 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
+      # Javob tanasi (probe/detail — ichki diagnostika, Railway xatolari) Actions log'iga
+      # chiqarilmaydi: faqat HTTP status kodi.
       - name: Check OmniRoute
         run: |
-          curl -sS --max-time 120 \
+          code=$(curl -sS --max-time 120 -o /dev/null -w '%{http_code}' \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://soveregn.xyz/api/cron/omniroute-watchdog"
+            "https://soveregn.xyz/api/cron/omniroute-watchdog")
+          echo "watchdog HTTP $code"

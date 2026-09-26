@@ -1,26 +1,31 @@
 "use client";
 
 import { Check } from "lucide-react";
+import dynamic from "next/dynamic";
 import { catchError } from "next/error";
 import { useState } from "react";
-import { useT } from "@/store/chat";
-import {
-  Area,
-  AreaChart,
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { localeOf } from "@/lib/locales/chat-data";
+import { useLang, useT } from "@/store/chat";
+
+/** recharts faqat grafik bloki kelganda yuklanadi (asosiy /app bundle'dan chiqarilgan). */
+const GenUiChart = dynamic(() => import("./GenUiChart"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-full w-full animate-pulse rounded-xl" style={{ background: "color-mix(in srgb, var(--t-text) 6%, transparent)" }} />
+  ),
+});
+
+/** Sonlarni interfeys tili lokalida ko'rsatadi (1250000 → "1 250 000" / "1,250,000"). */
+function useNum() {
+  const locale = localeOf(useLang());
+  let nf: Intl.NumberFormat | null = null;
+  try {
+    nf = new Intl.NumberFormat(locale);
+  } catch {
+    nf = null;
+  }
+  return { locale, num: (v: string | number) => (typeof v === "number" && nf ? nf.format(v) : v) };
+}
 
 /**
  * "Generative UI": the model may answer with a ```sovereign-ui JSON block that
@@ -41,8 +46,6 @@ export type GenUiSpec =
   | { type: "table"; title?: string; columns: string[]; rows: (string | number)[][] }
   | { type: "steps"; title?: string; items: { title: string; detail?: string }[] }
   | { type: "checklist"; title?: string; items: string[] };
-
-const PALETTE = ["#5B50F0", "#10D4A0", "#F5AA3C", "#E0554E", "#7C6FF7", "#3CC7F5"];
 
 const isRec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 const isPrim = (v: unknown): v is string | number => typeof v === "string" || typeof v === "number";
@@ -132,77 +135,6 @@ function Frame({ title, children }: { title?: string; children: React.ReactNode 
   );
 }
 
-const AXIS = { stroke: "var(--t-text-muted)", fontSize: 12 };
-
-function ChartBody({ spec }: { spec: Extract<GenUiSpec, { type: "chart" }> }) {
-  const tooltip = (
-    <Tooltip
-      contentStyle={{
-        background: "var(--t-surface)",
-        border: "1px solid var(--t-border)",
-        borderRadius: 10,
-        color: "var(--t-text)",
-      }}
-    />
-  );
-  const color = (i: number, given?: string) => given ?? PALETTE[i % PALETTE.length];
-
-  if (spec.chart === "pie") {
-    const key = spec.series[0].key;
-    return (
-      <PieChart>
-        <Pie data={spec.data} dataKey={key} nameKey={spec.xKey} outerRadius="78%" label>
-          {spec.data.map((_, i) => (
-            <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-          ))}
-        </Pie>
-        {tooltip}
-        <Legend />
-      </PieChart>
-    );
-  }
-  if (spec.chart === "line") {
-    return (
-      <LineChart data={spec.data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
-        <XAxis dataKey={spec.xKey} {...AXIS} />
-        <YAxis {...AXIS} />
-        {tooltip}
-        {spec.series.length > 1 && <Legend />}
-        {spec.series.map((s, i) => (
-          <Line key={s.key} type="monotone" dataKey={s.key} name={s.label ?? s.key} stroke={color(i, s.color)} strokeWidth={2} dot={false} />
-        ))}
-      </LineChart>
-    );
-  }
-  if (spec.chart === "area") {
-    return (
-      <AreaChart data={spec.data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
-        <XAxis dataKey={spec.xKey} {...AXIS} />
-        <YAxis {...AXIS} />
-        {tooltip}
-        {spec.series.length > 1 && <Legend />}
-        {spec.series.map((s, i) => (
-          <Area key={s.key} type="monotone" dataKey={s.key} name={s.label ?? s.key} stroke={color(i, s.color)} fill={color(i, s.color)} fillOpacity={0.18} />
-        ))}
-      </AreaChart>
-    );
-  }
-  return (
-    <BarChart data={spec.data}>
-      <CartesianGrid strokeDasharray="3 3" stroke="var(--t-border)" />
-      <XAxis dataKey={spec.xKey} {...AXIS} />
-      <YAxis {...AXIS} />
-      {tooltip}
-      {spec.series.length > 1 && <Legend />}
-      {spec.series.map((s, i) => (
-        <Bar key={s.key} dataKey={s.key} name={s.label ?? s.key} fill={color(i, s.color)} radius={[6, 6, 0, 0]} />
-      ))}
-    </BarChart>
-  );
-}
-
 function Checklist({ items }: { items: string[] }) {
   const [done, setDone] = useState<Set<number>>(new Set());
   return (
@@ -276,6 +208,7 @@ export function GenerativeUI({ spec }: { spec: GenUiSpec }) {
 }
 
 function GenUiView({ spec }: { spec: GenUiSpec }) {
+  const { locale, num } = useNum();
   if (spec.type === "kpi") {
     return (
       <Frame title={spec.title}>
@@ -283,7 +216,7 @@ function GenUiView({ spec }: { spec: GenUiSpec }) {
           {spec.items.map((it) => (
             <div key={it.label} className="rounded-xl border p-3" style={{ borderColor: "var(--t-border)" }}>
               <div className="text-xs" style={{ color: "var(--t-text-muted)" }}>{it.label}</div>
-              <div className="nums mt-1 text-xl font-extrabold tracking-[-0.02em]" style={{ color: "var(--t-text)" }}>{it.value}</div>
+              <div className="nums mt-1 text-xl font-extrabold tracking-[-0.02em]" style={{ color: "var(--t-text)" }}>{num(it.value)}</div>
               {it.hint && <div className="mt-0.5 text-[11px]" style={{ color: "var(--t-text-muted)" }}>{it.hint}</div>}
             </div>
           ))}
@@ -296,9 +229,7 @@ function GenUiView({ spec }: { spec: GenUiSpec }) {
     return (
       <Frame title={spec.title}>
         <div className="h-[260px] w-full">
-          <ResponsiveContainer>
-            <ChartBody spec={spec} />
-          </ResponsiveContainer>
+          <GenUiChart spec={spec} locale={locale} />
         </div>
       </Frame>
     );
@@ -322,7 +253,7 @@ function GenUiView({ spec }: { spec: GenUiSpec }) {
               {spec.rows.map((r, i) => (
                 <tr key={i} style={{ borderTop: "1px solid var(--t-border)" }}>
                   {r.map((cell, j) => (
-                    <td key={j} className="nums px-2 py-1.5" style={{ color: "var(--t-text)" }}>{cell}</td>
+                    <td key={j} className="nums px-2 py-1.5" style={{ color: "var(--t-text)" }}>{num(cell)}</td>
                   ))}
                 </tr>
               ))}

@@ -33,12 +33,56 @@
     } catch { return $false }
   }
 
+  # npm.cmd - npm.ps1 EMAS: standart ExecutionPolicy (Restricted) .ps1 skriptlarni bloklaydi,
+  # `npm` esa PowerShell'da avval npm.ps1 ga yechiladi.
+  function Get-NpmExe {
+    $cmd = Get-Command npm.cmd -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($cmd) { return $cmd.Source }
+    return 'npm'
+  }
+
   function Install-Npm {
     Write-Host "Installing $pkg via npm ..."
     # Windows'da npm global papkasi %APPDATA%\npm - admin kerak emas.
     # Chiqishni Out-Host'ga: aks holda u funksiya natijasiga qo'shilib, xato ham "true" bo'lib ko'rinadi.
-    & npm install -g $pkg | Out-Host
-    return ($LASTEXITCODE -eq 0)
+    # $global:LASTEXITCODE oldindan 0 ga emas, -1 ga: npm umuman ishga tushmasa (bloklangan
+    # skript) avvalgi `node -p` ning 0 kodi "muvaffaqiyat" bo'lib qolmasin.
+    $global:LASTEXITCODE = -1
+    try {
+      & (Get-NpmExe) install -g $pkg | Out-Host
+    } catch {
+      Write-Host "npm could not run: $($_.Exception.Message)" -ForegroundColor Yellow
+      return $false
+    }
+    return ($global:LASTEXITCODE -eq 0)
+  }
+
+  # O'rnatilgan `sov` haqiqatan ishga tushadimi (`sov --version`)? Versiya qatori yoki $null.
+  function Get-SovVersion([string[]]$candidates) {
+    foreach ($p in $candidates) {
+      if (-not $p -or -not (Test-Path -LiteralPath $p)) { continue }
+      try {
+        $global:LASTEXITCODE = -1
+        # Butun chiqish yig'iladi (Select -First pipeline'ni erta to'xtatib, exit kodini yo'qotmasin).
+        $out = @(& $p --version)
+        $first = if ($out.Count) { "$($out[0])".Trim() } else { '' }
+        if ($global:LASTEXITCODE -eq 0 -and $first) { return $first }
+      } catch { }
+    }
+    return $null
+  }
+
+  function Get-NpmSovCandidates {
+    $list = @()
+    $onPath = Get-Command sov.cmd -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($onPath) { $list += $onPath.Source }
+    try {
+      $prefixOut = @(& (Get-NpmExe) prefix -g)
+      $prefix = if ($prefixOut.Count) { "$($prefixOut[0])".Trim() } else { '' }
+      if ($prefix) { $list += (Join-Path $prefix 'sov.cmd') }
+    } catch { }
+    if ($env:APPDATA) { $list += (Join-Path $env:APPDATA 'npm\sov.cmd') }
+    return $list
   }
 
   function Get-ReleaseBase {
@@ -125,16 +169,26 @@
           Write-Host 'Open a new terminal window if `sov` is not found.' -ForegroundColor Yellow
         }
       }
-      return $true
+      return $target
     } finally {
       Remove-Item -Recurse -Force -Path $tmp -ErrorAction SilentlyContinue
     }
   }
 
-  $done = $false
+  # "Done!" faqat `sov --version` haqiqatan ishlaganda chiqadi.
+  $version = $null
+  $viaNpm = $false
   if ($mode -ne 'binary' -and (Test-NodeOk)) {
     if (Install-Npm) {
-      $done = $true
+      $version = Get-SovVersion (Get-NpmSovCandidates)
+      if (-not $version) {
+        Write-Host ''
+        Write-Host "npm reported success, but 'sov --version' did not run." -ForegroundColor Red
+        Write-Host 'Open a NEW terminal and try:  sov.cmd --version' -ForegroundColor Yellow
+        Write-Host "Or install the standalone binary instead:  `$env:SOV_INSTALL='binary'; irm https://soveregn.xyz/install.ps1 | iex" -ForegroundColor Yellow
+        return
+      }
+      $viaNpm = $true
     } else {
       Write-Host 'npm install failed - falling back to the standalone binary.' -ForegroundColor Yellow
     }
@@ -145,9 +199,25 @@
     Write-Host 'Node.js 20+ not found - installing the standalone binary (no Node needed).'
   }
 
-  if (-not $done) { $done = Install-Binary }
-  if (-not $done) { return }
+  if (-not $version) {
+    $bin = Install-Binary | Select-Object -Last 1
+    if (-not $bin) { return }
+    $version = Get-SovVersion @([string]$bin)
+    if (-not $version) {
+      Write-Host "Installed $bin, but 'sov --version' did not run on this system - not finished." -ForegroundColor Red
+      return
+    }
+  }
 
   Write-Host ''
-  Write-Host 'Done! Start it with:  sov      (check setup: sov doctor)' -ForegroundColor Green
+  Write-Host "Done! $version - start it with:  sov      (check setup: sov doctor)" -ForegroundColor Green
+  if ($viaNpm) {
+    # npm `sov` uchun sov.ps1 ham yaratadi - standart siyosatda PowerShell uni bloklaydi.
+    $policy = ''
+    try { $policy = [string](Get-ExecutionPolicy) } catch { }
+    if ($policy -in @('Restricted', 'AllSigned', 'Undefined')) {
+      Write-Host "PowerShell blocks .ps1 scripts here (ExecutionPolicy $policy): run it as  sov.cmd,  or allow scripts once:" -ForegroundColor Yellow
+      Write-Host '  Set-ExecutionPolicy -Scope CurrentUser RemoteSigned' -ForegroundColor Yellow
+    }
+  }
 }

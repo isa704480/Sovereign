@@ -1,12 +1,14 @@
 {
   "name": "SOVEREIGN AI",
   "short_name": "SOVEREIGN",
-  "description": "Barcha AI'lar bitta joyda. Faqat sizniki.",
+  "description": "Every AI. One window. Your chats stay yours.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#060812",
-  "theme_color": "#5B50F0",
+  "theme_color": "#060812",
   "icons": [
+    { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192" },
+    { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512" },
     { "src": "/logo.svg", "type": "image/svg+xml", "sizes": "any" }
   ]
 }

@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getProfile, postAuthPath } from "@/lib/auth/profile";
 import { authErrorKey } from "@/lib/locales/auth";
+import { CONNECTOR_BY_ID } from "@/config/connectors";
+import { CONNECT_COOKIE, parseConnectCookie } from "@/lib/auth/connect-cookie";
 import type { AuthMsgKey } from "@/components/auth/messages";
 import { safeNextPath } from "@/components/auth/next-path";
 import { RECOVERY_COOKIE, RECOVERY_MAX_AGE, RESET_PASSWORD_PATH } from "@/components/auth/recovery";
@@ -48,6 +50,20 @@ export async function GET(request: Request) {
     if (!error && data.user) {
       // Google connectorni ulash: provider_token'ni connector_accounts'ga saqlaymiz.
       const connect = searchParams.get("connect");
+      if (connect) {
+        // Ulashni kim boshlagan (connectGoogle belgisi) — boshqa Google akkaunt tanlanib,
+        // sessiya begona foydalanuvchiga almashgan bo'lsa token saqlanmaydi va bu
+        // sessiya yopiladi (foydalanuvchi o'z hisobiga qayta kiradi).
+        const jar = await cookies();
+        const started = parseConnectCookie(jar.get(CONNECT_COOKIE)?.value);
+        jar.delete({ name: CONNECT_COOKIE, path: "/auth/callback" });
+        const spec = CONNECTOR_BY_ID[connect];
+        if (!started || started.userId !== data.user.id || started.connectorId !== connect || spec?.auth !== "oauth-google") {
+          console.warn("[auth/callback] connector: boshqa akkaunt yoki noto'g'ri so'rov — sessiya yopildi");
+          await supabase.auth.signOut({ scope: "local" });
+          return NextResponse.redirect(`${base}/login?error=auErrNoSession`);
+        }
+      }
       if (connect && data.session?.provider_token) {
         try {
           await supabase.from("connector_accounts").upsert(

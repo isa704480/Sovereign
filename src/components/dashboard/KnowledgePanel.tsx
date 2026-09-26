@@ -8,6 +8,8 @@ import { processFile } from "@/lib/chat/attachments";
 import { fmt } from "@/lib/i18n";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { useLang, useT } from "@/store/chat";
+import { plural } from "@/lib/plural";
+import { localeOf } from "@/lib/locales/chat-data";
 import { useDialogA11y } from "./use-dialog-a11y";
 
 interface KnowledgePanelProps {
@@ -17,10 +19,15 @@ interface KnowledgePanelProps {
 
 const ACCEPT = "application/pdf,text/*,.md,.txt,.json,.csv,.js,.ts,.tsx,.py,.html,.css";
 
-function fmtSize(n: number) {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+/** Hajm — interfeys tili lokalida ("1,5 КБ", "1.5 kB"). */
+function fmtSize(n: number, locale: string) {
+  const [value, unit] =
+    n < 1024 ? [n, "byte"] : n < 1024 * 1024 ? [n / 1024, "kilobyte"] : [n / (1024 * 1024), "megabyte"];
+  try {
+    return new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "short", maximumFractionDigits: 1 }).format(value);
+  } catch {
+    return `${value.toFixed(1)} ${unit === "byte" ? "B" : unit === "kilobyte" ? "KB" : "MB"}`;
+  }
 }
 
 export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
@@ -63,16 +70,24 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
           const fresh = await listKnowledge();
           setItems(fresh);
         }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+      } catch {
+        // Xom brauzer/tarmoq xatosini ko'rsatmaymiz — tarjima qilingan umumiy xabar.
+        setError(`${f.name}: ${t("pnErrIndexing")}`);
       }
     }
     setBusy(null);
   }
 
   function remove(id: string) {
+    const before = items;
     setItems((prev) => prev?.filter((d) => d.id !== id) ?? null);
-    startTransition(() => void deleteKnowledge(id));
+    startTransition(async () => {
+      const res = await deleteKnowledge(id).catch(() => ({ ok: false }));
+      if (!res.ok) {
+        setItems(before);
+        setError(t("stDeleteFailed"));
+      }
+    });
   }
 
   return (
@@ -93,7 +108,7 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[86vh] w-full max-w-2xl flex-col rounded-3xl border shadow-lg outline-none"
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-2xl md:max-h-[86vh] flex-col rounded-3xl border shadow-lg outline-none"
             style={{
               background: "var(--t-surface, #0D1033)",
               borderColor: "var(--t-border, rgba(255,255,255,0.1))",
@@ -109,14 +124,14 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
                 <h2 id={titleId} className="font-display text-lg font-bold">{t("knowledgeBase")}</h2>
                 {items && (
                   <span className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                    {items.length} {t("kbDocs")}
+                    {plural(lang, items.length, { one: "p8bDocsOne", few: "p8bDocsFew", many: "p8bDocsMany" })}
                   </span>
                 )}
               </div>
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-lg p-1.5 hover:bg-white/10"
+                className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9"
                 aria-label={t("close")}
                 style={{ color: "var(--t-text-muted, #9BA3CC)" }}
               >
@@ -173,15 +188,16 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{d.name}</div>
                         <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                          {fmtSize(d.size)}
+                          {fmtSize(d.size, localeOf(lang))}
                           {d.status === "processing" ? ` · ${t("kbIndexing")}` : d.status === "error" ? ` · ${t("kbErrorState")}` : ""}
                         </div>
                       </div>
                       <button
                         type="button"
                         onClick={() => remove(d.id)}
-                        className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100 focus-visible:opacity-100"
-                        aria-label={t("delete")}
+                        className="flex size-8 shrink-0 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-white/10 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
+                        aria-label={fmt(t("p8bDeleteNamed"), { name: d.name })}
+                        title={t("delete")}
                         style={{ color: "var(--t-text-muted, #9BA3CC)" }}
                       >
                         <Trash2 className="size-3.5" />

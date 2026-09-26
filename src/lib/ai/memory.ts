@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LANG_FOR_AI, type Lang } from "@/lib/i18n";
 import { getServerLang } from "@/lib/i18n-server";
+import { isNearDuplicate, isSmallTalk, memoryPrompt } from "@/lib/ai/memory-prompt";
 
 export interface MemoryNode {
   id: string;
@@ -23,15 +24,8 @@ export async function getMemories(supabase: SupabaseClient, userId: string, limi
   return (data as MemoryNode[] | null) ?? [];
 }
 
-/** System-prompt block injecting what the AI remembers about the user. */
-export function memoryPrompt(memories: MemoryNode[]): string {
-  if (!memories.length) return "";
-  const lines = memories.slice(0, 25).map((m) => `- ${m.content}`);
-  return (
-    "FOYDALANUVCHI HAQIDA ESLAB QOLGANLARING (kerak bo'lsa foydalan, ortiqcha eslatma):\n" +
-    lines.join("\n")
-  );
-}
+/** System-prompt block injecting what the AI remembers about the user (qat'iy qoidalar bilan). */
+export { memoryPrompt };
 
 /**
  * Extracts 0-4 durable facts about the user from the latest exchange using a
@@ -45,8 +39,9 @@ export async function rememberFromExchange(
   lang?: Lang,
 ): Promise<number> {
   if (!process.env.OPENROUTER_API_KEY) return 0;
+  // Salomlashish / "rahmat" — eslab qolinadigan narsa yo'q, modelni chaqirmaymiz.
+  if (isSmallTalk(userText)) return 0;
   const existing = await getMemories(supabase, userId, 60);
-  const existingSet = new Set(existing.map((m) => m.content.toLowerCase().trim()));
 
   // Xotira foydalanuvchi o'qiy oladigan tilda yozilsin: berilmasa — interfeys tili (cookie).
   let memLang: Lang | null = lang ?? null;
@@ -57,14 +52,20 @@ export async function rememberFromExchange(
       memLang = null; // so'rov kontekstidan tashqarida — foydalanuvchi yozgan tilda
     }
   }
-  const langRule = memLang ? LANG_FOR_AI[memLang] : "foydalanuvchi yozgan tilda";
+  const langRule = memLang ? LANG_FOR_AI[memLang] : "in the language the user wrote in";
 
   const sys = [
-    "Sen foydalanuvchi haqidagi UZOQ MUDDATLI faktlarni ajratib oluvchisan.",
-    "Faqat kelajakda foydali, barqaror faktlarni ol: ism, kasb, loyihalar, afzalliklar, uslub, til, maqsadlar.",
-    "Vaqtinchalik yoki bir martalik narsalarni OLMA (masalan 'salom dedi', 'bu savol').",
-    "JSON qaytar: {\"memories\":[{\"content\":\"...\",\"kind\":\"fact|preference|project|person\"}]}.",
-    `Agar eslab qolishga arziydigan narsa bo'lmasa, bo'sh ro'yxat qaytar. Har bir content qisqa, 1 gap, ${langRule} yoz.`,
+    "You extract LONG-TERM facts about the user from one chat exchange.",
+    "Keep only durable facts useful in future chats: profession, ongoing projects, preferences, style, language, goals.",
+    "Do NOT store greetings, small talk, thanks, one-off questions or temporary context.",
+    "The user's NAME: store it ONLY if the user explicitly states their own name in THEIR message",
+    "(e.g. 'mening ismim X', 'ismim X', 'I'm X', 'my name is X', 'меня зовут X'), as kind \"person\",",
+    "worded like \"User's name: X\" in the target language. Never infer a name from the AI reply,",
+    "and never treat a project, brand, product, company or website name as the user's name.",
+    "A project must be kind \"project\" and start with the word 'Project:' in the target language",
+    "(e.g. 'Loyiha: …', 'Проект: …', 'Project: …').",
+    "Return JSON: {\"memories\":[{\"content\":\"...\",\"kind\":\"fact|preference|project|person\"}]}.",
+    `If nothing is worth remembering, return an empty list. Each content: short, one sentence. Target language: ${langRule}.`,
   ].join(" ");
   const user = `Foydalanuvchi: ${userText.slice(0, 2000)}\n\nAI javobi (kontekst): ${assistantText.slice(0, 1000)}`;
 
@@ -96,13 +97,16 @@ export async function rememberFromExchange(
   }
 
   const kinds = new Set(["fact", "preference", "project", "person"]);
-  const rows = (parsed.memories ?? [])
-    .map((m) => ({
-      content: String(m.content ?? "").trim().slice(0, 300),
-      kind: kinds.has(String(m.kind)) ? (m.kind as string) : "fact",
-    }))
-    .filter((m) => m.content.length > 3 && !existingSet.has(m.content.toLowerCase()))
-    .slice(0, 4);
+  // Deyarli bir xil yozuvlar (mavjudlari bilan ham, o'zaro ham) qayta saqlanmaydi.
+  const kept: string[] = existing.map((m) => m.content);
+  const rows: { content: string; kind: string }[] = [];
+  for (const m of parsed.memories ?? []) {
+    const content = String(m.content ?? "").trim().slice(0, 300);
+    if (content.length <= 3 || kept.some((k) => isNearDuplicate(k, content))) continue;
+    kept.push(content);
+    rows.push({ content, kind: kinds.has(String(m.kind)) ? (m.kind as string) : "fact" });
+    if (rows.length >= 4) break;
+  }
 
   if (!rows.length) return 0;
   const { error } = await supabase

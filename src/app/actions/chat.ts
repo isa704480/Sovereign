@@ -105,15 +105,35 @@ export async function listConversations(): Promise<ServerConversation[]> {
   if (!convs?.length) return [];
 
   const ids = convs.map((c) => c.id);
-  const { data: msgs } = await s.supabase
-    .from("messages")
-    .select("id, conversation_id, role, content, model_id, citations, created_at")
-    .in("conversation_id", ids)
-    .order("created_at", { ascending: true });
+  // PostgREST bir so'rovda ko'pi bilan ~1000 qator qaytaradi: eng YANGI xabarlardan
+  // boshlab sahifalab o'qiymiz (eskilari birinchi kesilsin, yangilari emas) va har
+  // suhbatdan oxirgi MAX_PER_CONV tasini olamiz — SSR yuki ham cheklanadi.
+  type Row = { id: string; conversation_id: string; role: string; content: string; model_id: string | null; citations: unknown; created_at: string };
+  const PAGE = 1000;
+  const MAX_ROWS = 4000;
+  const MAX_PER_CONV = 300;
+  const msgs: Row[] = [];
+  for (let from = 0; from < MAX_ROWS; from += PAGE) {
+    const { data, error } = await s.supabase
+      .from("messages")
+      .select("id, conversation_id, role, content, model_id, citations, created_at")
+      .in("conversation_id", ids)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + PAGE - 1);
+    if (error) {
+      console.error("[sync] list messages:", error.message);
+      break;
+    }
+    msgs.push(...((data as Row[] | null) ?? []));
+    if (!data || data.length < PAGE) break;
+  }
 
   const byConv = new Map<string, ServerConversation["messages"]>();
-  for (const m of msgs ?? []) {
+  // Yangidan eskiga: har suhbatga oxirgi MAX_PER_CONV ta, keyin tartib teskari (eski → yangi).
+  for (const m of msgs) {
     const list = byConv.get(m.conversation_id) ?? [];
+    if (list.length >= MAX_PER_CONV) continue;
     list.push({
       id: m.id,
       role: m.role as "user" | "assistant" | "system",
@@ -132,6 +152,6 @@ export async function listConversations(): Promise<ServerConversation[]> {
     research: c.research,
     createdAt: c.created_at,
     updatedAt: c.updated_at,
-    messages: byConv.get(c.id) ?? [],
+    messages: (byConv.get(c.id) ?? []).reverse(),
   }));
 }

@@ -58,6 +58,9 @@ const ACCEPT = "image/*,application/pdf,audio/*,video/*,text/*,.md,.json,.csv,.j
 /** Ovozli kiritish tili — interfeys tilidan (brauzer SpeechRecognition BCP-47 kodlari). */
 const SPEECH_LOCALE: Record<Lang, string> = { uz: "uz-UZ", "uz-cyrl": "uz-UZ", ru: "ru-RU", en: "en-US" };
 
+/** Sensorli ekranda (qo'pol ko'rsatkich) ikonka-tugmalar 44×44 px nishon bo'ladi. */
+const TOUCH_44 = "[@media(pointer:coarse)]:flex [@media(pointer:coarse)]:size-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:justify-center";
+
 /** Sensorli (soft) klaviatura: sichqoncha/hover yo'q qurilma. */
 function isTouchKeyboard(): boolean {
   return typeof window !== "undefined" && window.matchMedia?.("(hover: none) and (pointer: coarse)").matches === true;
@@ -371,7 +374,7 @@ export function InputArea({
     <button
       type="button"
       onClick={openPicker}
-      className="rounded-lg p-2 transition-colors hover:bg-white/10"
+      className={cn("rounded-lg p-2 transition-colors hover:bg-white/10", TOUCH_44)}
       style={{ color: "var(--t-text-muted)" }}
       title={t("chAttachTitle")}
       aria-label={t("chAttachTitle")}
@@ -385,7 +388,7 @@ export function InputArea({
     <button
       type="button"
       onClick={speech.toggle}
-      className="rounded-lg p-2 transition-colors hover:bg-white/10"
+      className={cn("rounded-lg p-2 transition-colors hover:bg-white/10", TOUCH_44)}
       style={{ color: speech.listening ? model.primary : "var(--t-text-muted)" }}
       title={speech.listening ? t("stop") : t("chVoiceInput")}
       aria-label={speech.listening ? t("stop") : t("chVoiceInput")}
@@ -419,16 +422,21 @@ export function InputArea({
 
   // Reference dizaynlardagi "Chat / Agent" — bizda "Chat / Cowork". Cowork = kompyuterdagi
   // papka bilan ishlash rejimi; papka tanlansa faol bo'ladi.
-  const coworkActive = !!cowork.folder;
+  // Tanlangan papka (yoki "papkasiz" tanlovi) sessiyada eslab qolinadi: Cowork'ga qaytishda
+  // yangi suhbatda ham qayta so'ralmaydi; faqat hech narsa tanlanmagan bo'lsa panel ochiladi.
+  const coworkActive = cowork.active;
   const modeToggle = (
     <div
+      role="group"
+      aria-label={t("p8bModeLabel")}
       className="tt inline-flex shrink-0 items-center gap-0.5 rounded-full p-0.5 text-xs font-medium"
       style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}
     >
       <button
         type="button"
-        onClick={() => { if (coworkActive) cowork.clear(); }}
-        className="rounded-full px-2.5 py-1 transition-colors"
+        aria-pressed={!coworkActive}
+        onClick={() => cowork.deactivate()}
+        className="min-h-8 rounded-full px-2.5 py-1 transition-colors"
         style={{ background: coworkActive ? "transparent" : "var(--t-surface)", color: coworkActive ? "var(--t-text-muted)" : "var(--t-text)" }}
         title={t("chModeChatTitle")}
       >
@@ -436,12 +444,19 @@ export function InputArea({
       </button>
       <button
         type="button"
-        onClick={() => onOpenCowork?.()}
-        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 transition-colors"
+        aria-pressed={coworkActive}
+        onClick={() => {
+          // Faol bo'lsa — panel (papka ulash / o'zgarishlar); aks holda eslab qolingan tanlov bilan yoqamiz.
+          if (coworkActive || !cowork.activate()) onOpenCowork?.();
+        }}
+        className="inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 transition-colors"
         style={{ background: coworkActive ? "var(--t-surface)" : "transparent", color: coworkActive ? "var(--t-accent)" : "var(--t-text-muted)" }}
-        title={t("chModeCoworkTitle")}
+        title={coworkActive && cowork.noFolder && !cowork.folder ? t("p8bCwNoFolderActive") : t("chModeCoworkTitle")}
       >
         <FolderTree className="size-3" /> Cowork
+        {coworkActive && cowork.noFolder && !cowork.folder && (
+          <span className="hidden opacity-70 sm:inline">· {t("p8bCwNoFolderShort")}</span>
+        )}
       </button>
     </div>
   );
@@ -658,7 +673,7 @@ export function InputArea({
               type="button"
               onClick={onStop}
               whileTap={{ scale: 0.95 }}
-              className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full"
+              className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full [@media(pointer:coarse)]:size-11"
               style={{ background: "var(--t-text)", color: "var(--t-bg)" }}
               title={t("stop")}
               aria-label={t("stop")}
@@ -671,7 +686,7 @@ export function InputArea({
               onClick={submit}
               disabled={!canSend}
               whileTap={{ scale: 0.95 }}
-              className="tt mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed"
+              className="tt mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed [@media(pointer:coarse)]:size-11"
               style={{
                 background: canSend ? model.primary : "color-mix(in srgb, var(--t-text) 12%, transparent)",
                 color: canSend ? "#fff" : "var(--t-text-muted)",

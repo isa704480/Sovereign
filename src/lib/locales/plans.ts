@@ -16,10 +16,10 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
     },
     features: [
       {
-        uz: "Tekin modellar: Llama 3.3 70B (Groq), Gemini 2.5 Flash, DeepSeek R1",
-        "uz-cyrl": "Текин моделлар: Llama 3.3 70B (Groq), Gemini 2.5 Flash, DeepSeek R1",
-        ru: "Бесплатные модели: Llama 3.3 70B (Groq), Gemini 2.5 Flash, DeepSeek R1",
-        en: "Free models: Llama 3.3 70B (Groq), Gemini 2.5 Flash, DeepSeek R1",
+        uz: "Tekin modellar: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
+        "uz-cyrl": "Текин моделлар: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
+        ru: "Бесплатные модели: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
+        en: "Free models: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
       },
       { uz: "Kunlik chegara bilan", "uz-cyrl": "Кунлик чегара билан", ru: "С дневным лимитом", en: "With a daily limit" },
       {
@@ -43,10 +43,10 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
     features: [
       { uz: "Free rejimidagi hamma narsa", "uz-cyrl": "Free режимидаги ҳамма нарса", ru: "Всё из тарифа Free", en: "Everything in Free" },
       {
-        uz: "Claude 3.5 Haiku, GPT-4o mini qo'shildi",
-        "uz-cyrl": "Claude 3.5 Haiku, GPT-4o mini қўшилди",
-        ru: "Добавлены Claude 3.5 Haiku и GPT-4o mini",
-        en: "Adds Claude 3.5 Haiku and GPT-4o mini",
+        uz: "Claude Haiku 4.5, GPT-4o mini qo'shildi",
+        "uz-cyrl": "Claude Haiku 4.5, GPT-4o mini қўшилди",
+        ru: "Добавлены Claude Haiku 4.5 и GPT-4o mini",
+        en: "Adds Claude Haiku 4.5 and GPT-4o mini",
       },
       { uz: "3× ko'proq token / oy", "uz-cyrl": "3× кўпроқ токен / ой", ru: "В 3× больше токенов в месяц", en: "3× more tokens / month" },
       {

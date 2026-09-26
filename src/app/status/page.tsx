@@ -14,9 +14,14 @@ export const metadata: Metadata = {
   title: { absolute: "SOVEREIGN Status" },
   description: "Live status of SOVEREIGN AI services: web app, database, AI gateway, image generation and payments.",
   robots: { index: true, follow: true },
+  // status.soveregn.xyz → /status rewrite: canonical subdomen (ildizdagi "./" bu yerda /status bo'lardi).
+  alternates: { canonical: "https://status.soveregn.xyz" },
   openGraph: {
     title: "SOVEREIGN Status",
     description: "Live status of SOVEREIGN AI services.",
+    url: "https://status.soveregn.xyz",
+    siteName: "SOVEREIGN",
+    type: "website",
   },
 };
 

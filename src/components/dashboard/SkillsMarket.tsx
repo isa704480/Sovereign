@@ -117,7 +117,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[88vh] w-full max-w-2xl flex-col rounded-[22px] border outline-none"
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-2xl flex-col rounded-[22px] border outline-none md:max-h-[88vh]"
             style={{
               background: "var(--t-surface, #0D1033)",
               borderColor: "var(--t-border)",
@@ -132,13 +132,13 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                 <h2 id={titleId} className="font-display text-lg font-bold">{t("skills")}</h2>
                 <span className="text-xs" style={{ color: "var(--t-text-muted)" }}>{enabled.length} {t("skillsEnabled")}</span>
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
+              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
                 <X className="size-5" />
               </button>
             </div>
 
             <div className="border-b px-5 py-3" style={{ borderColor: "var(--t-border)" }}>
-              <label className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: "var(--t-border)" }}>
+              <label className="flex items-center gap-2 rounded-xl border px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--t-primary)]" style={{ borderColor: "var(--t-border)" }}>
                 <Search className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
                 <input
                   value={q}
@@ -248,7 +248,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                     placeholder={t("skillNamePlaceholder")}
                     maxLength={40}
                     aria-label={t("skillNamePlaceholder")}
-                    className="w-full rounded-lg border bg-transparent px-3 py-2 text-base outline-none sm:text-sm"
+                    className="w-full rounded-lg border bg-transparent px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-sm"
                     style={{ borderColor: "var(--t-border)" }}
                   />
                   <textarea
@@ -258,7 +258,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                     maxLength={2000}
                     rows={5}
                     aria-label={t("skillInstrPlaceholder")}
-                    className="mt-2 w-full resize-none rounded-lg border bg-transparent px-3 py-2 text-base outline-none sm:text-sm"
+                    className="mt-2 w-full resize-none rounded-lg border bg-transparent px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-sm"
                     style={{ borderColor: "var(--t-border)" }}
                   />
                   <div className="mt-2 flex items-center justify-between">

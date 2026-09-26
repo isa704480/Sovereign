@@ -240,8 +240,11 @@ export function authErrorKey(message: string): AuthKey | null {
   if (m.includes("invalid login credentials")) return "auErrInvalidCreds";
   if (m.includes("email not confirmed")) return "auErrEmailNotConfirmed";
   if (m.includes("already registered") || m.includes("already been registered")) return "auErrAlreadyRegistered";
-  if (m.includes("password should be")) return "auErrWeakPassword";
-  if (m.includes("rate limit") || m.includes("too many")) return "auErrRateLimit";
+  // "Password is known to be weak and easy to guess" — sizib chiqqan parollar ro'yxati (HIBP).
+  if (m.includes("password should be") || m.includes("weak and easy to guess") || m.includes("weak password"))
+    return "auErrWeakPassword";
+  // "For security purposes, you can only request this after 45 seconds." — takroriy xat so'rovi.
+  if (m.includes("rate limit") || m.includes("too many") || m.includes("for security purposes")) return "auErrRateLimit";
   if (m.includes("provider is not enabled")) return "auErrProviderDisabled";
   if (m.includes("fetch failed") || m.includes("network")) return "auErrNetwork";
   return null;

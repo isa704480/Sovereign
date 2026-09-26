@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 import { getServerLang, getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
@@ -20,9 +20,9 @@ const schema = z.object({
  */
 export async function POST(req: Request) {
   const t = await getServerT();
-  if (!(await rateLimit(`feedback:${clientIp(req)}`, 5, 10 * 60_000)).ok) {
-    return Response.json({ error: t("chTooManyRequests") }, { status: 429 });
-  }
+  const tooMany = () => Response.json({ error: t("chTooManyRequests") }, { status: 429 });
+  // IPv6 — /64 prefiks bo'yicha (manzil almashtirib chetlab o'tilmasin).
+  if (!(await rateLimit(`feedback:${ipKey(clientIp(req))}`, 5, 10 * 60_000)).ok) return tooMany();
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: t("fbTooShort") }, { status: 400 });
   if (!isSupabaseConfigured()) return Response.json({ error: t("fbFailed") }, { status: 503 });
@@ -38,6 +38,12 @@ export async function POST(req: Request) {
   } catch {
     /* mehmon */
   }
+  // Kirgan foydalanuvchi — hisobi bo'yicha; mehmonlar — umumiy soatlik chegara
+  // (ko'p IP'dan spam admin navbatini to'ldirmasin).
+  const extra = userId
+    ? await rateLimit(`feedback:user:${userId}`, 10, 60 * 60_000)
+    : await rateLimit("feedback:guest:global", 60, 60 * 60_000);
+  if (!extra.ok) return tooMany();
 
   try {
     const { error } = await createServiceClient()

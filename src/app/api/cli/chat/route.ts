@@ -70,9 +70,21 @@ function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
 
 // Cost-DoS'ni to'sish: strict schema. Provider'ga o'zboshimchalik parametrlar
 // (response_format, logprobs, stream=false, top_p ...) uzatilishini bekor qiladi.
+// Kontent qismlari qat'iy: matn yoki faqat data:image (CLI mahalliy fayllarni data URL
+// qilib yuboradi). http(s) rasm URL'lari OmniRoute tarmog'idan yuklanishi mumkin (SSRF) — rad.
+const contentPart = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("text"), text: z.string().max(40_000) }),
+  z.object({
+    type: z.literal("image_url"),
+    image_url: z.object({
+      url: z.string().max(12_000_000).regex(/^data:image\/(png|jpe?g|gif|webp|bmp);base64,/i),
+      detail: z.enum(["auto", "low", "high"]).optional(),
+    }),
+  }),
+]);
 const messageSchema = z.object({
   role: z.enum(["user", "assistant", "system", "tool"]),
-  content: z.union([z.string().max(40_000), z.array(z.any()).max(12), z.null()]).optional(),
+  content: z.union([z.string().max(40_000), z.array(contentPart).max(12), z.null()]).optional(),
   tool_call_id: z.string().max(200).optional(),
   tool_calls: z.array(z.any()).max(8).optional(),
   name: z.string().max(100).optional(),
@@ -93,6 +105,33 @@ const schema = z.object({
   // OmniRoute orqali shu model sinaladi, keyin odatdagi zaxira zanjiri.
   model: z.string().max(120).regex(/^[\w./:-]+$/).optional(),
 }).strict();
+
+/**
+ * Oylik token hisobiga yozish (0035 record_token_usage_for — faqat service_role).
+ * Provayder `usage` bersa — aniq son, aks holda taxmin (~4 belgi = 1 token; so'rov
+ * tanasi base64 rasmlarni ham o'z ichiga oladi, shuning uchun 200k belgida cheklanadi).
+ */
+async function recordCliUsage(
+  userId: string,
+  model: string,
+  usage: { prompt_tokens?: number; completion_tokens?: number } | undefined,
+  requestChars: number,
+  message: unknown,
+): Promise<void> {
+  const input = Number(usage?.prompt_tokens) || Math.round(Math.min(requestChars, 200_000) / 4);
+  const output = Number(usage?.completion_tokens) || Math.round(JSON.stringify(message ?? "").length / 4);
+  try {
+    const { error } = await createServiceClient().rpc("record_token_usage_for", {
+      p_user: userId,
+      p_input_tokens: input,
+      p_output_tokens: output,
+      p_model: model,
+    });
+    if (error) console.error("[cli/chat] record_token_usage_for:", error.message);
+  } catch (e) {
+    console.error("[cli/chat] record_token_usage_for:", e instanceof Error ? e.message : e);
+  }
+}
 
 function bearer(req: Request): string | null {
   const h = req.headers.get("authorization") ?? "";
@@ -172,6 +211,26 @@ export async function POST(req: Request) {
 
   const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
 
+  // Oylik token limiti — veb chat bilan bir xil (profiles.tokens_used_month, 0015).
+  // Servis kaliti/ustun bo'lmasa — tekshiruv o'tkazib yuboriladi (kunlik limit baribir bor).
+  try {
+    const { data: usage } = await createServiceClient()
+      .from("profiles")
+      .select("tokens_used_month, tokens_month_start")
+      .eq("id", userId)
+      .maybeSingle();
+    const u = usage as { tokens_used_month?: number | string | null; tokens_month_start?: string | null } | null;
+    const monthStart = new Date();
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
+    const used = u?.tokens_month_start && new Date(u.tokens_month_start) >= monthStart ? Number(u.tokens_used_month ?? 0) || 0 : 0;
+    if (used >= plan.limits.tokensPerMonth) {
+      return Response.json({ error: fmt(t("secMonthlyTokenLimit"), { plan: plan.name }) }, { status: 429 });
+    }
+  } catch (e) {
+    console.error("[cli/chat] token usage:", e instanceof Error ? e.message : e);
+  }
+
   // Katalogdan tanlangan aniq model — faqat Pro+ tarifda. "auto/*" kombolari
   // (tekin yo'naltirish) hammaga ochiq. Ruxsat yo'q bo'lsa tanlov e'tiborsiz.
   const reqModel = parsed.data.model;
@@ -247,8 +306,12 @@ export async function POST(req: Request) {
     }
 
     if (res.ok) {
-      const data = (await res.json()) as { choices?: { message?: unknown }[] };
+      const data = (await res.json()) as {
+        choices?: { message?: unknown }[];
+        usage?: { prompt_tokens?: number; completion_tokens?: number };
+      };
       const message = data.choices?.[0]?.message ?? { role: "assistant", content: "" };
+      await recordCliUsage(userId, cand.model, data.usage, raw.length, message);
       return Response.json({ message, plan: planId, model: cand.model, provider: cand.provider });
     }
 

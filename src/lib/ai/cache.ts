@@ -24,6 +24,20 @@ interface CacheHit {
 const MIN_QUERY_LEN = 12;
 const MAX_QUERY_LEN = 500;
 
+/**
+ * Kesh interfeys tili bo'yicha ajratiladi: javob tili so'rov tiliga bog'liq, boshqa
+ * tilda keshlangan javob qaytmasin. Til `model` ustunida "@lang" qo'shimchasi sifatida
+ * saqlanadi (migratsiyasiz); qo'shimchasiz eski yozuvlar mos kelmaydi (24 soatda eskiradi).
+ */
+const LANG_SEP = "@lang:";
+function withLang(model: string, lang: string): string {
+  return `${model}${LANG_SEP}${lang}`;
+}
+function splitLang(stored: string): { model: string; lang: string | null } {
+  const i = stored.lastIndexOf(LANG_SEP);
+  return i < 0 ? { model: stored, lang: null } : { model: stored.slice(0, i), lang: stored.slice(i + LANG_SEP.length) };
+}
+
 function hashOf(q: string): string {
   return createHash("sha256").update(q.trim().toLowerCase()).digest("hex").slice(0, 16);
 }
@@ -42,6 +56,7 @@ function tooShortOrLong(q: string): boolean {
 export async function lookupSemanticCache(
   supabase: SupabaseClient,
   query: string,
+  lang: string,
 ): Promise<CacheHit | null> {
   if (tooShortOrLong(query) || isPersonal(query)) return null;
   try {
@@ -53,7 +68,11 @@ export async function lookupSemanticCache(
       p_min_similarity: 0.92,
     });
     if (error || !Array.isArray(data) || data.length === 0) return null;
-    const hit = data[0] as CacheHit;
+    const raw = data[0] as CacheHit;
+    const tagged = splitLang(raw.model);
+    // Boshqa tilda (yoki tilsiz eski) keshlangan javob — miss.
+    if (tagged.lang !== lang) return null;
+    const hit: CacheHit = { ...raw, model: tagged.model };
     // Analytics: hit counter'ni oshirish (fire & forget).
     supabase.rpc("answer_cache_touch", { p_id: hit.id }).then(() => {}, () => {});
     return hit;
@@ -68,6 +87,7 @@ export async function saveSemanticCache(
   query: string,
   answer: string,
   model: string,
+  lang: string,
 ): Promise<void> {
   if (tooShortOrLong(query) || isPersonal(query)) return;
   if (!answer || answer.length < 60 || answer.length > 8000) return;
@@ -78,7 +98,7 @@ export async function saveSemanticCache(
       p_query_hash: hashOf(query),
       p_query: query.slice(0, MAX_QUERY_LEN),
       p_answer: answer,
-      p_model: model,
+      p_model: withLang(model, lang),
       p_embedding: emb,
     });
   } catch {

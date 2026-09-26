@@ -1,4 +1,4 @@
-import { createAnonClient } from "@/lib/supabase/anon";
+import { createServiceClient } from "@/lib/supabase/service";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
 
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   if (!code || code.length > 128) return Response.json({ error: (await getServerT())("p7cCliCodeRequired") }, { status: 400 });
 
   try {
-    const supabase = createAnonClient();
+    const supabase = createServiceClient(); // 0035: faqat service_role — IP limitini chetlab bo'lmaydi
     const { data, error } = await supabase.rpc("cli_poll", { p_code: code });
     if (error) {
       console.error("[cli/poll]", error.message);

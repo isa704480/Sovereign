@@ -15,7 +15,7 @@ import { EASE } from "@/lib/motion";
 import { useT } from "@/store/chat";
 import { OAuthButtons } from "./OAuthButtons";
 import { PasswordInput } from "./PasswordInput";
-import { FieldError, FormAlert, SubmitButton, inputClass } from "./form-primitives";
+import { FieldError, FormAlert, SubmitButton, actionFailed, inputClass } from "./form-primitives";
 
 /** Landing'dagi tarif tugmasi: /register?plan=pro&period=year — Dashboard o'qiydi. */
 const PENDING_PLAN_KEY = "sov-pending-plan";
@@ -49,10 +49,15 @@ export function RegisterForm() {
   function onSubmit(values: RegisterInput) {
     setServerError(null);
     startTransition(async () => {
-      const res = await signUpWithEmail(values);
-      if (!res) return; // redirected
-      if (!res.ok) setServerError(res.error);
-      else if (res.status === "confirm-email") setSentTo(values.email);
+      // Tarmoq uzilsa server action reject bo'ladi — Next xato ekrani o'rniga forma ichida xabar.
+      try {
+        const res = await signUpWithEmail(values);
+        if (!res) return; // redirected
+        if (!res.ok) setServerError(res.error);
+        else if (res.status === "confirm-email") setSentTo(values.email);
+      } catch (e) {
+        setServerError(actionFailed(e, "signUp"));
+      }
     });
   }
 

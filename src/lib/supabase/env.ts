@@ -19,5 +19,14 @@ export function cookieDomainFor(hostname: string | null | undefined): string | u
   return host === base || host.endsWith(`.${base}`) ? `.${base}` : undefined;
 }
 
+/**
+ * Sessiya cookie parametrlari: umumiy domen (bo'lsa) + Secure (production/https).
+ * httpOnly=false qoladi — brauzer Supabase klienti cookie'ni o'qiydi. maxAge'ni
+ * @supabase/ssr o'zi belgilaydi.
+ */
+export function sessionCookieOptions(domain: string | undefined, secure: boolean): { domain?: string; secure: boolean } {
+  return { ...(domain ? { domain } : {}), secure };
+}
+
 export const SUPABASE_MISSING_MESSAGE =
   "Supabase sozlanmagan: .env.local ichida NEXT_PUBLIC_SUPABASE_URL va NEXT_PUBLIC_SUPABASE_ANON_KEY ni to'ldiring (docs/SETUP.md).";

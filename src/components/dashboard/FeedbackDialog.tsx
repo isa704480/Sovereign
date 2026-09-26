@@ -25,13 +25,24 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   const [error, setError] = useState<string | null>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  // Yuborilgandan keyingi avto-yopish taymeri — qo'lda yopilsa bekor qilinadi, aks holda
+  // qayta ochilgan (yangi) dialogni ham yopib yuborardi.
+  const autoCloseRef = useRef<number | null>(null);
+  const cancelAutoClose = useCallback(() => {
+    if (autoCloseRef.current !== null) {
+      window.clearTimeout(autoCloseRef.current);
+      autoCloseRef.current = null;
+    }
+  }, []);
+  useEffect(() => cancelAutoClose, [cancelAutoClose]);
 
   // Yopilganda holat tozalanadi — keyingi ochilishda forma yangidan boshlanadi.
   const close = useCallback(() => {
+    cancelAutoClose();
     setState("idle");
     setError(null);
     onClose();
-  }, [onClose]);
+  }, [onClose, cancelAutoClose]);
 
   // Esc, fokusni qaytarish va sarlavha bog'lanishi — umumiy hook; bu yerda faqat matn maydoniga fokus.
   const { panelRef, titleId, dialogProps } = useDialogA11y(open, close);
@@ -59,7 +70,8 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
       if (!res.ok || !data.ok) throw new Error(data.error || t("fbFailed"));
       setState("sent");
       setText("");
-      window.setTimeout(close, 1400);
+      cancelAutoClose();
+      autoCloseRef.current = window.setTimeout(close, 1400);
     } catch (e) {
       setState("idle");
       setError(e instanceof Error && e.message ? e.message : t("fbFailed"));

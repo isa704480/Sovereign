@@ -121,6 +121,10 @@ const uz = {
   "update.state.available": "Yangi versiya mavjud: {v}", "update.state.latest": "Sizda eng so‘nggi versiya.", "update.state.downloading": "Yuklanmoqda… {p}%",
   "update.state.ready": "{v} yuklab olindi — qayta ishga tushirishda o‘rnatiladi.", "update.state.no-release": "Hali chiqarilgan reliz yo‘q.", "update.state.offline": "Internet yo‘q — keyinroq tekshiring.",
   "update.state.error": "Tekshirib bo‘lmadi.",
+  "updCard.available": "Yangilanish mavjud — v{v}", "updCard.installHint": "Bosing: yuklab olinadi, o‘rnatiladi va ilova qayta ochiladi",
+  "updCard.macHint": "Bosing: yangi versiyani saytdan yuklab oling", "updCard.downloadingHint": "Tayyor bo‘lgach ilova qayta ishga tushadi",
+  "updCard.progress": "Yangilanishni yuklab olish jarayoni", "updCard.ready": "Yangilanish tayyor — v{v}", "updCard.readyHint": "Bosing: o‘rnatib, qayta ishga tushirish",
+  "updCard.failed": "Yangilanish yuklab olinmadi", "updCard.retryHint": "Bosing: qayta urinish",
   "about.smartscreen": "Ilova hozircha raqamli imzosiz. Windows SmartScreen «Windows protected your PC» desa: «More info» → «Run anyway».",
   "about.website": "Veb-sayt", "about.docs": "Hujjatlar", "about.status": "Holat sahifasi", "about.releases": "Relizlar",
 
@@ -258,6 +262,10 @@ const en = {
   "update.state.available": "New version available: {v}", "update.state.latest": "You’re on the latest version.", "update.state.downloading": "Downloading… {p}%",
   "update.state.ready": "{v} downloaded — installs on restart.", "update.state.no-release": "No release published yet.", "update.state.offline": "No internet — try again later.",
   "update.state.error": "Couldn’t check.",
+  "updCard.available": "Update available — v{v}", "updCard.installHint": "Click to download, install and restart the app",
+  "updCard.macHint": "Click to download the new version from the website", "updCard.downloadingHint": "The app restarts once it’s ready",
+  "updCard.progress": "Update download progress", "updCard.ready": "Update ready — v{v}", "updCard.readyHint": "Click to install and restart",
+  "updCard.failed": "Update download failed", "updCard.retryHint": "Click to try again",
   "about.smartscreen": "The app isn’t code-signed yet. If Windows SmartScreen says “Windows protected your PC”, click “More info” → “Run anyway”.",
   "about.website": "Website", "about.docs": "Docs", "about.status": "Status", "about.releases": "Releases",
   "onb.progress": "Step {n} of {total}", "onb.step.welcome": "Welcome", "onb.step.account": "Account", "onb.step.folder": "Folder", "onb.step.safety": "Safety",
@@ -394,6 +402,10 @@ const ru = {
   "update.state.available": "Доступна новая версия: {v}", "update.state.latest": "У вас последняя версия.", "update.state.downloading": "Загрузка… {p}%",
   "update.state.ready": "Версия {v} загружена — установится при перезапуске.", "update.state.no-release": "Релизов пока нет.", "update.state.offline": "Нет интернета — попробуйте позже.",
   "update.state.error": "Не удалось проверить.",
+  "updCard.available": "Доступно обновление — v{v}", "updCard.installHint": "Нажмите: скачается, установится и приложение перезапустится",
+  "updCard.macHint": "Нажмите, чтобы скачать новую версию с сайта", "updCard.downloadingHint": "Когда всё будет готово, приложение перезапустится",
+  "updCard.progress": "Загрузка обновления", "updCard.ready": "Обновление готово — v{v}", "updCard.readyHint": "Нажмите, чтобы установить и перезапустить",
+  "updCard.failed": "Не удалось загрузить обновление", "updCard.retryHint": "Нажмите, чтобы повторить",
   "about.smartscreen": "Приложение пока без цифровой подписи. Если SmartScreen пишет «Windows protected your PC», нажмите «More info» → «Run anyway».",
   "about.website": "Сайт", "about.docs": "Документация", "about.status": "Статус", "about.releases": "Релизы",
   "onb.progress": "Шаг {n} из {total}", "onb.step.welcome": "Начало", "onb.step.account": "Аккаунт", "onb.step.folder": "Папка", "onb.step.safety": "Безопасность",
@@ -440,6 +452,9 @@ const ru = {
  * опция), inglizcha iqtiboslar (SmartScreen). Bu yerda yo'q kalit — translit fallback.
  */
 const uzCyrl = {
+  // Versiya belgisi "v1.2.3" lotinda qoladi (translit uni "в" ga aylantirardi).
+  "updCard.available": "Янгиланиш мавжуд — v{v}",
+  "updCard.ready": "Янгиланиш тайёр — v{v}",
   "boot.errorDesc": "Ички кўприк (preload) юкланмади. Иловани қайта ишга туширинг.",
   "account.sharedWithCli": "Терминалдаги sovereign CLI билан бир хил кириш.",
   "account.offline": "Офлайн режим — кириш ўчирилган.",

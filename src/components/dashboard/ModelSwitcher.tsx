@@ -45,6 +45,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
   const isOmniValue = value !== AUTO_MODEL_ID && value.includes("/") && !MODEL_BY_ID[value];
   const model = value === AUTO_MODEL_ID ? AUTO_MODEL : isOmniValue ? themeModel : resolveModel(value);
   const [open, setOpen] = useState(false);
+  const focusOnOpen = useRef(false);
 
   // OmniRoute katalog (1700+ model) — Cursor uslubi: oila → ichida modellar.
   const [q, setQ] = useState("");
@@ -60,7 +61,8 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
   const catalogLocked = !planAllowsTier(plan, "pro");
   // Tanlangan katalog modelining nomi (ro'yxatdan kelgan label) — tugmada id o'rniga.
   const [pickedLabel, setPickedLabel] = useState<{ id: string; label: string } | null>(null);
-  const valueLabel = pickedLabel?.id === value ? pickedLabel.label : prettyModelId(value);
+  // Tekin ✦ tavsiya nomlari joriy tilda har renderda hisoblanadi (reload/til almashsa ham tarjimali).
+  const valueLabel = featuredLabel(lang, value, pickedLabel?.id === value ? pickedLabel.label : prettyModelId(value));
   const choose = (id: string, label?: string) => {
     if (label) setPickedLabel({ id, label });
     onChange(id);
@@ -122,11 +124,29 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
 
   // Ctrl+K (Dashboard) shu hodisani yuboradi — menyu ochiladi.
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = () => {
+      focusOnOpen.current = true;
+      setOpen(true);
+    };
     window.addEventListener("sovereign:open-model", onOpen);
     return () => window.removeEventListener("sovereign:open-model", onOpen);
   }, []);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Ctrl+K bilan ochilganda fokus menyuga o'tadi (yozilgan matn chat maydoniga ketmasin).
+  // Sichqoncha/teginish bilan ochilganda mobil klaviatura o'z-o'zidan chiqmasin.
+  useEffect(() => {
+    if (!open || !focusOnOpen.current) return;
+    focusOnOpen.current = false;
+    const id = window.setTimeout(() => {
+      const target = searchRef.current ?? popRef.current?.querySelector<HTMLElement>("button");
+      target?.focus();
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -138,6 +158,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
       // Dashboard'ning global Esc (oqimni to'xtatish) ishlamasin — Esc faqat menyuni yopadi.
       e.preventDefault();
       setOpen(false);
+      triggerRef.current?.focus();
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -150,6 +171,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
@@ -190,6 +212,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
             transition={{ duration: 0.18, ease: EASE }}
             className="tt absolute left-0 z-40 mt-2 max-h-[min(480px,calc(100svh-96px))] w-[min(340px,calc(100vw-24px))] overflow-y-auto border p-2 shadow-lg"
             style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", borderRadius: 16 }}
+            ref={popRef}
             role="dialog"
             aria-label={t("selectModel")}
           >
@@ -259,11 +282,12 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                 <div className="relative mb-1 px-1">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2" style={{ color: "var(--t-text-muted)" }} />
                   <input
+                    ref={searchRef}
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     placeholder={t("chSearchModels")}
                     aria-label={t("chSearchModels")}
-                    className="w-full rounded-lg border bg-transparent py-1.5 pl-8 pr-2 text-xs outline-none"
+                    className="w-full rounded-lg border bg-transparent py-1.5 pl-8 pr-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-xs"
                     style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                   />
                 </div>

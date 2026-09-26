@@ -72,8 +72,15 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
     if (!token) return;
     setBusy(spec.id);
     setError((e) => ({ ...e, [spec.id]: "" }));
-    const res = await connectToken({ connectorId: spec.id, token });
-    setBusy(null);
+    let res: Awaited<ReturnType<typeof connectToken>>;
+    try {
+      res = await connectToken({ connectorId: spec.id, token });
+    } catch {
+      // Tarmoq uzildi — tugma abadiy "band" holatida qolmasin.
+      res = { ok: false, error: t("chConnectionError") };
+    } finally {
+      setBusy(null);
+    }
     if (!res.ok) {
       setError((e) => ({ ...e, [spec.id]: res.error }));
       return;
@@ -82,14 +89,44 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
     setDraft((d) => ({ ...d, [spec.id]: "" }));
   }
 
-  async function toggle(spec: ConnectorSpec, on: boolean) {
-    setStates((s) => ({ ...s, [spec.id]: { ...stateOf(spec.id), enabled: on, connected: spec.auth === "builtin" ? on : stateOf(spec.id).connected } }));
-    await setConnectorEnabled({ connectorId: spec.id, enabled: on });
+  /** Optimistik o'zgarish serverda saqlanmasa — oldingi holatga qaytaramiz va xatoni ko'rsatamiz. */
+  async function commit(spec: ConnectorSpec, next: ConnectorState, action: () => Promise<{ ok: boolean; error?: string }>) {
+    const prev = stateOf(spec.id);
+    setStates((s) => ({ ...s, [spec.id]: next }));
+    setError((e) => ({ ...e, [spec.id]: "" }));
+    const res = await action().catch(() => ({ ok: false, error: t("chConnectionError") }));
+    if (!res.ok) {
+      setStates((s) => ({ ...s, [spec.id]: prev }));
+      setError((e) => ({ ...e, [spec.id]: res.error || t("chUnknownError") }));
+    }
   }
 
-  async function disconnect(spec: ConnectorSpec) {
-    setStates((s) => ({ ...s, [spec.id]: { connectorId: spec.id, enabled: false, connected: false } }));
-    await disconnectConnector(spec.id);
+  function toggle(spec: ConnectorSpec, on: boolean) {
+    const cur = stateOf(spec.id);
+    void commit(spec, { ...cur, enabled: on, connected: spec.auth === "builtin" ? on : cur.connected }, () =>
+      setConnectorEnabled({ connectorId: spec.id, enabled: on }),
+    );
+  }
+
+  function disconnect(spec: ConnectorSpec) {
+    void commit(spec, { connectorId: spec.id, enabled: false, connected: false }, () => disconnectConnector(spec.id));
+  }
+
+  async function linkGoogle(spec: ConnectorSpec) {
+    setBusy(spec.id);
+    setError((e) => ({ ...e, [spec.id]: "" }));
+    try {
+      // Muvaffaqiyatda server Google'ga yo'naltiradi; bu yerga faqat xato qaytadi.
+      const res = await connectGoogle(spec.id);
+      if (res && !res.ok) setError((e) => ({ ...e, [spec.id]: res.error }));
+    } catch (err) {
+      // redirect() — Next o'zi yo'naltiradi; boshqa xatolar esa tarmoq uzilishi.
+      if (!(err instanceof Error && /NEXT_REDIRECT/.test(err.message))) {
+        setError((e) => ({ ...e, [spec.id]: t("chConnectionError") }));
+      }
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -110,7 +147,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[88vh] w-full max-w-xl flex-col rounded-3xl border shadow-lg outline-none"
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-xl flex-col rounded-3xl border shadow-lg outline-none md:max-h-[88vh]"
             style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
@@ -118,7 +155,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                 <Plug className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
                 <h2 id={titleId} className="font-display text-lg font-bold">{t("pnConnectorsTitle")}</h2>
               </div>
-              <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                 <X className="size-5" />
               </button>
             </div>
@@ -144,6 +181,13 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                           const isBuiltin = spec.auth === "builtin";
                           const isTokenish = spec.auth === "token" || spec.auth === "mcp";
                           const tx = connectorText(lang, spec);
+                          // config'dagi inglizcha tokenLabel o'rniga tarjima qilingan matn.
+                          const tokenHint =
+                            spec.auth === "mcp"
+                              ? t("p7cMcpServerUrl")
+                              : spec.tokenLabel
+                                ? fmt(t("p8bPersonalToken"), { name: tx.name })
+                                : t("pnToken");
                           return (
                             <div key={spec.id} className="rounded-2xl border p-3.5" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))", background: "color-mix(in srgb, var(--t-text, #fff) 3%, transparent)" }}>
                               <div className="flex items-start gap-3">
@@ -172,9 +216,9 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                       type={spec.auth === "mcp" ? "text" : "password"}
                                       value={draft[spec.id] ?? ""}
                                       onChange={(e) => setDraft((d) => ({ ...d, [spec.id]: e.target.value }))}
-                                      placeholder={spec.auth === "mcp" ? t("p7cMcpServerUrl") : (spec.tokenLabel ?? t("pnToken"))}
-                                      aria-label={`${tx.name}: ${spec.auth === "mcp" ? t("p7cMcpServerUrl") : (spec.tokenLabel ?? t("pnToken"))}`}
-                                      className="min-w-0 flex-1 rounded-lg border bg-transparent px-2.5 py-1.5 text-xs outline-none"
+                                      placeholder={tokenHint}
+                                      aria-label={`${tx.name}: ${tokenHint}`}
+                                      className="min-w-0 flex-1 rounded-lg border bg-transparent px-2.5 py-1.5 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-xs"
                                       style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                                     />
                                     <button
@@ -187,7 +231,6 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                       {busy === spec.id ? <Loader2 className="size-3.5 animate-spin" /> : t("pnConnect")}
                                     </button>
                                   </div>
-                                  {error[spec.id] && <span className="text-[11px]" style={{ color: "#EB5A64" }}>{error[spec.id]}</span>}
                                   {spec.docsUrl && (
                                     <a href={spec.docsUrl} target="_blank" rel="noreferrer" className="text-[11px] underline" style={{ color: "var(--t-text-muted)" }}>
                                       {t("pnTokenWhere")}
@@ -208,10 +251,12 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                 <div className="mt-2 flex flex-col gap-1.5">
                                   <button
                                     type="button"
-                                    onClick={() => void connectGoogle(spec.id)}
-                                    className="self-start rounded-lg px-3 py-1.5 text-xs font-medium text-white"
+                                    onClick={() => void linkGoogle(spec)}
+                                    disabled={busy === spec.id}
+                                    className="inline-flex min-h-8 items-center gap-1.5 self-start rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
                                     style={{ background: "var(--t-primary, #5B50F0)" }}
                                   >
+                                    {busy === spec.id && <Loader2 className="size-3.5 animate-spin" />}
                                     {t("pnConnectGoogle")}
                                   </button>
                                   <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>
@@ -223,6 +268,12 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                 <button type="button" onClick={() => disconnect(spec)} className="mt-2 text-[11px] underline" style={{ color: "var(--t-text-muted)" }}>
                                   {t("pnDisconnect")}
                                 </button>
+                              )}
+                              {/* Ulash / uzish / yoqish xatosi — har qanday turdagi ulanish uchun */}
+                              {error[spec.id] && (
+                                <p role="alert" className="mt-1.5 text-[11px]" style={{ color: "#EB5A64" }}>
+                                  {error[spec.id]}
+                                </p>
                               )}
                             </div>
                           );

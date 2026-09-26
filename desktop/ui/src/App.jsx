@@ -58,6 +58,11 @@ export default function App() {
   const [input, setInput] = useState("");
   const [dark, setDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true);
   const composerRef = useRef(null);
+  // Sidebar kartasidan bosilgan yuklash: tayyor bo'lgach avtomatik o'rnatib qayta ishga tushiriladi
+  // (agent ishlayotgan bo'lsa — yo'q; karta "qayta ishga tushirish" tugmasini ko'rsatadi).
+  const installWhenReady = useRef(false);
+  const busyRef = useRef(false);
+  busyRef.current = agent.busy;
 
   const lang = settings?.lang || detectLang();
   const t = useMemo(() => makeT(lang), [lang]);
@@ -105,7 +110,14 @@ export default function App() {
         if (ev.state === "approved") S().state().then(setInfo);
         return;
       }
-      if (ev.type === "update") { setUpdate(ev); return; }
+      if (ev.type === "update") {
+        setUpdate(ev);
+        if (ev.state === "ready" && installWhenReady.current) {
+          installWhenReady.current = false;
+          if (!busyRef.current) S().updates.install();
+        }
+        return;
+      }
       dispatch({ type: "event", ev });
       if (ev.type === "tool-done" && (ev.name === "write_file" || ev.name === "make_dir") && ev.status === "ok") refreshTree();
     });
@@ -240,6 +252,16 @@ export default function App() {
     if (what === "check") setUpdate(await S().updates.check());
     else if (what === "download") setUpdate(await S().updates.download());
     else if (what === "install") S().updates.install();
+    else if (what === "download-install") {
+      // Sidebar kartasi: yuklab olish → tayyor bo'lganda o'rnatib, qayta ishga tushirish.
+      installWhenReady.current = true;
+      const st = await S().updates.download();
+      setUpdate(st);
+      if (st?.state === "ready" && installWhenReady.current) {
+        installWhenReady.current = false;
+        if (!busyRef.current) S().updates.install();
+      }
+    } else if (what === "open-download") S().openLink("download"); // macOS: sayt orqali
   };
 
   const openFile = async (node) => {
@@ -372,6 +394,7 @@ export default function App() {
               tab={sideTab} setTab={setSideTab} info={info} history={history} activeTaskId={activeTaskId} tree={tree} treeError={treeError}
               onOpenTask={openTask} onRemoveTask={removeTask} onNewTask={newTask} onPick={pickFolder} onReveal={reveal} onRefresh={refreshTree}
               onOpenFile={openFile} changedSet={changedSet} onSettings={() => setSettingsOpen("general")} onAccount={() => setSettingsOpen("account")} busy={agent.busy}
+              update={update} onUpdateAction={updateAction}
             />
           )}
           <main className="main-col"aria-label={t("chat.label")}>

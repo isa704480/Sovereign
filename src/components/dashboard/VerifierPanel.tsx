@@ -2,7 +2,8 @@
 
 import { AlertTriangle, ChevronDown, ShieldAlert, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { useState } from "react";
-import { useT, type VerifierIssue } from "@/store/chat";
+import { useLang, useT, type VerifierIssue } from "@/store/chat";
+import { plural } from "@/lib/plural";
 import { fmt, type TKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +103,7 @@ const VERDICT_META = {
  */
 export function VerifierPanel({ issues: all }: VerifierPanelProps) {
   const t = useT();
+  const lang = useLang();
   // Amal/iqtibos yozuvlari ClaimsWarning'da — bu panel faqat fakt baholarini ko'rsatadi.
   const issues = all.filter(isFactIssue);
   const suspicious = issues.filter((i) => i.verdict === "suspicious");
@@ -114,8 +116,8 @@ export function VerifierPanel({ issues: all }: VerifierPanelProps) {
   const allConfirmed = !suspicious.length && !unconfirmed.length;
 
   const summary = suspicious.length
-    ? `${suspicious.length} ${t("suspiciousFacts")}`
-    : `${issues.length} ${t("claimsChecked")}${unconfirmed.length ? ` · ${unconfirmed.length} ${t("vfUnconfirmed")}` : ""}`;
+    ? plural(lang, suspicious.length, { one: "p8bSuspiciousOne", few: "p8bSuspiciousFew", many: "p8bSuspiciousMany" })
+    : `${plural(lang, issues.length, { one: "p8bClaimsOne", few: "p8bClaimsFew", many: "p8bClaimsMany" })}${unconfirmed.length ? ` · ${unconfirmed.length} ${t("vfUnconfirmed")}` : ""}`;
 
   // Yashil faqat hamma da'vo MANBAGA nisbatan tasdiqlanganda.
   const badgeColor = suspicious.length ? "#f59e0b" : allConfirmed && grounded ? "#22c55e" : "#94a3b8";

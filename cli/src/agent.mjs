@@ -88,14 +88,59 @@ function forServer(messages) {
   if (rest.length <= HISTORY_MAX) return messages;
   let tail = rest.slice(-HISTORY_MAX);
   const firstUser = tail.findIndex((m) => m.role === "user");
-  if (firstUser > 0) tail = tail.slice(firstUser);
+  if (firstUser > 0) {
+    tail = tail.slice(firstUser);
+  } else if (firstUser === -1) {
+    // Bitta uzun navbat (ko'p tool): kesmada user xabari yo'q. Asl vazifa (oxirgi user
+    // xabari) saqlanadi, kesma esa birinchi assistant'dan boshlanadi — egasiz `tool`
+    // xabari provayderda 400 bermasin.
+    const lastUser = [...rest].reverse().find((m) => m.role === "user");
+    tail = rest.slice(-(HISTORY_MAX - 1));
+    const start = tail.findIndex((m) => m.role === "assistant");
+    tail = start === -1 ? [] : tail.slice(start);
+    if (lastUser) tail = [lastUser, ...tail];
+  }
   return [...system, ...tail];
+}
+
+const RETRY_429_MAX = 2;
+const RETRY_WAIT_MAX_MS = 30_000;
+
+/** Kutish — AbortSignal bilan to'xtatiladi. */
+function sleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    const t = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/**
+ * fetch + 429 (daqiqalik so'rov chegarasi) bo'lsa Retry-After (yoki 5/10 s) kutib
+ * 1-2 marta qayta urinish — /swarm va uzun agent navbati yarmida to'xtab qolmasin.
+ */
+async function fetchRetry429(url, init, signal) {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, init);
+    if (res.status !== 429 || attempt >= RETRY_429_MAX) return res;
+    const ra = Number(res.headers.get("retry-after"));
+    const wait = Math.min(RETRY_WAIT_MAX_MS, Number.isFinite(ra) && ra > 0 ? ra * 1000 : 5000 * (attempt + 1));
+    await res.body?.cancel().catch(() => {});
+    await sleep(wait, signal);
+  }
 }
 
 /** One model round. Returns the assistant message + parsed tool calls. Streams text via onText. */
 async function runRound(messages, config, onText, signal) {
   if (config.token) {
-    const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
+    const res = await fetchRetry429(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
       body: JSON.stringify({
@@ -104,7 +149,7 @@ async function runRound(messages, config, onText, signal) {
         ...(config.omniModel ? { model: config.omniModel } : {}),
       }),
       signal,
-    });
+    }, signal);
     if (!res.ok) {
       let m = `${res.status}`;
       try {
@@ -354,7 +399,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14, sign
 /** Bitta javob — vositalarsiz, oqimsiz. Parallel rejim uchun. */
 async function askOnce(messages, config, maxTokens = 900) {
   if (config.token) {
-    const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
+    const res = await fetchRetry429(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
       body: JSON.stringify({ messages: forServer(messages) }),

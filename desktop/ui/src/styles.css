@@ -232,6 +232,15 @@ code.inline { font: 12px var(--mono); color: var(--accent-soft); background: var
 .task-title { font-size: 12.5px; }
 .task-del { opacity: 0; margin-right: 4px; }
 .task:hover .task-del, .task-del:focus-visible { opacity: 1; }
+.update-card { display: flex; align-items: flex-start; gap: 10px; margin: 6px 8px; padding: 9px 10px; border-radius: var(--r); text-align: left; border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); background: var(--accent-bg); color: var(--text); }
+.update-card > svg { flex: none; margin-top: 2px; }
+button.update-card:hover { border-color: var(--accent-soft); filter: brightness(1.06); }
+.update-card.ok { border-color: color-mix(in srgb, var(--ok) 45%, transparent); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.update-card.err { border-color: color-mix(in srgb, var(--err) 45%, transparent); background: color-mix(in srgb, var(--err) 10%, transparent); color: var(--text); }
+.update-card.err > svg { color: var(--err); }
+.update-card.busy { cursor: default; }
+.update-bar { display: block; height: 4px; margin: 6px 0 4px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.update-bar > span { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s ease; }
 .side-foot { display: flex; align-items: center; gap: 4px; padding: 8px 8px; border-top: 1px solid var(--border); }
 .account { flex: 1; min-width: 0; display: flex; align-items: center; gap: 9px; padding: 5px 6px; border-radius: 8px; text-align: left; }
 .account:hover { background: var(--surface-2); }

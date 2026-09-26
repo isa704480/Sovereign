@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { LangSwitcher } from "@/components/docs/LangSwitcher";
+import { LangSwitcher } from "@/components/LangSwitcher";
 import { fmt, type TKey } from "@/lib/i18n";
 import {
   isHealthSnapshot,
@@ -168,7 +168,7 @@ export function StatusBoard({ initial }: { initial: HealthSnapshot | null }) {
             </span>
           </a>
           <div className="flex items-center gap-2">
-            <LangSwitcher className="h-[34px] border-white/10 text-[#9BA3CC] hover:border-[#5B50F0]/60 focus-visible:outline-[#5B50F0]" />
+            <LangSwitcher className="h-[34px] shrink-0 cursor-pointer border-white/10 px-1.5 text-[#9BA3CC] hover:border-[#5B50F0]/60 focus-visible:outline-[#5B50F0]" />
             <button
               type="button"
               onClick={() => void load()}

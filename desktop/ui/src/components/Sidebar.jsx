@@ -48,7 +48,55 @@ function TaskList({ history, activeId, onOpen, onRemove, busy }) {
   );
 }
 
-export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree, treeError, onOpenTask, onRemoveTask, onNewTask, onPick, onReveal, onRefresh, onOpenFile, changedSet, onSettings, onAccount, busy }) {
+/**
+ * "Yangilanish mavjud" kartasi — akkaunt kartasi ustida. Faqat haqiqiy yangilanish
+ * bo'lganda ko'rinadi (available / downloading / ready / yuklash xatosi); eng so'nggi
+ * versiya, offline yoki tekshirilmagan holatda — yo'q. macOS'da (imzosiz dmg avtomatik
+ * yangilanmaydi) bosish saytdagi yuklab olish bo'limini ochadi.
+ */
+function UpdateCard({ update, platform, onAction }) {
+  const t = useT();
+  const s = update?.state;
+  const v = update?.version ?? "";
+  const mac = platform === "darwin" || !!update?.manual;
+  const downloadFailed = (s === "error" || s === "offline") && update?.phase === "download";
+  if (s !== "available" && s !== "downloading" && s !== "ready" && !downloadFailed) return null;
+
+  if (s === "downloading") {
+    const p = Math.max(0, Math.min(100, Number(update?.percent) || 0));
+    return (
+      <div className="update-card busy" role="status">
+        <Icon name="download" size={16} className="accent" />
+        <span className="grow" style={{ minWidth: 0 }}>
+          <span className="trunc block strong small">{t("update.state.downloading", { p })}</span>
+          <span className="update-bar" role="progressbar" aria-label={t("updCard.progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={p}>
+            <span style={{ width: `${p}%` }} />
+          </span>
+          <span className="block faint small">{t("updCard.downloadingHint")}</span>
+        </span>
+      </div>
+    );
+  }
+
+  const view = downloadFailed
+    ? { tone: "err", icon: "alert", title: t("updCard.failed"), hint: t("updCard.retryHint"), action: "download-install" }
+    : s === "ready"
+      ? { tone: "ok", icon: "refresh", title: t("updCard.ready", { v }), hint: t("updCard.readyHint"), action: "install" }
+      : mac
+        ? { tone: "", icon: "external", title: t("updCard.available", { v }), hint: t("updCard.macHint"), action: "open-download" }
+        : { tone: "", icon: "download", title: t("updCard.available", { v }), hint: t("updCard.installHint"), action: "download-install" };
+  return (
+    <button type="button" className={`update-card ${view.tone}`} onClick={() => onAction(view.action)}>
+      <Icon name={view.icon} size={16} className={view.tone === "err" ? "" : "accent"} />
+      <span className="grow" style={{ minWidth: 0 }}>
+        <span className="trunc block strong small">{view.title}</span>
+        <span className="block faint small">{view.hint}</span>
+      </span>
+    </button>
+  );
+}
+
+export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree, treeError, onOpenTask, onRemoveTask, onNewTask, onPick, onReveal, onRefresh, onOpenFile, changedSet, onSettings, onAccount, busy, update, onUpdateAction }) {
   const t = useT();
   const folderName = info.cwd ? info.cwd.split(/[\\/]/).filter(Boolean).pop() : null;
   const initials = info.authed ? (info.email || "SC").replace(/@.*/, "").slice(0, 2).toUpperCase() : "";
@@ -105,6 +153,8 @@ export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree
           <FileTree nodes={tree} onOpen={onOpenFile} changed={changedSet} />
         )}
       </div>
+
+      {onUpdateAction && <UpdateCard update={update} platform={info.platform} onAction={onUpdateAction} />}
 
       <div className="side-foot">
         <button type="button" className="account" onClick={onAccount} title={t("settings.account")}>

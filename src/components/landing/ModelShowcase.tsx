@@ -40,7 +40,9 @@ function ModelCard({ model }: { model: SovereignModel }) {
     <motion.div
       onMouseMove={onMove}
       onMouseLeave={onLeave}
-      style={{ rotateX: srx, rotateY: sry, transformPerspective: 900 }}
+      // --card-accent shu kartaning o'zida (inline) — avvalgi global `.group:hover` <style>
+      // qoidasi oxirgi kartaning (Mistral) rangini hamma kartalarga yoyardi.
+      style={{ rotateX: srx, rotateY: sry, transformPerspective: 900, ["--card-accent" as string]: `${model.primary}66` }}
       className="group relative h-full overflow-hidden rounded-2xl border border-border p-5 transition-colors duration-300 hover:border-[color:var(--card-accent)]"
     >
       <div
@@ -48,7 +50,6 @@ function ModelCard({ model }: { model: SovereignModel }) {
         style={{ background: `linear-gradient(160deg, ${model.bg} 0%, #0D1033 100%)` }}
       />
       <motion.div className="pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ background: glow }} />
-      <style>{`.group:hover{--card-accent:${model.primary}66}`}</style>
 
       <div className="flex items-start justify-between">
         <span

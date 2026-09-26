@@ -1048,7 +1048,8 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
   if (isOmniCatalogId(opts.modelId)) {
     const route = omniCatalogRoute(opts.modelId);
     if (!route) {
-      yield { type: "error", message: translate(opts.lang ?? DEFAULT_LANG, "chErrOmniNotConfigured") };
+      console.error("[ai] OmniRoute katalog modeli: OMNIROUTE_* env sozlanmagan");
+      yield { type: "error", message: translate(opts.lang ?? DEFAULT_LANG, "chErrServerConfig") };
       return;
     }
     const smodel = syntheticOmniModel(opts.modelId);

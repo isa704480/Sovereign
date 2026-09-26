@@ -5,27 +5,37 @@ import { AnimatePresence, motion, useMotionValueEvent, useScroll } from "motion/
 import { Menu, MessageSquare, X } from "lucide-react";
 import { useState } from "react";
 import { Logo } from "@/components/brand/Logo";
+import { LangSwitcher } from "@/components/LangSwitcher";
 import { Button } from "@/components/ui/button";
-import { LANGS, type Lang } from "@/lib/i18n";
+import { LANGS } from "@/lib/i18n";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useChat, useT } from "@/store/chat";
 import { DOCS_URL } from "./company";
+import { useSignedIn } from "./use-signed-in";
 
+// "/#…" — Navbar huquqiy/yangiliklar sahifalarida ham chiziladi: nisbiy "#pricing"
+// u yerda /terms#pricing bo'lib o'lik havola bo'lardi. Landing'ning o'zida bu oddiy scroll.
 const NAV = [
-  { href: "#how", key: "p4dNavHow" },
-  { href: "#download", key: "dlNav" },
-  { href: "#features", key: "navFeatures" },
-  { href: "#pricing", key: "navPricing" },
-  { href: "#roadmap", key: "p4dNavRoadmap" },
-  { href: "#about", key: "p4dNavAbout" },
+  { href: "/#how", key: "p4dNavHow" },
+  { href: "/#download", key: "dlNav" },
+  { href: "/#features", key: "navFeatures" },
+  { href: "/#pricing", key: "navPricing" },
+  { href: "/#roadmap", key: "p4dNavRoadmap" },
+  { href: "/#about", key: "p4dNavAbout" },
   { href: DOCS_URL, key: "p4dNavDocs" },
 ] as const;
 
-export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
+/**
+ * signedIn — server bilgan holat (ixtiyoriy). Sahifalar statik bo'lgani uchun asosiy manba
+ * brauzerdagi sessiya cookie'si (useSignedIn): huquqiy sahifalarda ham kirgan foydalanuvchi
+ * "Kirish / Bepul boshlash" o'rniga "Chatga qaytish"ni ko'radi.
+ */
+export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean }) {
   const t = useT();
   const lang = useChat((s) => s.lang);
   const setLang = useChat((s) => s.setLang);
+  const signedIn = useSignedIn() || signedInProp;
   const { scrollY } = useScroll();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -71,19 +81,9 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
         </nav>
 
         <div className="hidden items-center gap-2 lg:flex">
-          {/* Til tanlash — brauzerda saqlanadi, chat ham shu tilda javob beradi. */}
-          <select
-            value={lang}
-            onChange={(e) => setLang(e.target.value as Lang)}
-            aria-label={t("language")}
-            className="h-9 rounded-lg border border-border bg-transparent px-2 text-sm text-text-secondary outline-none focus-visible:outline-2 focus-visible:outline-primary-soft"
-          >
-            {LANGS.map((l) => (
-              <option key={l.id} value={l.id} className="bg-bg-base">
-                {l.short}
-              </option>
-            ))}
-          </select>
+          {/* Til tanlash — brauzerda saqlanadi, chat ham shu tilda javob beradi.
+              Umumiy komponent: fokus halqasi (focus-visible) bilan. */}
+          <LangSwitcher />
           {signedIn ? (
             <Button asChild className="h-9 rounded-xl bg-primary px-4 text-white shadow-glow hover:bg-primary-dark">
               <Link href="/app">
@@ -144,6 +144,7 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
                   onClick={() => setLang(l.id)}
                   aria-pressed={lang === l.id}
                   aria-label={l.label}
+                  lang={l.htmlLang}
                   className={cn(
                     "rounded-full border px-3 py-1 text-xs",
                     lang === l.id ? "border-primary text-primary-soft" : "border-border text-text-muted",

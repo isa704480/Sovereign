@@ -34,6 +34,7 @@ import { mt } from "./electron/i18n.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ID = "app.sovereign.cowork";
+const UPDATE_CHECK_EVERY_MS = 4 * 60 * 60 * 1000; // avtomatik yangilanish tekshiruvi oralig'i
 
 installOfflineGuard();
 // Test/smoke uchun alohida profil — faqat offline rejimda (oddiy foydalanuvchiga ta'sir qilmaydi).
@@ -326,7 +327,9 @@ function uiArgs(args) {
 
 async function agentTurn(messages, config, turn, maxSteps = 14) {
   const confirm = confirmFor(turn);
-  const tracker = createTurnTracker((name, args) => runTool(name, args, confirm));
+  // signal: "To'xtatish" / yangi vazifa / papka almashtirish ishlayotgan buyruqni ham
+  // (butun jarayon daraxti bilan) to'xtatadi — 120 s kutib qolmaydi.
+  const tracker = createTurnTracker((name, args) => runTool(name, args, confirm, { signal: turn.controller.signal }));
   for (let step = 0; step < maxSteps; step++) {
     if (turn.aborted) return "stopped";
     let round;
@@ -508,6 +511,8 @@ const LINKS = {
   docs: "https://docs.soveregn.xyz",
   status: "https://status.soveregn.xyz",
   releases: "https://github.com/isa704480/Sovereign/releases",
+  // macOS (imzosiz dmg avtomatik yangilanmaydi) — yangi versiya saytdan yuklanadi.
+  download: "https://soveregn.xyz/#download",
 };
 handle("app:open-link", async (_e, key) => {
   const url = LINKS[key];
@@ -997,7 +1002,15 @@ if (!app.requestSingleInstanceLock()) {
     // Updater doim tayyor (qo'lda tekshirish uchun); avtomatik tekshiruv — sozlamaga bog'liq.
     initUpdater({ enabled: !OFFLINE, onEvent: (ev) => send("update", ev) });
     createWindow();
-    if (!OFFLINE && loadSettings().autoUpdate && app.isPackaged) setTimeout(() => checkForUpdates(), 8000);
+    // Jim tekshiruv: ishga tushgach 8 s va keyin har ~4 soatda (sozlama har safar qayta o'qiladi).
+    // Natija sidebar'dagi "Yangilanish" kartasi va status-bar orqali ko'rinadi.
+    if (!OFFLINE && app.isPackaged) {
+      const autoCheck = () => {
+        if (loadSettings().autoUpdate) checkForUpdates().catch(() => {});
+      };
+      setTimeout(autoCheck, 8000);
+      setInterval(autoCheck, UPDATE_CHECK_EVERY_MS).unref?.();
+    }
   });
 }
 

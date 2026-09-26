@@ -359,10 +359,10 @@ export const CHAT = {
   },
   chErrPerplexity: { uz: "Perplexity xatosi", "uz-cyrl": "Perplexity хатоси", ru: "Ошибка Perplexity", en: "Perplexity error" },
   chErrOmniNotConfigured: {
-    uz: "OmniRoute ulanmagan (server env sozlanmagan).",
-    "uz-cyrl": "OmniRoute уланмаган (сервер env созланмаган).",
-    ru: "OmniRoute не подключён (не настроены переменные окружения сервера).",
-    en: "OmniRoute isn't connected (server env not configured).",
+    uz: "Bu model hozircha mavjud emas. Boshqa modelni tanlang.",
+    "uz-cyrl": "Бу модел ҳозирча мавжуд эмас. Бошқа моделни танланг.",
+    ru: "Эта модель сейчас недоступна. Выберите другую модель.",
+    en: "This model isn't available right now. Please pick another model.",
   },
   chErrUnknownModelId: { uz: "Noma'lum model: {id}", "uz-cyrl": "Номаълум модел: {id}", ru: "Неизвестная модель: {id}", en: "Unknown model: {id}" },
   chErrModelNotConnected: { uz: "{model} hozircha ulanmagan.", "uz-cyrl": "{model} ҳозирча уланмаган.", ru: "{model} пока не подключена.", en: "{model} isn't connected yet." },
@@ -370,10 +370,10 @@ export const CHAT = {
   // ---- To'lov (api/checkout) ----
   chBadPlan: { uz: "Noto'g'ri tarif", "uz-cyrl": "Нотўғри тариф", ru: "Некорректный тариф", en: "Invalid plan" },
   chZenoNotConfigured: {
-    uz: "To'lov hali sozlanmagan (ZENOBANK_API_KEY). Admin bilan bog'laning.",
-    "uz-cyrl": "Тўлов ҳали созланмаган (ZENOBANK_API_KEY). Админ билан боғланинг.",
-    ru: "Оплата ещё не настроена (ZENOBANK_API_KEY). Свяжитесь с администратором.",
-    en: "Payments aren't configured yet (ZENOBANK_API_KEY). Please contact the admin.",
+    uz: "Bu to'lov usuli hozircha mavjud emas. Boshqa usulni tanlang yoki qo'llab-quvvatlashga yozing.",
+    "uz-cyrl": "Бу тўлов усули ҳозирча мавжуд эмас. Бошқа усулни танланг ёки қўллаб-қувватлашга ёзинг.",
+    ru: "Этот способ оплаты сейчас недоступен. Выберите другой или напишите в поддержку.",
+    en: "This payment method isn't available right now. Please choose another one or contact support.",
   },
   chPaymentNotCreated: { uz: "To'lov yaratilmadi", "uz-cyrl": "Тўлов яратилмади", ru: "Не удалось создать платёж", en: "Payment could not be created" },
   chTooManyAttempts: {

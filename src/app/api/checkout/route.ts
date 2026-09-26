@@ -32,7 +32,8 @@ export async function POST(req: Request) {
 
   if (!isSupabaseConfigured()) return Response.json({ error: t("chSupabaseMissing") }, { status: 503 });
   if (!isZenoConfigured()) {
-    return Response.json({ error: t("chZenoNotConfigured") }, { status: 503 });
+    console.error("[checkout/zeno] ZENOBANK_API_KEY sozlanmagan");
+    return Response.json({ error: t("p8aPayMethodUnavailable") }, { status: 503 });
   }
 
   const supabase = await createClient();

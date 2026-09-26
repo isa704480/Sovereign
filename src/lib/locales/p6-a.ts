@@ -9,12 +9,6 @@ export const P6A = {
     ru: "SOVEREIGN на вашем компьютере",
     en: "SOVEREIGN on your computer",
   },
-  dlSub: {
-    uz: "Kundalik ish uchun desktop ilova yoki to'g'ridan-to'g'ri terminalda sov CLI. Bepul — Windows, macOS va Linux uchun.",
-    "uz-cyrl": "Кундалик иш учун десктоп илова ёки тўғридан-тўғри терминалда sov CLI. Бепул — Windows, macOS ва Linux учун.",
-    ru: "Десктоп-приложение для ежедневной работы или CLI sov прямо в терминале. Бесплатно — для Windows, macOS и Linux.",
-    en: "A desktop app for everyday work, or the sov CLI right in your terminal. Free for Windows, macOS and Linux.",
-  },
   dlChoose: {
     uz: "Nimani o'rnatishni tanlang",
     "uz-cyrl": "Нимани ўрнатишни танланг",
@@ -23,14 +17,12 @@ export const P6A = {
   },
 
   // Tanlov kartalari
-  dlDesktopTitle: { uz: "Desktop ilova", "uz-cyrl": "Десктоп илова", ru: "Десктоп-приложение", en: "Desktop app" },
   dlDesktopDesc: {
     uz: "Alohida oynadagi AI koding hamkori — chat, fayllar va agentlar.",
     "uz-cyrl": "Алоҳида ойнадаги AI кодинг ҳамкори — чат, файллар ва агентлар.",
     ru: "AI-напарник для кода в отдельном окне — чат, файлы и агенты.",
     en: "An AI coding coworker in its own window — chat, files and agents.",
   },
-  dlCliTitle: { uz: "Buyruq qatori (CLI)", "uz-cyrl": "Буйруқ қатори (CLI)", ru: "Командная строка (CLI)", en: "Command line (CLI)" },
   dlCliDesc: {
     uz: "sov — terminaldagi AI koding agenti. Bitta buyruq bilan o'rnatiladi.",
     "uz-cyrl": "sov — терминалдаги AI кодинг агенти. Битта буйруқ билан ўрнатилади.",

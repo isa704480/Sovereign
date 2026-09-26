@@ -137,6 +137,7 @@ export function useSendMessage() {
     const state0 = useChat.getState();
     const { wire, tokenMap } = toWire(history.slice(-HISTORY_LIMIT), state0.blindPrompting, state0.lang);
     const hasMask = Object.keys(tokenMap).length > 0;
+    const instant = state0.streamingSpeed === "instant";
 
     try {
       await streamChat({
@@ -158,8 +159,11 @@ export function useSendMessage() {
           const s = useChat.getState();
           if (ev.type === "text") {
             text += ev.text;
-            const shown = hasMask ? applyTokenMap(text, tokenMap) : text;
-            s.updateMessage(conversationId, assistant.id, { content: shown });
+            // "Darhol" (instant) rejimi: javob bo'laklab emas, tugagach butunicha ko'rsatiladi.
+            if (!instant) {
+              const shown = hasMask ? applyTokenMap(text, tokenMap) : text;
+              s.updateMessage(conversationId, assistant.id, { content: shown });
+            }
           } else if (ev.type === "reasoning") {
             reasoning += ev.text;
             s.updateMessage(conversationId, assistant.id, { reasoning });
@@ -192,9 +196,11 @@ export function useSendMessage() {
           } else if (ev.type === "verifier") {
             s.updateMessage(conversationId, assistant.id, { verifier: ev.issues });
           } else if (ev.type === "error") {
-            if (ev.message.startsWith("[upgrade]")) {
-              failed = ev.message.replace("[upgrade]", "").trim();
-              window.dispatchEvent(new CustomEvent("sovereign:upgrade", { detail: { reason: failed } }));
+            // "[upgrade]" yoki "[upgrade:ultra]" — ikkinchisida server kerakli tarifni aytadi.
+            const up = /^\[upgrade(?::([a-z]+))?\]/.exec(ev.message);
+            if (up) {
+              failed = ev.message.slice(up[0].length).trim();
+              window.dispatchEvent(new CustomEvent("sovereign:upgrade", { detail: { reason: failed, plan: up[1] } }));
             } else {
               failed = ev.message;
             }

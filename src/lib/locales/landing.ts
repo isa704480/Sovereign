@@ -3,27 +3,8 @@ import type { Dict, L10n } from "@/lib/i18n";
 /** landing bo'limi tarjimalari (uz / uz-cyrl / ru / en). Kalitlar global DICT ga qo'shiladi. */
 export const LANDING = {
   // Hero
-  ldHeroBadge: {
-    uz: "1700+ model · bitta hisob · shifrlangan xotira",
-    "uz-cyrl": "1700+ модел · битта ҳисоб · шифрланган хотира",
-    ru: "1700+ моделей · один аккаунт · зашифрованная память",
-    en: "1700+ models · one account · encrypted memory",
-  },
   ldHeroTitle1: { uz: "Barcha AI.", "uz-cyrl": "Барча AI.", ru: "Все ИИ.", en: "Every AI." },
   ldHeroTitle2: { uz: "Bitta oyna.", "uz-cyrl": "Битта ойна.", ru: "Одно окно.", en: "One window." },
-  ldHeroSub: {
-    uz: "Claude, GPT, Gemini, DeepSeek — beshta ilovaga sakramang. Modelni bir zumda almashtiring; suhbat hech narsani unutmaydi. Xotira faqat sizda — shifrlangan.",
-    "uz-cyrl": "Claude, GPT, Gemini, DeepSeek — бешта иловага сакраманг. Моделни бир зумда алмаштиринг; суҳбат ҳеч нарсани унутмайди. Хотира фақат сизда — шифрланган.",
-    ru: "Claude, GPT, Gemini, DeepSeek — хватит прыгать между пятью приложениями. Меняйте модель мгновенно — разговор ничего не забывает. Память только у вас, в зашифрованном виде.",
-    en: "Claude, GPT, Gemini, DeepSeek — stop hopping between five apps. Switch models instantly; the conversation forgets nothing. Your memory stays yours — encrypted.",
-  },
-  ldHeroWhy: { uz: "Nega SOVEREIGN?", "uz-cyrl": "Нега SOVEREIGN?", ru: "Почему SOVEREIGN?", en: "Why SOVEREIGN?" },
-  ldHeroNoCard: {
-    uz: "Bank kartasi talab qilinmaydi",
-    "uz-cyrl": "Банк картаси талаб қилинмайди",
-    ru: "Банковская карта не нужна",
-    en: "No credit card required",
-  },
 
   // ModelCompare
   ldCompareEyebrow: { uz: "Bitta joyda", "uz-cyrl": "Битта жойда", ru: "В одном месте", en: "All in one place" },
@@ -184,7 +165,6 @@ export const LANDING = {
 
   // Footer
   ldFooterProduct: { uz: "Mahsulot", "uz-cyrl": "Маҳсулот", ru: "Продукт", en: "Product" },
-  ldFooterAccount: { uz: "Hisob", "uz-cyrl": "Ҳисоб", ru: "Аккаунт", en: "Account" },
   ldRegister: { uz: "Ro'yxatdan o'tish", "uz-cyrl": "Рўйхатдан ўтиш", ru: "Регистрация", en: "Sign up" },
   ldFooterLegal: { uz: "Huquqiy", "uz-cyrl": "Ҳуқуқий", ru: "Правовая информация", en: "Legal" },
   ldTerms: { uz: "Foydalanish shartlari", "uz-cyrl": "Фойдаланиш шартлари", ru: "Условия использования", en: "Terms of use" },
@@ -195,19 +175,13 @@ export const LANDING = {
     ru: "Политика конфиденциальности",
     en: "Privacy policy",
   },
-  ldCopyright: {
-    uz: "© 2026 FayzInc. Barcha huquqlar himoyalangan.",
-    "uz-cyrl": "© 2026 FayzInc. Барча ҳуқуқлар ҳимояланган.",
-    ru: "© 2026 FayzInc. Все права защищены.",
-    en: "© 2026 FayzInc. All rights reserved.",
-  },
 
   // Navbar
   ldMenuOpen: { uz: "Menyuni ochish", "uz-cyrl": "Менюни очиш", ru: "Открыть меню", en: "Open menu" },
   ldMenuClose: { uz: "Menyuni yopish", "uz-cyrl": "Менюни ёпиш", ru: "Закрыть меню", en: "Close menu" },
   ldMonthly: { uz: "Oylik", "uz-cyrl": "Ойлик", ru: "Помесячно", en: "Monthly" },
   ldYearly: { uz: "Yillik", "uz-cyrl": "Йиллик", ru: "Годовой", en: "Yearly" },
-  ldTwoMonthsFree: { uz: "2 oy bepul", "uz-cyrl": "2 ой бепул", ru: "2 месяца бесплатно", en: "2 months free" },
+  ldTwoMonthsFree: { uz: "2 oy bepul", "uz-cyrl": "2 ой бепул", ru: "2 мес. бесплатно", en: "2 months free" },
   ldPerYear: { uz: "yil", "uz-cyrl": "йил", ru: "год", en: "yr" },
   ldBilledYearly: {
     uz: "oyiga ${price} · yiliga bir marta to'lanadi",

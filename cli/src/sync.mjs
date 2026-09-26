@@ -47,16 +47,32 @@ export async function pushSettings(config, patch) {
  * Fon rejimidagi polling — server tarafida qilingan o'zgarishlar (web'dagi
  * skil toggle, tarif yangilanishi) CLI ga har 15 sekundda keladi.
  * onChange({ enabledSkills, planState, ... }) chaqiriladi faqat o'zgarish bo'lganda.
+ *
+ * `config` — obyekt yoki getter (`() => config`). Getter tavsiya etiladi: /logout
+ * va /login'dan keyin har tick JORIY token ishlatiladi (eski akkaunt tokeni tarmoqqa
+ * ketmaydi va uning sozlamalari yangi akkaunt konfiguratsiyasiga yozilmaydi).
  */
 export function startBackgroundSync(config, onChange, intervalMs = 15000) {
-  let last = {
-    skills: JSON.stringify(config.enabledSkills ?? []),
-    model: config.model,
-    planState: config.planState,
-  };
+  const current = typeof config === "function" ? config : () => config;
+  const snapshot = (cfg) => ({
+    skills: JSON.stringify(cfg?.enabledSkills ?? []),
+    model: cfg?.model,
+    planState: cfg?.planState,
+  });
+  const start = current();
+  let token = start?.token || "";
+  let last = snapshot(start);
   const tick = async () => {
-    const me = await fetchMe(config);
-    if (!me) return;
+    const cfg = current();
+    if (!cfg?.token) return; // chiqilgan — so'rov yuborilmaydi
+    if (cfg.token !== token) {
+      // Boshqa akkaunt: taqqoslash nuqtasi yo'q — server holati to'liq qo'llanadi.
+      token = cfg.token;
+      last = { skills: undefined, model: undefined, planState: undefined };
+    }
+    const me = await fetchMe(cfg);
+    // So'rov davomida chiqilgan/akkaunt almashgan bo'lsa — eski javob qo'llanmaydi.
+    if (!me || current()?.token !== cfg.token) return;
     const skillsStr = JSON.stringify(me.enabled_skills ?? []);
     const changed = {};
     if (skillsStr !== last.skills) {
