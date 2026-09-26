@@ -5,6 +5,7 @@ import { HERO_DEMO_MODELS, RESEARCH_MODEL_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
 import { useT } from "@/store/chat";
 import { CreditIndicator } from "./CreditIndicator";
+import { LangSwitcher } from "@/components/LangSwitcher";
 import { ModelSwitcher } from "./ModelSwitcher";
 import { useTheme } from "./theme-context";
 
@@ -111,6 +112,8 @@ export function ChatHeader({
             <PanelRight className="size-4" />
           </button>
         )}
+        {/* Til — har doim ko'rinadigan joyda (Sozlamalarga kirmasdan). */}
+        <LangSwitcher className="h-8 border-[var(--t-border)] text-xs text-[var(--t-text-muted)]" />
         <button
           type="button"
           onClick={onShare}
