@@ -788,4 +788,36 @@ export const P7B = {
     ru: "Память проекта (SOVEREIGN.md): просмотр, /project init — шаблон, /project-remember — добавить правило команды",
     en: "Project memory (SOVEREIGN.md): view it, /project init for a template, /project-remember to add a team rule",
   },
+
+  // ───────────── Docs: CLI — xavfsizlik tekshiruvi (sov audit) ─────────────
+  p7bDAuditTitle: {
+    uz: "Deploy'dan oldin xavfsizlik tekshiruvi",
+    "uz-cyrl": "Деплойдан олдин хавфсизлик текшируви",
+    ru: "Проверка безопасности перед деплоем",
+    en: "Pre-deploy security audit",
+  },
+  p7bDAuditIntro: {
+    uz: "`sov audit` loyihangizni **oflayn** tekshiradi — fayllar hech qayerga yuborilmaydi, AI ishlatilmaydi. AI yozgan ilovalardagi eng ko'p uchraydigan teshiklarni deploy'dan **oldin** topadi. Kalitlar hech qachon to'liq ko'rsatilmaydi: faqat birinchi 4 belgi + `***`.",
+    "uz-cyrl": "`sov audit` лойиҳангизни **офлайн** текширади — файллар ҳеч қаерга юборилмайди, AI ишлатилмайди. AI ёзган иловалардаги энг кўп учрайдиган тешикларни деплойдан **олдин** топади. Калитлар ҳеч қачон тўлиқ кўрсатилмайди: фақат биринчи 4 белги + `***`.",
+    ru: "`sov audit` проверяет проект **офлайн** — файлы никуда не отправляются, AI не используется. Он находит самые частые дыры в приложениях, написанных AI, **до** деплоя. Ключи никогда не показываются целиком: только первые 4 символа + `***`.",
+    en: "`sov audit` checks your project **offline** — no files leave your machine and no AI is involved. It catches the most common holes in AI-built apps **before** you deploy. Keys are never printed in full: only the first 4 characters + `***`.",
+  },
+  p7bDAuditChecks: {
+    uz: "Tekshiriladi: kodda ochiq kalitlar (AWS, Stripe `sk_live`, OpenAI, GitHub, Supabase `service_role`, maxfiy kalit fayllari); `.gitignore`'da bo'lmagan yoki git'ga tushgan `.env`; `NEXT_PUBLIC_` / `VITE_` / `EXPO_PUBLIC_` ichidagi sirlar; `\"use client\"` komponentlardagi server env va `service_role`; RLS'siz Supabase jadvallari va `using (true)` siyosatlari; ochiq Firebase qoidalari; CORS `*` + credentials; `eval`, `dangerouslySetInnerHTML` va `http://` API manzillari.",
+    "uz-cyrl": "Текширилади: кодда очиқ калитлар (AWS, Stripe `sk_live`, OpenAI, GitHub, Supabase `service_role`, махфий калит файллари); `.gitignore`'да бўлмаган ёки git'га тушган `.env`; `NEXT_PUBLIC_` / `VITE_` / `EXPO_PUBLIC_` ичидаги сирлар; `\"use client\"` компонентлардаги сервер env ва `service_role`; RLS'сиз Supabase жадваллари ва `using (true)` сиёсатлари; очиқ Firebase қоидалари; CORS `*` + `credentials`; `eval`, `dangerouslySetInnerHTML` ва `http://` API манзиллари.",
+    ru: "Проверяется: ключи в коде (AWS, Stripe `sk_live`, OpenAI, GitHub, Supabase `service_role`, файлы приватных ключей); `.env`, который не в `.gitignore` или уже попал в git; секреты в `NEXT_PUBLIC_` / `VITE_` / `EXPO_PUBLIC_`; серверные env и `service_role` в компонентах `\"use client\"`; таблицы Supabase без RLS и политики `using (true)`; открытые правила Firebase; CORS `*` + credentials; `eval`, `dangerouslySetInnerHTML` и API-адреса `http://`.",
+    en: "It checks: keys in code (AWS, Stripe `sk_live`, OpenAI, GitHub, Supabase `service_role`, private key files); `.env` files that are not gitignored or already committed; secrets in `NEXT_PUBLIC_` / `VITE_` / `EXPO_PUBLIC_` vars; server env and `service_role` in `\"use client\"` components; Supabase tables without RLS and `using (true)` policies; open Firebase rules; CORS `*` + credentials; `eval`, `dangerouslySetInnerHTML` and `http://` API URLs.",
+  },
+  p7bDAuditFix: {
+    uz: "Critical yoki high topilsa chiqish kodi `1` — CI'da deploy'ni to'xtatish uchun qulay. Interaktiv rejimda `/audit` yozing, keyin **tuzat** deb javob bering — hisobot agentga beriladi va u kodni tuzatadi. Cowork'da: `Ctrl+K` → «Xavfsizlik tekshiruvi» → «AI bilan tuzatish». Oshkor bo'lgan kalitlarni provayder panelida o'zingiz yangilang (rotate).",
+    "uz-cyrl": "`critical` ёки `high` топилса чиқиш коди `1` — CI'да деплойни тўхтатиш учун қулай. Интерактив режимда `/audit` ёзинг, кейин **тузат** деб жавоб беринг — ҳисобот агентга берилади ва у кодни тузатади. Cowork'да: `Ctrl+K` → «Хавфсизлик текшируви» → «AI билан тузатиш». Ошкор бўлган калитларни провайдер панелида ўзингиз янгиланг.",
+    ru: "Если найдено critical или high, код выхода `1` — удобно, чтобы остановить деплой в CI. В интерактивном режиме введите `/audit`, затем ответьте **tuzat** (исправь) — отчёт передаётся агенту, и он исправляет код. В Cowork: `Ctrl+K` → «Проверка безопасности» → «Исправить с AI». Скомпрометированные ключи перевыпустите сами в панели провайдера.",
+    en: "Exit code is `1` when anything critical or high is found — handy for failing a CI deploy. In interactive mode type `/audit`, then reply **tuzat** (fix) — the report goes to the agent and it fixes the code. In Cowork: `Ctrl+K` → “Security audit” → “Fix with AI”. Rotate any leaked keys yourself in the provider dashboard.",
+  },
+  p7bDCmdAudit: {
+    uz: "Xavfsizlik tekshiruvi (kalitlar, RLS, .env, CORS) — keyin «tuzat» deb AI'ga tuzattiring",
+    "uz-cyrl": "Хавфсизлик текшируви (калитлар, RLS, .env, CORS) — кейин «тузат» деб AI'га тузаттиринг",
+    ru: "Проверка безопасности (ключи, RLS, .env, CORS) — затем «tuzat», чтобы AI исправил",
+    en: "Security audit (keys, RLS, .env, CORS) — then reply “tuzat” to let the AI fix it",
+  },
 } satisfies Dict;

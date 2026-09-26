@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import readline from "node:readline";
 import { format } from "node:util";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { dirname as pathDirname, resolve as pathResolve, sep as pathSep } from "node:path";
 import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
@@ -20,6 +20,7 @@ import { countTurns, listSessions, loadSession, rewind, saveSession } from "../s
 import { EXIT, SUBCOMMANDS, parseArgs } from "../src/args.mjs";
 import { VERSION, IS_BINARY } from "../src/version.mjs";
 import { runDoctor, printDoctor } from "../src/doctor.mjs";
+import { runAudit, formatAudit, auditPrompt } from "../src/audit.mjs";
 import { renderDiff } from "../src/diff.mjs";
 import { loadHistory, saveHistory, HISTORY_SIZE } from "../src/history.mjs";
 
@@ -239,6 +240,11 @@ const COMMAND_HELP = {
     "Loyiha xotirasi: joriy papkada SOVEREIGN.md yaratadi (loyiha haqida, stek, buyruqlar, qoidalar, \"tegma\" ro'yxati, eslatmalar). Agent (CLI va Cowork) uni har suhbat boshida o'qiydi — git'ga commit qiling, jamoa bilan ulashiladi. --ai: agent loyihani o'rganib faylni o'zi to'ldiradi (yozishdan oldin tasdiq so'raladi).",
     ["sov init", "sov init --ai"],
   ],
+  audit: [
+    "sov audit [papka] [--json]",
+    "Deploy'dan oldingi xavfsizlik tekshiruvi (offline): oshkor kalitlar (AWS, Stripe, OpenAI, service_role...), .env va .gitignore, NEXT_PUBLIC_/VITE_ ichidagi sirlar, RLS'siz Supabase jadvallari va `using (true)` siyosatlari, Firebase qoidalari, CORS `*` + credentials, eval, dangerouslySetInnerHTML, http:// API. Sirlar faqat 4 belgi + *** ko'rinishida chiqadi. critical/high topilsa chiqish kodi 1. Interaktiv rejimda /audit — AI bilan tuzatish taklifi bilan.",
+    ["sov audit", "sov audit ./my-app", "sov audit --json > audit.json"],
+  ],
   models: ["sov models", "Mahalliy model ro'yxati (interaktiv rejimda /model — to'liq katalog).", []],
   sessions: ["sov sessions [--json]", "Saqlangan suhbatlar. Davom ettirish: interaktiv rejimda /resume <id>.", []],
   key: ["sov key <sk-or-...>", "O'z OpenRouter kalitingizni saqlash (akkauntsiz rejim).", ["sov key sk-or-v1-..."]],
@@ -272,6 +278,7 @@ function handleHelp(topic) {
       `    ${w("whoami")}                   ulanish holati`,
       `    ${w("doctor")}                   diagnostika va yechim ko'rsatmalari`,
       `    ${w("init")} [--ai]              SOVEREIGN.md — jamoa uchun loyiha xotirasi (--ai: agent to'ldiradi)`,
+      `    ${w("audit")} [papka]            deploy'dan oldin xavfsizlik tekshiruvi (kalitlar, RLS, .env, CORS)`,
       `    ${w("models")}                   modellar ro'yxati`,
       `    ${w("sessions")}                 saqlangan suhbatlar`,
       `    ${w("key")} <sk-or-...>          o'z OpenRouter kalitingiz`,
@@ -281,7 +288,7 @@ function handleHelp(topic) {
       "",
       `  ${w("Flaglar:")}`,
       `    -p, --print              interaktivsiz: javobni stdout'ga chiqarib chiqadi`,
-      `        --json               -p / doctor / whoami bilan — JSON natija`,
+      `        --json               -p / doctor / audit / whoami bilan — JSON natija`,
       `    -f, --file <yo'l>        fayl biriktirish (rasm/PDF/matn; takrorlash mumkin)`,
       `    -m, --model <id>         shu ish uchun model (saqlanmaydi)`,
       `    -y, --yes                ish papkasi ichidagi oddiy amallarni avtomatik tasdiqlash`,
@@ -303,6 +310,7 @@ function handleHelp(topic) {
       `    sov "shu dizaynga HTML yoz" -f mockup.png`,
       `    sov doctor`,
       `    sov init --ai`,
+      `    sov audit                  ${c.dim("# deploy'dan oldin: oshkor kalit, RLS, .env tekshiruvi")}`,
       "",
       `  ${w("Interaktiv rejimda:")} / — buyruqlar menyusi, /help, @fayl — biriktirish, ↑/↓ — tarix,`,
       `    Ctrl+C — joriy ishni bekor qilish, ikki marta — chiqish.`,
@@ -516,6 +524,7 @@ async function repl() {
   let messages = initialMessages(config);
   let sessionId = null; // birinchi javobdan keyin yaratiladi
   const pending = []; // paths queued via /attach for the next user message
+  let pendingAudit = null; // /audit hisoboti — keyingi xabarga agent konteksti sifatida qo'shiladi
   const enabledSkills = new Set(config.enabledSkills || ["ui-ux-pro-max", "clean-code"]);
 
   // Server bilan sinxronlash — akkaunt rejimida
@@ -713,6 +722,7 @@ async function repl() {
     if (input === "/clear") {
       messages = initialMessages(config);
       sessionId = null; // yangi suhbat — yangi sessiya fayli
+      pendingAudit = null;
       say(c.dim("Suhbat tozalandi."));
       rewritePrompt();
       continue;
@@ -729,6 +739,24 @@ async function repl() {
       const results = await runDoctor();
       spin.stop();
       printDoctor(results);
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Xavfsizlik tekshiruvi (deploy'dan oldin) ──
+    if (input === "/audit") {
+      const spin = spinner("xavfsizlik tekshirilyapti...");
+      const res = await runAudit(process.cwd());
+      spin.stop();
+      console.log(formatAudit(res, c).replace(/^ {2}/gm, G));
+      if (res.findings.length) {
+        pendingAudit = auditPrompt(res, "uz");
+        say(`${c.accent("◆")} Tuzatish uchun: ${c.white("'audit natijasidagi muammolarni tuzat'")} deb yozing ${c.dim("(yoki qisqa: tuzat)")}`);
+        say(c.dim("  Hisobot keyingi xabaringizga agent konteksti sifatida qo'shiladi."));
+      } else {
+        pendingAudit = null;
+      }
+      console.log("");
       rewritePrompt();
       continue;
     }
@@ -1158,6 +1186,13 @@ async function repl() {
       continue;
     }
 
+    // ── /audit hisoboti — keyingi xabarga kontekst sifatida (bir marta) ──
+    if (pendingAudit) {
+      if (/^(tuzat|tuzating|fix)[.!]*$/i.test(input)) input = "Audit natijasidagi muammolarni tuzat.";
+      input = `${input}\n\n[XAVFSIZLIK TEKSHIRUVI — /audit natijasi]\n${pendingAudit}\n[/XAVFSIZLIK TEKSHIRUVI]`;
+      pendingAudit = null;
+    }
+
     // ── Oddiy xabar → agentga uzatish ──
     // "@fayl" eslatmalari — matndagi mavjud yo'llar avtomatik biriktiriladi.
     const mentions = collectMentions(input);
@@ -1382,6 +1417,32 @@ async function handleDoctor() {
   return fails ? EXIT.ERROR : EXIT.OK;
 }
 
+/** sov audit [papka] [--json] — critical/high topilsa chiqish kodi 1. */
+async function handleAudit(dir) {
+  const root = pathResolve(dir || process.cwd());
+  let st = null;
+  try {
+    st = statSync(root);
+  } catch {
+    st = null;
+  }
+  if (!st?.isDirectory()) {
+    process.stderr.write(`sov: papka topilmadi: ${root}\n`);
+    return EXIT.USAGE;
+  }
+  const spin = flags.json ? null : spinner("xavfsizlik tekshirilyapti...");
+  const res = await runAudit(root);
+  spin?.stop();
+  if (flags.json) {
+    const { findings, counts, ok, scanned, files, truncated, durationMs } = res;
+    console.log(JSON.stringify({ ok, version: VERSION, root, counts, scanned, files, truncated, durationMs, findings }, null, 2));
+  } else {
+    console.log(formatAudit(res, c));
+    if (res.findings.length) console.log(`  ${c.dim("AI bilan tuzatish: sov, keyin /audit va")} ${c.white("tuzat")}\n`);
+  }
+  return res.ok ? EXIT.OK : EXIT.ERROR;
+}
+
 function handleSessions() {
   const list = listSessions();
   if (flags.json) {
@@ -1467,6 +1528,8 @@ async function main() {
       return handleDoctor();
     case "init":
       return handleInit();
+    case "audit":
+      return handleAudit(restArgs[0]);
     case "sessions":
       return handleSessions();
     default:

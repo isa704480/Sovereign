@@ -35,6 +35,7 @@ import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mj
 import { SnapshotStore, withCommandSnapshots } from "../cli/src/snapshot.mjs";
 import * as projectMemory from "../cli/src/project-memory.mjs";
 import { registerProjectIpc } from "./electron/project.mjs";
+import { runAudit, auditPrompt, AUDIT_LANGS } from "../cli/src/audit.mjs";
 
 import { OFFLINE, netAllowed, installOfflineGuard } from "./electron/net.mjs";
 import { loadSettings, updateFromRenderer, updateInternal, rememberFolder, isDir } from "./electron/settings.mjs";
@@ -886,6 +887,19 @@ handle("fs:read", async (_e, path) => {
     return content.length > 400_000 ? { content: content.slice(0, 400_000), truncated: true } : { content };
   } catch (e) {
     return fsError(e);
+  }
+});
+
+// Xavfsizlik tekshiruvi (sov audit) — ish papkasini faqat O'QIYDI; sirlar qisqartirilgan
+// (4 belgi + ***). AI topshirig'i 4 tilda tayyorlanadi, renderer UI tiliga mosini oladi.
+handle("audit:run", async () => {
+  if (!workspace) return { error: "no-folder" };
+  if (!isDir(workspace)) return { error: "missing" };
+  try {
+    const r = await runAudit(workspace);
+    return { ...r, prompts: Object.fromEntries(AUDIT_LANGS.map((l) => [l, auditPrompt(r, l)])) };
+  } catch (e) {
+    return { error: "io", detail: typeof e?.code === "string" ? e.code : "" };
   }
 });
 

@@ -8,6 +8,7 @@ import ConfirmDialog from "./components/ConfirmDialog.jsx";
 import CommandPalette, { ShortcutsHelp } from "./components/CommandPalette.jsx";
 import Settings from "./components/Settings.jsx";
 import Onboarding from "./components/Onboarding.jsx";
+import AuditDialog from "./components/AuditDialog.jsx";
 import Modal from "./components/Modal.jsx";
 import Icon, { Logo } from "./components/Icon.jsx";
 import { applyEvent, replayEvents, addChange, initialAgent } from "./lib/agent.js";
@@ -50,6 +51,7 @@ export default function App() {
   const [panelTab, setPanelTab] = useState("changes");
   const [palette, setPalette] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(null);
   const [viewer, setViewer] = useState(null);
   const [auth, setAuth] = useState({ state: "idle" });
@@ -295,7 +297,14 @@ export default function App() {
   };
 
   // ---- Commands + hotkeys ----
-  const anyModal = !!(palette || shortcuts || settingsOpen || viewer || agent.confirm);
+  const anyModal = !!(palette || shortcuts || settingsOpen || viewer || auditOpen || agent.confirm);
+  // Audit → "AI bilan tuzatish": tayyor topshiriq Kod rejimidagi composer'ga qo'yiladi (yuborilmaydi).
+  const fixWithAi = (prompt) => {
+    setAuditOpen(false);
+    setMode("code");
+    setInput(prompt);
+    setTimeout(() => composerRef.current?.focus(), 30);
+  };
   const commands = useMemo(() => {
     if (!settings) return [];
     const g = { task: t("palette.gTask"), view: t("palette.gView"), app: t("palette.gApp") };
@@ -304,6 +313,7 @@ export default function App() {
       { id: "open", label: t("sc.open"), icon: "folder", hint: "Ctrl O", group: g.task, run: pickFolder },
       ...(info?.recent ?? []).filter((r) => r !== info?.cwd).slice(0, 5).map((r) => ({ id: `recent-${r}`, label: `${t("folder.recentOpen")}: ${r.split(/[\\/]/).filter(Boolean).pop()}`, keywords: r, icon: "history", group: g.task, run: () => openRecent(r) })),
       ...(info?.cwd ? [{ id: "reveal", label: t("files.reveal"), icon: "external", group: g.task, run: reveal }] : []),
+      ...(info?.cwd ? [{ id: "audit", label: t("audit.title"), keywords: `${t("audit.keywords")} audit security rls env cors`, icon: "shield", group: g.task, run: () => setAuditOpen(true) }] : []),
       { id: "mode", label: mode === "code" ? t("palette.toChat") : t("palette.toCode"), icon: mode === "code" ? "chat" : "code", hint: "Ctrl E", group: g.task, run: () => setMode((m) => (m === "code" ? "chat" : "code")) },
       ...(agent.busy ? [{ id: "stop", label: t("sc.stop"), icon: "stop", hint: "Ctrl .", group: g.task, run: stop }] : []),
       { id: "sidebar", label: t("sc.sidebar"), icon: "sidebar", hint: "Ctrl B", group: g.view, run: toggleSidebar },
@@ -439,6 +449,14 @@ export default function App() {
         </div>
         <StatusBar info={info} mode={mode} model={info.model} busy={agent.busy} onShortcuts={() => setShortcuts(true)} update={update} onUpdate={() => setSettingsOpen("about")} />
 
+        {auditOpen && (
+          <AuditDialog
+            lang={lang}
+            onClose={() => setAuditOpen(false)}
+            onFix={fixWithAi}
+            onOpenFile={(rel) => { setAuditOpen(false); openFile({ path: rel, name: rel.split("/").pop() }); }}
+          />
+        )}
         {viewer && (
           <Modal title={<span className="mono">{viewer.name}</span>} onClose={() => setViewer(null)} width={920} className="viewer">
             {viewer.error ? (

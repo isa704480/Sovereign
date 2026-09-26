@@ -53,6 +53,7 @@ export const SLASH_COMMANDS = [
 
   { cmd: "/cwd",      desc: "Ish papkasini o'zgartirish" },
   { cmd: "/doctor",   desc: "Diagnostika — Node, config, server, login" },
+  { cmd: "/audit",    desc: "Xavfsizlik tekshiruvi — kalitlar, RLS, .env, CORS (deploy'dan oldin)" },
   { cmd: "/version",  desc: "CLI versiyasi" },
   { cmd: "/exit",     desc: "Chiqish (yoki Ctrl+C ikki marta)" },
 ];

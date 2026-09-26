@@ -8,7 +8,7 @@ export const EXIT = Object.freeze({
   INTERRUPTED: 130, // Ctrl+C
 });
 
-export const SUBCOMMANDS = ["login", "logout", "whoami", "who", "doctor", "init", "models", "sessions", "key", "config", "version", "help"];
+export const SUBCOMMANDS = ["login", "logout", "whoami", "who", "doctor", "init", "audit", "models", "sessions", "key", "config", "version", "help"];
 
 /** Qiymat talab qiladigan flaglar. */
 const VALUE_FLAGS = {

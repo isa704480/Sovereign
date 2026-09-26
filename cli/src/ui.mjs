@@ -254,7 +254,7 @@ export function slashMenu(items) {
     { label: "Xotira",   cmds: ["/memory", "/remember", "/forget"] },
     { label: "Loyiha",   cmds: ["/project", "/project-remember"] },
     { label: "Akkaunt",  cmds: ["/whoami", "/login", "/logout", "/register", "/upgrade"] },
-    { label: "Tizim",    cmds: ["/cwd", "/doctor", "/version", "/exit"] },
+    { label: "Tizim",    cmds: ["/cwd", "/doctor", "/audit", "/version", "/exit"] },
   ];
   // Guruhga kiritilmagan buyruq ham menyuda ko'rinsin (ro'yxat bilan sinxron qoladi).
   const grouped = new Set(groups.flatMap((g) => g.cmds));

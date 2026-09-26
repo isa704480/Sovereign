@@ -542,3 +542,34 @@ button.folder-pick:hover { border-color: var(--accent-soft); }
 .auto-btn.on { color: var(--warn); background: var(--warn-bg); border-color: color-mix(in srgb, var(--warn) 45%, transparent); font-weight: 600; }
 .step-auto { display: inline-flex; color: var(--warn); }
 .step-note { padding: 2px 10px 6px 34px; color: var(--warn); }
+
+/* ---- Xavfsizlik tekshiruvi (AuditDialog) ---- */
+.audit .modal-foot { justify-content: flex-end; }
+.audit .modal-body { display: flex; flex-direction: column; gap: 10px; }
+.audit .ok { color: var(--ok); }
+.audit-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 0; text-align: center; }
+.audit-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.audit-chip b { color: var(--text); font-weight: 600; }
+.audit-chip.on { border-color: var(--border-strong); color: var(--text); }
+.audit-chip:disabled { opacity: 0.5; cursor: default; }
+.sev-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.sev-dot.sev-critical { background: var(--err); }
+.sev-dot.sev-high { background: var(--warn); }
+.sev-dot.sev-medium { background: var(--accent-soft); }
+.audit-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.audit-item { border: 1px solid var(--border); border-left: 3px solid var(--faint); border-radius: var(--r); padding: 9px 12px; background: var(--surface-2); }
+.audit-item.sev-critical { border-left-color: var(--err); }
+.audit-item.sev-high { border-left-color: var(--warn); }
+.audit-item.sev-medium { border-left-color: var(--accent-soft); }
+.audit-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sev-badge { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; color: var(--text-2); background: var(--border); }
+.sev-badge.sev-critical { color: var(--err); background: var(--err-bg); }
+.sev-badge.sev-high { color: var(--warn); background: var(--warn-bg); }
+.sev-badge.sev-medium { color: var(--accent-soft); background: var(--accent-bg); }
+.audit-file { background: none; border: 0; padding: 0; color: var(--text); font-size: 12.5px; cursor: pointer; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; overflow-wrap: anywhere; text-align: left; }
+.audit-file:hover { color: var(--accent-soft); }
+.audit-file:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.audit-rule { margin-left: auto; }
+.audit-msg { margin: 6px 0 2px; color: var(--text); font-size: 13px; }
+.audit-fix { margin: 0; display: flex; gap: 4px; align-items: flex-start; }
+.audit-fix > svg { flex: none; margin-top: 3px; }
