@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertPublicUrl, safeFetch } from "@/lib/ai/web-read";
+import type { ActionEffect, ActionRecord } from "@/lib/ai/claims";
 
 /**
  * Connector tool-calling. Javobdan OLDIN ishlaydi: model ulangan connectorlardan
@@ -426,6 +427,32 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
   }
 }
 
+/**
+ * Tool nimani o'zgartirishga urinadi (javobdagi "yaratdim/qo'shdim" da'volarini
+ * tekshirish uchun — claims.ts). O'qish toollari — bo'sh. MCP tooli nima
+ * qilishini bilmaymiz — "any" (muvaffaqiyatli bo'lsa har qanday da'voni qoplaydi).
+ */
+function effectsOf(name: string, args: Record<string, unknown>): ActionEffect[] {
+  if (name === "gsheets_create") {
+    const withRows = Array.isArray(args.rows) && args.rows.length > 0;
+    return withRows
+      ? [{ verb: "create", object: "sheet" }, { verb: "add", object: "row" }]
+      : [{ verb: "create", object: "sheet" }];
+  }
+  if (name === "gsheets_append") return [{ verb: "add", object: "row" }];
+  if (name === "gslides_create") return [{ verb: "create", object: "presentation" }];
+  if (name.startsWith(MCP_PREFIX)) return [{ verb: "any", object: "any" }];
+  return [];
+}
+
+function toActionRecord(name: string, args: Record<string, unknown>, r: ToolResult): ActionRecord {
+  const attempted = effectsOf(name, args);
+  const status: ActionRecord["status"] = !r.ok ? "failed" : r.partial ? "partial" : "ok";
+  // Qisman (hozircha faqat gsheets_create): jadval yaratildi, qatorlar qo'shilmadi.
+  const done = status === "ok" ? attempted : status === "partial" ? attempted.slice(0, 1) : [];
+  return { tool: name, status, attempted, done };
+}
+
 /** Modelga beriladigan tool natijasi — boshida aniq holat belgisi. */
 function statusLabel(r: ToolResult): string {
   if (!r.ok) return "[HOLAT: BAJARILMADI / XATO]";
@@ -452,9 +479,17 @@ function toText(content: unknown): string {
   return "";
 }
 
-export async function runConnectorTools({ supabase, userId, providerModel, messages, enabled, signal }: RunOpts): Promise<string | null> {
+export interface ConnectorRun {
+  /** Javob modeliga beriladigan kontekst (AMALLAR HOLATI + natijalar); chaqiruv bo'lmasa null. */
+  context: string | null;
+  /** Tizim jurnali: shu so'rovdagi har bir tool chaqiruvi va uning haqiqiy natijasi. */
+  actions: ActionRecord[];
+}
+
+export async function runConnectorTools({ supabase, userId, providerModel, messages, enabled, signal }: RunOpts): Promise<ConnectorRun> {
+  const none: ConnectorRun = { context: null, actions: [] };
   const prov = pickToolProvider(providerModel);
-  if (!prov || !enabled.length) return null;
+  if (!prov || !enabled.length) return none;
 
   const creds: Record<string, Record<string, unknown>> = Object.fromEntries(enabled.map((c) => [c.id, { ...c.config }]));
 
@@ -480,7 +515,7 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
   }
 
   const tools = [...toolsFor(enabled), ...mcp.flatMap((e) => e.tools)];
-  if (!tools.length) return null;
+  if (!tools.length) return none;
 
   const ctx: ExecCtx = { creds, refresh, mcp };
   const convo: unknown[] = [
@@ -495,6 +530,7 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
   ];
   const collected: string[] = [];
   const ledger: { name: string; result: ToolResult }[] = [];
+  const actions: ActionRecord[] = [];
   let phaseError = "";
 
   for (let round = 0; round < 3; round++) {
@@ -535,12 +571,13 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
       const result = await execTool(call.function.name, args, ctx);
       const label = statusLabel(result);
       ledger.push({ name: call.function.name, result });
+      actions.push(toActionRecord(call.function.name, args, result));
       collected.push(`[${call.function.name}] ${label} ${result.text}`);
       convo.push({ role: "tool", tool_call_id: call.id, content: `${label}\n${result.text}`.slice(0, 8000) });
     }
   }
 
-  return buildConnectorContext(ledger, collected, phaseError);
+  return { context: buildConnectorContext(ledger, collected, phaseError), actions };
 }
 
 /**

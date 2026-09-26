@@ -27,10 +27,19 @@ export interface ChatMessageInput {
   content: string | unknown[];
 }
 
+/** Qidiruv natijasi (Perplexity search_results) — verifier uchun; mijozga yuborilmaydi. */
+export interface SearchSource {
+  url: string;
+  title?: string;
+  snippet?: string;
+  date?: string;
+}
+
 export type StreamEvent =
   | { type: "text"; text: string }
   | { type: "reasoning"; text: string }
-  | { type: "citations"; citations: string[] }
+  /** `sources` — faqat server ichida (chat route uni mijozga uzatishdan oldin olib tashlaydi). */
+  | { type: "citations"; citations: string[]; sources?: SearchSource[] }
   | { type: "skills"; skills: string[] }
   | { type: "route"; reason: string; steps: { modelId: string; kind: string; purpose: string }[] }
   | { type: "step"; modelId: string; kind: string; purpose: string; index: number }
@@ -826,22 +835,38 @@ async function* streamOpenRouter(
 /* Perplexity Agent API (/v1/responses, OpenAI Responses format)        */
 /* ------------------------------------------------------------------ */
 
+type PplxResult = { url?: string; title?: unknown; snippet?: unknown; date?: unknown };
+
 type PplxEvent = {
   type?: string;
   delta?: string;
-  results?: { url?: string }[];
-  item?: { type?: string; results?: { url?: string }[] };
+  results?: PplxResult[];
+  item?: { type?: string; results?: PplxResult[] };
   response?: {
     status?: string;
     error?: { message?: string } | null;
-    output?: { type?: string; results?: { url?: string }[]; content?: { type?: string; text?: string }[] }[];
+    output?: { type?: string; results?: PplxResult[]; content?: { type?: string; text?: string }[] }[];
   };
   error?: { message?: string };
   message?: string;
 };
 
-function collectUrls(results?: { url?: string }[]): string[] {
-  return (results ?? []).map((r) => r.url).filter((u): u is string => typeof u === "string" && u.length > 0);
+const str = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
+
+/** search_results → citations (URL tartibi) + verifier uchun sarlavha/snippet (bo'lsa). */
+function collectResults(results: PplxResult[] | undefined, citations: string[], meta: Map<string, SearchSource>) {
+  for (const r of results ?? []) {
+    const url = typeof r.url === "string" && r.url.length > 0 ? r.url : "";
+    if (!url) continue;
+    if (!citations.includes(url)) citations.push(url);
+    const prev = meta.get(url);
+    meta.set(url, {
+      url,
+      title: prev?.title ?? str(r.title, 300),
+      snippet: prev?.snippet ?? str(r.snippet, 1200),
+      date: prev?.date ?? str(r.date, 40),
+    });
+  }
 }
 
 async function* streamPerplexity(
@@ -889,6 +914,12 @@ async function* streamPerplexity(
   }
 
   const citations: string[] = [];
+  const meta = new Map<string, SearchSource>();
+  const citationsEvent = (): StreamEvent => ({
+    type: "citations",
+    citations: [...citations],
+    sources: citations.map((u) => meta.get(u) ?? { url: u }),
+  });
   let sentCount = 0;
   let text = "";
 
@@ -904,10 +935,10 @@ async function* streamPerplexity(
       }
 
       if (type === "response.reasoning.search_results" || ev.item?.type === "search_results") {
-        for (const u of collectUrls(ev.results ?? ev.item?.results)) if (!citations.includes(u)) citations.push(u);
+        collectResults(ev.results ?? ev.item?.results, citations, meta);
         if (citations.length > sentCount) {
           sentCount = citations.length;
-          yield { type: "citations", citations: [...citations] };
+          yield citationsEvent();
         }
         continue;
       }
@@ -923,7 +954,7 @@ async function* streamPerplexity(
       if (type === "response.completed" && ev.response?.output) {
         for (const item of ev.response.output) {
           if (item.type === "search_results" || Array.isArray(item.results)) {
-            for (const u of collectUrls(item.results)) if (!citations.includes(u)) citations.push(u);
+            collectResults(item.results, citations, meta);
           }
           // Fallback: no deltas were streamed → emit the final text once.
           if (!text && item.type === "message" && item.content) {
@@ -934,7 +965,12 @@ async function* streamPerplexity(
             }
           }
         }
-        if (citations.length > sentCount) yield { type: "citations", citations: [...citations] };
+        // Yakuniy natijada snippet/sarlavha to'ldirilgan bo'lishi mumkin — verifier uchun
+        // har doim oxirgi holat yuboriladi (route mijozga faqat URL ro'yxatini uzatadi).
+        if (citations.length) {
+          sentCount = citations.length;
+          yield citationsEvent();
+        }
       }
     }
   } catch (err) {

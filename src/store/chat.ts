@@ -39,6 +39,17 @@ export interface VerifierIssue {
   fact: string;
   verdict: "correct" | "suspicious" | "unverifiable";
   note?: string;
+  /** Baho asosi (server qo'shadi; eski xabarlarda yo'q). */
+  basis?: "sources" | "attribution" | "model";
+  /**
+   * Yozuv turi: "fact" (yoki yo'q — eski) — fakt bahosi; "action" — javob amal
+   * bajarganini aytadi, lekin connector jurnalida u yo'q; "citation" — manbasiz [n].
+   */
+  kind?: "fact" | "action" | "citation";
+  /** "action" uchun: nega tasdiqlanmadi. */
+  reason?: "no_calls" | "failed" | "partial" | "not_performed";
+  /** "citation" uchun: manbasiz [n] raqamlari. */
+  markers?: number[];
 }
 
 export interface CacheInfo {

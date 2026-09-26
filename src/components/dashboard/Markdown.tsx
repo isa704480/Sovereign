@@ -353,26 +353,58 @@ function GenUiPlaceholder() {
   );
 }
 
-function withCitationLinks(content: string, citations?: string[]): string {
-  if (!citations?.length) return content;
+function withCitationLinks(content: string, citations?: string[], unsourced?: number[]): string {
+  if (!citations?.length && !unsourced?.length) return content;
+  const bad = new Set(unsourced ?? []);
   // "[1]" → "[1](#cite-1)" so react-markdown turns it into a link we can style.
-  return content.replace(/\[(\d{1,2})\](?!\()/g, (m, n) => {
-    const i = Number(n);
-    return i >= 1 && i <= citations.length ? `[${n}](#cite-${n})` : m;
-  });
+  // Server manbasiz deb topgan raqam → "#unsourced-n" (ko'rinadigan belgi). Kod ichiga tegilmaydi.
+  return content
+    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]*`)/g)
+    .map((part, idx) =>
+      idx % 2
+        ? part
+        : part.replace(/\[(\d{1,3})\](?!\()/g, (m, n) => {
+            const i = Number(n);
+            if (bad.has(i)) return `[${n}](#unsourced-${n})`;
+            return citations && i >= 1 && i <= citations.length ? `[${n}](#cite-${n})` : m;
+          }),
+    )
+    .join("");
 }
 
 interface MarkdownProps {
   content: string;
   citations?: string[];
+  /** Server tekshiruvida manbasiz chiqqan [n] raqamlari — matnda alohida belgilanadi. */
+  unsourced?: number[];
 }
 
-export const Markdown = memo(function Markdown({ content, citations }: MarkdownProps) {
-  const text = useMemo(() => withCitationLinks(content, citations), [content, citations]);
+export const Markdown = memo(function Markdown({ content, citations, unsourced }: MarkdownProps) {
+  const t = useT();
+  const unsourcedLabel = t("clmUnsourcedMark");
+  const text = useMemo(() => withCitationLinks(content, citations, unsourced), [content, citations, unsourced]);
 
   const components = useMemo<Components>(
     () => ({
       a({ href, children, ...rest }: ComponentProps<"a">) {
+        if (href?.startsWith("#unsourced-")) {
+          const n = href.slice("#unsourced-".length);
+          return (
+            <span
+              className="cite"
+              title={unsourcedLabel}
+              aria-label={`[${n}] — ${unsourcedLabel}`}
+              style={{
+                color: "var(--warning, #F59E0B)",
+                background: "color-mix(in srgb, var(--warning, #F59E0B) 14%, transparent)",
+                outline: "1px dashed currentColor",
+                cursor: "help",
+              }}
+            >
+              {n}?
+            </span>
+          );
+        }
         if (href?.startsWith("#cite-") && citations) {
           const n = Number(href.slice(6));
           const url = citations[n - 1];
@@ -431,7 +463,7 @@ export const Markdown = memo(function Markdown({ content, citations }: MarkdownP
         return <ChatImage key={src} src={src} alt={alt ?? ""} />;
       },
     }),
-    [citations],
+    [citations, unsourcedLabel],
   );
 
   return (

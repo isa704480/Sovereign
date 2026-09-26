@@ -4,13 +4,15 @@ import {
   contextSummary,
   visible,
   createTurnTracker,
+  ledgerEntry,
   ledgerLines,
   ledgerWorthShowing,
   unsupportedClaim,
   HONESTY_RULE,
 } from "./tools.mjs";
-import { c, spinner, renderMarkdown } from "./ui.mjs";
+import { c, spinner, renderMarkdown, markdownStream } from "./ui.mjs";
 import { memorySystemMessage } from "./memory.mjs";
+import { shouldVerify, verifyClaims } from "./verify.mjs";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -91,7 +93,7 @@ function forServer(messages) {
 }
 
 /** One model round. Returns the assistant message + parsed tool calls. Streams text via onText. */
-async function runRound(messages, config, onText) {
+async function runRound(messages, config, onText, signal) {
   if (config.token) {
     const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
       method: "POST",
@@ -101,6 +103,7 @@ async function runRound(messages, config, onText) {
         tools: TOOL_SCHEMA,
         ...(config.omniModel ? { model: config.omniModel } : {}),
       }),
+      signal,
     });
     if (!res.ok) {
       let m = `${res.status}`;
@@ -134,6 +137,7 @@ async function runRound(messages, config, onText) {
       max_tokens: maxTokens,
       stream: true,
     }),
+    signal,
   });
   let res = await send(4096);
   if (!res.ok || !res.body) {
@@ -185,47 +189,127 @@ async function runRound(messages, config, onText) {
  * "Aslida nima bo'ldi" — modelning so'zlariga emas, vosita natijalariga
  * asoslangan xulosa. Faqat iz qoldiruvchi amal yoki muammo bo'lsa chiqadi.
  */
-function printLedger(entries, { finalText = "", note = "" } = {}) {
-  const warn = unsupportedClaim(finalText, entries);
-  if (!ledgerWorthShowing(entries) && !warn && !note) return;
+function printLedger(entries, { note = "", regexWarn = null, judge = null } = {}) {
+  const worth = ledgerWorthShowing(entries);
+  const judgeHits = judge?.unsupported ?? [];
+  if (!worth && !regexWarn && !note && !judgeHits.length) return;
   const icon = { ok: c.green("✓"), failed: c.red("✕"), declined: c.amber("⊘") };
-  if (ledgerWorthShowing(entries)) {
+  if (worth) {
     console.log("   " + c.dim("Aslida nima bo'ldi (tizim jurnali):"));
     for (const l of ledgerLines(entries)) console.log(`     ${icon[l.status] ?? "•"} ${c.dim(l.text)}`);
   }
   if (note) console.log("   " + c.amber("⚠ " + note));
-  if (warn) console.log("   " + c.amber("⚠ Diqqat: " + warn + " Jurnalga ishoning."));
-  process.stdout.write("\n");
+  if (regexWarn) console.log("   " + c.amber("⚠ Diqqat: " + regexWarn + " Jurnalga ishoning."));
+  if (judgeHits.length) {
+    console.log("   " + c.amber("⚠ Mustaqil tekshiruv (AI hakam): jurnal tasdiqlamagan da'volar:"));
+    for (const h of judgeHits) console.log("     " + c.amber("–") + " " + c.dim(visible(h)));
+  } else if (judge && worth) {
+    console.log("   " + c.dim("✓ Mustaqil tekshiruv (AI hakam): javob jurnalga zid emas."));
+  }
+  console.log("");
 }
 
-export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
-  const tracker = createTurnTracker((name, args) => runTool(name, args, confirm));
+/**
+ * Yakuniy javobni jurnalga solishtiradi: avval regex (deterministik), keyin —
+ * kerak bo'lsa — server'dagi LLM hakam. Hakam faqat QO'SHADI: regex topgan
+ * ogohlantirishni u bekor qila olmaydi (javob matnidagi prompt-injection hakamni
+ * "hammasi joyida" deyishga majburlasa ham regex ogohlantirishi qoladi).
+ */
+async function checkHonesty(entries, finalText, { config, signal, verify, print }) {
+  const regexWarn = finalText ? unsupportedClaim(finalText, entries) : null;
+  let judge = null;
+  if (verify && finalText && config?.token && !signal?.aborted && shouldVerify(entries, regexWarn)) {
+    const spin = print ? spinner("javob jurnal bilan solishtirilyapti...") : null;
+    judge = await verifyClaims(config, { answer: finalText, entries, signal });
+    spin?.stop();
+  }
+  return { regexWarn, judge };
+}
+
+function isAbort(err, signal) {
+  return Boolean(signal?.aborted) || err?.name === "AbortError";
+}
+
+/**
+ * Bitta agent navbati.
+ * @param {object} p
+ * @param {AbortSignal} [p.signal]  Ctrl+C — navbatni bekor qiladi
+ * @param {boolean} [p.print=true]  javob matnini terminalga chiqarish (-p rejimida false)
+ * @param {boolean} [p.stream=false] to'g'ridan-to'g'ri (OpenRouter) rejimda tokenlarni oqim bilan ko'rsatish
+ * @param {boolean} [p.verify=true] LLM hakamni ishlatish (akkaunt rejimi)
+ * @returns {Promise<{done?: boolean, error?: string, aborted?: boolean, truncated?: boolean,
+ *   ledger: object[], final: string, honesty: {regex: string|null, judge: string[]|null, source: string}}>}
+ */
+export async function agentTurn({ messages, config, confirm, maxSteps = 14, signal, print = true, stream = false, verify = true }) {
+  let toolSpin = null;
+  const exec = (name, args) =>
+    runTool(
+      name,
+      args,
+      async (...q) => {
+        const ok = await confirm(...q);
+        // Tasdiqlangan buyruq bajarilayotganda — spinner (Ctrl+C bilan to'xtatish mumkin).
+        if (ok && name === "run_command" && print) toolSpin = spinner("buyruq bajarilyapti...");
+        return ok;
+      },
+      { signal },
+    );
+  const tracker = createTurnTracker(exec);
+  const honestyOut = (h) => ({
+    regex: h.regexWarn ?? null,
+    judge: h.judge ? h.judge.unsupported : null,
+    source: h.judge ? "llm+regex" : "regex",
+  });
+  let final = "";
+
+  const finishAborted = () => {
+    printLedger(tracker.entries, { note: "Bekor qilindi (Ctrl+C) — navbat to'xtatildi, qolgan amallar bajarilmadi." });
+    return { aborted: true, ledger: tracker.entries, final, honesty: { regex: null, judge: null, source: "regex" } };
+  };
 
   for (let step = 0; step < maxSteps; step++) {
+    if (signal?.aborted) return finishAborted();
     const spin = spinner(step === 0 ? "o'ylayapti..." : "davom etyapti...");
     let round;
+    let md = null;
     try {
-      round = await runRound(messages, config, () => {});
+      const onText = stream && print
+        ? (t) => {
+            if (!md) {
+              spin.stop();
+              process.stdout.write("\n   " + c.accent("◆") + "\n");
+              md = markdownStream((s) => process.stdout.write(s));
+            }
+            md.push(t);
+          }
+        : () => {};
+      round = await runRound(messages, config, onText, signal);
     } catch (err) {
       spin.stop();
+      md?.end();
+      if (isAbort(err, signal)) return finishAborted();
       // Xatodan oldin bajarilgan amallar ham ko'rinsin.
       printLedger(tracker.entries, { note: "Navbat xato bilan to'xtadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin." });
-      return { error: err.message, ledger: tracker.entries };
+      return { error: err.message, ledger: tracker.entries, final, honesty: { regex: null, judge: null, source: "regex" } };
     }
     spin.stop();
 
     messages.push(round.message);
+    const text = round.message.content && String(round.message.content).trim() ? String(round.message.content) : "";
+    if (text) final = text;
 
     // Javob matnini toza markdown bilan ko'rsat (xom `**`/`#` emas).
-    if (round.message.content && round.message.content.trim()) {
+    if (md) md.end();
+    else if (text && print) {
       process.stdout.write("\n   " + c.accent("◆") + "\n");
-      console.log(renderMarkdown(round.message.content));
+      console.log(renderMarkdown(text));
     }
 
     if (!round.toolCalls.length) {
-      process.stdout.write("\n");
-      printLedger(tracker.entries, { finalText: round.message.content ?? "" });
-      return { done: true, ledger: tracker.entries };
+      if (print) process.stdout.write("\n");
+      const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print });
+      printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge });
+      return { done: true, ledger: tracker.entries, final: text, honesty: honestyOut(h) };
     }
 
     // Model asked for tools — narrate & run each, then loop.
@@ -237,21 +321,34 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
       } catch {
         /* ignore */
       }
+      if (signal?.aborted) {
+        // Har bir tool_call'ga javob bo'lishi shart (aks holda keyingi so'rov xato beradi).
+        const msg = "Foydalanuvchi rad etdi (Ctrl+C — navbat bekor qilindi).";
+        tracker.entries.push(ledgerEntry(call.function.name, args, msg, "declined"));
+        messages.push({ role: "tool", tool_call_id: call.id, content: `[HOLAT: RAD ETILDI — bu amal BAJARILMADI]\n${msg}` });
+        continue;
+      }
       console.log("  " + describe(call.function.name, args));
       const r = await tracker.run(call.function.name, args);
+      toolSpin?.stop();
+      toolSpin = null;
       if (r.status === "declined") console.log("  " + c.amber("⊘ rad etildi — bajarilmadi"));
       else if (r.status === "failed") console.log("  " + c.red("✕ bajarilmadi / xato") + (r.entry?.exit != null ? c.dim(` (exit ${r.entry.exit})`) : ""));
       lastTool = { role: "tool", tool_call_id: call.id, content: r.content.slice(0, TOOL_RESULT_MAX) };
       messages.push(lastTool);
     }
+    if (signal?.aborted) return finishAborted();
     // Faktlar jurnali — model keyingi qadamda (va yakuniy xulosada) shunga tayansin.
     const ledgerText = tracker.forModel();
     if (lastTool && ledgerText) lastTool.content += `\n\n${ledgerText}`;
   }
+  const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print });
   printLedger(tracker.entries, {
     note: `Qadamlar chegarasi (${maxSteps}) tugadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin. "davom et" deb yozing.`,
+    regexWarn: h.regexWarn,
+    judge: h.judge,
   });
-  return { done: true, ledger: tracker.entries, truncated: true };
+  return { done: true, ledger: tracker.entries, truncated: true, final, honesty: honestyOut(h) };
 }
 
 /** Bitta javob — vositalarsiz, oqimsiz. Parallel rejim uchun. */

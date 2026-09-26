@@ -10,6 +10,7 @@ import {
   getTrainingOptIn,
   setTrainingOptIn as saveTrainingOptIn,
 } from "@/app/actions/account";
+import { getEmailTips, setEmailTips as saveEmailTips } from "@/app/actions/engagement";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { LANGS, translate } from "@/lib/i18n";
@@ -141,6 +142,31 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
       alive = false;
     };
   }, [open, lang]);
+
+  // Tip emaillari (opt-in, standart o'chiq). null — hali yuklanmagan yoki o'qib bo'lmadi.
+  const [emailTips, setEmailTips] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    getEmailTips()
+      .then((v) => alive && setEmailTips(v))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [open]);
+
+  function changeEmailTips(v: boolean) {
+    const prev = emailTips;
+    setEmailTips(v);
+    startTransition(async () => {
+      const res = await saveEmailTips(v, lang).catch(() => ({ ok: false }));
+      if (!res.ok) {
+        setEmailTips(prev);
+        setMsg(t("stSaveFailed"));
+      }
+    });
+  }
 
   function changeTraining(v: boolean) {
     const prev = trainingOptIn;
@@ -330,6 +356,14 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                     disabled={trainingOptIn === null}
                     label={t("trainingTitle")}
                     onChange={changeTraining}
+                  />
+                </Row>
+                <Row title={t("stEmailTipsTitle")} desc={t("stEmailTipsDesc")}>
+                  <Toggle
+                    on={emailTips ?? false}
+                    disabled={emailTips === null}
+                    label={t("stEmailTipsTitle")}
+                    onChange={changeEmailTips}
                   />
                 </Row>
                 <Row title={t("exportTitle")} desc={t("exportDesc")}>

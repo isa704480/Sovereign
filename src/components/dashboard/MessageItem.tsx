@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Check, ChevronDown, Copy, Globe, Lightbulb, Pencil, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
 import { SKILL_BY_ID } from "@/config/skills";
 import { attachmentGlyph } from "@/lib/chat/attachments";
@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { Markdown } from "./Markdown";
 import { ModelAvatar } from "./ModelAvatar";
 import { TypingIndicator } from "./TypingIndicator";
-import { VerifierPanel } from "./VerifierPanel";
+import { ClaimsWarning, isFactIssue, VerifierPanel } from "./VerifierPanel";
 import { useTheme } from "./theme-context";
 
 interface MessageItemProps {
@@ -91,6 +91,13 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
   // Oqim yarmida uzildi: qisman matn saqlangan, xato ham bor.
   const interrupted = !streaming && !failed && !!message.error && !!message.content;
   const canRetry = isLast && !!onRegenerate;
+  // Javobdan keyingi tekshiruvlar: fakt baholari (VerifierPanel) va ogohlantirishlar
+  // (tasdiqlanmagan amal / manbasiz [n] — ClaimsWarning + matndagi belgi).
+  const hasFacts = !!message.verifier?.some(isFactIssue);
+  const unsourced = useMemo(
+    () => message.verifier?.flatMap((i) => (i.kind === "citation" ? (i.markers ?? []) : [])),
+    [message.verifier],
+  );
 
   async function copy() {
     try {
@@ -367,7 +374,7 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
             </div>
           ) : message.content ? (
             <>
-              <Markdown content={message.content} citations={message.citations} />
+              <Markdown content={message.content} citations={message.citations} unsourced={unsourced} />
               {streaming && (
                 <span
                   className="ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[3px] animate-pulse"
@@ -405,9 +412,8 @@ export function MessageItem({ message, isLast, onRegenerate, onEdit, tts }: Mess
           )}
         </div>
 
-        {message.verifier && message.verifier.length > 0 && (
-          <VerifierPanel issues={message.verifier} />
-        )}
+        {message.verifier && message.verifier.length > 0 && <ClaimsWarning issues={message.verifier} />}
+        {message.verifier && hasFacts && <VerifierPanel issues={message.verifier} />}
 
         {message.skills?.length ? (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">

@@ -1,20 +1,28 @@
 {
   "name": "sovereign-cowork",
   "productName": "SOVEREIGN Cowork",
-  "version": "0.4.1",
-  "description": "SOVEREIGN Cowork — ish stolidagi AI koding hamkori (React + Electron).",
+  "version": "0.5.0",
+  "description": "SOVEREIGN Cowork — ish stolidagi AI koding hamkori.",
   "type": "module",
   "main": "main.mjs",
-  "author": "Islombek",
+  "author": "SOVEREIGN (Islombek)",
+  "homepage": "https://soveregn.xyz",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/isa704480/Sovereign.git"
+  },
   "scripts": {
     "build": "vite build",
     "start": "vite build && electron .",
+    "start:offline": "vite build && cross-env SOV_OFFLINE=1 electron .",
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV=1 electron .\"",
-    "dist": "vite build && electron-builder",
-    "dist:win": "vite build && electron-builder --win",
-    "dist:mac": "vite build && electron-builder --mac",
-    "dist:linux": "vite build && electron-builder --linux"
+    "icons": "node scripts/make-icons.mjs",
+    "dist": "vite build && electron-builder --publish never",
+    "dist:win": "vite build && electron-builder --win --publish never",
+    "dist:mac": "vite build && electron-builder --mac --publish never",
+    "dist:linux": "vite build && electron-builder --linux --publish never",
+    "release:win": "vite build && electron-builder --win --publish always"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
@@ -22,24 +30,74 @@
     "cross-env": "^7.0.3",
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "vite": "^6.0.0",
     "wait-on": "^8.0.0"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "electron-updater": "^6.8.9"
   },
   "build": {
     "appId": "app.sovereign.cowork",
     "productName": "SOVEREIGN Cowork",
-    "files": ["main.mjs", "preload.cjs", "ui-dist/**"],
+    "copyright": "© 2026 SOVEREIGN",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.mjs",
+      "preload.cjs",
+      "electron/**",
+      "ui-dist/**",
+      "package.json"
+    ],
     "extraResources": [
       { "from": "../cli/src", "to": "cli/src", "filter": ["**/*.mjs"] },
       { "from": "../cli/package.json", "to": "cli/package.json" }
     ],
-    "directories": { "output": "release" },
-    "win": { "target": ["nsis"] },
-    "mac": { "target": ["dmg"], "category": "public.app-category.developer-tools" },
-    "linux": { "target": ["AppImage"], "category": "Development" }
+    "electronLanguages": ["en-US", "ru"],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "isa704480",
+        "repo": "Sovereign",
+        "releaseType": "release",
+        "tagNamePrefix": "desktop-v"
+      }
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico",
+      "verifyUpdateCodeSignature": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "SOVEREIGN Cowork",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "uninstallDisplayName": "SOVEREIGN Cowork",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "include": "build/installer.nsh",
+      "artifactName": "SOVEREIGN-Cowork-Setup-${version}.${ext}"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.developer-tools",
+      "icon": "build/icon.png"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Development",
+      "icon": "build/icon.png"
+    }
   }
 }

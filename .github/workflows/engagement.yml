@@ -1,0 +1,19 @@
+# Qayta jalb qilish (opt-in tip emaillari): har soatda sayt navbatdagi foydalanuvchilarga
+# (30+ soat kirmagan, rozilik bergan) bitta maslahat emailini yuboradi. Qoidalar serverda
+# (supabase/migrations/0034_engagement.sql). Kerak: repo Settings -> Secrets -> CRON_SECRET
+# (Vercel'dagi CRON_SECRET bilan bir xil). RESEND_API_KEY bo'lmasa route hech narsa yubormaydi.
+name: Engagement tips
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch: {}
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Send due tip emails
+        run: |
+          curl -sS --fail-with-body --max-time 90 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://soveregn.xyz/api/cron/engagement"

@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync, realpathSync } from "node:fs";
 import { resolve, relative, dirname, join, isAbsolute, basename, sep, win32, posix } from "node:path";
 import { homedir } from "node:os";
-import { execSync } from "node:child_process";
+import { exec, spawn } from "node:child_process";
 import { c } from "./ui.mjs";
 
 const IS_WIN = process.platform === "win32";
@@ -395,12 +395,58 @@ function isAutoRunPath(real) {
   return parts.some((seg) => AUTO_RUN_DIRS.includes(seg));
 }
 
+const COMMAND_TIMEOUT_MS = 120_000;
+
+/** Ishlab turgan buyruqlar — CLI chiqib ketsa (ikkinchi Ctrl+C) ular ham to'xtatiladi. */
+const RUNNING = new Set();
+let exitHook = false;
+function track(child) {
+  RUNNING.add(child);
+  child.once("exit", () => RUNNING.delete(child));
+  if (!exitHook) {
+    exitHook = true;
+    process.once("exit", () => {
+      for (const ch of RUNNING) killTree(ch);
+    });
+  }
+}
+
+/**
+ * Buyruqni butun jarayon daraxti bilan to'xtatadi (shell + uning bolalari:
+ * npm, node, ping...). Windows'da taskkill ABSOLYUT yo'l bilan — ish papkasidagi
+ * soxta taskkill.exe ishga tushmasin.
+ */
+function killTree(child) {
+  if (!child?.pid || child.exitCode !== null) return;
+  try {
+    if (IS_WIN) {
+      const sys = process.env.SystemRoot || process.env.windir || "C:\\Windows";
+      const k = spawn(join(sys, "System32", "taskkill.exe"), ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+      k.on("error", () => child.kill());
+    } else {
+      process.kill(-child.pid, "SIGTERM");
+    }
+  } catch {
+    try {
+      child.kill();
+    } catch {
+      /* allaqachon tugagan */
+    }
+  }
+}
+
 /** Model yuborgan matnni terminalda xavfsiz ko'rsatish: boshqaruv belgilari ko'rinadigan bo'ladi. */
 export function visible(s) {
   return String(s ?? "").replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, (ch) => "\\x" + ch.charCodeAt(0).toString(16).padStart(2, "0"));
 }
 
-export async function runTool(name, args, confirm) {
+/**
+ * @param {string} name
+ * @param {object} args
+ * @param {(question: string, forcePrompt?: boolean, meta?: object) => Promise<boolean>} confirm
+ * @param {{ signal?: AbortSignal }} [opts]  ixtiyoriy: Ctrl+C bilan run_command'ni to'xtatish
+ */
+export async function runTool(name, args, confirm, opts = {}) {
   switch (name) {
     case "list_dir": {
       const r = resolvePath(args.path ?? ".");
@@ -474,20 +520,56 @@ export async function runTool(name, args, confirm) {
         ? await confirm(label, false, cmdMeta)
         : await confirm(label, /*forcePrompt=*/ true, cmdMeta);
       if (!ok) return "Foydalanuvchi rad etdi.";
-      try {
-        const out = execSync(args.command, {
-          cwd: process.cwd(),
-          encoding: "utf8",
-          stdio: "pipe",
-          timeout: 120_000,
-          // Windows cmd.exe buyruqni avval JORIY papkadan qidiradi — agent yaratgan
-          // git.bat "xavfsiz" git status o'rniga ishga tushmasin.
-          env: IS_WIN ? { ...process.env, NoDefaultCurrentDirectoryInExePath: "1" } : process.env,
-        });
-        return `EXIT 0\n${out.slice(0, 20_000)}`;
-      } catch (err) {
-        return `XATO (exit ${err.status ?? "?"}):\n${(err.stdout ?? "") + (err.stderr ?? err.message)}`.slice(0, 20_000);
-      }
+      if (opts.signal?.aborted) return "XATO (exit ?):\nBekor qilindi (Ctrl+C) — buyruq ishga tushirilmadi.";
+      // Asinxron (exec) — spinner va Ctrl+C ishlaydi; natija formati execSync bilan bir xil.
+      return await new Promise((resolveRun) => {
+        let child;
+        let stopReason = null; // "abort" | "timeout"
+        let timer = null;
+        const onAbort = () => {
+          stopReason ??= "abort";
+          killTree(child);
+        };
+        try {
+          child = exec(
+            args.command,
+            {
+              cwd: process.cwd(),
+              encoding: "utf8",
+              maxBuffer: 16 * 1024 * 1024,
+              windowsHide: true,
+              // POSIX: alohida jarayon guruhi — bekor qilinganda butun daraxt to'xtaydi.
+              detached: !IS_WIN,
+              // Windows cmd.exe buyruqni avval JORIY papkadan qidiradi — agent yaratgan
+              // git.bat "xavfsiz" git status o'rniga ishga tushmasin.
+              env: IS_WIN ? { ...process.env, NoDefaultCurrentDirectoryInExePath: "1" } : process.env,
+            },
+            (err, stdout, stderr) => {
+              clearTimeout(timer);
+              opts.signal?.removeEventListener("abort", onAbort);
+              if (!err && !stopReason) return resolveRun(`EXIT 0\n${String(stdout ?? "").slice(0, 20_000)}`);
+              const code = typeof err?.code === "number" ? err.code : "?";
+              const why =
+                stopReason === "abort"
+                  ? "Bekor qilindi (Ctrl+C) — jarayon to'xtatildi."
+                  : stopReason === "timeout"
+                    ? "Vaqt tugadi (120 s) — jarayon to'xtatildi."
+                    : String(stderr ?? "") || err?.message || "";
+              resolveRun(`XATO (exit ${code}):\n${String(stdout ?? "") + why}`.slice(0, 20_000));
+            },
+          );
+        } catch (err) {
+          return resolveRun(`XATO (exit ?):\n${err?.message ?? err}`);
+        }
+        track(child);
+        timer = setTimeout(() => {
+          stopReason ??= "timeout";
+          killTree(child);
+        }, COMMAND_TIMEOUT_MS);
+        opts.signal?.addEventListener("abort", onAbort, { once: true });
+        // execSync kabi: stdin darhol yopiladi — kiritish kutuvchi buyruq osilib qolmasin.
+        child.stdin?.end();
+      });
     }
     default:
       return `Noma'lum vosita: ${name}`;

@@ -1,5 +1,6 @@
 import { readFileSync, existsSync, readdirSync, statSync } from "node:fs";
 import { basename, extname } from "node:path";
+import { IS_BINARY } from "./version.mjs";
 
 /**
  * "@yo'l" eslatmalari: matndagi @ bilan boshlangan va haqiqatan mavjud bo'lgan
@@ -49,6 +50,8 @@ const IMAGE_MAX_BYTES = 900 * 1024;
  * Qaytaradi: { missing: true } (o'rnatilmagan) yoki { text }.
  */
 async function extractPdfText(buf) {
+  // Binary (Node SEA) ichida tashqi paketlarni dinamik import qilib bo'lmaydi.
+  if (IS_BINARY) return { missing: true };
   let mod;
   try {
     mod = await import("pdf-parse");
@@ -152,7 +155,9 @@ export async function readAttachment(path, { maxChars = 40_000 } = {}) {
           label: `📕  ${name}`,
         };
       }
-      note = "Matn ajratilmadi — 'npm i -g pdf-parse@2' o'rnating";
+      note = IS_BINARY
+        ? "Matn ajratilmadi — binary versiyada PDF o'qish yo'q; npm versiyasini (Node 20+) va 'npm i -g pdf-parse@2' ishlating"
+        : "Matn ajratilmadi — 'npm i -g pdf-parse@2' o'rnating";
     } catch (err) {
       note = `Matn ajratilmadi — pdf-parse xatosi: ${String(err?.message || err).slice(0, 200)}`;
     }

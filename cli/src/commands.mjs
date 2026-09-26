@@ -48,7 +48,9 @@ export const SLASH_COMMANDS = [
   { cmd: "/upgrade",  desc: "Tarifni oshirish (brauzer ochiladi)" },
 
   { cmd: "/cwd",      desc: "Ish papkasini o'zgartirish" },
-  { cmd: "/exit",     desc: "Chiqish" },
+  { cmd: "/doctor",   desc: "Diagnostika — Node, config, server, login" },
+  { cmd: "/version",  desc: "CLI versiyasi" },
+  { cmd: "/exit",     desc: "Chiqish (yoki Ctrl+C ikki marta)" },
 ];
 
 export const SLASH_NAMES = SLASH_COMMANDS.map((s) => s.cmd);

@@ -1,79 +1,119 @@
 # SOVEREIGN CLI
 
-Terminaldagi AI koding agenti. `sovereign` deb yozing — AI ochiladi, ish papkangizda **fayl va papka yarata, o'qiy va o'zgartira** oladi, kod yozadi.
+Terminaldagi AI koding agenti. `sov` deb yozing — AI ochiladi, ish papkangizda **fayl va papka yarata, o'qiy va o'zgartira** oladi, buyruq ishga tushiradi, kod yozadi. Har bir amal tasdiq bilan, oxirida esa **"Aslida nima bo'ldi"** — model so'zlariga emas, tizim jurnaliga asoslangan xulosa.
 
 ## O'rnatish
 
-Node.js 20+ kerak.
+### 1. Bitta buyruq (tavsiya)
+
+```bash
+# macOS / Linux
+curl -fsSL https://soveregn.xyz/install.sh | sh
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://soveregn.xyz/install.ps1 | iex
+```
+
+Skript Node.js 20+ bo'lsa npm orqali o'rnatadi; bo'lmasa — **Node'siz tayyor binary**ni GitHub Releases'dan yuklaydi, SHA256 bilan tekshiradi va foydalanuvchi papkasiga qo'yadi (`~/.local/bin` yoki `%LOCALAPPDATA%\Programs\sov`), PATH'ga qo'shadi. Admin/sudo kerak emas.
+
+Sozlash: `SOV_INSTALL=binary|npm`, `SOV_VERSION=cli-v0.10.0`, `SOV_INSTALL_DIR=...` (sh), `SOV_NO_MODIFY_PATH=1`.
+
+### 2. npm (Node.js 20+)
 
 ```bash
 npm install -g @islombekrrr/sov-cli
 ```
 
-> Loyiha ichidan (publish qilinmagan bo'lsa): `npm run cli:install`
-> O'chirish: `npm uninstall -g @islombekrrr/sov-cli`
+### 3. Binary qo'lda
 
-Bu `sovereign` (va qisqa `sov`) buyrug'ini o'rnatadi.
+[Releases](https://github.com/isa704480/Sovereign/releases) sahifasidan (`cli-v*` teglari): `sov-win-x64.exe`, `sov-linux-x64`, `sov-macos-arm64`, `sov-macos-x64` — har birining yonida `.sha256`. Faylni `sov` (Windows'da `sov.exe`) deb nomlab, PATH'dagi papkaga qo'ying.
 
-## Ulanish (2 yo'l)
+> Loyiha ichidan: `npm run cli:install` · O'chirish: `npm uninstall -g @islombekrrr/sov-cli` yoki binary faylni o'chiring.
 
-### 1. SOVEREIGN akkaunti (tavsiya)
+`sov` — vibe rejim (ish papkasi ichidagi oddiy amallar so'ralmaydi), `sovereign` — har o'zgarish tasdiqlanadi.
 
-```bash
-sovereign login
-```
-
-Brauzer ochiladi, SOVEREIGN hisobingizda **Ruxsat berish** bosasiz — CLI hisobingizga ulanadi. Hech qanday API kalit kerak emas, tarifingiz (Free/Pro/...) amal qiladi.
-
-Lokal serverga (test): `sovereign login --local`
-
-### 2. O'z OpenRouter kalitingiz
+## Ulanish
 
 ```bash
-sovereign key sk-or-v1-...
+sov login                 # brauzerda "Ruxsat berish" — akkaunt, tarifingiz amal qiladi
+sov key sk-or-v1-...      # yoki o'z OpenRouter kalitingiz
+sov doctor                # hammasi to'g'rimi?
 ```
 
-Kalit https://openrouter.ai/keys dan olinadi. Yoki shell'da `OPENROUTER_API_KEY`.
+Lokal serverga (test): `sov login --local`.
 
-## Foydalanish
+## Buyruqlar
+
+| Buyruq | Vazifa |
+| --- | --- |
+| `sov` | interaktiv rejim (chat + agent) |
+| `sov "vazifa"` | bitta vazifa (tasdiqlar so'raladi) va chiqish |
+| `sov -p "savol"` | interaktivsiz: faqat javob stdout'ga, progress stderr'ga |
+| `sov login` / `logout` / `whoami` | akkaunt |
+| `sov doctor` | diagnostika: Node/binary, versiya, config, server, login, ish papkasi, PATH |
+| `sov models` · `sov sessions` | modellar · saqlangan suhbatlar |
+| `sov key <kalit>` · `sov config` | o'z kalitingiz · sozlash |
+| `sov help [buyruq]` · `sov --version` | yordam · versiya |
+
+Flaglar: `-p/--print`, `--json`, `-f/--file <yo'l>` (takrorlanadi), `-m/--model <id>` (shu ish uchun), `-y/--yes`, `--vibe`/`--no-vibe`, `--no-verify`, `--no-color`, `-h`, `-V`.
+
+## Interaktivsiz (skript, CI, quvur)
 
 ```bash
-sovereign                             # interaktiv rejim (chat + agent)
-sovereign "React todo app yarat"      # bitta topshiriq
-sovereign "..." -f rasm.png -f a.pdf  # fayllarni biriktirib yuborish
-sovereign --yes "..."                 # amallarni avtomatik tasdiqlash
-sovereign whoami                      # holat
-sovereign logout                      # chiqish
-sovereign help                        # yordam
+sov -p "bu loyiha nima qiladi?"
+git diff | sov -p "shu o'zgarishni review qil"
+sov -p --json "package.json'ni tekshir" > natija.json
+sov -p -y "README'ga o'rnatish bo'limini qo'sh"
 ```
 
-Interaktiv rejimda: `/model`, `/cwd <yo'l>`, `/attach <fayl>`, `/detach`, `/clear`, `/exit`.
+- Hech narsa so'ralmaydi. Ish papkasi ichidagi yozish/xavfsiz buyruqlar faqat `--yes` (yoki `--vibe`) bilan bajariladi; **tashqi yo'llar va xavfli buyruqlar har doim rad etiladi**.
+- `--json` natijasi: `{ ok, result, ledger, honesty, aborted, truncated, exit_code, version }`.
+- stdin terminal bo'lmasa (quvur) avtomatik shu rejimga o'tadi.
+- Chiqish kodlari: `0` muvaffaqiyat · `1` xato · `2` noto'g'ri foydalanish · `3` login kerak · `130` Ctrl+C.
+
+## Interaktiv rejim
+
+- `/` yoki `/help` — barcha buyruqlar; `Tab` — to'ldirish; `@fayl` — biriktirish; `↑/↓` — tarix (`~/.sovereign/history`, kalitlar yozilmaydi).
+- **Ctrl+C** — joriy ishni (so'rov, tasdiq, buyruq) bekor qiladi; bo'sh promptda ikki marta — chiqish.
+- Fayl yozishdan oldin **diff** ko'rsatiladi (`- eski` / `+ yangi`).
+- `/model`, `/models`, `/cwd`, `/attach`, `/sessions`, `/resume`, `/rewind`, `/fork`, `/vibe`, `/swarm`, `/memory`, `/doctor`, `/exit` va boshqalar.
+
+## Halollik: "Aslida nima bo'ldi"
+
+Navbat oxirida CLI vosita natijalaridan jurnal chiqaradi (✓ bajarildi / ✕ xato / ⊘ rad etildi) va yakuniy javobdagi "yaratdim / bajardim" da'volarini tekshiradi:
+
+1. **Regex** — har doim, oflayn.
+2. **AI hakam** (akkaunt rejimi) — javob yozish/buyruq amallariga tegsa yoki regex shubha qilsa, javob + jurnal `/api/cli/verify` ga yuboriladi; arzon model tasdiqlanmagan da'volarni qaytaradi. Faqat qo'shimcha ogohlantirish beradi (regex natijasini bekor qilmaydi); xato/offline bo'lsa regex bilan qoladi. O'chirish: `--no-verify` yoki `SOV_VERIFY=0`.
 
 ## Fayl biriktirish
 
-Rasm (`.png .jpg .webp .gif`), PDF, va matn (`.md .json .ts .py ...`) fayllarni biriktirib yuborsangiz bo'ladi:
+Rasm (`.png .jpg .webp .gif`), PDF va matn (`.md .json .ts .py ...`):
 
 ```bash
-sovereign "bu diagrammaga qarab kod yoz" -f diagram.png
-sovereign "bu PDFdan asosiy g'oyalarni chiqar" -f paper.pdf
+sov "bu diagrammaga qarab kod yoz" -f diagram.png
+sov "bu PDFdan asosiy g'oyalarni chiqar" -f paper.pdf
 ```
 
-Interaktiv rejimda:
-
-```
-› /attach ./mockup.png
-› Shu dizaynga qarab HTML yoz
-```
-
-Cheklovlar: rasm 900 KB (server so'rov limiti tufayli — kattasini siqib yuboring), matn 2 MB, PDF 20 MB. PDF matnini ajratish uchun `npm i -g pdf-parse@2` o'rnating (ixtiyoriy).
+Cheklovlar: rasm 900 KB, matn 2 MB, PDF 20 MB. PDF matni uchun `npm i -g pdf-parse@2` (faqat npm versiyasida; binary'da PDF matni ajratilmaydi).
 
 ## Xavfsizlik
 
-- Fayl amallari **faqat `sovereign` ishga tushgan papka ichida** bo'ladi.
-- Fayl/papka/buyruqdan oldin **tasdiq so'raydi** (`--yes` bilan o'chiriladi).
-- Token va kalitlar faqat kompyuteringizda (`~/.sovereign/config.json`).
+- Fayl amallari ish papkasi ichida; tashqi yo'l va xavfli buyruqlar **har doim** alohida so'raladi (`--yes`/vibe ham o'tkazib yubormaydi).
+- Kalit/parol/tizim yo'llari (`.ssh`, `.aws`, `~/.sovereign`, brauzer profillari ...) — hech qachon.
+- Token va kalitlar faqat kompyuteringizda (`~/.sovereign/config.json`, 0600).
 
-## Sozlash manzili
+## Muhit o'zgaruvchilari
 
-`SOVEREIGN_URL` — server manzili (default `https://soveregn.xyz`).
-`SOVEREIGN_TOKEN` — akkaunt tokeni (env orqali).
+`SOVEREIGN_URL` (server, standart `https://api.soveregn.xyz`), `SOVEREIGN_TOKEN`, `OPENROUTER_API_KEY`, `SOVEREIGN_MODEL`, `NO_COLOR`, `FORCE_COLOR`, `SOV_VERIFY=0`, `SOV_NO_HISTORY=1`, `SOV_NO_UPDATE_CHECK=1`.
+
+## Binary yig'ish (dasturchilar uchun)
+
+```bash
+cd cli
+npm ci
+npm run build:binary      # dist/sov-<os>-<arch>[.exe] + .sha256, --version/--help sinovi bilan
+```
+
+Node SEA (Single Executable Application) + esbuild + postject; faqat joriy platforma uchun. Hamma platformalar: `cli-v<versiya>` tegini push qiling — `.github/workflows/cli-release.yml` Windows/Linux/macOS (arm64, x64) binary'larini yig'ib, GitHub Release'ga checksum'lar bilan qo'yadi.

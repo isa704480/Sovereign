@@ -1,11 +1,39 @@
 // SOVEREIGN CLI — Apple Liquid Glass adapted for terminal.
 // Zero dependencies. Restrained palette, hairline dividers, unified panels.
 
-import { createRequire } from "node:module";
+import { VERSION as PKG_VERSION } from "./version.mjs";
 
-const { version: PKG_VERSION } = createRequire(import.meta.url)("../package.json");
-const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
-const wrap = (open, close) => (s) => (useColor ? `\x1b[${open}m${s}\x1b[${close}m` : String(s));
+// Rang va spinner holati — ishga tushgach bir marta sozlanadi (configureUi).
+// NO_COLOR (https://no-color.org), --no-color, quvur (non-TTY) — ANSI yo'q.
+// FORCE_COLOR=1..3 — quvurda ham rang (CI loglari uchun).
+const ui = {
+  color: Boolean(process.stdout.isTTY) && !process.env.NO_COLOR && process.env.TERM !== "dumb",
+  spinner: true,
+  /** Spinner/progress yoziladigan oqim (-p rejimida stderr). */
+  stream: process.stdout,
+};
+if (process.env.FORCE_COLOR && process.env.FORCE_COLOR !== "0" && !process.env.NO_COLOR) ui.color = true;
+
+/**
+ * Terminal chiqishini sozlaydi.
+ * @param {{ color?: boolean, spinner?: boolean, stream?: NodeJS.WriteStream }} opts
+ */
+export function configureUi(opts = {}) {
+  if (typeof opts.color === "boolean") ui.color = opts.color;
+  if (typeof opts.spinner === "boolean") ui.spinner = opts.spinner;
+  if (opts.stream) ui.stream = opts.stream;
+}
+
+export function colorEnabled() {
+  return ui.color;
+}
+
+/** ANSI kodlarini olib tashlaydi (log/JSON uchun). */
+export function stripAnsi(s) {
+  return String(s ?? "").replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "");
+}
+
+const wrap = (open, close) => (s) => (ui.color ? `\x1b[${open}m${s}\x1b[${close}m` : String(s));
 
 /**
  * Apple-style restrained palette:
@@ -217,22 +245,30 @@ export function slashMenu(items) {
   // Group by category — Apple-style hierarchy
   const groups = [
     { label: "Suhbat",   cmds: ["/help", "/clear", "/attach", "/detach"] },
+    { label: "Sessiya",  cmds: ["/sessions", "/resume", "/rewind", "/fork"] },
+    { label: "Rejim",    cmds: ["/vibe", "/swarm"] },
     { label: "Model",    cmds: ["/model", "/models"] },
     { label: "Skillar",  cmds: ["/skills", "/skill"] },
     { label: "Xotira",   cmds: ["/memory", "/remember", "/forget"] },
     { label: "Akkaunt",  cmds: ["/whoami", "/login", "/logout", "/register", "/upgrade"] },
-    { label: "Tizim",    cmds: ["/cwd", "/exit"] },
+    { label: "Tizim",    cmds: ["/cwd", "/doctor", "/version", "/exit"] },
   ];
+  // Guruhga kiritilmagan buyruq ham menyuda ko'rinsin (ro'yxat bilan sinxron qoladi).
+  const grouped = new Set(groups.flatMap((g) => g.cmds));
+  const rest = items.map((i) => i.cmd).filter((cmd) => !grouped.has(cmd));
+  if (rest.length) groups.push({ label: "Boshqa", cmds: rest });
 
   const byName = Object.fromEntries(items.map((i) => [i.cmd, i]));
 
-  const sections = groups.map((g) => {
+  const sections = groups.filter((grp) => grp.cmds.some((cmd) => byName[cmd])).map((g) => {
     const rows = [c.faint(g.label.toUpperCase())];
     for (const cmdName of g.cmds) {
       const item = byName[cmdName];
       if (!item) continue;
-      const name = pad(c.text(item.cmd), 14);
-      rows.push("  " + name + "  " + c.subtle(item.desc));
+      const name = pad(c.text(item.cmd), 11);
+      const room = Math.max(10, width - 6 - 2 - 11 - 2);
+      const desc = item.desc.length > room ? item.desc.slice(0, room - 1) + "…" : item.desc;
+      rows.push("  " + name + "  " + c.subtle(desc));
     }
     return rows;
   });
@@ -276,62 +312,123 @@ function mdInline(s) {
  * Terminal markdown renderer — sarlavha, ro'yxat, kod bloki, inline formatlar.
  * AI javobini toza, o'qiladigan ko'rinishga keltiradi (xom `**`/`#` yo'qoladi).
  */
+/** Bitta markdown qatorini render qiladi; `state.inFence` kod bloki holatini saqlaydi. */
+function renderMdLine(raw, state, indent, out) {
+  const fence = /^\s*```(\w*)/.exec(raw);
+  if (fence) {
+    out.push(indent + c.hairline(state.inFence ? "└─" : "┌─ " + (fence[1] || "kod")));
+    state.inFence = !state.inFence;
+    return;
+  }
+  if (state.inFence) {
+    out.push(indent + c.hairline("│ ") + c.subtle(raw));
+    return;
+  }
+  let m;
+  if ((m = /^\s*#{1,6}\s+(.*)$/.exec(raw))) {
+    if (out.length ? out[out.length - 1] !== "" : state.lastNonEmpty) out.push("");
+    out.push(indent + c.bold(c.text(mdInline(m[1]))));
+  } else if ((m = /^(\s*)[-*]\s+(.*)$/.exec(raw))) {
+    out.push(indent + m[1] + c.accent("•") + "  " + mdInline(m[2]));
+  } else if ((m = /^(\s*)(\d+)\.\s+(.*)$/.exec(raw))) {
+    out.push(indent + m[1] + c.accent(m[2] + ".") + "  " + mdInline(m[3]));
+  } else if (/^\s*(---|\*\*\*|___)\s*$/.test(raw)) {
+    out.push(indent + c.hairline("─".repeat(28)));
+  } else {
+    out.push(raw.trim() ? indent + mdInline(raw) : "");
+  }
+}
+
 export function renderMarkdown(md, indent = "      ") {
   const lines = String(md ?? "").replace(/\r/g, "").split("\n");
   const out = [];
-  let inFence = false;
-  for (const raw of lines) {
-    const fence = /^\s*```(\w*)/.exec(raw);
-    if (fence) {
-      out.push(indent + c.hairline(inFence ? "└─" : "┌─ " + (fence[1] || "kod")));
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) {
-      out.push(indent + c.hairline("│ ") + c.subtle(raw));
-      continue;
-    }
-    let m;
-    if ((m = /^\s*#{1,6}\s+(.*)$/.exec(raw))) {
-      if (out.length && out[out.length - 1] !== "") out.push("");
-      out.push(indent + c.bold(c.text(mdInline(m[1]))));
-      continue;
-    }
-    if ((m = /^(\s*)[-*]\s+(.*)$/.exec(raw))) {
-      out.push(indent + m[1] + c.accent("•") + "  " + mdInline(m[2]));
-      continue;
-    }
-    if ((m = /^(\s*)(\d+)\.\s+(.*)$/.exec(raw))) {
-      out.push(indent + m[1] + c.accent(m[2] + ".") + "  " + mdInline(m[3]));
-      continue;
-    }
-    if (/^\s*(---|\*\*\*|___)\s*$/.test(raw)) {
-      out.push(indent + c.hairline("─".repeat(28)));
-      continue;
-    }
-    out.push(raw.trim() ? indent + mdInline(raw) : "");
-  }
+  const state = { inFence: false, lastNonEmpty: false };
+  for (const raw of lines) renderMdLine(raw, state, indent, out);
   return out.join("\n");
 }
 
-export function clearScreen() {
-  if (process.stdout.isTTY) process.stdout.write("\x1b[2J\x1b[H");
-}
-
-const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-export function spinner(label) {
-  if (!process.stdout.isTTY) return { stop() {} };
-  let i = 0;
-  const timer = setInterval(() => {
-    process.stdout.write(`\r${G()}${c.accent(FRAMES[i++ % FRAMES.length])} ${c.subtle(label)} `);
-  }, 80);
+/**
+ * Oqimli markdown: tokenlar kelishi bilan TO'LIQ qatorlarni darhol render qilib
+ * yozadi (kod bloki holati saqlanadi), oxirgi to'liqsiz qator `end()` da chiqadi.
+ * @param {(s: string) => void} write
+ */
+export function markdownStream(write, indent = "      ") {
+  let buf = "";
+  const state = { inFence: false, lastNonEmpty: false };
+  const emit = (line) => {
+    const out = [];
+    renderMdLine(line, state, indent, out);
+    for (const l of out) write(l + "\n");
+    state.lastNonEmpty = out.length ? out[out.length - 1] !== "" : state.lastNonEmpty;
+  };
   return {
-    stop(clear = true) {
-      clearInterval(timer);
-      if (clear) process.stdout.write("\r" + " ".repeat(label.length + G().length + 4) + "\r");
+    push(chunk) {
+      buf += String(chunk ?? "").replace(/\r/g, "");
+      let nl;
+      while ((nl = buf.indexOf("\n")) !== -1) {
+        emit(buf.slice(0, nl));
+        buf = buf.slice(nl + 1);
+      }
+    },
+    end() {
+      if (buf) emit(buf);
+      buf = "";
     },
   };
 }
+
+export function clearScreen() {
+  if (process.stdout.isTTY && ui.color) process.stdout.write("\x1b[2J\x1b[H");
+}
+
+const FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+let activeSpinner = null;
+
+/** Faol spinnerni to'xtatadi (mas. Ctrl+C yoki tasdiq so'rovidan oldin). */
+export function stopSpinner() {
+  activeSpinner?.stop();
+}
+
+/**
+ * Bitta qatorli spinner: kechgan soniyalar bilan. TTY bo'lmasa, NO_COLOR yoki
+ * -p rejimida — umuman chizilmaydi (quvurga ANSI chiqmaydi). Tugagach qator
+ * to'liq tozalanadi va kursor qaytariladi.
+ */
+export function spinner(label) {
+  const stream = ui.stream;
+  if (!ui.spinner || !stream.isTTY || !ui.color) return { stop() {}, update() {} };
+  activeSpinner?.stop();
+  let i = 0;
+  let text = label;
+  const started = Date.now();
+  const draw = () => {
+    const secs = Math.floor((Date.now() - started) / 1000);
+    const time = secs >= 2 ? c.faint(` ${secs}s · ctrl+c bekor`) : "";
+    stream.write(`\r\x1b[2K${G()}${c.accent(FRAMES[i++ % FRAMES.length])} ${c.subtle(text)}${time}`);
+  };
+  stream.write("\x1b[?25l");
+  draw();
+  const timer = setInterval(draw, 80);
+  timer.unref?.();
+  const self = {
+    update(next) {
+      text = next;
+    },
+    stop(clear = true) {
+      if (activeSpinner !== self) return;
+      activeSpinner = null;
+      clearInterval(timer);
+      stream.write((clear ? "\r\x1b[2K" : "\n") + "\x1b[?25h");
+    },
+  };
+  activeSpinner = self;
+  return self;
+}
+
+// Jarayon kutilmaganda tugasa ham kursor ko'rinadigan qolsin.
+process.once("exit", () => {
+  if (activeSpinner) activeSpinner.stop();
+});
 
 export function separator() {
   const g = G();

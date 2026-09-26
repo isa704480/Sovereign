@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import readline from "node:readline";
+import { format } from "node:util";
+import { readFileSync } from "node:fs";
 import { dirname as pathDirname, resolve as pathResolve, sep as pathSep } from "node:path";
 import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
@@ -8,41 +10,40 @@ import { login } from "../src/login.mjs";
 import { printModels, resolveModelId, isOmniId, fetchCatalog, printCatalog, fetchFamilies, matchFamily, CLI_MODELS } from "../src/models.mjs";
 import { selectMenu } from "../src/menu.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
-import { banner, c, clearScreen, gutter, hintBar, logo, separator, skillsList, slashMenu, spinner } from "../src/ui.mjs";
+import { banner, c, clearScreen, configureUi, gutter, hintBar, logo, skillsList, slashMenu, spinner, stopSpinner, stripAnsi } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
 import { isTrustableDir, resolvePath as resolveWs } from "../src/tools.mjs";
 import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
 import { countTurns, listSessions, loadSession, rewind, saveSession } from "../src/sessions.mjs";
+import { EXIT, SUBCOMMANDS, parseArgs } from "../src/args.mjs";
+import { VERSION, IS_BINARY } from "../src/version.mjs";
+import { runDoctor, printDoctor } from "../src/doctor.mjs";
+import { renderDiff } from "../src/diff.mjs";
+import { loadHistory, saveHistory, HISTORY_SIZE } from "../src/history.mjs";
 
-const rawArgs = process.argv.slice(2);
-const AUTO_YES = rawArgs.includes("--yes") || rawArgs.includes("-y");
+const parsed = parseArgs(process.argv.slice(2));
+const flags = parsed.flags;
+if (flags.noColor) configureUi({ color: false });
+const AUTO_YES = Boolean(flags.yes);
 
 /**
  * VIBE rejim — `sov` deb chaqirilganda (yoki --vibe bilan) yoqiladi: kodni
  * faqat AI yozadi, ish papkasi ICHIDA fayl yaratish/o'zgartirish va faqat-o'qish
  * (safe) buyruqlar har safar so'ralmaydi. Xavfli buyruqlar (interpretator, paket
  * menejeri, tarmoq, fayl o'zgartiruvchi...) va ish papkasidan tashqaridagi yo'llar
- * baribir tasdiq so'raydi — bu chegara hech qachon ochilmaydi.
+ * baribir tasdiq so'raydi — bu chegara hech qachon ochilmaydi. --no-vibe o'chiradi.
  */
-const invokedAs = (process.argv[1] ?? "").split(/[\\/]/).pop()?.replace(/\.(mjs|js)$/, "") ?? "";
-const vibe = { on: invokedAs === "sov" || rawArgs.includes("--vibe") };
+const invokedAs = (process.argv[1] ?? "").split(/[\\/]/).pop()?.replace(/\.(mjs|js|exe|cmd)$/i, "").toLowerCase() ?? "";
+const vibe = { on: !flags.noVibe && (invokedAs === "sov" || Boolean(flags.vibe)) };
 
-// -f <path> / --file <path> collects local files to attach to the first turn.
-const attachFiles = [];
-const args = [];
-for (let i = 0; i < rawArgs.length; i++) {
-  const a = rawArgs[i];
-  if (a === "--yes" || a === "-y" || a === "--vibe") continue;
-  if (a === "-f" || a === "--file") {
-    const p = rawArgs[++i];
-    if (p) attachFiles.push(p);
-    continue;
-  }
-  if (a.startsWith("--file=")) {
-    attachFiles.push(a.slice(7));
-    continue;
-  }
-  args.push(a);
+// -f <path> / --file <path> — birinchi xabarga biriktiriladigan fayllar.
+const attachFiles = parsed.files;
+
+/** Faqat shu ishga model (saqlanmaydi): -m / --model. */
+function withModelOverride(config) {
+  if (!flags.model) return config;
+  if (config.token) return { ...config, omniModel: flags.model, model: flags.model };
+  return { ...config, model: resolveModelId(flags.model), omniModel: "" };
 }
 
 /** Build a user message: string if no attachments, multimodal array otherwise. */
@@ -62,8 +63,17 @@ async function buildUserMessage(text, paths) {
   return { role: "user", content: parts };
 }
 
-function ask(rl, q) {
-  return new Promise((res) => rl.question(q, (a) => res(a)));
+/** Savol; `signal` bekor qilinsa (Ctrl+C) bo'sh javob — ya'ni "yo'q". */
+function ask(rl, q, signal) {
+  return new Promise((res) => {
+    if (signal?.aborted) return res("");
+    const onAbort = () => res("");
+    signal?.addEventListener("abort", onAbort, { once: true });
+    rl.question(q, signal ? { signal } : {}, (a) => {
+      signal?.removeEventListener("abort", onAbort);
+      res(a);
+    });
+  });
 }
 
 /** Ask until a non-empty answer (tolerates a stray leading newline on Windows cmd). */
@@ -74,6 +84,33 @@ async function askRequired(rl, q, tries = 4) {
   }
   return "";
 }
+
+/**
+ * write_file tasdig'idan oldin diff: nima o'zgarishini ko'rib tasdiqlash.
+ * `full` — tasdiq so'ralganda (ko'proq qator); avtomatik tasdiqda qisqa.
+ */
+function previewWrite(meta, full) {
+  if (meta?.tool !== "write_file" || typeof meta.content !== "string") return;
+  let old = "";
+  if (meta.exists) {
+    try {
+      old = readFileSync(resolveWs(meta.path).real, "utf8");
+    } catch {
+      old = "";
+    }
+  }
+  if (!meta.exists && !full) return; // avto rejimda yangi fayl — faqat bir qator (tasdiq satrida)
+  if (old.length > 1_000_000 || meta.content.length > 1_000_000) {
+    console.log(`      ${c.dim("(fayl katta — diff ko'rsatilmaydi)")}`);
+    return;
+  }
+  const d = renderDiff(old, meta.content, { isNew: !meta.exists, maxLines: full ? 40 : 12 });
+  console.log(`      ${c.dim(meta.exists ? "o'zgarish" : "yangi fayl")} ${d.stat}`);
+  for (const l of d.lines) console.log("      " + l);
+}
+
+/** Joriy navbat (Ctrl+C uni bekor qiladi). */
+const turnState = { ac: null };
 
 async function confirmer(rl) {
   // "a" (hammasiga ha) — shu sessiya davomida: ish papkasi ICHIDAGI fayl amallari
@@ -88,19 +125,23 @@ async function confirmer(rl) {
     return false;
   };
   return async (question, forcePrompt = false, meta = null) => {
+    stopSpinner();
     const mustAsk = Boolean(forcePrompt || meta?.risky || meta?.outside);
     if (!mustAsk && (trust.all || inTrustedDir(meta?.path))) {
-      console.log(`  ${c.dim("✓")} ${c.dim(question.replace(/\x1b\[[0-9;]*m/g, ""))} ${c.green("auto")}`);
+      console.log(`  ${c.dim("✓")} ${c.dim(stripAnsi(question))} ${c.green("auto")}`);
+      previewWrite(meta, false);
       return true;
     }
     if ((AUTO_YES || vibe.on) && !mustAsk) {
       console.log(`  ${c.amber("?")} ${question} ${c.green("auto-yes")}`);
+      previewWrite(meta, false);
       return true;
     }
+    previewWrite(meta, true);
     // `mustAsk` — tashqi yo'l / xavfli buyruq: --yes bo'lsa ham majburiy tasdiq, "a" yo'q.
     const prefix = mustAsk ? c.red("!") : c.amber("?");
     const opts = mustAsk ? "[y/N] " : "[y/N/a] ";
-    const a = (await ask(rl, `  ${prefix} ${question} ${c.dim(opts)}`)).trim().toLowerCase();
+    const a = (await ask(rl, `  ${prefix} ${question} ${c.dim(opts)}`, turnState.ac?.signal)).trim().toLowerCase();
     if (!mustAsk && ["a", "all", "hammasi", "hammasiga", "doim"].includes(a)) {
       trust.all = true;
       if (meta?.path) {
@@ -116,6 +157,23 @@ async function confirmer(rl) {
   };
 }
 
+/**
+ * Interaktivsiz (-p / quvur) tasdiqlovchi: hech narsa so'ramaydi. Faqat --yes
+ * yoki aniq --vibe bilan ish papkasi ichidagi oddiy amallar bajariladi; tashqi
+ * yo'l va xavfli buyruqlar (forcePrompt) HAR DOIM rad etiladi.
+ */
+function nonInteractiveConfirmer() {
+  return async (question, forcePrompt = false, meta = null) => {
+    const mustAsk = Boolean(forcePrompt || meta?.risky || meta?.outside);
+    const q = stripAnsi(question);
+    if (!mustAsk && (AUTO_YES || flags.vibe)) {
+      console.log(`  ✓ ${q} (auto-yes)`);
+      return true;
+    }
+    console.log(`  ⊘ ${q} — rad etildi (${mustAsk ? "interaktiv tasdiq talab qilinadi" : "ruxsat uchun --yes"})`);
+    return false;
+  };
+}
 
 async function ensureAuth(rl) {
   let config = loadConfig();
@@ -128,14 +186,98 @@ async function ensureAuth(rl) {
 
   if (choice === "2") {
     const key = await askRequired(rl, `  ${c.dim("OpenRouter kalit (sk-or-...): ")}`);
-    if (!key) process.exit(1);
+    if (!key) process.exit(EXIT.AUTH);
     saveConfig({ openrouterKey: key });
     return loadConfig();
   }
 
   const ok = await login(config.baseUrl);
-  if (!ok) process.exit(1);
+  if (!ok) process.exit(EXIT.AUTH);
   return loadConfig();
+}
+
+// ---- yordam -----------------------------------------------------------
+const COMMAND_HELP = {
+  login: ["sov login [--local | --url=URL]", "Brauzer orqali SOVEREIGN akkauntiga ulanish (tasdiq sahifasi ochiladi).", ["sov login", "sov login --local"]],
+  logout: ["sov logout", "Akkauntdan chiqish (lokal token o'chiriladi).", []],
+  whoami: ["sov whoami [--json]", "Ulanish holati: akkaunt yoki o'z OpenRouter kalitingiz.", ["sov whoami --json"]],
+  doctor: ["sov doctor [--json]", "Diagnostika: Node/binary, versiya, config, server, login, ish papkasi, PATH. Muammo bo'lsa chiqish kodi 1.", ["sov doctor", "sov doctor --json"]],
+  models: ["sov models", "Mahalliy model ro'yxati (interaktiv rejimda /model — to'liq katalog).", []],
+  sessions: ["sov sessions [--json]", "Saqlangan suhbatlar. Davom ettirish: interaktiv rejimda /resume <id>.", []],
+  key: ["sov key <sk-or-...>", "O'z OpenRouter kalitingizni saqlash (akkauntsiz rejim).", ["sov key sk-or-v1-..."]],
+  config: ["sov config", "Kalitlar va standart modelni interaktiv sozlash.", []],
+  version: ["sov version", "Versiyani chiqarish (yoki: sov --version).", []],
+};
+
+function handleHelp(topic) {
+  const t = topic === "who" ? "whoami" : topic;
+  if (t && COMMAND_HELP[t]) {
+    const [usage, desc, examples] = COMMAND_HELP[t];
+    console.log(`\n  ${c.white("Foydalanish:")} ${usage}\n\n  ${desc}\n`);
+    if (examples.length) console.log(`  ${c.white("Misollar:")}\n${examples.map((e) => `    ${e}`).join("\n")}\n`);
+    return;
+  }
+  const w = (s) => c.white(s);
+  console.log(
+    [
+      "",
+      `  ${logo()} ${c.dim("CLI v" + VERSION)} ${c.dim("— terminaldagi AI koding agenti")}`,
+      "",
+      `  ${w("Foydalanish:")}`,
+      `    sov [flaglar] ["vazifa"]`,
+      `    sov <buyruq> [argumentlar]`,
+      "",
+      `  ${w("Buyruqlar:")}`,
+      `    ${w("(buyruqsiz)")}              interaktiv rejim (chat + agent)`,
+      `    ${w('"vazifa"')}                 bitta vazifani bajarib chiqish (tasdiqlar so'raladi)`,
+      `    ${w("login")} [--local|--url=]   brauzer orqali akkauntga ulanish`,
+      `    ${w("logout")}                   akkauntdan chiqish`,
+      `    ${w("whoami")}                   ulanish holati`,
+      `    ${w("doctor")}                   diagnostika va yechim ko'rsatmalari`,
+      `    ${w("models")}                   modellar ro'yxati`,
+      `    ${w("sessions")}                 saqlangan suhbatlar`,
+      `    ${w("key")} <sk-or-...>          o'z OpenRouter kalitingiz`,
+      `    ${w("config")}                   interaktiv sozlash`,
+      `    ${w("version")}                  versiya`,
+      `    ${w("help")} [buyruq]            yordam (mas. sov help doctor)`,
+      "",
+      `  ${w("Flaglar:")}`,
+      `    -p, --print              interaktivsiz: javobni stdout'ga chiqarib chiqadi`,
+      `        --json               -p / doctor / whoami bilan — JSON natija`,
+      `    -f, --file <yo'l>        fayl biriktirish (rasm/PDF/matn; takrorlash mumkin)`,
+      `    -m, --model <id>         shu ish uchun model (saqlanmaydi)`,
+      `    -y, --yes                ish papkasi ichidagi oddiy amallarni avtomatik tasdiqlash`,
+      `        --vibe, --no-vibe    vibe rejimni yoqish / o'chirish (sov nomi bilan yoqiq)`,
+      `        --no-verify          AI hakam (halollik tekshiruvi)ni o'chirish`,
+      `        --no-color           rangsiz chiqish (yoki NO_COLOR=1)`,
+      `    -V, --version            versiya`,
+      `    -h, --help               shu yordam`,
+      "",
+      `  ${w("Misollar:")}`,
+      `    sov`,
+      `    sov "Express server yarat va test qil"`,
+      `    sov -p "bu loyiha nima qiladi?"`,
+      `    git diff | sov -p "shu o'zgarishni review qil"`,
+      `    sov -p --json "package.json'ni tekshir" > natija.json`,
+      `    sov "shu dizaynga HTML yoz" -f mockup.png`,
+      `    sov doctor`,
+      "",
+      `  ${w("Interaktiv rejimda:")} / — buyruqlar menyusi, /help, @fayl — biriktirish, ↑/↓ — tarix,`,
+      `    Ctrl+C — joriy ishni bekor qilish, ikki marta — chiqish.`,
+      "",
+      `  ${w("Xavfsizlik:")} ish papkasidan tashqaridagi yo'l va xavfli buyruqlar HAR DOIM so'raladi`,
+      `    (--yes/vibe ham o'tkazib yubormaydi); -p rejimida ular avtomatik rad etiladi.`,
+      "",
+      `  ${w("Chiqish kodlari:")} 0 muvaffaqiyat · 1 xato · 2 noto'g'ri foydalanish · 3 login kerak · 130 Ctrl+C`,
+      `  ${w("Muhit:")} SOVEREIGN_URL, SOVEREIGN_TOKEN, OPENROUTER_API_KEY, SOVEREIGN_MODEL, NO_COLOR, SOV_VERIFY=0`,
+      `  ${w("Sozlamalar:")} ${c.dim(CONFIG_PATH)}`,
+      "",
+    ].join("\n"),
+  );
+}
+
+function versionLine() {
+  return `sov ${VERSION} (${process.platform}-${process.arch}, ${IS_BINARY ? "binary" : "node"} v${process.versions.node})`;
 }
 
 // ---- subcommands ------------------------------------------------------
@@ -154,36 +296,6 @@ async function handleConfig() {
   rl.close();
 }
 
-function handleHelp() {
-  console.log(banner(loadConfig()));
-  console.log(
-    [
-      "  Foydalanish:",
-      `    ${c.white("sovereign")}                       interaktiv rejim (chat + agent)`,
-      `    ${c.white('sovereign "vazifa"')}              bitta topshiriq va chiq`,
-      `    ${c.white('sovereign "..." -f rasm.png')}     faylni biriktirib yuborish`,
-      `    ${c.white("sovereign login")}                 brauzer orqali hisobga ulanish`,
-      `    ${c.white("sovereign login --local")}         lokal serverga ulanish (test)`,
-      `    ${c.white("sovereign logout")}                hisobdan chiqish`,
-      `    ${c.white("sovereign whoami")}                holat`,
-      `    ${c.white("sovereign key sk-or-...")}         o'z OpenRouter kalitingiz`,
-      `    ${c.white("sovereign help")}                  yordam`,
-      "",
-      "  Interaktiv buyruqlar:",
-      `    ${c.white("/models")}          model ro'yxati`,
-      `    ${c.white("/model <id>")}      modelni almashtirish (qisqa nom ham bo'ladi)`,
-      `    ${c.white("/cwd <path>")}      ish papkasini o'zgartirish`,
-      `    ${c.white("/attach <path>")}   keyingi xabarga fayl (rasm/PDF/matn) biriktirish`,
-      `    ${c.white("/detach")}          biriktirilgan fayllarni tozalash`,
-      `    ${c.white("/clear")}           suhbatni tozalash`,
-      `    ${c.white("/exit")}            chiqish`,
-      "",
-      `  Kalit: ${c.dim("$OPENROUTER_API_KEY yoki")} ${c.dim(CONFIG_PATH)}`,
-      "",
-    ].join("\n"),
-  );
-}
-
 /** Format menu rows with proper color per item. */
 function renderSlashMenu() {
   const items = SLASH_COMMANDS.map((s) => ({
@@ -193,12 +305,6 @@ function renderSlashMenu() {
     color: c[s.color] || c.indigo,
   }));
   return slashMenu(items);
-}
-
-/** Bulk console.log with proper left gutter. */
-function print(...lines) {
-  const g = gutter();
-  for (const line of lines) console.log(g + line);
 }
 
 // ---- interactive REPL -------------------------------------------------
@@ -217,11 +323,50 @@ async function repl() {
     input: process.stdin,
     output: process.stdout,
     completer,
+    // Buyruqlar tarixi sessiyalar orasida saqlanadi (↑/↓).
+    history: loadHistory(),
+    historySize: HISTORY_SIZE,
+    removeHistoryDuplicates: true,
     // Standart "> " o'rniga o'zimizniki (repl boshlanganda yangilanadi).
     prompt: `${gutter()}${c.accent("❯")} `,
   });
+  rl.on("history", (h) => saveHistory(h));
 
-  let config = await ensureAuth(rl);
+  // ── Ctrl+C: 1-marta — joriy navbatni bekor qiladi; bo'sh promptda 2 marta — chiqish.
+  let lastSigint = 0;
+  let exiting = false;
+  rl.on("SIGINT", () => {
+    const now = Date.now();
+    if (turnState.ac) {
+      if (!turnState.ac.signal.aborted) {
+        stopSpinner();
+        turnState.ac.abort();
+        process.stdout.write("\n" + gutter() + c.amber("⊘ bekor qilinmoqda…") + c.dim("  (chiqish uchun yana Ctrl+C)") + "\n");
+        lastSigint = now;
+        return;
+      }
+      // Bekor qilish kutilayotganda yana Ctrl+C — darhol chiqish.
+      process.stdout.write("\n");
+      process.exit(EXIT.INTERRUPTED);
+    }
+    if (rl.line) {
+      // Yozilayotgan qatorni tozalash (bash/zsh kabi).
+      rl.write(null, { ctrl: true, name: "e" });
+      rl.write(null, { ctrl: true, name: "u" });
+      lastSigint = 0;
+      return;
+    }
+    if (now - lastSigint < 2000) {
+      exiting = true;
+      rl.close();
+      return;
+    }
+    lastSigint = now;
+    process.stdout.write("\n" + gutter() + c.dim("(chiqish uchun yana Ctrl+C bosing yoki /exit yozing)") + "\n");
+    rl.prompt();
+  });
+
+  let config = withModelOverride(await ensureAuth(rl));
   // Umumiy xotira (web bilan bir xil) — birinchi xabardan oldin keshni yangilaymiz.
   if (config.token) await syncMemory(config).catch(() => {});
   let messages = initialMessages(config);
@@ -238,7 +383,7 @@ async function repl() {
         enabledSkills.clear();
         for (const s of me.enabled_skills) enabledSkills.add(s);
       }
-      if (me.default_model) config.model = me.default_model;
+      if (me.default_model && !flags.model) config.model = me.default_model;
       if (me.email) config.email = me.email;
       config.planState = me.plan_state;
       config.plan = me.plan;
@@ -246,7 +391,7 @@ async function repl() {
       saveConfig({
         email: config.email || "",
         enabledSkills: [...enabledSkills],
-        model: config.model,
+        ...(flags.model ? {} : { model: config.model }),
         planState: me.plan_state,
         plan: me.plan,
       });
@@ -276,7 +421,7 @@ async function repl() {
           for (const s of changed.enabledSkills) enabledSkills.add(s);
           say(c.dim("↻ Skillar web bilan sinxronlandi"));
         }
-        if (changed.model) {
+        if (changed.model && !flags.model) {
           config.model = changed.model;
           say(c.dim(`↻ Model o'zgardi: ${changed.model}`));
         }
@@ -303,6 +448,26 @@ async function repl() {
     rl.prompt();
   };
   const say = (line) => console.log(G + line);
+
+  /** Agent navbati — Ctrl+C bilan bekor qilinadi. */
+  const runTurn = async () => {
+    const ac = new AbortController();
+    turnState.ac = ac;
+    try {
+      const res = await agentTurn({
+        messages,
+        config,
+        confirm,
+        signal: ac.signal,
+        stream: !config.token, // to'g'ridan-to'g'ri OpenRouter — tokenlar oqim bilan
+        verify: flags.verify,
+      });
+      if (res.error) console.log(G + c.red(`Xato: ${res.error}\n`));
+      return res;
+    } finally {
+      turnState.ac = null;
+    }
+  };
 
   // ── Model tanlash — strelka bilan (yozmasdan) ──
   const setAutoModel = () => {
@@ -406,6 +571,21 @@ async function repl() {
       continue;
     }
 
+    // ── Versiya / diagnostika ──
+    if (input === "/version") {
+      say(c.dim(versionLine()));
+      rewritePrompt();
+      continue;
+    }
+    if (input === "/doctor") {
+      const spin = spinner("tekshirilyapti...");
+      const results = await runDoctor();
+      spin.stop();
+      printDoctor(results);
+      rewritePrompt();
+      continue;
+    }
+
     // ── Sessiyalar ro'yxati ──
     if (input === "/sessions") {
       const list = listSessions();
@@ -499,8 +679,7 @@ async function repl() {
             `papkalarni yarat (make_dir), zarur bo'lsa buyruq ishga tushir (run_command) va natijani sina. ` +
             `Har qadamni qisqa tushuntirib bor.\n\nASL VAZIFA: ${task}\n\nREJA:\n${res.merged}`,
         });
-        const { error } = await agentTurn({ messages, config, confirm });
-        if (error) say(c.red(`Xato: ${error}`));
+        await runTurn();
         sessionId = saveSession({ id: sessionId, messages, model: config.model });
       }
       rewritePrompt();
@@ -519,7 +698,7 @@ async function repl() {
       continue;
     }
 
-    // ── Help / Menyu ──
+    // ── Xotira ──
     if (input === "/memory") {
       const list = loadMemory(config);
       console.log("");
@@ -552,8 +731,13 @@ async function repl() {
       rl.prompt();
       continue;
     }
-        if (input === "/help") {
+
+    // ── Yordam ──
+    if (input === "/help" || input === "/?") {
       console.log(renderSlashMenu());
+      say(c.dim("@fayl — biriktirish · Tab — to'ldirish · ↑/↓ — tarix · Ctrl+C — bekor qilish (2× — chiqish)"));
+      say(c.dim("Terminal buyruqlari: sov --help · sov doctor · sov -p \"savol\""));
+      console.log("");
       rewritePrompt();
       continue;
     }
@@ -564,7 +748,7 @@ async function repl() {
       rewritePrompt();
       continue;
     }
-    if (input.startsWith("/skill")) {
+    if (input.startsWith("/skill ") || input === "/skill") {
       const id = input.slice(6).trim();
       if (!id) {
         say(c.dim("Foydalanish: /skill <id> (masalan /skill cybersecurity)"));
@@ -611,7 +795,7 @@ async function repl() {
       rewritePrompt();
       continue;
     }
-    if (input.startsWith("/model")) {
+    if (input === "/model" || input.startsWith("/model ")) {
       const arg = input.slice(6).trim();
       if (arg && /^(auto|avto|sovereign)$/i.test(arg)) {
         // SOVEREIGN Auto — server tarif va mavjud provayderlarga qarab o'zi tanlaydi.
@@ -639,7 +823,7 @@ async function repl() {
     }
 
     // ── Ish papkasi ──
-    if (input.startsWith("/cwd")) {
+    if (input === "/cwd" || input.startsWith("/cwd ")) {
       const p = input.slice(4).trim();
       if (p) {
         try {
@@ -657,7 +841,7 @@ async function repl() {
     }
 
     // ── Fayl biriktirish ──
-    if (input.startsWith("/attach")) {
+    if (input === "/attach" || input.startsWith("/attach ")) {
       const p = input.slice(7).trim().replace(/^["']|["']$/g, "");
       if (!p) {
         say(c.dim("Foydalanish: /attach <fayl-yo'li>"));
@@ -692,7 +876,7 @@ async function repl() {
       say(c.dim("Brauzerda tasdiqlash oynasi ochiladi..."));
       const ok = await login(config.baseUrl);
       if (ok) {
-        config = loadConfig();
+        config = withModelOverride(loadConfig());
         say(c.emerald("Muvaffaqiyatli kirdingiz."));
       } else {
         say(c.red("Kirish bekor qilindi."));
@@ -748,7 +932,9 @@ async function repl() {
 
     // ── Noma'lum slash-buyruq ──
     if (input.startsWith("/")) {
-      say(c.red(`Noma'lum buyruq: ${input}`) + c.dim("  /") + c.dim(" yozib menyuni oching."));
+      const name = input.split(/\s+/)[0];
+      const near = SLASH_NAMES.filter((n) => n.startsWith(name.slice(0, 3))).slice(0, 3);
+      say(c.red(`Noma'lum buyruq: ${name}`) + c.dim(near.length ? `  Balki: ${near.join(", ")}?` : "  /help — ro'yxat."));
       rewritePrompt();
       continue;
     }
@@ -756,7 +942,7 @@ async function repl() {
     // ── Ulanish sharti — token yoki OpenRouter kaliti bo'lmasa yozib bo'lmaydi.
     // (Mas. seans o'rtasida /logout qilingan bo'lsa.) Login talab qilamiz.
     if (!config.token && !config.openrouterKey) {
-      say(`${c.amber("Tizimga kirmagansiz.")} ${c.white("/login")} ${c.dim("bilan akkauntга kiring")} ${c.dim("yoki")} ${c.white("/register")}${c.dim(".")}`);
+      say(`${c.amber("Tizimga kirmagansiz.")} ${c.white("/login")} ${c.dim("bilan akkauntga kiring")} ${c.dim("yoki")} ${c.white("/register")}${c.dim(".")}`);
       rewritePrompt();
       continue;
     }
@@ -790,70 +976,282 @@ async function repl() {
         content: `Foydalanuvchi tomonidan yoqilgan SOVEREIGN Skills:\n${activeNames.join("\n")}\nUlarni javob berayotganda qo'llang.`,
       });
     }
-    const { error } = await agentTurn({ messages, config, confirm });
-    if (error) console.log(G + c.red(`Xato: ${error}\n`));
+    await runTurn();
     sessionId = saveSession({ id: sessionId, messages, model: config.model });
     rewritePrompt();
   }
 
   stopSync();
   rl.close();
-  console.log(G + c.dim("\nXayr! ⬡\n"));
+  console.log(G + c.dim((exiting ? "" : "\n") + "Xayr! ⬡\n"));
+  return EXIT.OK;
 }
 
-// ---- one-shot ---------------------------------------------------------
+// ---- one-shot (interaktiv tasdiqlar bilan) -----------------------------
 async function oneShot(task) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const config = await ensureAuth(rl);
+  const ac = new AbortController();
+  turnState.ac = ac;
+  let sigints = 0;
+  rl.on("SIGINT", () => {
+    if (++sigints > 1) process.exit(EXIT.INTERRUPTED);
+    stopSpinner();
+    ac.abort();
+    process.stdout.write("\n  " + c.amber("⊘ bekor qilinmoqda…") + c.dim("  (chiqish uchun yana Ctrl+C)") + "\n");
+  });
+  const config = withModelOverride(await ensureAuth(rl));
   if (config.token) await syncMemory(config).catch(() => {});
   const confirm = await confirmer(rl);
   const messages = initialMessages(config);
   messages.push(await buildUserMessage(task, attachFiles));
-  const { error } = await agentTurn({ messages, config, confirm });
-  if (error) console.log(c.red(`  Xato: ${error}`));
+  const res = await agentTurn({ messages, config, confirm, signal: ac.signal, stream: !config.token, verify: flags.verify });
+  turnState.ac = null;
+  if (res.error) console.log(c.red(`  Xato: ${res.error}`));
   rl.close();
+  if (res.aborted) return EXIT.INTERRUPTED;
+  return res.error ? EXIT.ERROR : EXIT.OK;
 }
 
+// ---- interaktivsiz: sov -p "..." [--json] ------------------------------
+/** stdin quvuridan matn (TTY bo'lsa yoki ma'lumot kelmasa — bo'sh). */
+function readStdin({ firstByteMs = 3000, maxBytes = 2_000_000 } = {}) {
+  return new Promise((resolveIn) => {
+    const input = process.stdin;
+    if (input.isTTY) return resolveIn("");
+    let data = "";
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      input.pause();
+      input.removeAllListeners("data");
+      resolveIn(data);
+    };
+    // Ba'zi muhitlarda stdin ochiq qoladi, lekin hech narsa kelmaydi — osilib qolmaymiz.
+    const timer = setTimeout(() => {
+      if (!data) finish();
+    }, firstByteMs);
+    input.setEncoding("utf8");
+    input.on("data", (chunk) => {
+      data += chunk;
+      if (data.length > maxBytes) {
+        data = data.slice(0, maxBytes);
+        finish();
+      }
+    });
+    input.once("end", finish);
+    input.once("error", finish);
+  });
+}
+
+async function printMode(promptArg) {
+  const json = Boolean(flags.json);
+  const errColor = !json && !flags.noColor && Boolean(process.stderr.isTTY) && !process.env.NO_COLOR;
+  // Progress/jurnal — stderr'ga (json: umuman yo'q); stdout'da faqat javob.
+  configureUi({ spinner: false, color: errColor });
+  const origLog = console.log;
+  console.log = json ? () => {} : (...a) => process.stderr.write(format(...a) + "\n");
+
+  const stdinText = promptArg === "-" || !process.stdin.isTTY ? await readStdin() : "";
+  let prompt = promptArg === "-" ? "" : promptArg;
+  if (stdinText.trim()) prompt = prompt ? `${prompt}\n\n[STDIN]\n${stdinText}\n[/STDIN]` : stdinText;
+
+  const emit = (obj, code) => {
+    console.log = origLog;
+    return new Promise((res) => process.stdout.write(JSON.stringify(obj) + "\n", () => res(code)));
+  };
+  const fail = async (code, error) => {
+    if (json) return emit({ ok: false, error, exit_code: code, version: VERSION }, code);
+    console.log = origLog;
+    process.stderr.write(`sov: ${error}\n`);
+    return code;
+  };
+
+  if (!prompt.trim() && !attachFiles.length) return fail(EXIT.USAGE, "vazifa berilmagan. Foydalanish: sov -p \"savol\"  yoki  echo \"savol\" | sov -p");
+  const config = withModelOverride(loadConfig());
+  if (!config.token && !config.openrouterKey) {
+    return fail(EXIT.AUTH, "tizimga kirilmagan. Avval: sov login  (yoki SOVEREIGN_TOKEN / OPENROUTER_API_KEY)");
+  }
+  if (config.token) await syncMemory(config).catch(() => {});
+  const messages = initialMessages(config);
+  messages.push(await buildUserMessage(prompt, attachFiles));
+
+  const ac = new AbortController();
+  turnState.ac = ac;
+  let sigints = 0;
+  process.on("SIGINT", () => {
+    if (++sigints > 1) process.exit(EXIT.INTERRUPTED);
+    ac.abort();
+  });
+  const res = await agentTurn({
+    messages,
+    config,
+    confirm: nonInteractiveConfirmer(),
+    signal: ac.signal,
+    print: false,
+    verify: flags.verify,
+  });
+  turnState.ac = null;
+  const code = res.aborted ? EXIT.INTERRUPTED : res.error ? EXIT.ERROR : EXIT.OK;
+
+  if (json) {
+    return emit(
+      {
+        ok: code === EXIT.OK,
+        result: res.final ?? "",
+        ...(res.error ? { error: res.error } : {}),
+        aborted: Boolean(res.aborted),
+        truncated: Boolean(res.truncated),
+        ledger: res.ledger ?? [],
+        honesty: res.honesty ?? null,
+        exit_code: code,
+        version: VERSION,
+      },
+      code,
+    );
+  }
+  console.log = origLog;
+  if (res.error) process.stderr.write(`sov: xato: ${res.error}\n`);
+  const text = String(res.final ?? "").trimEnd();
+  if (!text) return code;
+  return new Promise((r) => process.stdout.write(text + "\n", () => r(code)));
+}
+
+// ---- oddiy buyruqlar ---------------------------------------------------
 function handleKey(key) {
   if (!key || !key.startsWith("sk-")) {
-    console.log(c.red("  Kalit 'sk-or-...' bilan boshlanishi kerak."));
-    console.log(c.dim("  Foydalanish: sovereign key sk-or-v1-..."));
-    process.exit(1);
+    console.error(c.red("  Kalit 'sk-or-...' bilan boshlanishi kerak."));
+    console.error(c.dim("  Foydalanish: sov key sk-or-v1-..."));
+    return EXIT.USAGE;
   }
   const path = saveConfig({ openrouterKey: key });
   console.log(`\n  ${c.green("Kalit saqlandi:")} ${c.dim(path)}`);
-  console.log(`  ${c.dim("Endi shunchaki")} ${c.white("sovereign")} ${c.dim("deb yozing.")}\n`);
+  console.log(`  ${c.dim("Endi shunchaki")} ${c.white("sov")} ${c.dim("deb yozing.")}\n`);
+  return EXIT.OK;
 }
 
 async function handleLogin() {
   const cfg = loadConfig();
-  const urlFlag = rawArgs.includes("--local")
-    ? "http://localhost:3000"
-    : (rawArgs.find((a) => a.startsWith("--url="))?.slice(6) ?? cfg.baseUrl);
+  const urlFlag = flags.local ? "http://localhost:3000" : (flags.url ?? cfg.baseUrl);
   const ok = await login(urlFlag);
-  process.exit(ok ? 0 : 1);
+  return ok ? EXIT.OK : EXIT.ERROR;
 }
 
 function handleLogout() {
   const base = clearAuth();
   console.log(`\n  ${c.green("Chiqdingiz.")} ${base ? c.dim(base) : ""}\n`);
+  return EXIT.OK;
 }
 
 function handleWhoami() {
   const cfg = loadConfig();
-  if (cfg.token) console.log(`\n  ${c.green("Ulangan:")} SOVEREIGN akkaunt ${c.dim("(" + cfg.baseUrl + ")")}\n`);
+  if (flags.json) {
+    const mode = cfg.token ? "account" : cfg.openrouterKey ? "openrouter" : "none";
+    console.log(JSON.stringify({ mode, baseUrl: cfg.baseUrl, email: cfg.email || null, model: cfg.omniModel || cfg.model }));
+    return mode === "none" ? EXIT.AUTH : EXIT.OK;
+  }
+  if (cfg.token) console.log(`\n  ${c.green("Ulangan:")} SOVEREIGN akkaunt${cfg.email ? " " + c.white(cfg.email) : ""} ${c.dim("(" + cfg.baseUrl + ")")}\n`);
   else if (cfg.openrouterKey) console.log(`\n  ${c.green("Ulangan:")} O'z OpenRouter kaliti ${c.dim("(" + cfg.model + ")")}\n`);
-  else console.log(`\n  ${c.amber("Ulanmagan.")} ${c.dim("sovereign login")}\n`);
+  else {
+    console.log(`\n  ${c.amber("Ulanmagan.")} ${c.dim("sov login")}\n`);
+    return EXIT.AUTH;
+  }
+  return EXIT.OK;
+}
+
+async function handleDoctor() {
+  const spin = flags.json ? null : spinner("tekshirilyapti...");
+  const results = await runDoctor();
+  spin?.stop();
+  const fails = results.filter((r) => r.status === "fail").length;
+  if (flags.json) console.log(JSON.stringify({ ok: fails === 0, version: VERSION, binary: IS_BINARY, checks: results }, null, 2));
+  else printDoctor(results);
+  return fails ? EXIT.ERROR : EXIT.OK;
+}
+
+function handleSessions() {
+  const list = listSessions();
+  if (flags.json) {
+    console.log(JSON.stringify(list));
+    return EXIT.OK;
+  }
+  if (!list.length) console.log(`\n  ${c.dim("Saqlangan sessiya yo'q.")}\n`);
+  else {
+    console.log("");
+    for (const s of list.slice(0, 30)) {
+      const when = String(s.updatedAt).slice(0, 16).replace("T", " ");
+      console.log(`  ${c.white(s.id)}  ${c.dim(when)}  ${c.dim(`${String(s.turns).padStart(3)} savol`)}  ${s.title}`);
+    }
+    console.log(`\n  ${c.dim("Davom ettirish: sov, keyin /resume <id>")}\n`);
+  }
+  return EXIT.OK;
 }
 
 // ---- dispatch ---------------------------------------------------------
-const cmd = args[0];
-if (cmd === "models") printModels(loadConfig().model);
-else if (cmd === "login") await handleLogin();
-else if (cmd === "logout") handleLogout();
-else if (cmd === "whoami" || cmd === "who") handleWhoami();
-else if (cmd === "config") await handleConfig();
-else if (cmd === "key") handleKey(args[1]);
-else if (cmd === "help" || cmd === "--help" || cmd === "-h") handleHelp();
-else if (cmd && !cmd.startsWith("-")) await oneShot(args.join(" "));
-else await repl();
+async function main() {
+  if (parsed.errors.length) {
+    for (const e of parsed.errors) process.stderr.write(`sov: ${e}\n`);
+    process.stderr.write("Yordam: sov --help\n");
+    return EXIT.USAGE;
+  }
+  if (flags.version) {
+    console.log(versionLine());
+    return EXIT.OK;
+  }
+  const [first, ...restArgs] = parsed.positional;
+  const cmd = first && SUBCOMMANDS.includes(first) && !flags.print ? first : null;
+  if (flags.help) {
+    handleHelp(cmd ?? undefined);
+    return EXIT.OK;
+  }
+  switch (cmd) {
+    case "help":
+      handleHelp(restArgs[0]);
+      return EXIT.OK;
+    case "version":
+      console.log(versionLine());
+      return EXIT.OK;
+    case "models":
+      printModels(loadConfig().model);
+      return EXIT.OK;
+    case "login":
+      return handleLogin();
+    case "logout":
+      return handleLogout();
+    case "whoami":
+    case "who":
+      return handleWhoami();
+    case "config":
+      await handleConfig();
+      return EXIT.OK;
+    case "key":
+      return handleKey(restArgs[0]);
+    case "doctor":
+      return handleDoctor();
+    case "sessions":
+      return handleSessions();
+    default:
+      break;
+  }
+
+  const prompt = parsed.positional.join(" ");
+  // -p / --json — yoki stdin terminal bo'lmasa (quvur: git diff | sov "review",
+  // CI, skript) — interaktivsiz rejim: hech narsa so'ralmaydi, javob stdout'ga.
+  if (flags.print || flags.json || !process.stdin.isTTY) return printMode(prompt || "-");
+  if (prompt) return oneShot(prompt);
+  return repl();
+}
+
+main().then(
+  (code) => {
+    process.exitCode = typeof code === "number" ? code : EXIT.OK;
+    // Fon taymerlari (sinxronlash, keep-alive soketlar) jarayonni ushlab turmasin.
+    setTimeout(() => process.exit(process.exitCode), 200).unref();
+  },
+  (err) => {
+    stopSpinner();
+    process.stderr.write(`sov: kutilmagan xato: ${err?.stack || err}\n`);
+    process.exit(EXIT.ERROR);
+  },
+);

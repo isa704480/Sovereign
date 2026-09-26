@@ -60,6 +60,7 @@ export function Footer() {
           <Col title={t("p4dFooterResources")}>
             <li><a href={DOCS_URL} className={linkCls}>{t("p4dNavDocs")}</a></li>
             <li><a href={STATUS_URL} className={linkCls}>{t("p4dContactStatus")}</a></li>
+            <li><a href="/updates" className={linkCls}>{t("p5aFooterUpdates")}</a></li>
             {GITHUB_URL && (
               <li><a href={GITHUB_URL} className={linkCls} rel="noopener">GitHub</a></li>
             )}

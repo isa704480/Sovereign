@@ -31,6 +31,8 @@ import { MessageList } from "./MessageList";
 import { PlanStatusBanner } from "./PlanStatusBanner";
 import { Sidebar } from "./Sidebar";
 import { SourcesPanel } from "./SourcesPanel";
+import { TipCard } from "./TipCard";
+import { WhatsNew } from "./WhatsNew";
 import { Welcome } from "./Welcome";
 import { ThemeProvider } from "./theme-context";
 
@@ -650,6 +652,16 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* "Nima yangi" va 30 soatlik maslahat (src/content/updates.ts, tips.ts) */}
+        {hydrated && <WhatsNew />}
+        {hydrated && (
+          <TipCard
+            onOpenPanel={(p) => ({ memory: openMemory, knowledge: openKb, skills: openSkills, connectors: openConnectors, cowork: openCowork })[p]()}
+            onResearch={() => handleToggleResearch(true)}
+            onDraft={(text) => inputRef.current?.setDraft(text)}
+          />
+        )}
 
         <MemoryPanel open={memoryOpen} onClose={closeMemory} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
         <SkillsMarket open={skillsOpen} onClose={closeSkills} enabled={enabledSkills} onToggle={toggleSkill} />

@@ -47,6 +47,9 @@ export default defineConfig({
   build: {
     outDir: "../ui-dist",
     emptyOutDir: true,
+    // Electron 44 (Chromium 14x) — zamonaviy sintaksis transpilyatsiyasiz.
+    target: "chrome120",
+    chunkSizeWarningLimit: 900,
   },
   server: { port: 5173, strictPort: true },
 });

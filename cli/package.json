@@ -1,7 +1,7 @@
 {
   "name": "@islombekrrr/sov-cli",
-  "version": "0.9.21",
-  "description": "SOVEREIGN AI — terminaldagi AI koding agenti. `sovereign` deb yozing.",
+  "version": "0.10.0",
+  "description": "SOVEREIGN AI — terminaldagi AI koding agenti. `sov` deb yozing.",
   "type": "module",
   "bin": {
     "sovereign": "bin/sovereign.mjs",
@@ -15,6 +15,15 @@
     "src",
     "README.md"
   ],
+  "scripts": {
+    "check": "node scripts/check-syntax.mjs",
+    "build:bundle": "node scripts/build-binaries.mjs --bundle-only",
+    "build:binary": "node scripts/build-binaries.mjs --smoke"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "postject": "1.0.0-alpha.6"
+  },
   "keywords": [
     "ai",
     "cli",

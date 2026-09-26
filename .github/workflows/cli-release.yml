@@ -1,0 +1,126 @@
+# SOVEREIGN CLI — mustaqil binary'lar (Node SEA) va GitHub Release.
+#
+# Ishga tushadi: `cli-v*` tegi push qilinganda (masalan cli-v0.10.0).
+#   git tag cli-v0.10.0 && git push origin cli-v0.10.0
+# Teg versiyasi cli/package.json dagi "version" bilan bir xil bo'lishi SHART.
+# Qo'lda (workflow_dispatch) — faqat yig'ish va sinov, reliz yaratilmaydi.
+#
+# Natija: sov-win-x64.exe, sov-linux-x64, sov-macos-arm64, sov-macos-x64,
+# har biriga <nom>.sha256 va umumiy SHA256SUMS — public/install.sh / install.ps1
+# shu fayllarni yuklab, checksum bilan tekshiradi.
+name: CLI release
+
+on:
+  push:
+    tags:
+      - "cli-v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: sov-win-x64.exe
+          - os: ubuntu-latest
+            target: sov-linux-x64
+          - os: macos-15
+            target: sov-macos-arm64
+          - os: macos-15-intel
+            target: sov-macos-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+
+      # Binary ichiga aynan shu Node kiradi (rasmiy build — Linux'da eski glibc bilan mos).
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Teg va package.json versiyasi mosligi
+        if: startsWith(github.ref, 'refs/tags/cli-v')
+        run: |
+          pkg="$(node -p 'require("./package.json").version')"
+          tag="${GITHUB_REF_NAME#cli-v}"
+          if [ "$pkg" != "$tag" ]; then
+            echo "::error::Teg ($tag) va cli/package.json versiyasi ($pkg) mos emas"
+            exit 1
+          fi
+
+      - name: Bog'liqliklar (esbuild, postject)
+        run: npm ci --no-audit --no-fund
+
+      - name: Sintaksis
+        run: node scripts/check-syntax.mjs
+
+      - name: Binary yig'ish + smoke test
+        run: node scripts/build-binaries.mjs --smoke
+
+      - name: Nom tekshiruvi
+        run: test -f "dist/${{ matrix.target }}" && test -f "dist/${{ matrix.target }}.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            cli/dist/${{ matrix.target }}
+            cli/dist/${{ matrix.target }}.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/cli-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+
+      - name: Checksumlarni tekshirish va SHA256SUMS
+        working-directory: out
+        run: |
+          ls -la
+          for f in *.sha256; do sha256sum -c "$f"; done
+          cat *.sha256 > SHA256SUMS
+          chmod +x sov-linux-x64 sov-macos-arm64 sov-macos-x64
+
+      - name: Reliz yaratish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ver="${GITHUB_REF_NAME#cli-v}"
+          cat > notes.md <<EOF
+          SOVEREIGN CLI v${ver} — mustaqil binary'lar (Node.js kerak emas).
+
+          O'rnatish:
+          - macOS / Linux: \`curl -fsSL https://soveregn.xyz/install.sh | sh\`
+          - Windows (PowerShell): \`irm https://soveregn.xyz/install.ps1 | iex\`
+          - Node.js 20+ bilan: \`npm install -g @islombekrrr/sov-cli\`
+
+          Har bir fayl yonida \`.sha256\` va umumiy \`SHA256SUMS\` bor.
+          EOF
+          gh release create "$GITHUB_REF_NAME" out/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "SOVEREIGN CLI v${ver}" \
+            --notes-file notes.md

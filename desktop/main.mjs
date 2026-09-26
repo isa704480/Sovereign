@@ -1,8 +1,8 @@
 // SOVEREIGN Cowork — Electron main jarayoni.
 // Mavjud CLI agentini (tools/xavfsizlik/xotira) qayta ishlatadi; GUI orqali
-// chat, fayl yozish (tasdiq bilan) va buyruq ishga tushirishни boshqaradi.
+// chat, fayl yozish (tasdiq bilan) va buyruq ishga tushirishni boshqaradi.
 
-import { app, BrowserWindow, ipcMain, dialog, session as electronSession } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, Notification, Menu, screen, session as electronSession } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync } from "node:fs";
@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 
 // CLI modullari: dev'da repo'dagi ../cli/src; o'rnatilgan ilovada electron-builder
 // `extraResources` ularni resources/cli/src ga qo'yadi — app.asar/../cli/src aynan shu.
-import { loadConfig } from "../cli/src/config.mjs";
+import { loadConfig, saveConfig, clearAuth } from "../cli/src/config.mjs";
 import {
   runTool,
   TOOL_SCHEMA,
@@ -18,14 +18,24 @@ import {
   resolvePath,
   isProtected,
   createTurnTracker,
-  ledgerLines,
   ledgerWorthShowing,
   unsupportedClaim,
   HONESTY_RULE,
 } from "../cli/src/tools.mjs";
 import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mjs";
 
+import { OFFLINE, netAllowed, installOfflineGuard } from "./electron/net.mjs";
+import { loadSettings, updateFromRenderer, updateInternal, rememberFolder, isDir } from "./electron/settings.mjs";
+import { listTasks, saveTask, loadTask, removeTask, clearTasks, metaOf, validId } from "./electron/history.mjs";
+import { startLogin } from "./electron/auth.mjs";
+import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, updateState } from "./electron/updater.mjs";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const APP_ID = "app.sovereign.cowork";
+
+installOfflineGuard();
+// Test/smoke uchun alohida profil — faqat offline rejimda (oddiy foydalanuvchiga ta'sir qilmaydi).
+if (OFFLINE && process.env.SOV_USER_DATA) app.setPath("userData", process.env.SOV_USER_DATA);
 
 // ---- Ilova manzillari (IPC yuboruvchi va navigatsiya tekshiruvi uchun) ----
 // Dev rejim faqat o'rnatilmagan (repo'dan ishga tushgan) ilovada — o'rnatilgan
@@ -71,6 +81,7 @@ function on(channel, fn) {
  * yechiladi; ish papkasidan tashqari / boshqa disk / UNC / himoyalangan yo'l rad etiladi.
  */
 function checkUiPath(p, { write = false } = {}) {
+  if (!workspace) return { error: "papka tanlanmagan" };
   if (typeof p !== "string" || !p || p.includes("\0")) return { error: "yo'l noto'g'ri" };
   if (/^[\\/]{2}/.test(p)) return { error: "UNC yo'l taqiqlangan" };
   const r = resolvePath(p);
@@ -94,10 +105,18 @@ const SYSTEM = [
 ].join(" ");
 
 let win = null;
+let workspace = null; // tanlangan ish papkasi (null — hali tanlanmagan)
 const pending = new Map(); // confirm so'rovlari: id -> resolve
 
+// ---- Vazifa (task) va hodisalar --------------------------------------------
+// Joriy vazifaning UI hodisalari tarixga yoziladi — keyin ekranni qayta tiklash uchun.
+const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "error", "stopped"]);
+let currentTask = null;
+
 function send(type, payload = {}) {
-  win?.webContents.send("agent:event", { type, ...payload });
+  const ev = { type, ...payload };
+  if (currentTask && RECORDED.has(type)) currentTask.events.push(ev);
+  if (win && !win.isDestroyed()) win.webContents.send("agent:event", ev);
 }
 
 // ---- Undo zaxirasi ------------------------------------------------------
@@ -171,16 +190,19 @@ function askConfirm(question, forcePrompt = false, meta = null) {
       resolve(ok);
     });
     send("confirm", { id, question: stripAnsi(question), forcePrompt, meta });
+    // Oyna fokusda bo'lmasa — foydalanuvchi tasdiq kutilayotganini bilsin.
+    if (win && !win.isDestroyed() && !win.isFocused()) win.flashFrame(true);
   });
 }
 
 // ---- Faol navbat (turn) boshqaruvi --------------------------------------
-// Bir vaqtda faqat BITTA agent navbati. "Yangi vazifa" / papka almashtirish avval
-// uni to'xtatadi: so'rov bekor qilinadi, kutilayotgan tasdiqlar rad bilan yopiladi —
+// Bir vaqtda faqat BITTA agent navbati. "Yangi vazifa" / papka almashtirish / To'xtatish
+// avval uni to'xtatadi: so'rov bekor qilinadi, kutilayotgan tasdiqlar rad bilan yopiladi —
 // eski navbat yangi papkada (cwd) yozmaydi va yangi navbat bilan aralashmaydi.
 let activeTurn = null;
 
 function abortTurn() {
+  const had = !!activeTurn;
   if (activeTurn) {
     activeTurn.aborted = true;
     activeTurn.controller.abort();
@@ -188,6 +210,7 @@ function abortTurn() {
   }
   for (const resolve of pending.values()) resolve(false);
   pending.clear();
+  return had;
 }
 
 /** Navbatga bog'langan tasdiq: navbat to'xtatilgan bo'lsa — darhol rad. */
@@ -195,16 +218,14 @@ function confirmFor(turn) {
   return (question, forcePrompt, meta) => (turn.aborted ? Promise.resolve(false) : askConfirm(question, forcePrompt, meta));
 }
 function stripAnsi(s) {
-  // eslint-disable-next-line no-control-regex
-  return String(s).replace(/\[[0-9;]*m/g, "");
+  return String(s).replace(/\x1b\[[0-9;]*m/g, "");
 }
 
 function initialMessages(config) {
-  const base = [
-    { role: "system", content: SYSTEM },
-    { role: "system", content: contextSummary() },
-  ];
-  const mem = memorySystemMessage(config);
+  const base = [{ role: "system", content: SYSTEM }];
+  if (workspace) base.push({ role: "system", content: contextSummary() });
+  else base.push({ role: "system", content: "Ish papkasi hali tanlanmagan — fayl vositalari mavjud emas (faqat suhbat)." });
+  const mem = config ? memorySystemMessage(config) : null;
   if (mem) base.push(mem);
   return base;
 }
@@ -234,19 +255,35 @@ function forServer(messages) {
 }
 
 async function runRound(messages, config, withTools = true, signal = undefined) {
-  const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
-    method: "POST",
-    signal,
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
-    body: JSON.stringify({
-      messages: forServer(messages),
-      ...(withTools ? { tools: TOOL_SCHEMA } : {}),
-      ...(config.omniModel ? { model: config.omniModel } : {}),
-    }),
-  });
+  const url = `${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`;
+  if (!netAllowed(url)) {
+    const err = new Error("offline");
+    err.code = "offline";
+    throw err;
+  }
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      signal,
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+      body: JSON.stringify({
+        messages: forServer(messages),
+        ...(withTools ? { tools: TOOL_SCHEMA } : {}),
+        ...(config.omniModel ? { model: config.omniModel } : {}),
+      }),
+    });
+  } catch (e) {
+    const err = new Error(e?.message || "network");
+    err.code = e?.message === "offline" ? "offline" : "network";
+    throw err;
+  }
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    throw new Error(e.error ?? `${res.status}`);
+    const err = new Error(e.error ?? `HTTP ${res.status}`);
+    err.code = res.status === 401 || res.status === 403 ? "auth" : res.status === 402 || res.status === 429 ? "limit" : "server";
+    err.status = res.status;
+    throw err;
   }
   const { message } = await res.json();
   return { message, toolCalls: message.tool_calls ?? [] };
@@ -254,44 +291,41 @@ async function runRound(messages, config, withTools = true, signal = undefined) 
 
 /**
  * "Aslida nima bo'ldi" — vosita natijalaridan (modelning so'zlaridan emas)
- * tuzilgan xulosa. Yakuniy javob pufagiga markdown sifatida qo'shiladi va
- * tuzilgan holda "ledger" hodisasi bilan ham yuboriladi.
+ * tuzilgan xulosa. Renderer uni alohida karta sifatida ko'rsatadi.
+ * noteCode: "error" (navbat xato bilan to'xtadi) | "steps" (qadamlar chegarasi).
  */
-function sendLedger(entries, { finalText = "", note = "" } = {}) {
+function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0 } = {}) {
   const warn = unsupportedClaim(finalText, entries);
   const show = ledgerWorthShowing(entries);
-  if (!show && !warn && !note) return;
-  const icon = { ok: "✓", failed: "✕", declined: "⊘" };
-  const lines = show ? ledgerLines(entries) : [];
-  // desktop/ui/src/lib/md.js HTML'ni escape qiladi; faqat ` va * belgilarini
-  // zararsizlantiramiz — yo'l/buyruq ichidagisi formatlashni buzmasin.
-  const safe = (s) => String(s).replace(/`/g, "'").replace(/\*/g, "∗");
-  const md = [
-    "",
-    ...(show ? ["**Aslida nima bo'ldi (tizim jurnali):**", ...lines.map((l) => `- ${icon[l.status] ?? "•"} ${safe(l.text)}`)] : []),
-    ...(note ? [`⚠ ${note}`] : []),
-    ...(warn ? [`⚠ **Diqqat:** ${safe(warn)} Jurnalga ishoning.`] : []),
-  ].join("\n");
-  send("ledger", { entries, warning: warn ?? null, note: note || null });
-  send("text", { text: md });
+  if (!show && !warn && !noteCode) return;
+  send("ledger", { entries: show ? entries : [], warning: warn ?? null, noteCode, maxSteps });
+}
+
+/** UI uchun vosita argumentlari — fayl tarkibi yuborilmaydi (faqat uzunligi). */
+function uiArgs(args) {
+  const a = args && typeof args === "object" ? args : {};
+  const out = {};
+  if (typeof a.path === "string") out.path = a.path.slice(0, 500);
+  if (typeof a.command === "string") out.command = a.command.slice(0, 2000);
+  if (typeof a.content === "string") out.contentLength = a.content.length;
+  return out;
 }
 
 async function agentTurn(messages, config, turn, maxSteps = 14) {
   const confirm = confirmFor(turn);
   const tracker = createTurnTracker((name, args) => runTool(name, args, confirm));
   for (let step = 0; step < maxSteps; step++) {
-    if (turn.aborted) return;
+    if (turn.aborted) return "stopped";
     let round;
     try {
       round = await runRound(messages, config, true, turn.controller.signal);
     } catch (e) {
-      if (!turn.aborted) {
-        sendLedger(tracker.entries, { note: "Navbat xato bilan to'xtadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin." });
-        send("error", { message: e.message });
-      }
-      return;
+      if (turn.aborted) return "stopped";
+      sendLedger(tracker.entries, { noteCode: tracker.entries.length ? "error" : null });
+      send("error", { message: e.message, code: e.code ?? "server", status: e.status ?? null });
+      return "error";
     }
-    if (turn.aborted) return; // to'xtatilgan navbat hech narsa yubormaydi/bajarmaydi
+    if (turn.aborted) return "stopped"; // to'xtatilgan navbat hech narsa yubormaydi/bajarmaydi
     messages.push(round.message);
     if (round.message.content && round.message.content.trim()) {
       send("text", { text: round.message.content });
@@ -299,25 +333,26 @@ async function agentTurn(messages, config, turn, maxSteps = 14) {
     if (!round.toolCalls.length) {
       sendLedger(tracker.entries, { finalText: round.message.content ?? "" });
       send("done");
-      return;
+      return "done";
     }
     let lastTool = null;
     for (const call of round.toolCalls) {
-      if (turn.aborted) return;
+      if (turn.aborted) return "stopped";
       let args = {};
       try {
         args = JSON.parse(call.function.arguments || "{}");
       } catch {
         /* ignore */
       }
-      send("tool", { name: call.function.name, args });
+      const callId = String(call.id ?? randomUUID());
+      send("tool", { callId, name: call.function.name, args: uiArgs(args) });
       const r = await tracker.run(call.function.name, args);
-      if (turn.aborted) return;
-      if (call.function.name === "run_command" && r.status !== "skipped") {
-        send("terminal", { command: args.command, output: r.result });
+      if (turn.aborted) return "stopped";
+      if (call.function.name === "run_command" && r.status !== "skipped" && r.status !== "declined") {
+        send("terminal", { callId, command: String(args.command ?? ""), output: r.result.slice(0, 20_000), status: r.status });
       }
-      // `status`: ok | failed | declined | skipped — UI "bajarildi" belgisini shunga qarab qo'ysin.
-      send("tool-done", { name: call.function.name, status: r.status, result: r.result.slice(0, 400) });
+      // `status`: ok | failed | declined | skipped — UI belgisi shunga qarab qo'yiladi.
+      send("tool-done", { callId, name: call.function.name, status: r.status, result: r.result.slice(0, 600) });
       lastTool = { role: "tool", tool_call_id: call.id, content: r.content.slice(0, 24_000) };
       messages.push(lastTool);
     }
@@ -325,10 +360,10 @@ async function agentTurn(messages, config, turn, maxSteps = 14) {
     const ledgerText = tracker.forModel();
     if (lastTool && ledgerText) lastTool.content += `\n\n${ledgerText}`;
   }
-  if (!turn.aborted) {
-    sendLedger(tracker.entries, { note: `Qadamlar chegarasi (${maxSteps}) tugadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin. "davom et" deb yozing.` });
-    send("done");
-  }
+  if (turn.aborted) return "stopped";
+  sendLedger(tracker.entries, { noteCode: "steps", maxSteps });
+  send("done");
+  return "done";
 }
 
 /** Chat rejimida vositalar yo'q — model "fayl yaratdim" deb aytmasligi uchun. */
@@ -336,74 +371,215 @@ const CHAT_MODE_NOTE =
   "Bu CHAT rejimi: senda vositalar YO'Q — bu javobda hech qanday fayl yozilmaydi, papka yaratilmaydi, buyruq bajarilmaydi. " +
   "'Yaratdim/yozdim/ishga tushirdim/saqladim' dema; kod yoki buyruqni matnda ber va foydalanuvchi uni o'zi qo'llashini (yoki Kod rejimiga o'tishini) ayt.";
 
-/** Oddiy chat — vositasiz, bitta javob (ChatGPT uslubi). */
+/** Oddiy chat — vositasiz, bitta javob. */
 async function chatTurn(messages, config, turn) {
   let round;
   try {
     // Eslatma faqat shu so'rovga qo'shiladi (tarixga yozilmaydi).
     round = await runRound([...messages, { role: "system", content: CHAT_MODE_NOTE }], config, /*withTools=*/ false, turn.controller.signal);
   } catch (e) {
-    if (!turn.aborted) send("error", { message: e.message });
-    return;
+    if (turn.aborted) return "stopped";
+    send("error", { message: e.message, code: e.code ?? "server", status: e.status ?? null });
+    return "error";
   }
-  if (turn.aborted) return;
+  if (turn.aborted) return "stopped";
   messages.push(round.message);
   if (round.message.content && round.message.content.trim()) {
     send("text", { text: round.message.content });
   }
   send("done");
+  return "done";
+}
+
+// ---- Sessiya holati ---------------------------------------------------------
+let session = { messages: [], config: null };
+
+function applyModelOverride(config) {
+  const s = loadSettings();
+  if (s.model) config.omniModel = s.model;
+  return config;
+}
+
+function modelLabel() {
+  const s = loadSettings();
+  if (s.model) return s.modelLabel || s.model.split("/").pop();
+  return "Auto";
+}
+
+function stateInfo() {
+  const c = session.config ?? {};
+  return {
+    authed: !!c.token,
+    email: c.email || "",
+    baseUrl: c.baseUrl || "",
+    cwd: workspace,
+    model: modelLabel(),
+    modelId: loadSettings().model,
+    version: app.getVersion(),
+    offline: OFFLINE,
+    platform: process.platform,
+    settings: publicSettings(),
+    recent: loadSettings().recent.filter(isDir),
+    history: listTasks(),
+    task: currentTask ? metaOf(currentTask) : null,
+    busy: !!activeTurn,
+    update: updateState(),
+  };
+}
+
+function publicSettings() {
+  const { window: _w, recent: _r, lastFolder: _l, ...rest } = loadSettings();
+  return rest;
+}
+
+function persistCurrentTask() {
+  if (currentTask) saveTask(currentTask, session.messages);
+}
+
+function setWorkspace(dir) {
+  process.chdir(dir);
+  workspace = dir;
+  rememberFolder(dir);
+}
+
+function resetSession() {
+  abortTurn(); // eski navbat to'xtaydi, kutilayotgan tasdiqlar rad bilan yopiladi
+  clearBackups();
+  persistCurrentTask();
+  currentTask = null;
+  session.messages = initialMessages(session.config);
 }
 
 // ---- IPC ---------------------------------------------------------------
-let session = { messages: [], config: null };
-
 handle("app:init", async () => {
-  abortTurn(); // sahifa qayta yuklandi — eski navbat/tasdiqlar egasiz qolmasin
-  clearBackups();
-  const config = loadConfig();
+  resetSession(); // sahifa qayta yuklandi — eski navbat/tasdiqlar egasiz qolmasin
+  const config = applyModelOverride(loadConfig());
   session.config = config;
-  if (config.token) await syncMemory(config).catch(() => {});
+  if (config.token && netAllowed(config.baseUrl)) await syncMemory(config).catch(() => {});
   session.messages = initialMessages(config);
-  return {
-    authed: !!config.token,
-    email: config.email || "",
-    baseUrl: config.baseUrl,
-    cwd: process.cwd(),
-    model: config.omniModel || (config.token ? "SOVEREIGN Auto" : config.model),
-  };
+  return stateInfo();
 });
 
-handle("app:pick-folder", async () => {
-  const r = await dialog.showOpenDialog(win, { properties: ["openDirectory"] });
-  if (r.canceled || !r.filePaths[0]) return null;
+handle("app:state", async () => stateInfo());
+
+async function switchFolder(dir) {
   // Avval ishlayotgan navbatni to'xtatamiz — aks holda u nisbiy yo'llarni YANGI papkada yozadi.
-  abortTurn();
-  clearBackups();
-  process.chdir(r.filePaths[0]);
+  resetSession();
+  setWorkspace(dir);
   session.messages = initialMessages(session.config); // yangi kontekst
-  return { cwd: process.cwd() };
+  return { cwd: workspace, recent: loadSettings().recent.filter(isDir) };
+}
+
+handle("app:pick-folder", async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  return switchFolder(r.filePaths[0]);
+});
+
+// Faqat main'ning o'z "oxirgi papkalar" ro'yxatidagi yo'l ochiladi.
+handle("app:open-recent", async (_e, p) => {
+  const s = loadSettings();
+  const match = s.recent.find((r) => typeof p === "string" && r.toLowerCase() === p.toLowerCase());
+  if (!match || !isDir(match)) return { error: "not-found" };
+  return switchFolder(match);
+});
+
+handle("app:reveal-workspace", async () => {
+  if (!workspace) return { ok: false };
+  const err = await shell.openPath(workspace);
+  return { ok: !err };
+});
+
+const LINKS = {
+  website: "https://soveregn.xyz",
+  docs: "https://docs.soveregn.xyz",
+  status: "https://status.soveregn.xyz",
+  releases: "https://github.com/isa704480/Sovereign/releases",
+};
+handle("app:open-link", async (_e, key) => {
+  const url = LINKS[key];
+  if (!url) return { ok: false };
+  await shell.openExternal(url);
+  return { ok: true };
 });
 
 on("agent:send", async (_e, payload) => {
-  const { text, mode } = typeof payload === "string" ? { text: payload, mode: "code" } : (payload ?? {});
+  const { text, mode, retry } = typeof payload === "string" ? { text: payload, mode: "code" } : (payload ?? {});
+  const m = mode === "chat" ? "chat" : "code";
   if (!session.config?.token) {
-    send("error", { message: "Tizimga kirilmagan. Terminalda `sovereign login` qiling yoki ilovadan kiring." });
+    send("error", { code: "auth", message: "not-signed-in" });
+    return;
+  }
+  if (m === "code" && !workspace) {
+    send("error", { code: "no-folder", message: "no-folder" });
     return;
   }
   if (activeTurn) {
-    send("error", { message: "Oldingi vazifa hali bajarilmoqda — tugashini kuting yoki «Yangi vazifa»ni bosing." });
+    send("error", { code: "busy", message: "busy" });
     return;
   }
+  const body = String(text ?? "").slice(0, 40_000);
+  if (!retry && !body.trim()) return;
+  if (retry && !session.messages.some((x) => x.role === "user")) return;
+
+  if (!currentTask) {
+    currentTask = { id: randomUUID(), title: body.trim().slice(0, 80) || "…", cwd: workspace, mode: m, createdAt: Date.now(), updatedAt: Date.now(), status: "running", events: [] };
+  }
+  currentTask.status = "running";
+  currentTask.updatedAt = Date.now();
+  send("task", { task: metaOf(currentTask) });
+
   const turn = { aborted: false, controller: new AbortController() };
   activeTurn = turn;
   const messages = session.messages;
-  messages.push({ role: "user", content: String(text) });
+  if (!retry) {
+    messages.push({ role: "user", content: body });
+    send("user", { text: body, mode: m });
+  }
+  let outcome = "error";
   try {
-    if (mode === "chat") await chatTurn(messages, session.config, turn);
-    else await agentTurn(messages, session.config, turn);
+    outcome = m === "chat" ? await chatTurn(messages, session.config, turn) : await agentTurn(messages, session.config, turn);
+  } catch (e) {
+    send("error", { code: "server", message: e?.message ?? String(e) });
   } finally {
     if (activeTurn === turn) activeTurn = null;
+    if (currentTask && !turn.aborted) {
+      currentTask.status = outcome;
+      currentTask.updatedAt = Date.now();
+      persistCurrentTask();
+      send("task", { task: metaOf(currentTask) });
+      notifyDone(outcome);
+    }
   }
+});
+
+function notifyDone(outcome) {
+  if (!win || win.isDestroyed() || win.isFocused() || !loadSettings().notifications) return;
+  if (!Notification.isSupported()) return;
+  const n = new Notification({
+    title: "SOVEREIGN Cowork",
+    body: outcome === "done" ? "Vazifa tugadi · Task finished" : "Vazifa xato bilan to'xtadi · Task stopped with an error",
+    silent: false,
+  });
+  n.on("click", () => {
+    if (win && !win.isDestroyed()) {
+      if (win.isMinimized()) win.restore();
+      win.focus();
+    }
+  });
+  n.show();
+}
+
+handle("agent:stop", async () => {
+  const had = abortTurn();
+  if (had && currentTask) {
+    send("stopped");
+    currentTask.status = "stopped";
+    currentTask.updatedAt = Date.now();
+    persistCurrentTask();
+    send("task", { task: metaOf(currentTask) });
+  }
+  return { ok: had };
 });
 
 on("agent:confirm-reply", (_e, msg) => {
@@ -416,20 +592,111 @@ on("agent:confirm-reply", (_e, msg) => {
 });
 
 on("agent:remember", (_e, fact) => {
-  if (session.config) addMemory(session.config, String(fact));
+  if (session.config && netAllowed(session.config.baseUrl)) addMemory(session.config, String(fact));
 });
 
 handle("app:new-task", async () => {
-  abortTurn(); // eski navbat to'xtaydi, kutilayotgan tasdiqlar rad bilan yopiladi
-  clearBackups();
+  resetSession();
+  return { ok: true, history: listTasks() };
+});
+
+// ---- Tarix ---------------------------------------------------------------
+handle("history:list", async () => listTasks());
+
+handle("history:open", async (_e, id) => {
+  if (!validId(id)) return { error: "bad-id" };
+  const t = loadTask(id);
+  if (!t) return { error: "not-found" };
+  resetSession();
+  let folderMissing = false;
+  if (t.meta.cwd) {
+    if (isDir(t.meta.cwd)) setWorkspace(t.meta.cwd);
+    else folderMissing = true;
+  }
+  currentTask = { ...t.meta, events: t.events };
+  // Davom ettirish: system (joriy kontekst) + saqlangan suhbat.
+  session.messages = [...initialMessages(session.config), ...t.messages];
+  return { task: t.meta, events: t.events, cwd: workspace, folderMissing, recent: loadSettings().recent.filter(isDir) };
+});
+
+handle("history:remove", async (_e, id) => {
+  if (currentTask?.id === id) {
+    abortTurn();
+    currentTask = null;
+    session.messages = initialMessages(session.config);
+  }
+  removeTask(id);
+  return listTasks();
+});
+
+handle("history:clear", async () => {
+  abortTurn();
+  currentTask = null;
   session.messages = initialMessages(session.config);
+  clearTasks();
+  return [];
+});
+
+// ---- Sozlamalar -------------------------------------------------------------
+handle("settings:set", async (_e, patch) => {
+  const s = updateFromRenderer(patch);
+  if (patch && "theme" in patch) applyTheme();
+  if (patch && "model" in patch && session.config) session.config.omniModel = s.model || loadConfig().omniModel || "";
+  return publicSettings();
+});
+
+// ---- Kirish (auth) ----------------------------------------------------------
+let login = null;
+handle("auth:login", async () => {
+  if (login) return { ok: false, busy: true };
+  const baseUrl = (session.config ?? loadConfig()).baseUrl;
+  if (!netAllowed(baseUrl)) {
+    send("auth", { state: "error", message: "offline" });
+    return { ok: false };
+  }
+  login = startLogin({
+    baseUrl,
+    saveConfig,
+    openExternal: (url) => shell.openExternal(url),
+    emit: (ev) => send("auth", ev),
+  });
+  const ok = await login.promise.finally(() => {
+    login = null;
+  });
+  if (ok) {
+    session.config = applyModelOverride(loadConfig());
+    if (netAllowed(session.config.baseUrl)) await syncMemory(session.config).catch(() => {});
+    if (!activeTurn) session.messages = initialMessages(session.config);
+  }
+  return { ok, ...(ok ? stateInfo() : {}) };
+});
+
+handle("auth:cancel", async () => {
+  login?.cancel();
+  return { ok: true };
+});
+
+handle("auth:logout", async () => {
+  abortTurn();
+  clearAuth();
+  session.config = applyModelOverride(loadConfig());
+  session.messages = initialMessages(session.config);
+  return stateInfo();
+});
+
+// ---- Yangilanish ------------------------------------------------------------
+handle("update:check", async () => checkForUpdates());
+handle("update:download", async () => downloadUpdate());
+handle("update:install", async () => {
+  persistCurrentTask();
+  installUpdate();
   return { ok: true };
 });
 
 // ---- Fayl daraxti / o'qish (React sidebar + diff uchun) ----------------
-const SKIP = new Set(["node_modules", ".git", ".next", "dist", "build", "out", ".turbo", ".cache", "__pycache__", ".venv", "venv", "ui-dist"]);
+const SKIP = new Set(["node_modules", ".git", ".next", "dist", "build", "out", ".turbo", ".cache", "__pycache__", ".venv", "venv", "ui-dist", "release"]);
 
-function walkTree(dir, depth = 0, max = 6) {
+function walkTree(dir, depth = 0, max = 6, budget = { n: 0 }) {
   let entries;
   try {
     entries = readdirSync(dir, { withFileTypes: true });
@@ -439,11 +706,13 @@ function walkTree(dir, depth = 0, max = 6) {
   const nodes = [];
   entries.sort((a, b) => (a.isDirectory() === b.isDirectory() ? a.name.localeCompare(b.name) : a.isDirectory() ? -1 : 1));
   for (const e of entries) {
+    if (budget.n > 4000) break;
     if (e.name.startsWith(".") && e.name !== ".env.example") continue;
     if (e.isDirectory() && SKIP.has(e.name)) continue;
     const full = join(dir, e.name);
+    budget.n++;
     if (e.isDirectory()) {
-      nodes.push({ name: e.name, path: full, dir: true, children: depth < max ? walkTree(full, depth + 1, max) : [] });
+      nodes.push({ name: e.name, path: full, dir: true, children: depth < max ? walkTree(full, depth + 1, max, budget) : [] });
     } else {
       nodes.push({ name: e.name, path: full, dir: false });
     }
@@ -452,12 +721,17 @@ function walkTree(dir, depth = 0, max = 6) {
   return nodes;
 }
 
-handle("fs:tree", async () => ({ cwd: process.cwd(), nodes: walkTree(process.cwd()) }));
+handle("fs:tree", async () => {
+  if (!workspace) return { cwd: null, nodes: [] };
+  if (!isDir(workspace)) return { cwd: workspace, nodes: [], error: "missing" };
+  return { cwd: workspace, nodes: walkTree(workspace) };
+});
 
 handle("fs:read", async (_e, path) => {
   try {
     const chk = checkUiPath(path);
     if (chk.error) return { error: chk.error };
+    if (statSync(chk.real).size > 8 * 1024 * 1024) return { error: "juda katta fayl" };
     const content = readFileSync(chk.real, "utf8");
     return { content: content.length > 400_000 ? content.slice(0, 400_000) + "\n… (qisqartirildi)" : content };
   } catch (e) {
@@ -484,36 +758,81 @@ handle("fs:restore", async (_e, id) => {
   }
 });
 
-// Model tanlash (OmniRoute katalog id) — keyingi so'rovlarda ishlatiladi.
-handle("app:set-model", async (_e, id) => {
+// Model tanlash (OmniRoute katalog id) — keyingi so'rovlarda ishlatiladi va eslab qolinadi.
+handle("app:set-model", async (_e, id, label) => {
   if (id != null && (typeof id !== "string" || id.length > 200)) return { ok: false };
-  if (session.config) session.config.omniModel = id || "";
-  return { ok: true };
+  const lbl = typeof label === "string" ? label.slice(0, 200) : "";
+  updateFromRenderer({ model: id || "", modelLabel: id ? lbl : "" });
+  if (session.config) session.config.omniModel = id || loadConfig().omniModel || "";
+  return { ok: true, model: modelLabel() };
 });
 
 // Model katalogi — renderer tashqi serverga to'g'ridan-to'g'ri ulanmasin (CSP
 // connect-src qat'iy); so'rov main jarayon orqali o'tadi.
 handle("app:models", async (_e, qs) => {
   const q = typeof qs === "string" ? qs : "";
-  if (q.length > 300 || !/^(\?[A-Za-z0-9_\-.~%=&+]*)?$/.test(q)) return {};
+  if (q.length > 300 || !/^(\?[A-Za-z0-9_\-.~%=&+]*)?$/.test(q)) return { error: "bad-query" };
   const base = (session.config ?? loadConfig()).baseUrl.replace(/\/$/, "");
+  if (!netAllowed(base)) return { error: "offline" };
   try {
     const res = await fetch(`${base}/api/models${q}`);
-    return res.ok ? await res.json() : {};
+    return res.ok ? await res.json() : { error: `HTTP ${res.status}` };
   } catch {
-    return {};
+    return { error: "network" };
   }
 });
 
-// ---- Window ------------------------------------------------------------
+// ---- Mavzu (theme) va oyna ---------------------------------------------
+const OVERLAY = {
+  dark: { color: "#060812", symbolColor: "#9ba3cc", height: 40 },
+  light: { color: "#f5f6fb", symbolColor: "#3d4470", height: 40 },
+};
+const overlay = () => OVERLAY[nativeTheme.shouldUseDarkColors ? "dark" : "light"];
+
+function applyTheme() {
+  nativeTheme.themeSource = loadSettings().theme;
+}
+nativeTheme.on("updated", () => {
+  if (!win || win.isDestroyed()) return;
+  if (process.platform !== "darwin") win.setTitleBarOverlay(overlay());
+  win.setBackgroundColor(overlay().color);
+});
+
+/** Saqlangan oyna o'lchami biror ekranda ko'rinadimi. */
+function restoredBounds() {
+  const b = loadSettings().window;
+  if (!b) return null;
+  if (b.x == null || b.y == null) return { width: b.width, height: b.height };
+  const visible = screen.getAllDisplays().some(({ workArea: a }) => b.x + 80 > a.x && b.y + 40 > a.y && b.x < a.x + a.width - 80 && b.y < a.y + a.height - 40);
+  return visible ? b : { width: b.width, height: b.height };
+}
+
+let saveBoundsTimer = null;
+function saveBounds() {
+  if (!win || win.isDestroyed() || win.isMinimized()) return;
+  const n = win.getNormalBounds();
+  updateInternal({ window: { ...n, maximized: win.isMaximized() } });
+}
+const saveBoundsSoon = () => {
+  clearTimeout(saveBoundsTimer);
+  saveBoundsTimer = setTimeout(saveBounds, 400);
+};
+
 function createWindow() {
+  applyTheme();
+  const b = restoredBounds();
+  const devIcon = join(__dirname, "build", "icon.png");
   win = new BrowserWindow({
-    width: 1100,
-    height: 760,
-    minWidth: 720,
-    minHeight: 520,
-    backgroundColor: "#0A0B14",
+    width: b?.width ?? 1280,
+    height: b?.height ?? 820,
+    ...(b?.x != null ? { x: b.x, y: b.y } : {}),
+    minWidth: 860,
+    minHeight: 560,
+    show: false,
+    backgroundColor: overlay().color,
     title: "SOVEREIGN Cowork",
+    ...(process.platform === "darwin" ? { titleBarStyle: "hiddenInset" } : { titleBarStyle: "hidden", titleBarOverlay: overlay() }),
+    ...(!app.isPackaged && existsSync(devIcon) ? { icon: devIcon } : {}),
     webPreferences: {
       preload: join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -523,8 +842,20 @@ function createWindow() {
       allowRunningInsecureContent: false,
       webviewTag: false,
       navigateOnDragDrop: false,
+      spellcheck: false,
     },
   });
+  win.once("ready-to-show", () => {
+    if (b?.maximized) win.maximize();
+    win.show();
+  });
+  win.on("resize", saveBoundsSoon);
+  win.on("move", saveBoundsSoon);
+  win.on("close", () => {
+    saveBounds();
+    persistCurrentTask();
+  });
+  win.on("focus", () => win.flashFrame(false));
   // Renderer qulasa (mas. juda katta diff) — kutilayotgan tasdiqlar rad bilan yopiladi,
   // agent osilib qolmaydi; oyna qayta yuklanadi.
   win.webContents.on("render-process-gone", () => {
@@ -537,6 +868,28 @@ function createWindow() {
   } else {
     win.loadFile(join(__dirname, "ui-dist", "index.html"));
   }
+  if (OFFLINE && process.env.SOV_SMOKE_SHOT) smokeCapture(process.env.SOV_SMOKE_SHOT);
+}
+
+/**
+ * Smoke test (faqat SOV_OFFLINE=1 bilan): sahifa yuklangach oynani PNG'ga va
+ * ko'rinadigan matnni .txt ga yozadi; SOV_SMOKE_QUIT=1 bo'lsa ilova yopiladi.
+ */
+function smokeCapture(outPath) {
+  win.webContents.once("did-finish-load", () => {
+    setTimeout(async () => {
+      try {
+        if (!win.isVisible()) win.show();
+        const img = await win.webContents.capturePage();
+        writeFileSync(outPath, img.toPNG());
+        const text = await win.webContents.executeJavaScript("document.body.innerText", true);
+        writeFileSync(`${outPath}.txt`, String(text));
+      } catch (e) {
+        writeFileSync(`${outPath}.txt`, `SMOKE ERROR: ${e?.message ?? e}`);
+      }
+      if (process.env.SOV_SMOKE_QUIT === "1") app.quit();
+    }, Number(process.env.SOV_SMOKE_DELAY) || 2500);
+  });
 }
 
 // Har qanday webContents: yangi oyna, tashqi navigatsiya, webview — taqiqlangan.
@@ -550,12 +903,44 @@ app.on("web-contents-created", (_e, contents) => {
   contents.on("will-attach-webview", (event) => event.preventDefault());
 });
 
-app.whenReady().then(() => {
-  // Kamera/mikrofon/geolokatsiya va h.k. — hammasi rad (faqat nusxalash ruxsat).
-  const allowed = new Set(["clipboard-sanitized-write"]);
-  electronSession.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.has(permission)));
-  createWindow();
-});
+// Bitta nusxa: ikkinchi marta ochilsa — mavjud oyna oldinga chiqadi.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.focus();
+  });
+
+  app.whenReady().then(() => {
+    if (process.platform === "win32") app.setAppUserModelId(APP_ID);
+    // Kamera/mikrofon/geolokatsiya va h.k. — hammasi rad (faqat nusxalash ruxsat).
+    const allowed = new Set(["clipboard-sanitized-write"]);
+    electronSession.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.has(permission)));
+    // O'rnatilgan ilovada standart menyu (Ctrl+R qayta yuklash, DevTools) kerak emas.
+    // macOS'da tahrirlash (nusxa/qo'yish) uchun minimal menyu qoladi.
+    if (process.platform === "darwin") {
+      Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }]));
+    } else if (app.isPackaged) {
+      Menu.setApplicationMenu(null);
+    }
+    // Oxirgi ish papkasi (mavjud bo'lsa) avtomatik ochiladi.
+    const last = loadSettings().lastFolder;
+    if (isDir(last)) {
+      try {
+        setWorkspace(last);
+      } catch {
+        workspace = null;
+      }
+    }
+    // Updater doim tayyor (qo'lda tekshirish uchun); avtomatik tekshiruv — sozlamaga bog'liq.
+    initUpdater({ enabled: !OFFLINE, onEvent: (ev) => send("update", ev) });
+    createWindow();
+    if (!OFFLINE && loadSettings().autoUpdate && app.isPackaged) setTimeout(() => checkForUpdates(), 8000);
+  });
+}
+
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

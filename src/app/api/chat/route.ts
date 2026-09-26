@@ -4,10 +4,12 @@ import {
   GROUNDED_GENERATION,
   SIMPLE_CHAT_GUARDRAIL,
   streamCompletion,
+  type SearchSource,
   type StreamEvent,
 } from "@/lib/ai/providers";
 import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
-import { verifyAnswer } from "@/lib/ai/verifier";
+import { confirmActionClaims, formatSearchSources, verifyAnswer, type VerifierIssue } from "@/lib/ai/verifier";
+import { checkClaims, detectActionClaims, unsourcedMarkers, type ActionRecord, type ClaimReason, type UnsupportedClaim } from "@/lib/ai/claims";
 import { planRouteLLM } from "@/lib/ai/router";
 import { AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
@@ -150,6 +152,34 @@ async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
     // Ustunsiz (eski) bazada ham xavfsiz: faqat aniq false bo'lsa o'chiq.
     trainingOptIn: profile?.training_opt_in !== false,
   };
+}
+
+/**
+ * "verifier" SSE hodisasidagi yozuv. Mavjud mijoz (use-send-message) `issues`ni
+ * xabarga to'g'ridan-to'g'ri saqlaydi, shuning uchun javobdan keyingi barcha
+ * tekshiruvlar shu kanal orqali `kind` bilan ajratib yuboriladi:
+ *  - "fact"     — verifier.ts fakt bahosi (VerifierPanel);
+ *  - "action"   — javob "qildim" deydi, lekin connector jurnalida bunday bajarilgan amal yo'q;
+ *  - "citation" — research javobidagi manbasiz [n] belgilari.
+ * Hodisa bir necha marta kelishi mumkin — har safar TO'LIQ ro'yxat (mijoz almashtiradi).
+ */
+type WireIssue = {
+  fact: string;
+  verdict: VerifierIssue["verdict"];
+  note?: string;
+  basis?: VerifierIssue["basis"];
+  kind: "fact" | "action" | "citation";
+  reason?: ClaimReason;
+  markers?: number[];
+};
+
+function actionIssues(claims: UnsupportedClaim[]): WireIssue[] {
+  return claims.map((c) => ({ kind: "action", fact: c.text, verdict: "suspicious", reason: c.reason }));
+}
+
+function citationIssues(markers: number[]): WireIssue[] {
+  if (!markers.length) return [];
+  return [{ kind: "citation", fact: markers.map((n) => `[${n}]`).join(" "), verdict: "unverifiable", markers }];
 }
 
 function textOf(content: string | unknown[]): string {
@@ -318,6 +348,42 @@ export async function POST(req: Request) {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (ev: StreamEvent | Record<string, unknown>) => controller.enqueue(sse(ev));
+
+      /**
+       * Javobdan keyingi tekshiruvlar. Deterministik qism (amal da'volari ↔ connector
+       * jurnali, manbasiz [n]) — darhol va bepul. LLM qismi (fakt-verifier, chegaradagi
+       * da'volarni tasdiqlash) — faqat kerak bo'lganda, parallel. Topilmasa — hodisa yo'q.
+       */
+      const postChecks = async (p: {
+        text: string;
+        ledger: ActionRecord[];
+        unsourced: number[];
+        verify: (() => Promise<VerifierIssue[]>) | null;
+      }) => {
+        const unsupported = checkClaims(detectActionClaims(p.text), p.ledger);
+        const strong = unsupported.filter((c) => c.strength === "strong");
+        const borderline = unsupported.filter((c) => c.strength === "borderline");
+        const cites = citationIssues(p.unsourced);
+        const early: WireIssue[] = [...actionIssues(strong), ...cites];
+        if (early.length) send({ type: "verifier", issues: early });
+        if (!borderline.length && !p.verify) return;
+        const [facts, confirmed] = await Promise.all([
+          p.verify ? p.verify().catch((): VerifierIssue[] => []) : Promise.resolve<VerifierIssue[]>([]),
+          borderline.length
+            ? confirmActionClaims(borderline.map((c) => c.text), req.signal).catch(() => null)
+            : Promise.resolve<boolean[] | null>([]),
+        ]);
+        // Tasdiqlab bo'lmasa (kalit yo'q / xato) — ogohlantirish saqlanadi (xavfsiz tomonga).
+        const kept = confirmed === null ? borderline : borderline.filter((_, i) => confirmed[i]);
+        if (!facts.length && !kept.length) return;
+        const all: WireIssue[] = [
+          ...facts.map((f): WireIssue => ({ ...f, kind: "fact" })),
+          ...actionIssues([...strong, ...kept]),
+          ...cites,
+        ];
+        send({ type: "verifier", issues: all });
+      };
+
       try {
         if (activeSkills.length) send({ type: "skills", skills: activeSkills.map((s) => s.id) });
         if (isAuto) send({ type: "route", reason: routeReason, steps });
@@ -335,6 +401,9 @@ export async function POST(req: Request) {
                 send({ type: "text", text: p });
                 await new Promise((r) => setTimeout(r, 5));
               }
+              // Keshdagi javob ham "yubordim" deyishi mumkin — bu so'rovda hech qanday
+              // connector chaqirilmagan (jurnal bo'sh).
+              await postChecks({ text: hit.answer, ledger: [], unsourced: [], verify: null }).catch(() => {});
               send({ type: "done" });
               controller.enqueue(done);
               controller.close();
@@ -347,22 +416,33 @@ export async function POST(req: Request) {
 
         // Havola yuborilgan bo'lsa — sahifani o'qib, kontekstga qo'shamiz.
         let webContext = "";
+        // Mijozdagi citations ro'yxati (oxirgi yuborilgani) — [n] belgilari shunga solishtiriladi.
+        let clientCitations: string[] = [];
+        // Research qidiruv natijalari (sarlavha/snippet) — faqat server ichida, verifier uchun.
+        let searchSources: SearchSource[] = [];
         if (urls.length) {
           send({ type: "reading", urls });
           const { pages, prompt } = await readPages(urls);
           webContext = prompt;
-          if (pages.length) send({ type: "citations", citations: pages.map((p) => p.url) });
-          else send({ type: "text", text: `${fmt(t("chPageOpenFailed"), { urls: urls.join(", ") })}\n\n` });
+          if (pages.length) {
+            clientCitations = pages.map((p) => p.url);
+            send({ type: "citations", citations: clientCitations });
+          } else send({ type: "text", text: `${fmt(t("chPageOpenFailed"), { urls: urls.join(", ") })}\n\n` });
         }
 
         let researchContext = "";
         let cacheableAnswer = "";
+        // Modellar yozgan barcha matn (research + answer) — da'vo va [n] tekshiruvi uchun.
+        let modelText = "";
+        let researchRan = false;
         // Oylik token hisobi uchun: BARCHA qadamlar (research ham) chiqishi.
         let billedOutChars = 0;
 
         // Connector tool bosqichi — AI ulangan Figma/GitHub'dan ma'lumot oladi,
         // natija javob konteksti sifatida qo'shiladi (streaming'ga tegmaydi).
         let connectorContext = "";
+        // Tizim jurnali: bu so'rovda haqiqatan chaqirilgan connector toollari va natijasi.
+        let actionLedger: ActionRecord[] = [];
         try {
           if (isSupabaseConfigured()) {
             const sbc = await createClient();
@@ -373,8 +453,9 @@ export async function POST(req: Request) {
                 const answerStep = steps.find((s) => s.kind === "answer") ?? steps[steps.length - 1];
                 // Faqat katalog modeli (tarif tekshiruvidan o'tgan); OmniRoute/xom id → null (standart model).
                 const pm = MODEL_BY_ID[answerStep.modelId]?.providerModel ?? null;
-                const ctx = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: pm, messages, enabled, signal: req.signal });
-                if (ctx) connectorContext = ctx;
+                const run = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: pm, messages, enabled, signal: req.signal });
+                if (run.context) connectorContext = run.context;
+                actionLedger = run.actions;
               }
             }
           }
@@ -441,6 +522,13 @@ ${connectorContext}`
                 break;
               }
               if (ev.type === "text") stepText += ev.text;
+              if (ev.type === "citations") {
+                // Qidiruv snippetlari faqat verifier uchun — mijozga faqat URL ro'yxati.
+                clientCitations = ev.citations;
+                if (ev.sources?.length) searchSources = ev.sources;
+                send({ type: "citations", citations: ev.citations });
+                continue;
+              }
               // Separate visible sections when a second step begins.
               send(ev);
             }
@@ -454,7 +542,9 @@ ${connectorContext}`
             send({ type: "switch", from: candidate, to: next, reason: failure });
           }
           billedOutChars += stepText.length;
+          modelText += `${stepText}\n\n`;
           if (step.kind === "research") {
+            researchRan = true;
             researchContext = stepText;
             if (steps.length > 1) send({ type: "text", text: "\n\n---\n\n" });
           } else if (step.kind === "answer") {
@@ -511,21 +601,39 @@ ${connectorContext}`
           });
         }
 
-        // Verifier: uzun faktual javoblarni arzon model (verifier.ts) bilan tekshirish.
-        // Javob modeli ko'rgan manbalar (o'qilgan sahifa, bilim bazasi, connector
-        // natijalari) bo'lsa — da'volar SHU manbalarga solishtiriladi; aks holda
-        // baho faqat modelning o'z bilimiga asoslanadi (UI buni alohida belgilaydi).
-        // Streaming tugagandan keyin qo'shimcha "verifier" eventi keladi.
-        if (cacheableAnswer.length >= 300 && !research && isFactualProse(cacheableAnswer)) {
-          try {
-            // connectorContext (Gmail/Sheets/GitHub ma'lumotlari) atayin YO'Q: maxfiylik —
-            // shaxsiy servis ma'lumotlari tekshiruvchi uchun qo'shimcha modelga yuborilmaydi.
-            const sources = [webContext, knowledgeText].filter(Boolean).join("\n\n");
-            const issues = await verifyAnswer(lastText, cacheableAnswer, sources);
-            if (issues.length > 0) send({ type: "verifier", issues });
-          } catch {
-            /* verifier ixtiyoriy — xato bo'lsa jim */
-          }
+        // Javobdan keyingi tekshiruvlar (streaming tugagandan keyin "verifier" hodisasi):
+        //  1) Amal da'volari: javob "yubordim/yaratdim/saqladim" desa — connector jurnalida
+        //     shu amal ✓ bajarilganmi? (deterministik; faqat chegaradagi gap arzon modelga).
+        //  2) Research [n]: manbalar ro'yxatidan tashqaridagi belgilar — "manbasiz".
+        //  3) Fakt-verifier (arzon model): javob modeli ko'rgan manbalar (o'qilgan sahifa,
+        //     bilim bazasi, research qidiruv natijalari) bo'lsa — SHU manbalarga solishtiriladi;
+        //     aks holda faqat modelning o'z bilimi (UI buni alohida belgilaydi).
+        try {
+          const verifyText = cacheableAnswer || researchContext;
+          const searchCtx = formatSearchSources(searchSources);
+          // connectorContext (Gmail/Sheets/GitHub ma'lumotlari) atayin YO'Q: maxfiylik —
+          // shaxsiy servis ma'lumotlari tekshiruvchi uchun qo'shimcha modelga yuborilmaydi.
+          const sources = [searchCtx.text, webContext, knowledgeText].filter(Boolean).join("\n\n");
+          // Qidiruv faqat sarlavha/URL qaytargan va boshqa manba yo'q — faqat atributsiya.
+          const attributionOnly = Boolean(searchCtx.text) && !searchCtx.withContent && !webContext && !knowledgeText;
+          // Manbali tekshiruv qisqa javobga ham arziydi; manbasiz "ikkinchi fikr" — faqat uzun javobga.
+          const minChars = sources ? 150 : 300;
+          const shouldVerify = verifyText.length >= minChars && isFactualProse(verifyText);
+          await postChecks({
+            text: modelText,
+            ledger: actionLedger,
+            unsourced: researchRan || clientCitations.length ? unsourcedMarkers(modelText, clientCitations.length) : [],
+            verify: shouldVerify
+              ? () =>
+                  verifyAnswer(lastText, verifyText, sources, {
+                    attributionOnly,
+                    numbered: Boolean(searchCtx.text),
+                    signal: req.signal,
+                  })
+              : null,
+          });
+        } catch {
+          /* tekshiruvlar ixtiyoriy — xato bo'lsa jim */
         }
       } catch (err) {
         if (!(err instanceof Error && err.name === "AbortError")) {
