@@ -120,7 +120,10 @@ jobs:
 
           Har bir fayl yonida \`.sha256\` va umumiy \`SHA256SUMS\` bor.
           EOF
+          # --latest=false: "Latest" belgisi doim desktop-v* relizida qolsin — Cowork'ning
+          # electron-updater'i /releases/latest orqali latest.yml'ni qidiradi.
           gh release create "$GITHUB_REF_NAME" out/* \
+            --latest=false \
             --repo "$GITHUB_REPOSITORY" \
             --title "SOVEREIGN CLI v${ver}" \
             --notes-file notes.md

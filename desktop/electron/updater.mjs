@@ -87,19 +87,28 @@ export function initUpdater({ enabled, onEvent }) {
   updater.on("error", fail);
 }
 
+/**
+ * Eng so'nggi e'lon qilingan desktop-v* relizi (GitHub Releases API). Repoda CLI
+ * relizlari ham bor — shuning uchun "Latest" belgisiga emas, teg prefiksiga qaraymiz.
+ * null — desktop relizi yo'q.
+ */
+async function latestDesktopRelease() {
+  const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
+    headers: { Accept: "application/vnd.github+json", "User-Agent": "sovereign-cowork" },
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const list = await res.json();
+  return Array.isArray(list)
+    ? list.find((r) => r && !r.draft && !r.prerelease && new RegExp(`^${TAG_PREFIX}\\d+\\.\\d+\\.\\d+$`).test(String(r.tag_name ?? ""))) ?? null
+    : null;
+}
+
 /** macOS: GitHub Releases API'dan eng so'nggi desktop-v* relizini solishtiradi. */
 async function checkManual() {
   if (lastState.state !== "available") set({ state: "checking" });
   try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`, {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "sovereign-cowork" },
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const list = await res.json();
-    const rel = Array.isArray(list)
-      ? list.find((r) => r && !r.draft && !r.prerelease && new RegExp(`^${TAG_PREFIX}\\d+\\.\\d+\\.\\d+$`).test(String(r.tag_name ?? "")))
-      : null;
+    const rel = await latestDesktopRelease();
     if (!rel) {
       set({ state: "no-release" });
     } else {
@@ -124,6 +133,13 @@ export async function checkForUpdates() {
   if (!updater) return lastState;
   inDownload = false;
   try {
+    // Updater'ni aniq desktop relizining fayllariga yo'naltiramiz: standart GitHub
+    // provayderi /releases/latest'ga tayanadi, u esa CLI relizi bo'lib qolishi mumkin
+    // (unda latest.yml yo'q → karta chiqmasdi). API ishlamasa — standart yo'l.
+    const rel = await latestDesktopRelease().catch(() => null);
+    if (rel) {
+      updater.setFeedURL({ provider: "generic", url: `https://github.com/${REPO}/releases/download/${rel.tag_name}` });
+    }
     await updater.checkForUpdates();
   } catch (e) {
     fail(e);
