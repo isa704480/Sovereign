@@ -4,6 +4,10 @@ import Icon, { Logo } from "./Icon.jsx";
 import SignIn from "./SignIn.jsx";
 import ModelPicker from "./ModelPicker.jsx";
 import { useT, LANGS } from "../lib/i18n.js";
+import { formatTokens } from "../lib/agent.js";
+
+/** Vazifa uchun token byudjeti tanlovlari (0 — cheklovsiz). */
+const BUDGETS = [0, 50_000, 100_000, 250_000, 500_000, 1_000_000];
 
 const SECTIONS = [
   ["general", "settings"],
@@ -81,6 +85,11 @@ export default function Settings({ initial = "general", onClose, info, settings,
               <div className="row gap-sm mt">
                 <ModelPicker label={model} onSelect={onModel} placement="down" />
                 {model !== "Auto" && <button type="button" className="btn btn-sm btn-ghost" onClick={() => onModel("", "Auto")}>{t("model.useAuto")}</button>}
+              </div>
+              <div className="field mt">
+                <span className="label-sm">{t("settings.budget")}</span>
+                <Seg label={t("settings.budget")} value={settings.tokenBudget ?? 0} onChange={(v) => setSetting({ tokenBudget: v })} options={BUDGETS.map((n) => [n, n ? formatTokens(n) : t("settings.budgetOff")])} />
+                <span className="faint small">{t("settings.budgetDesc")}</span>
               </div>
             </>
           )}

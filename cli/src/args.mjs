@@ -17,6 +17,7 @@ const VALUE_FLAGS = {
   "-m": "model",
   "--model": "model",
   "--url": "url",
+  "--budget": "budget",
 };
 
 const BOOL_FLAGS = {
@@ -85,5 +86,20 @@ export function parseArgs(argv) {
     errors.push(`Noma'lum flag: ${a}`);
   }
   flags.verify = !flags.noVerify;
+  // --budget <token> — bitta vazifa uchun token byudjeti (musbat son; "50k", "1.5m" ham bo'ladi).
+  if (flags.budget != null) {
+    const n = parseBudget(flags.budget);
+    if (n == null) errors.push(`--budget musbat son bo'lishi kerak (mas. 50000 yoki 50k): ${flags.budget}`);
+    else flags.budget = n;
+  }
   return { flags, files, positional, errors };
+}
+
+/** "50000" | "50k" | "1.5m" → token soni; noto'g'ri bo'lsa null. */
+export function parseBudget(v) {
+  const m = /^(\d+(?:\.\d+)?)\s*([km])?$/i.exec(String(v ?? "").trim());
+  if (!m) return null;
+  const mult = !m[2] ? 1 : m[2].toLowerCase() === "k" ? 1_000 : 1_000_000;
+  const n = Math.round(Number(m[1]) * mult);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }

@@ -66,7 +66,16 @@ export function applyEvent(s, ev, { replay = false } = {}) {
       return { ...s, changes, items };
     }
     case "ledger":
-      return { ...s, items: [...s.items, { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, noteCode: ev.noteCode, maxSteps: ev.maxSteps }] };
+      return {
+        ...s,
+        items: [
+          ...s.items,
+          { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, testWarning: ev.testWarning ?? null, noteCode: ev.noteCode, maxSteps: ev.maxSteps, loop: ev.loop ?? null, budget: ev.budget ?? null },
+        ],
+      };
+    case "usage":
+      // Vazifa narxi — token va model qadamlari (jurnal ostida kichik qator).
+      return { ...s, items: [...s.items, { id: nid(), kind: "usage", tokens: ev.tokens ?? 0, rounds: ev.rounds ?? 0, estimated: !!ev.estimated, budget: ev.budget ?? 0 }] };
     case "done":
       return { ...s, busy: false, confirm: null };
     case "error":
@@ -96,6 +105,14 @@ export function addChange(changes, ch) {
     { path: ch.path, before: first.before, beforeUnknown: first.beforeUnknown, existed: first.existed, backupId: first.backupId ?? ch.backupId ?? null, after: ch.after },
     ...changes.filter((c) => c.path !== ch.path),
   ];
+}
+
+/** 1234 → "1.2k", 999 → "999" (CLI formatTokens bilan bir xil). */
+export function formatTokens(n) {
+  const v = Math.max(0, Math.round(Number(n) || 0));
+  if (v < 1000) return String(v);
+  if (v < 1_000_000) return `${(v / 1000).toFixed(v < 10_000 ? 1 : 0)}k`;
+  return `${(v / 1_000_000).toFixed(1)}M`;
 }
 
 /** Jurnal yozuvlaridan statistikalar. */

@@ -1,7 +1,7 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import Icon, { Logo } from "./Icon.jsx";
 import { md } from "../lib/md.js";
-import { ledgerStats } from "../lib/agent.js";
+import { ledgerStats, formatTokens } from "../lib/agent.js";
 import { useT } from "../lib/i18n.js";
 import { localizeResult, localizeBody, ledgerWarning } from "../lib/cliText.js";
 
@@ -34,11 +34,46 @@ export function ToolStep({ it, awaiting }) {
   );
 }
 
+/** Jurnal izohi: noteCode → tanlangan tildagi matn (steps | loop | budget | error). */
+function ledgerNote(it, t) {
+  switch (it.noteCode) {
+    case "steps":
+      return t("ledger.noteSteps", { n: it.maxSteps || 14 });
+    case "loop": {
+      const kind = ["command", "write", "repeat"].includes(it.loop?.kind) ? it.loop.kind : "repeat";
+      return t(`ledger.noteLoop.${kind}`, { target: it.loop?.target ?? "", n: it.loop?.count ?? 3 });
+    }
+    case "budget":
+      return t("ledger.noteBudget", { used: formatTokens(it.budget?.used), limit: formatTokens(it.budget?.limit) });
+    default:
+      return t("ledger.noteError");
+  }
+}
+
+/** "Testlar o'tdi" da'vosi tasdiqlanmagan: noTest | testFailed | stale. */
+function testWarningText(w, t) {
+  const code = ["noTest", "testFailed", "stale"].includes(w?.code) ? w.code : "noTest";
+  return t(`ledger.test.${code}`, { command: w?.command ?? "", files: (w?.files ?? []).join(", ") });
+}
+
+/** Vazifa narxi: "≈ 12.3k token · 4 qadam" (faqat token — pul emas). */
+function UsageLine({ it }) {
+  const t = useT();
+  const vars = { tokens: formatTokens(it.tokens), limit: formatTokens(it.budget), steps: it.rounds };
+  const est = it.estimated ? ` · ${t("usage.estimated")}` : "";
+  return (
+    <div className="usage-line faint small tnum" title={t("usage.title")} aria-label={t("usage.title")}>
+      <Icon name="bolt" size={11} />
+      <span>{(it.budget ? t("usage.lineBudget", vars) : t("usage.line", vars)) + est}</span>
+    </div>
+  );
+}
+
 export function LedgerCard({ it }) {
   const t = useT();
   const st = ledgerStats(it.entries);
   const effects = (it.entries ?? []).filter((e) => !(["read_file", "list_dir"].includes(e.tool) && (e.status === "ok" || e.status === "skipped")));
-  const bad = st.failed + st.declined > 0 || !!it.warning || !!it.noteCode;
+  const bad = st.failed + st.declined > 0 || !!it.warning || !!it.testWarning || !!it.noteCode;
   return (
     <section className={`ledger ${bad ? "ledger-warn" : ""}`} aria-label={t("ledger.title")}>
       <header className="ledger-head">
@@ -68,8 +103,9 @@ export function LedgerCard({ it }) {
         </ul>
       )}
       {st.reads > 0 && <div className="ledger-reads faint small"><Icon name="eye" size={12} /> {t("ledger.reads", { n: st.reads })}</div>}
-      {it.noteCode && <div className="banner banner-warn"><Icon name="alert" size={14} /><span>{it.noteCode === "steps" ? t("ledger.noteSteps", { n: it.maxSteps || 14 }) : t("ledger.noteError")}</span></div>}
+      {it.noteCode && <div className="banner banner-warn"><Icon name={it.noteCode === "loop" ? "repeat" : "alert"} size={14} /><span>{ledgerNote(it, t)}</span></div>}
       {it.warning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.claimWarn")}</b> {ledgerWarning(it.warning, t)}</span></div>}
+      {it.testWarning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.testWarn")}</b> {testWarningText(it.testWarning, t)}</span></div>}
     </section>
   );
 }
@@ -207,6 +243,8 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
                 return <ToolStep key={it.id} it={it} awaiting={!!confirm && it.id === lastRunningTool} />;
               case "ledger":
                 return <LedgerCard key={it.id} it={it} />;
+              case "usage":
+                return <UsageLine key={it.id} it={it} />;
               case "error":
                 return <ErrorCard key={it.id} it={it} onAction={onAction} last={it.id === lastErrorId && !busy} />;
               case "stopped":

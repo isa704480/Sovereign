@@ -14,6 +14,7 @@ const DEFAULTS = {
   defaultMode: "code", // code | chat
   fullAuto: false, // Kod rejimida hech narsa so'ralmaydi (tashqi yo'l / push / deploy rad etiladi)
   fullAutoFolder: "", // Full auto qaysi papka uchun yoqilgan (faqat main yozadi)
+  tokenBudget: 0, // bitta vazifa uchun token byudjeti (0 — cheklovsiz); oshsa navbat to'xtaydi
   sidebar: true,
   rightPanel: false,
   model: "", // OmniRoute katalog id ("" = Auto)
@@ -31,6 +32,7 @@ const VALID = {
   autoUpdate: (v) => typeof v === "boolean",
   defaultMode: (v) => ["code", "chat"].includes(v),
   fullAuto: (v) => typeof v === "boolean",
+  tokenBudget: (v) => Number.isInteger(v) && v >= 0 && v <= 100_000_000,
   sidebar: (v) => typeof v === "boolean",
   rightPanel: (v) => typeof v === "boolean",
   model: (v) => typeof v === "string" && v.length <= 200,
