@@ -26,8 +26,44 @@ const CRYPTO_RE = /\b(?:0x[a-fA-F0-9]{40}|[13][a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[a-
 // Pasport / SSN / TIN (asosiy formatlar)
 const ID_RE = /\b(?:[A-Z]{2}\d{7}|\d{3}-\d{2}-\d{4}|\d{14})\b/g;
 
-// Ism — ikkita ketma-ket bosh harfli so'z (barcha Unicode scriptlarida)
-const NAME_RE = /\b(\p{Lu}\p{L}{1,})\s+(\p{Lu}\p{L}{1,})\b/gu;
+// Ism — 2–4 ta ketma-ket bosh harfli so'z (barcha Unicode scriptlarida, bir qatorda).
+// `\b` faqat ASCII'ni biladi (kirillda ishlamaydi) — shuning uchun Unicode lookaround.
+// So'z ichida o'zbekcha tutuq belgilari bo'lishi mumkin: O‘tkir, G'ulom, Sa’dulla.
+const NAME_WORD = String.raw`\p{Lu}[\p{L}'’‘ʻʼ]*\p{L}`;
+const NAME_SEP = String.raw`[^\S\r\n]+`;
+const NAME_RE = new RegExp(
+  String.raw`(?<![\p{L}\p{N}_])${NAME_WORD}(?:${NAME_SEP}${NAME_WORD}){1,3}(?![\p{L}\p{N}_])`,
+  "gu",
+);
+// Gap boshidagi/oxiridagi bosh harfli oddiy so'zlar (uz/ru/en) — ism emas. Ular
+// ketma-ketlikdan chiqarib tashlanadi: "Menga Ali Valiyev" → faqat "Ali Valiyev"
+// maskalanadi (avval "Menga Ali" olinib, familiya ochiq qolardi). Ism ham bo'la
+// oladigan so'zlar (Aziz, Umid, ...) ro'yxatga KIRITILMAYDI.
+const NAME_STOP = new Set(
+  [
+    // o'zbek (lotin)
+    "menga", "men", "sen", "senga", "biz", "bizga", "siz", "sizga", "ular", "ularga", "unga",
+    "mening", "bizning", "sizning", "uning", "ularning", "bugun", "kecha", "ertaga", "hozir",
+    "salom", "assalomu", "alaykum", "hurmatli", "iltimos", "rahmat", "keyin", "lekin",
+    "ammo", "va", "yoki", "agar", "chunki", "bu", "shu", "o‘sha", "o'sha", "mana", "ha", "kim",
+    "nima", "qachon", "qayerda", "nega", "qanday", "janob", "xonim", "ustoz", "domla",
+    // o'zbek (kirill)
+    "менга", "мен", "биз", "сиз", "улар", "унга", "бугун", "кеча", "эртага", "ҳозир", "салом",
+    "ассалому", "алайкум", "ҳурматли", "илтимос", "раҳмат", "кейин", "лекин", "ва", "бу",
+    // rus
+    "мне", "меня", "я", "мы", "ты", "вы", "он", "она", "они", "его", "ее", "её", "сегодня",
+    "вчера", "завтра", "сейчас", "привет", "здравствуйте", "уважаемый", "уважаемая", "дорогой",
+    "дорогая", "пожалуйста", "спасибо", "это", "этот", "эта", "когда", "потом", "но", "и", "или",
+    "если", "мой", "моя", "наш", "ваш", "господин", "госпожа",
+    // ingliz
+    "yesterday", "today", "tomorrow", "now", "the", "this", "that", "these", "those", "hello",
+    "hi", "hey", "dear", "please", "thanks", "thank", "when", "then", "and", "but", "or", "if",
+    "my", "our", "your", "his", "her", "their", "we", "you", "he", "she", "they", "it", "mr",
+    "mrs", "ms", "dr", "sir", "madam", "monday", "tuesday", "wednesday", "thursday", "friday",
+    "saturday", "sunday", "january", "february", "march", "april", "may", "june", "july",
+    "august", "september", "october", "november", "december",
+  ],
+);
 const ORG_RE = /\b(\p{Lu}[\p{L}0-9]{2,})\s*(?:LLC|Inc\.?|MChJ|YaTT|Ltd\.?|Corp(?:oration|\.)?|GmbH|OOO|AG|BV|SA|PLC|LLP)\b/gu;
 const MONEY_RE = /\$\s?\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s?(?:so'm|som|USD|EUR|GBP|RUB|₽|€|£|¥)/gi;
 
@@ -121,7 +157,20 @@ export function mask(text: string, session: MaskSession = createMaskSession()): 
   });
   out = out.replace(MONEY_RE, (m) => alloc("MONEY", m));
   out = out.replace(ORG_RE, (m) => alloc("ORG", m));
-  out = out.replace(NAME_RE, (m) => alloc("PERSON", m));
+  out = out.replace(NAME_RE, (m) => {
+    // parts: [so'z, ajratgich, so'z, ...] — ajratgichlar asl holicha saqlanadi.
+    const parts = m.split(/([^\S\r\n]+)/);
+    const words = parts.filter((_, i) => i % 2 === 0);
+    let s = 0;
+    let e = words.length;
+    while (s < e && NAME_STOP.has(words[s].toLowerCase())) s++;
+    while (e > s && NAME_STOP.has(words[e - 1].toLowerCase())) e--;
+    if (e - s < 2) return m; // bitta so'z qoldi — ism deb hisoblamaymiz (avvalgidek)
+    const head = parts.slice(0, 2 * s).join("");
+    const core = parts.slice(2 * s, 2 * e - 1).join("");
+    const tail = parts.slice(2 * e - 1).join("");
+    return head + alloc("PERSON", core) + tail;
+  });
 
   return { masked: out, tokenMap };
 }

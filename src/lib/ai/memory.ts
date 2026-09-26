@@ -1,5 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { LANG_FOR_AI, type Lang } from "@/lib/i18n";
+import { getServerLang } from "@/lib/i18n-server";
 
 export interface MemoryNode {
   id: string;
@@ -40,17 +42,29 @@ export async function rememberFromExchange(
   userId: string,
   userText: string,
   assistantText: string,
+  lang?: Lang,
 ): Promise<number> {
   if (!process.env.OPENROUTER_API_KEY) return 0;
   const existing = await getMemories(supabase, userId, 60);
   const existingSet = new Set(existing.map((m) => m.content.toLowerCase().trim()));
+
+  // Xotira foydalanuvchi o'qiy oladigan tilda yozilsin: berilmasa — interfeys tili (cookie).
+  let memLang: Lang | null = lang ?? null;
+  if (!memLang) {
+    try {
+      memLang = await getServerLang();
+    } catch {
+      memLang = null; // so'rov kontekstidan tashqarida — foydalanuvchi yozgan tilda
+    }
+  }
+  const langRule = memLang ? LANG_FOR_AI[memLang] : "foydalanuvchi yozgan tilda";
 
   const sys = [
     "Sen foydalanuvchi haqidagi UZOQ MUDDATLI faktlarni ajratib oluvchisan.",
     "Faqat kelajakda foydali, barqaror faktlarni ol: ism, kasb, loyihalar, afzalliklar, uslub, til, maqsadlar.",
     "Vaqtinchalik yoki bir martalik narsalarni OLMA (masalan 'salom dedi', 'bu savol').",
     "JSON qaytar: {\"memories\":[{\"content\":\"...\",\"kind\":\"fact|preference|project|person\"}]}.",
-    "Agar eslab qolishga arziydigan narsa bo'lmasa, bo'sh ro'yxat qaytar. Har bir content qisqa, 1 gap, o'zbekcha.",
+    `Agar eslab qolishga arziydigan narsa bo'lmasa, bo'sh ro'yxat qaytar. Har bir content qisqa, 1 gap, ${langRule} yoz.`,
   ].join(" ");
   const user = `Foydalanuvchi: ${userText.slice(0, 2000)}\n\nAI javobi (kontekst): ${assistantText.slice(0, 1000)}`;
 

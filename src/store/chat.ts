@@ -2,12 +2,12 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist, type StateStorage } from "zustand/middleware";
 import { AUTO_MODEL_ID, DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
 import type { Attachment } from "@/lib/chat/attachments";
 import { DEFAULT_AGENT_MODE } from "@/config/agent-modes";
-import { DEFAULT_LANG, translate, type Lang, type TKey } from "@/lib/i18n";
+import { DEFAULT_LANG, isLang, translate, type Lang, type TKey } from "@/lib/i18n";
 
 /** Komponentlarda: const t = useT(); t("newChat") */
 export function useT(): (key: TKey) => string {
@@ -74,6 +74,8 @@ export interface ChatMessage {
   /** Verifier tomonidan topilgan shubhali faktlar. */
   verifier?: VerifierIssue[];
   createdAt: string;
+  /** User xabari rasm so'rovi bo'lgan ("+ → Rasm" rejimi) — qayta yaratish/tahrirlash ham rasm yo'lidan. */
+  kind?: "image";
   status?: MessageStatus;
   error?: string;
 }
@@ -175,6 +177,110 @@ export const uuid = () =>
 
 const now = () => new Date().toISOString();
 
+/** Kontentdagi inline rasmlar (data:image, yuzlab KB) — kvota to'lganda birinchi qirqiladi. */
+const INLINE_IMAGE_RE = /!\[([^\]]*)\]\(data:image\/[^)]+\)/g;
+
+function isQuotaError(err: unknown): boolean {
+  return (
+    err instanceof DOMException &&
+    (err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED" || err.code === 22 || err.code === 1014)
+  );
+}
+
+type PersistedBlob = { state?: { conversations?: Record<string, Conversation>; order?: string[] } };
+
+/**
+ * localStorage kvotasi (~5MB) to'lganda zustand persist har set() da xato otardi va
+ * chat butunlay "o'lardi". Bu o'rovchi hech qachon xato otmaydi: avval inline rasmlarni
+ * qirqadi, keyin eng eski suhbatlarni tashlab qayta urinadi. Xotiradagi holat o'zgarmaydi.
+ */
+const safeLocalStorage: StateStorage = {
+  getItem: (name) => {
+    try {
+      return localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name, value) => {
+    try {
+      localStorage.setItem(name, value);
+      return;
+    } catch (err) {
+      if (!isQuotaError(err)) return;
+    }
+    let blob: PersistedBlob;
+    try {
+      blob = JSON.parse(value) as PersistedBlob;
+    } catch {
+      return;
+    }
+    const st = blob.state;
+    if (!st?.conversations) return;
+    const tryWrite = () => {
+      try {
+        localStorage.setItem(name, JSON.stringify(blob));
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    // 1) Inline rasmlarni joy egasi bilan almashtiramiz.
+    st.conversations = Object.fromEntries(
+      Object.entries(st.conversations).map(([id, c]) => [
+        id,
+        { ...c, messages: c.messages.map((m) => ({ ...m, content: m.content.replace(INLINE_IMAGE_RE, "_[image]_") })) },
+      ]),
+    );
+    if (tryWrite()) return;
+    // 2) Eng eski suhbatlarni (order oxiridan) bittalab tashlaymiz; faqat eng yangisi qolguncha.
+    const order = [...(st.order ?? Object.keys(st.conversations))];
+    while (order.length > 1) {
+      const oldest = order.pop();
+      if (oldest) delete st.conversations[oldest];
+      st.order = [...order];
+      if (tryWrite()) return;
+    }
+    // 3) Suhbatlarsiz ham sig'masa — jim o'tamiz (chat ishlashda davom etadi).
+  },
+  removeItem: (name) => {
+    try {
+      localStorage.removeItem(name);
+    } catch {
+      /* ignore */
+    }
+  },
+};
+
+/**
+ * Oqim paytida sahifa yangilansa xabar "streaming" holatida saqlanib qolardi (abadiy kursor,
+ * qayta urinish yo'q). Tiklashda bunday xabarlarni "uzildi" holatiga o'tkazamiz.
+ */
+function settleStreaming(conversations: Record<string, Conversation> | undefined, lang: Lang) {
+  if (!conversations) return conversations;
+  const note = translate(lang, "uxInterrupted");
+  let changed = false;
+  const out = Object.fromEntries(
+    Object.entries(conversations).map(([id, c]) => {
+      if (!c.messages?.some((m) => m.status === "streaming")) return [id, c];
+      changed = true;
+      return [
+        id,
+        {
+          ...c,
+          messages: c.messages.map((m) => {
+            if (m.status !== "streaming") return m;
+            // Rasm yaratish xabarlarida modelId yo'q — "chizilmoqda…" matni javob emas.
+            if (!m.modelId || !m.content) return { ...m, status: "error" as const, content: "", error: note };
+            return { ...m, status: "done" as const, error: note };
+          }),
+        },
+      ];
+    }),
+  );
+  return changed ? out : conversations;
+}
+
 export const useChat = create<ChatState>()(
   persist(
     (set, get) => ({
@@ -227,7 +333,14 @@ export const useChat = create<ChatState>()(
           set({ modelId, research });
         }
       },
-      setResearch: (research) => set({ research }),
+      // Faol suhbatning bayrog'i ham yangilanadi — aks holda chip o'chiq ko'rinib,
+      // so'rovlar research bilan ketaverardi (run() conv.research ni o'qiydi).
+      setResearch: (research) =>
+        set((s) => {
+          const c = s.activeId ? s.conversations[s.activeId] : null;
+          if (!c || c.research === research) return { research };
+          return { research, conversations: { ...s.conversations, [c.id]: { ...c, research } } };
+        }),
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
       toggleSkill: (id) =>
         set((s) => ({
@@ -375,6 +488,12 @@ export const useChat = create<ChatState>()(
     {
       name: "sovereign.chat",
       skipHydration: true,
+      storage: createJSONStorage(() => safeLocalStorage),
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<ChatState>;
+        const lang = isLang(p.lang) ? p.lang : current.lang;
+        return { ...current, ...p, conversations: settleStreaming(p.conversations, lang) ?? current.conversations };
+      },
       partialize: (s) => ({
         // Strip heavy attachment payloads (data URLs / extracted text) from
         // localStorage — keep only lightweight metadata for display after reload.
@@ -424,7 +543,9 @@ const getServerHydrated = () => false;
 
 export function useChatHydrated(): boolean {
   useEffect(() => {
-    void useChat.persist.rehydrate();
+    // Sahifa yuklanishida bir marta tiklaymiz: har mount'da qayta o'qish xotiradagi
+    // (to'liq, attachment ma'lumotli) holatni localStorage'dagi qirqilgan nusxa bilan almashtirardi.
+    if (!useChat.persist.hasHydrated()) void useChat.persist.rehydrate();
   }, []);
   return useSyncExternalStore(subscribeHydration, getHydrated, getServerHydrated);
 }

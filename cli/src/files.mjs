@@ -38,6 +38,48 @@ export function completeMention(token) {
 }
 
 const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
+// Server (/api/cli/chat) butun so'rovni 1 500 000 belgidan oshsa 413 bilan rad etadi.
+// Rasm base64'da ~4/3 baravar kattalashadi va tarixda qolib HAR keyingi so'rovda
+// qayta yuboriladi — shuning uchun xom hajm ~900 KB bilan cheklanadi (qolgani matn/tarixga).
+const IMAGE_MAX_BYTES = 900 * 1024;
+
+/**
+ * pdf-parse'dan matn ajratadi. 2.x — `PDFParse` klassi; 1.x — index.js ESM import'da
+ * debug rejimiga o'tib test PDF'ini o'qiydi, shuning uchun lib/pdf-parse.js to'g'ridan-to'g'ri.
+ * Qaytaradi: { missing: true } (o'rnatilmagan) yoki { text }.
+ */
+async function extractPdfText(buf) {
+  let mod;
+  try {
+    mod = await import("pdf-parse");
+  } catch {
+    return { missing: true };
+  }
+  const PDFParse = mod.PDFParse ?? mod.default?.PDFParse;
+  if (typeof PDFParse === "function") {
+    const parser = new PDFParse({ data: buf });
+    try {
+      const r = await parser.getText();
+      return { text: r?.text ?? "" };
+    } finally {
+      try {
+        await parser.destroy?.();
+      } catch {
+        /* tozalash xatosi muhim emas */
+      }
+    }
+  }
+  let fn = null;
+  try {
+    const lib = await import("pdf-parse/lib/pdf-parse.js");
+    fn = lib.default ?? lib;
+  } catch {
+    fn = null;
+  }
+  if (typeof fn !== "function") throw new Error("pdf-parse API tanilmadi (2.x yoki 1.x kutilgan)");
+  const data = await fn(buf);
+  return { text: data?.text ?? "" };
+}
 const TEXT_EXT = new Set([
   ".txt", ".md", ".markdown", ".json", ".csv", ".tsv", ".xml", ".yml", ".yaml",
   ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".py", ".rb", ".go", ".rs",
@@ -72,7 +114,13 @@ export async function readAttachment(path, { maxChars = 40_000 } = {}) {
   const name = basename(path);
 
   if (IMAGE_EXT.has(ext)) {
-    if (st.size > 8 * 1024 * 1024) throw new Error(`Rasm juda katta (max 8MB): ${path}`);
+    if (st.size > IMAGE_MAX_BYTES) {
+      const mb = (st.size / 1024 / 1024).toFixed(1);
+      throw new Error(
+        `Rasm juda katta (${mb} MB, max 900 KB): ${path} — server 1.5 MB dan katta so'rovni qabul qilmaydi. ` +
+          `Rasmni siqing (JPEG/WebP, kichikroq o'lcham yoki skrinshotning kerakli qismi) va qayta biriktiring.`,
+      );
+    }
     const buf = readFileSync(path);
     const b64 = buf.toString("base64");
     return {
@@ -92,26 +140,26 @@ export async function readAttachment(path, { maxChars = 40_000 } = {}) {
   }
   if (ext === ".pdf") {
     if (st.size > 20 * 1024 * 1024) throw new Error(`PDF juda katta (max 20MB): ${path}`);
-    // Try optional pdf-parse; if it's not installed, just tell the model.
+    // Ixtiyoriy pdf-parse; o'rnatilmagan yoki xato bo'lsa — modelga va foydalanuvchiga aniq sabab.
+    let note;
     try {
-      const mod = await import("pdf-parse").catch(() => null);
-      if (mod) {
-        const buf = readFileSync(path);
-        const data = await (mod.default || mod)(buf);
-        const text = (data.text || "").slice(0, maxChars);
+      const r = await extractPdfText(readFileSync(path));
+      if (!r.missing) {
+        const text = (r.text || "").slice(0, maxChars);
         return {
           kind: "text",
           part: { type: "text", text: `[PDF: ${name}]\n${text}\n[/PDF]` },
           label: `📕  ${name}`,
         };
       }
-    } catch {
-      /* fall through */
+      note = "Matn ajratilmadi — 'npm i -g pdf-parse@2' o'rnating";
+    } catch (err) {
+      note = `Matn ajratilmadi — pdf-parse xatosi: ${String(err?.message || err).slice(0, 200)}`;
     }
     return {
       kind: "text",
-      part: { type: "text", text: `[PDF fayl biriktirildi: ${name}. Matn ajratilmadi — 'npm i -g pdf-parse' o'rnating.]` },
-      label: `📕  ${name}`,
+      part: { type: "text", text: `[PDF fayl biriktirildi: ${name}. ${note}.]` },
+      label: `📕  ${name} (${note})`,
     };
   }
   throw new Error(`Qo'llab-quvvatlanmaydigan fayl turi: ${ext || "?"} (${path})`);

@@ -23,14 +23,21 @@ const CODE_RE =
   /\b(kod|code|dastur|program|funksiya|function|api|component|komponent|react|next|typescript|javascript|python|java|c\+\+|css|html|sql|debug|xato|error|refactor|algoritm|script|backend|frontend|sayt|website|app|ilova|bot)\b/i;
 const CREATIVE_RE = /\b(yoz|matn|maqola|she'r|hikoya|ssenariy|scenariy|reklama|slogan|blog|post|kontent|content|tarjima|translate)\b/i;
 const MATH_RE = /\b(hisobla|matematik|math|tenglama|equation|formula|integral|hosila|statistik|ehtimol)\b/i;
+// Alternativalar guruhda: aks holda \b faqat birinchi/oxirgi so'zga tegardi va
+// "kimyo", "hakim", "yangilash" kabi so'zlar ham research deb topilardi.
+// O'zbekcha qo'shimchalar (narxi, yangiliklar, manbalar) uchun ko'p qatorlarda
+// faqat so'z boshi chegarasi qo'yilgan.
 const RESEARCH_RE = [
-  /\bso'nggi|so'ngi|yangi|bugun|hozir|kecha|2024|2025|2026\b/i,
-  /\bnarx|qiymat|statistika|kurs\b/i,
-  /\bkim|qachon|qayerda|nima bo'ldi|necha\b/i,
-  /\byangilik|xabar|hodisa|voqea\b/i,
-  /\btadqiqot|research|maqola|manba|ilmiy\b/i,
-  /\bob-havo|weather\b/i,
+  /\b(so'nggi|so'ngi|yangi|bugun(gi)?|hozir(gi)?|kecha(gi)?|2024|2025|2026)\b/i,
+  /\b(narx|qiymat|statistika|kurs)/i,
+  /\b(kim(ning|ga|dan|ni|lar)?|qachon|qayer(da|dan|ga)?|nima bo'ldi|necha)\b/i,
+  /\b(yangilik|xabar|hodisa|voqea)/i,
+  /\b(tadqiqot|research|maqola|manba|ilmiy)/i,
+  /\b(ob-havo|weather)/i,
 ];
+
+/** Auto planner LLM chaqiruvi uchun chegara — o'tsa qoidaviy planRoute. */
+const PLANNER_TIMEOUT_MS = 4_000;
 
 function textOf(content: string | unknown[]): string {
   if (typeof content === "string") return content;
@@ -127,7 +134,12 @@ interface RawPlan {
  * that respects the current subscription. Falls back to the rules-based
  * router on any error, so Auto never fails.
  */
-export async function planRouteLLM(content: string | unknown[], plan: Plan, lang: Lang = DEFAULT_LANG): Promise<RoutePlan> {
+export async function planRouteLLM(
+  content: string | unknown[],
+  plan: Plan,
+  lang: Lang = DEFAULT_LANG,
+  signal?: AbortSignal,
+): Promise<RoutePlan> {
   const t = (key: TKey) => translate(lang, key);
   const text = textOf(content).slice(0, 2000);
   if (!text || !process.env.OPENROUTER_API_KEY) return planRoute(content, plan, lang);
@@ -149,7 +161,11 @@ export async function planRouteLLM(content: string | unknown[], plan: Plan, lang
 
   let raw: RawPlan = {};
   try {
+    // Planner javob bermasa ham Auto kutib qolmasin: PLANNER_TIMEOUT_MS dan keyin
+    // (yoki mijoz so'rovni to'xtatsa) catch → qoidaviy planRoute.
+    const timeout = AbortSignal.timeout(PLANNER_TIMEOUT_MS);
     const res = await fetch(OPENROUTER, {
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
       method: "POST",
       headers: {
         "Content-Type": "application/json",

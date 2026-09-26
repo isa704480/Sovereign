@@ -1,7 +1,9 @@
 "use client";
 
 import { Check } from "lucide-react";
+import { catchError } from "next/error";
 import { useState } from "react";
+import { useT } from "@/store/chat";
 import {
   Area,
   AreaChart,
@@ -55,19 +57,28 @@ export function parseGenUi(raw: string): GenUiSpec | null {
   }
   if (!isRec(v)) return null;
 
+  // Ixtiyoriy maydonlar ham faqat matn bo'lib qoladi: obyekt React child sifatida
+  // chizilsa ("Objects are not valid as a React child") butun ilova yiqilardi.
   if (v.type === "kpi" && Array.isArray(v.items)) {
-    const items = v.items.filter((i): i is { label: string; value: string | number; hint?: string } =>
-      isRec(i) && typeof i.label === "string" && isPrim(i.value),
-    );
+    const items = v.items
+      .filter((i): i is Record<string, unknown> & { label: string; value: string | number } =>
+        isRec(i) && typeof i.label === "string" && isPrim(i.value),
+      )
+      .map((i) => ({ label: i.label, value: i.value, hint: strOrUndef(i.hint) }));
     return items.length ? { type: "kpi", title: strOrUndef(v.title), items: items.slice(0, 6) } : null;
   }
 
   if (v.type === "chart" && Array.isArray(v.data) && Array.isArray(v.series) && typeof v.xKey === "string") {
     const chart = v.chart === "line" || v.chart === "area" || v.chart === "pie" ? v.chart : "bar";
     const series = v.series
-      .filter((s): s is { key: string; label?: string; color?: string } => isRec(s) && typeof s.key === "string")
+      .filter((s): s is Record<string, unknown> & { key: string } => isRec(s) && typeof s.key === "string")
+      .map((s) => ({ key: s.key, label: strOrUndef(s.label), color: strOrUndef(s.color) }))
       .slice(0, 6);
-    const data = v.data.filter(isRec).slice(0, 60) as Record<string, string | number>[];
+    // Nuqtalarda faqat son/matn qiymatlar qoladi (obyekt o'q yorlig'ida chizilib yiqilmasin).
+    const data = v.data
+      .filter(isRec)
+      .slice(0, 60)
+      .map((row) => Object.fromEntries(Object.entries(row).filter(([, val]) => isPrim(val))) as Record<string, string | number>);
     return series.length && data.length
       ? { type: "chart", chart, title: strOrUndef(v.title), xKey: v.xKey, series, data }
       : null;
@@ -84,7 +95,8 @@ export function parseGenUi(raw: string): GenUiSpec | null {
 
   if (v.type === "steps" && Array.isArray(v.items)) {
     const items = v.items
-      .filter((i): i is { title: string; detail?: string } => isRec(i) && typeof i.title === "string")
+      .filter((i): i is Record<string, unknown> & { title: string } => isRec(i) && typeof i.title === "string")
+      .map((i) => ({ title: i.title, detail: strOrUndef(i.detail) }))
       .slice(0, 12);
     return items.length ? { type: "steps", title: strOrUndef(v.title), items } : null;
   }
@@ -231,7 +243,39 @@ function Checklist({ items }: { items: string[] }) {
   );
 }
 
+/** Chizib bo'lmagan blok — xom ma'lumot (JSON) ko'rsatiladi, butun sahifa yiqilmaydi. */
+function GenUiRaw({ spec }: { spec: GenUiSpec }) {
+  const t = useT();
+  let raw: string;
+  try {
+    raw = JSON.stringify(spec, null, 2);
+  } catch {
+    raw = String(spec);
+  }
+  return (
+    <Frame title={typeof spec.title === "string" ? spec.title : undefined}>
+      <p className="mb-2 text-xs" style={{ color: "var(--t-text-muted)" }}>{t("p3bGenUiBroken")}</p>
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words text-xs" style={{ color: "var(--t-text)" }}>
+        {raw}
+      </pre>
+    </Frame>
+  );
+}
+
+const GenUiBoundary = catchError(function GenUiFallback(props: { spec: GenUiSpec }) {
+  return <GenUiRaw spec={props.spec} />;
+});
+
+/** Xato chegarasi bilan: bitta buzilgan blok butun chat/ulashish sahifasini oq ekranga aylantirmaydi. */
 export function GenerativeUI({ spec }: { spec: GenUiSpec }) {
+  return (
+    <GenUiBoundary spec={spec}>
+      <GenUiView spec={spec} />
+    </GenUiBoundary>
+  );
+}
+
+function GenUiView({ spec }: { spec: GenUiSpec }) {
   if (spec.type === "kpi") {
     return (
       <Frame title={spec.title}>

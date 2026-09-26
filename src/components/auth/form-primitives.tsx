@@ -5,13 +5,17 @@ import { motion } from "motion/react";
 import type { ReactNode } from "react";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { isAuthKey } from "@/lib/locales/auth";
 import { useT } from "@/store/chat";
+import { isAuthMsgKey } from "./messages";
 
-/** Lug'at kaliti bo'lsa tanlangan tilga o'giradi, aks holda matnni o'zicha qaytaradi. */
+/**
+ * Lug'at kaliti bo'lsa tanlangan tilga o'giradi, aks holda matnni o'zicha qaytaradi
+ * (server action allaqachon tarjima qilgan matn). URL'dan kelgan qiymatlar
+ * sahifada oldindan isAuthMsgKey bilan filtrlanadi.
+ */
 export function useAuthMsg(): (message: string) => string {
   const t = useT();
-  return (message) => (isAuthKey(message) ? t(message) : message);
+  return (message) => (isAuthMsgKey(message) ? t(message) : message);
 }
 
 export const inputClass =

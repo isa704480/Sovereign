@@ -20,6 +20,9 @@ export default function DiffView({ oldText, newText, maxRows = 600 }) {
             <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", paddingRight: 10, color: r.t === "add" ? C.addFg : r.t === "del" ? C.delFg : "#cfd4ea" }}>{r.text || " "}</span>
           </div>
         ))}
+        {rows.length > maxRows && (
+          <div style={{ padding: "6px 12px", color: "#E0A458", fontSize: 11.5 }}>⋯ yana {rows.length - maxRows} qator ko‘rsatilmadi</div>
+        )}
       </div>
     </div>
   );

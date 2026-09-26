@@ -5,9 +5,11 @@
 import { app, BrowserWindow, ipcMain, dialog, session as electronSession } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
-import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
+// CLI modullari: dev'da repo'dagi ../cli/src; o'rnatilgan ilovada electron-builder
+// `extraResources` ularni resources/cli/src ga qo'yadi — app.asar/../cli/src aynan shu.
 import { loadConfig } from "../cli/src/config.mjs";
 import { runTool, TOOL_SCHEMA, contextSummary, resolvePath, isProtected } from "../cli/src/tools.mjs";
 import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mjs";
@@ -15,7 +17,9 @@ import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mj
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // ---- Ilova manzillari (IPC yuboruvchi va navigatsiya tekshiruvi uchun) ----
-const IS_DEV = Boolean(process.env.VITE_DEV);
+// Dev rejim faqat o'rnatilmagan (repo'dan ishga tushgan) ilovada — o'rnatilgan
+// ilovada VITE_DEV=1 muhit o'zgaruvchisi localhost:5173 sahifasiga IPC ishonchini bermaydi.
+const IS_DEV = !app.isPackaged && Boolean(process.env.VITE_DEV);
 const DEV_ORIGIN = "http://localhost:5173";
 const APP_FILE_PREFIX = pathToFileURL(join(__dirname, "ui-dist")).href.toLowerCase() + "/";
 
@@ -84,13 +88,99 @@ function send(type, payload = {}) {
   win?.webContents.send("agent:event", { type, ...payload });
 }
 
+// ---- Undo zaxirasi ------------------------------------------------------
+// write_file tasdig'idan oldin asl fayl (to'liq baytlar yoki "yo'q edi" belgisi)
+// main jarayonda saqlanadi; Undo faqat shu yozuv orqali tiklaydi — renderer'dagi
+// qisqartirilgan matn yoki ish papkasidan tashqaridagi yo'l muammosi yo'q.
+const BACKUP_MAX = 20 * 1024 * 1024; // bundan katta faylni zaxiralamaymiz (Undo yo'q)
+const DIFF_BEFORE_MAX = 2 * 1024 * 1024; // diff uchun renderer'ga yuboriladigan eski matn chegarasi
+const backupsById = new Map(); // id -> { real, existed, data }
+const backupIdByReal = new Map(); // real -> id (bir fayl uchun ENG BIRINCHI asl holat)
+
+function clearBackups() {
+  backupsById.clear();
+  backupIdByReal.clear();
+}
+
+/**
+ * write_file meta'sini boyitadi: eski matn (diff uchun) va Undo zaxirasi id'si.
+ * Qaytaradi: { meta, createdId } — rad etilsa createdId o'chiriladi.
+ */
+function prepareWriteMeta(meta) {
+  let real;
+  try {
+    real = resolvePath(meta.path).real;
+  } catch {
+    return { meta: { ...meta, beforeUnknown: !!meta.exists, backupId: null }, createdId: null };
+  }
+  let existed = false;
+  let data = null;
+  let tooLarge = false;
+  try {
+    if (existsSync(real) && statSync(real).isFile()) {
+      existed = true;
+      if (statSync(real).size > BACKUP_MAX) tooLarge = true;
+      else data = readFileSync(real);
+    }
+  } catch {
+    tooLarge = true; // o'qib bo'lmadi — eski tarkib noma'lum
+  }
+  const before = data && data.length <= DIFF_BEFORE_MAX ? data.toString("utf8") : "";
+  const beforeUnknown = existed && (tooLarge || !data || data.length > DIFF_BEFORE_MAX);
+
+  let backupId = backupIdByReal.get(real) ?? null;
+  let createdId = null;
+  if (!backupId && !tooLarge) {
+    backupId = randomUUID();
+    createdId = backupId;
+    backupsById.set(backupId, { real, existed, data });
+    backupIdByReal.set(real, backupId);
+  }
+  return { meta: { ...meta, before, beforeUnknown, existed, backupId }, createdId };
+}
+
+function dropBackup(id) {
+  const b = backupsById.get(id);
+  if (!b) return;
+  backupsById.delete(id);
+  if (backupIdByReal.get(b.real) === id) backupIdByReal.delete(b.real);
+}
+
 /** Renderer'dan tasdiq so'raydi. meta (write_file/make_dir/run_command) — diff uchun. */
 function askConfirm(question, forcePrompt = false, meta = null) {
+  let createdId = null;
+  if (meta?.tool === "write_file" && typeof meta.path === "string") {
+    ({ meta, createdId } = prepareWriteMeta(meta));
+  }
   return new Promise((resolve) => {
     const id = randomUUID();
-    pending.set(id, resolve);
+    pending.set(id, (ok) => {
+      if (!ok && createdId) dropBackup(createdId); // rad etildi — zaxira kerak emas
+      resolve(ok);
+    });
     send("confirm", { id, question: stripAnsi(question), forcePrompt, meta });
   });
+}
+
+// ---- Faol navbat (turn) boshqaruvi --------------------------------------
+// Bir vaqtda faqat BITTA agent navbati. "Yangi vazifa" / papka almashtirish avval
+// uni to'xtatadi: so'rov bekor qilinadi, kutilayotgan tasdiqlar rad bilan yopiladi —
+// eski navbat yangi papkada (cwd) yozmaydi va yangi navbat bilan aralashmaydi.
+let activeTurn = null;
+
+function abortTurn() {
+  if (activeTurn) {
+    activeTurn.aborted = true;
+    activeTurn.controller.abort();
+    activeTurn = null;
+  }
+  for (const resolve of pending.values()) resolve(false);
+  pending.clear();
+}
+
+/** Navbatga bog'langan tasdiq: navbat to'xtatilgan bo'lsa — darhol rad. */
+function confirmFor(turn) {
+  return (question, forcePrompt, meta) => (turn.aborted ? Promise.resolve(false) : askConfirm(question, forcePrompt, meta));
 }
 function stripAnsi(s) {
   // eslint-disable-next-line no-control-regex
@@ -107,12 +197,37 @@ function initialMessages(config) {
   return base;
 }
 
-async function runRound(messages, config, withTools = true) {
+const HISTORY_MAX = 44;
+
+/**
+ * Serverga yuboriladigan tarix: BARCHA system xabarlari (xavfsizlik qoidalari,
+ * kontekst, xotira) doim saqlanadi, faqat qolgan qism kesiladi. Kesma user
+ * xabaridan boshlanadi — egasiz `tool` xabari provayderda 400 bermasin.
+ */
+function forServer(messages) {
+  const system = messages.filter((m) => m.role === "system");
+  const rest = messages.filter((m) => m.role !== "system");
+  if (rest.length <= HISTORY_MAX) return [...system, ...rest];
+  let tail = rest.slice(-HISTORY_MAX);
+  const firstUser = tail.findIndex((m) => m.role === "user");
+  if (firstUser > 0) {
+    tail = tail.slice(firstUser);
+  } else if (firstUser === -1) {
+    // Bitta uzun navbat (ko'p tool) — oxirgi user xabarini saqlab, boshidagi egasiz tool'larni tashlaymiz.
+    while (tail.length && tail[0].role === "tool") tail = tail.slice(1);
+    const lastUser = [...rest].reverse().find((m) => m.role === "user");
+    if (lastUser) tail = [lastUser, ...tail];
+  }
+  return [...system, ...tail];
+}
+
+async function runRound(messages, config, withTools = true, signal = undefined) {
   const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
     body: JSON.stringify({
-      messages: messages.slice(-44),
+      messages: forServer(messages),
       ...(withTools ? { tools: TOOL_SCHEMA } : {}),
       ...(config.omniModel ? { model: config.omniModel } : {}),
     }),
@@ -125,15 +240,18 @@ async function runRound(messages, config, withTools = true) {
   return { message, toolCalls: message.tool_calls ?? [] };
 }
 
-async function agentTurn(messages, config, maxSteps = 14) {
+async function agentTurn(messages, config, turn, maxSteps = 14) {
+  const confirm = confirmFor(turn);
   for (let step = 0; step < maxSteps; step++) {
+    if (turn.aborted) return;
     let round;
     try {
-      round = await runRound(messages, config);
+      round = await runRound(messages, config, true, turn.controller.signal);
     } catch (e) {
-      send("error", { message: e.message });
+      if (!turn.aborted) send("error", { message: e.message });
       return;
     }
+    if (turn.aborted) return; // to'xtatilgan navbat hech narsa yubormaydi/bajarmaydi
     messages.push(round.message);
     if (round.message.content && round.message.content.trim()) {
       send("text", { text: round.message.content });
@@ -143,6 +261,7 @@ async function agentTurn(messages, config, maxSteps = 14) {
       return;
     }
     for (const call of round.toolCalls) {
+      if (turn.aborted) return;
       let args = {};
       try {
         args = JSON.parse(call.function.arguments || "{}");
@@ -152,10 +271,11 @@ async function agentTurn(messages, config, maxSteps = 14) {
       send("tool", { name: call.function.name, args });
       let result;
       try {
-        result = await runTool(call.function.name, args, askConfirm);
+        result = await runTool(call.function.name, args, confirm);
       } catch (e) {
         result = `XATO: ${e.message}`;
       }
+      if (turn.aborted) return;
       if (call.function.name === "run_command") {
         send("terminal", { command: args.command, output: String(result) });
       }
@@ -163,18 +283,19 @@ async function agentTurn(messages, config, maxSteps = 14) {
       messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, 24_000) });
     }
   }
-  send("done");
+  if (!turn.aborted) send("done");
 }
 
 /** Oddiy chat — vositasiz, bitta javob (ChatGPT uslubi). */
-async function chatTurn(messages, config) {
+async function chatTurn(messages, config, turn) {
   let round;
   try {
-    round = await runRound(messages, config, /*withTools=*/ false);
+    round = await runRound(messages, config, /*withTools=*/ false, turn.controller.signal);
   } catch (e) {
-    send("error", { message: e.message });
+    if (!turn.aborted) send("error", { message: e.message });
     return;
   }
+  if (turn.aborted) return;
   messages.push(round.message);
   if (round.message.content && round.message.content.trim()) {
     send("text", { text: round.message.content });
@@ -186,6 +307,8 @@ async function chatTurn(messages, config) {
 let session = { messages: [], config: null };
 
 handle("app:init", async () => {
+  abortTurn(); // sahifa qayta yuklandi — eski navbat/tasdiqlar egasiz qolmasin
+  clearBackups();
   const config = loadConfig();
   session.config = config;
   if (config.token) await syncMemory(config).catch(() => {});
@@ -202,6 +325,9 @@ handle("app:init", async () => {
 handle("app:pick-folder", async () => {
   const r = await dialog.showOpenDialog(win, { properties: ["openDirectory"] });
   if (r.canceled || !r.filePaths[0]) return null;
+  // Avval ishlayotgan navbatni to'xtatamiz — aks holda u nisbiy yo'llarni YANGI papkada yozadi.
+  abortTurn();
+  clearBackups();
   process.chdir(r.filePaths[0]);
   session.messages = initialMessages(session.config); // yangi kontekst
   return { cwd: process.cwd() };
@@ -213,9 +339,20 @@ on("agent:send", async (_e, payload) => {
     send("error", { message: "Tizimga kirilmagan. Terminalda `sovereign login` qiling yoki ilovadan kiring." });
     return;
   }
-  session.messages.push({ role: "user", content: String(text) });
-  if (mode === "chat") await chatTurn(session.messages, session.config);
-  else await agentTurn(session.messages, session.config);
+  if (activeTurn) {
+    send("error", { message: "Oldingi vazifa hali bajarilmoqda — tugashini kuting yoki «Yangi vazifa»ni bosing." });
+    return;
+  }
+  const turn = { aborted: false, controller: new AbortController() };
+  activeTurn = turn;
+  const messages = session.messages;
+  messages.push({ role: "user", content: String(text) });
+  try {
+    if (mode === "chat") await chatTurn(messages, session.config, turn);
+    else await agentTurn(messages, session.config, turn);
+  } finally {
+    if (activeTurn === turn) activeTurn = null;
+  }
 });
 
 on("agent:confirm-reply", (_e, msg) => {
@@ -232,6 +369,8 @@ on("agent:remember", (_e, fact) => {
 });
 
 handle("app:new-task", async () => {
+  abortTurn(); // eski navbat to'xtaydi, kutilayotgan tasdiqlar rad bilan yopiladi
+  clearBackups();
   session.messages = initialMessages(session.config);
   return { ok: true };
 });
@@ -275,14 +414,19 @@ handle("fs:read", async (_e, path) => {
   }
 });
 
-// Undo/restore — ish papkasi ichida to'g'ridan-to'g'ri yozadi (foydalanuvchi bosgan).
-handle("fs:write", async (_e, msg) => {
-  const { path, content } = msg ?? {};
+// Undo — faqat main jarayondagi zaxira orqali: asl baytlar qaytariladi yoki
+// avval yo'q bo'lgan fayl o'chiriladi. Renderer ixtiyoriy yo'l bera olmaydi.
+handle("fs:restore", async (_e, id) => {
+  const b = typeof id === "string" ? backupsById.get(id) : null;
+  if (!b) return { error: "zaxira topilmadi (Undo mumkin emas)" };
   try {
-    const chk = checkUiPath(path, { write: true });
-    if (chk.error) return { error: chk.error };
-    mkdirSync(dirname(chk.real), { recursive: true });
-    writeFileSync(chk.real, typeof content === "string" ? content : "");
+    if (b.existed) {
+      mkdirSync(dirname(b.real), { recursive: true });
+      writeFileSync(b.real, b.data);
+    } else if (existsSync(b.real)) {
+      rmSync(b.real, { force: true });
+    }
+    dropBackup(id);
     return { ok: true };
   } catch (e) {
     return { error: e.message };
@@ -329,6 +473,12 @@ function createWindow() {
       webviewTag: false,
       navigateOnDragDrop: false,
     },
+  });
+  // Renderer qulasa (mas. juda katta diff) — kutilayotgan tasdiqlar rad bilan yopiladi,
+  // agent osilib qolmaydi; oyna qayta yuklanadi.
+  win.webContents.on("render-process-gone", () => {
+    abortTurn();
+    if (win && !win.isDestroyed()) win.webContents.reload();
   });
   if (IS_DEV) {
     win.loadURL(DEV_ORIGIN);

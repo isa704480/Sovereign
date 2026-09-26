@@ -43,7 +43,9 @@ export default function App() {
 
   const addChange = (ch) => setChanges((p) => {
     const ex = p.find((c) => c.path === ch.path);
-    return [{ path: ch.path, before: ex ? ex.before : ch.before, after: ch.after }, ...p.filter((c) => c.path !== ch.path)];
+    // Birinchi (asl) holat saqlanadi: before, existed va Undo zaxirasi id'si.
+    const first = ex ?? ch;
+    return [{ path: ch.path, before: first.before, beforeUnknown: first.beforeUnknown, existed: first.existed, backupId: first.backupId ?? ch.backupId ?? null, after: ch.after }, ...p.filter((c) => c.path !== ch.path)];
   });
 
   useEffect(() => {
@@ -70,8 +72,10 @@ export default function App() {
         setTerm((T) => [...T, { command: ev.command, output: ev.output }]); setTermOpen(true);
       } else if (ev.type === "confirm") {
         if (ev.meta?.tool === "write_file") {
-          const before = ev.meta.exists ? (await S.fsRead(ev.meta.path)).content ?? "" : "";
-          setConfirmReq({ ...ev, _change: { path: ev.meta.path, before, after: ev.meta.content } }); return;
+          // Eski tarkibni main jarayon o'qiydi (ish papkasidan tashqarida ham, to'liq) —
+          // renderer'dagi fs:read qisqartirishi/rad etishi diff'ni "hammasi yangi" qilib ko'rsatmaydi.
+          const m = ev.meta;
+          setConfirmReq({ ...ev, _change: { path: m.path, before: m.before ?? "", beforeUnknown: !!m.beforeUnknown, existed: !!(m.existed ?? m.exists), backupId: m.backupId ?? null, after: m.content } }); return;
         }
         setConfirmReq(ev);
       } else if (ev.type === "done") { curAsst.current = null; setBusy(false); }
@@ -88,12 +92,31 @@ export default function App() {
     setTasks((T) => [{ title: text.slice(0, 60), meta: "ishlayapti", dot: C.warn }, ...T]);
     setInput(""); setBusy(true); curAsst.current = null; S.send(text, mode); setTimeout(scroll, 0);
   };
-  const pickFolder = async () => { const r = await S.pickFolder(); if (r?.cwd) { setInfo((i) => ({ ...i, cwd: r.cwd })); refreshTree(); setChanges([]); setTerm([]); } };
-  const newTask = async () => { await S.newTask?.(); setLog([]); setChanges([]); setTerm([]); curAsst.current = null; setBusy(false); };
+  // Papka almashtirish / yangi vazifa — main ishlayotgan navbatni to'xtatadi va tasdiqlarni rad etadi.
+  const pickFolder = async () => { const r = await S.pickFolder(); if (r?.cwd) { setInfo((i) => ({ ...i, cwd: r.cwd })); refreshTree(); setChanges([]); setTerm([]); setConfirmReq(null); curAsst.current = null; setBusy(false); } };
+  const newTask = async () => { await S.newTask?.(); setLog([]); setChanges([]); setTerm([]); setConfirmReq(null); curAsst.current = null; setBusy(false); };
   const openFile = async (node) => { const r = await S.fsRead(node.path); setViewer({ path: node.path, name: node.name, content: r?.content ?? r?.error ?? "" }); };
   const replyConfirm = (ok) => { if (confirmReq) { if (ok && confirmReq._change) addChange(confirmReq._change); S.confirmReply(confirmReq.id, ok); } setConfirmReq(null); };
-  const undoChange = async (ch) => { await S?.fsWrite(ch.path, ch.before); setChanges((p) => p.filter((c) => c.path !== ch.path)); refreshTree(); };
-  const undoAll = async () => { for (const c of changes) await S?.fsWrite(c.path, c.before); setChanges([]); refreshTree(); };
+  // Undo — main'dagi to'liq zaxiradan tiklanadi; xato bo'lsa o'zgarish ro'yxatda qoladi va xato ko'rsatiladi.
+  const restoreOne = async (ch) => {
+    if (!ch.backupId) return "zaxira yo‘q (fayl juda katta yoki o‘qib bo‘lmadi)";
+    const r = await S?.fsRestore(ch.backupId);
+    return r?.ok ? null : (r?.error || "noma’lum xato");
+  };
+  const undoChange = async (ch) => {
+    const err = await restoreOne(ch);
+    if (err) setLog((L) => [...L, { id: nid(), kind: "error", text: `Undo bajarilmadi: ${ch.path} — ${err}` }]);
+    else setChanges((p) => p.filter((c) => c.path !== ch.path));
+    refreshTree();
+  };
+  const undoAll = async () => {
+    const failed = [];
+    for (const c of changes) {
+      const err = await restoreOne(c);
+      if (err) { failed.push(c); setLog((L) => [...L, { id: nid(), kind: "error", text: `Undo bajarilmadi: ${c.path} — ${err}` }]); }
+    }
+    setChanges(failed); refreshTree();
+  };
   const onSelectModel = (id, name) => { setModelName(name || "Auto"); };
 
   const folderName = info.cwd.split(/[\\/]/).filter(Boolean).pop() || "Papka tanlang";
@@ -271,7 +294,7 @@ export default function App() {
                     {changes.map((c) => (
                       <div key={c.path} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderTop: `1px solid ${C.border}` }}>
                         <button className="mono h-text" onClick={() => setDiffView(c)} style={{ fontSize: 11.5, color: C.text }}>{c.path.split(/[\\/]/).slice(-2).join("/")}</button>
-                        <span style={{ marginLeft: "auto", fontSize: 11, color: C.faint }}>{c.before ? "o‘zgartirildi" : "yangi"}</span>
+                        <span style={{ marginLeft: "auto", fontSize: 11, color: C.faint }}>{c.existed ? "o‘zgartirildi" : "yangi"}</span>
                         <button className="h-text" onClick={() => undoChange(c)} style={{ fontSize: 11.5, color: C.faint }}>Undo</button>
                       </div>
                     ))}

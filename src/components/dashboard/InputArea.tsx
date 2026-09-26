@@ -17,7 +17,7 @@ import { listKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { attachmentGlyph, processFile, type Attachment } from "@/lib/chat/attachments";
 import { matchFiles, type CoworkFile } from "@/lib/cowork/folder";
 import { useChat, useLang, useT } from "@/store/chat";
-import { fmt } from "@/lib/i18n";
+import { fmt, type Lang } from "@/lib/i18n";
 import { agentModeDescription, agentModeName } from "@/lib/locales/chat-data";
 import { AGENT_MODES, AGENT_MODE_BY_ID } from "@/config/agent-modes";
 import { useCowork } from "./cowork-context";
@@ -52,6 +52,14 @@ interface InputAreaProps {
 }
 
 const ACCEPT = "image/*,application/pdf,audio/*,video/*,text/*,.md,.json,.csv,.js,.ts,.tsx,.py,.html,.css";
+
+/** Ovozli kiritish tili — interfeys tilidan (brauzer SpeechRecognition BCP-47 kodlari). */
+const SPEECH_LOCALE: Record<Lang, string> = { uz: "uz-UZ", "uz-cyrl": "uz-UZ", ru: "ru-RU", en: "en-US" };
+
+/** Sensorli (soft) klaviatura: sichqoncha/hover yo'q qurilma. */
+function isTouchKeyboard(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(hover: none) and (pointer: coarse)").matches === true;
+}
 
 /** One row of the "@" menu: a knowledge-base document or a local Cowork file. */
 type MentionItem =
@@ -193,7 +201,8 @@ export function InputArea({
   const speech = useSpeech((t) => {
     setValue(t);
     taRef.current?.focus();
-  });
+  }, SPEECH_LOCALE[lang]);
+  const enterToSend = useChat((s) => s.enterToSend);
 
   const canSend = (value.trim().length > 0 || attachments.length > 0) && !isStreaming && !busy;
 
@@ -299,7 +308,11 @@ export function InputArea({
         return;
       }
     }
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+    if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+    // Ctrl/Cmd+Enter har doim yuboradi. Oddiy Enter — faqat "Enter bilan yuborish"
+    // yoqilgan va sensorli klaviatura bo'lmaganda (telefonda Shift+Enter yo'q: Enter = yangi qator).
+    const mod = e.ctrlKey || e.metaKey;
+    if (mod || (enterToSend && !e.shiftKey && !isTouchKeyboard())) {
       e.preventDefault();
       submit();
     }
@@ -528,7 +541,7 @@ export function InputArea({
               )}
               <span className="min-w-0 flex-1 truncate" style={{ color: "var(--t-text)" }}>{m.label}</span>
               <span className="shrink-0 text-[10px] uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
-                {m.kind === "file" ? "Cowork" : "KB"}
+                {m.kind === "file" ? "Cowork" : t("kbShort")}
               </span>
             </button>
           ))}
@@ -574,9 +587,11 @@ export function InputArea({
             aria-label={t("typeMessage")}
             rows={1}
             autoFocus={autoFocus}
+            enterKeyHint="enter"
             className={cn(
-              "chat-textarea min-h-[40px] w-full resize-none bg-transparent px-1 py-2 text-[15px] leading-relaxed outline-none placeholder:opacity-60",
-              isSearch && "min-h-[56px] text-base",
+              // Mobilda 16px — iOS Safari fokusda sahifani kattalashtirmasin.
+              "chat-textarea min-h-[40px] w-full resize-none bg-transparent px-1 py-2 text-base leading-relaxed outline-none placeholder:opacity-60 md:text-[15px]",
+              isSearch && "min-h-[56px] text-base md:text-base",
             )}
             style={{ color: "var(--t-text)" }}
           />

@@ -38,6 +38,7 @@ export function SourcesPanel({ citations, query, updatedAt, onClose }: SourcesPa
       animate={{ x: 0, opacity: 1 }}
       exit={{ x: 24, opacity: 0 }}
       transition={{ duration: 0.3, ease: EASE }}
+      aria-label={t("sources")}
       className="tt hidden w-[300px] shrink-0 flex-col border-l lg:flex"
       style={{ background: "var(--t-sidebar)", borderColor: "var(--t-border)" }}
     >

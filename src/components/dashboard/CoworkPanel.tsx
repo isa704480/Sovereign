@@ -2,12 +2,13 @@
 
 import { Check, CheckCheck, FileCode2, FileDown, FolderOpen, Info, Loader2, Search, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { extractWriteBlocks, matchFiles } from "@/lib/cowork/folder";
 import { fmt } from "@/lib/i18n";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { useT, type ChatMessage } from "@/store/chat";
 import { useCowork } from "./cowork-context";
+import { useDialogA11y } from "./use-dialog-a11y";
 
 interface CoworkPanelProps {
   open: boolean;
@@ -151,12 +152,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
   const inputRef = useRef<HTMLInputElement>(null);
   const changes = useMemo(() => collectChanges(messages), [messages]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  const { panelRef, titleId, dialogProps } = useDialogA11y(open, onClose);
 
   const shown = useMemo(() => (folder ? matchFiles(folder.files, q, 40) : []), [folder, q]);
 
@@ -169,16 +165,16 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
           onClick={onClose}
-          role="dialog"
-          aria-modal
         >
           <motion.div
+            ref={panelRef}
+            {...dialogProps}
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[88vh] w-full max-w-xl flex-col rounded-[22px] border"
+            className="tt flex max-h-[88vh] w-full max-w-xl flex-col rounded-[22px] border outline-none"
             style={{
               background: "var(--t-surface, #0D1033)",
               borderColor: "var(--t-border)",
@@ -189,7 +185,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border)" }}>
               <div className="flex items-center gap-2">
                 <FolderOpen className="size-5" style={{ color: "var(--t-accent)" }} />
-                <span className="font-display text-lg font-bold">Cowork</span>
+                <h2 id={titleId} className="font-display text-lg font-bold">Cowork</h2>
               </div>
               <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
                 <X className="size-5" />
@@ -270,7 +266,8 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
                       placeholder={t("searchFile")}
-                      className="w-full bg-transparent text-sm outline-none placeholder:opacity-60"
+                      aria-label={t("searchFile")}
+                      className="w-full bg-transparent text-base outline-none placeholder:opacity-60 sm:text-sm"
                     />
                   </label>
 

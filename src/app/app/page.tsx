@@ -13,7 +13,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("chChatTitle") };
 }
 
-export default async function AppPage() {
+export default async function AppPage({ searchParams }: PageProps<"/app">) {
+  // To'lovdan qaytish: checkout /app?paid=1 (muvaffaqiyat) yoki ?paid=0 (bekor/xato) ga yo'naltiradi.
+  // Dashboard xabar ko'rsatadi, URL'ni tozalaydi va tarif yangilanguncha kutadi.
+  const paidParam = (await searchParams).paid;
+  const paymentReturn = paidParam === "1" ? "success" : paidParam === "0" ? "failed" : null;
+
   // Local design preview without Supabase (development only).
   if (!isSupabaseConfigured()) {
     if (process.env.NODE_ENV !== "development") redirect("/login");
@@ -22,6 +27,7 @@ export default async function AppPage() {
         user={{ name: "Mansurov", email: "dev@sovereign.local" }}
         defaultModelId="claude-sonnet-4-5"
         isDev
+        paymentReturn={paymentReturn}
       />
     );
   }
@@ -54,6 +60,7 @@ export default async function AppPage() {
       memoryEnabled={profile.memory_enabled}
       planState={(status?.state as "free" | "active" | "expiring_soon" | "expired") ?? "free"}
       daysLeft={status?.days_left ?? null}
+      paymentReturn={paymentReturn}
     />
   );
 }

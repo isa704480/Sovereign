@@ -2,7 +2,7 @@
 
 import { MessageSquareHeart, Terminal } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { LogoMark } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
@@ -85,6 +85,8 @@ function WelcomeExtras() {
   const tr = useT();
   const [cli, setCli] = useState(false);
   const [feedback, setFeedback] = useState(false);
+  // Barqaror onClose — dialog effekti har renderda qayta ishga tushib, fokusni tortmasin.
+  const closeFeedback = useCallback(() => setFeedback(false), []);
   const pill =
     "tt inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-medium transition-colors hover:bg-white/5";
   return (
@@ -123,7 +125,7 @@ function WelcomeExtras() {
           </motion.div>
         )}
       </AnimatePresence>
-      <FeedbackDialog open={feedback} onClose={() => setFeedback(false)} />
+      <FeedbackDialog open={feedback} onClose={closeFeedback} />
     </div>
   );
 }
@@ -136,16 +138,20 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
   const lang = useLang();
   const suggestions = themeSuggestions(lang, theme);
 
+  // Tashqi qatlam scroll qiladi (kichik telefonlarda kiritish maydoni pastga surilib
+  // yashirinmasin); ichki blok my-auto bilan joy bo'lsa markazda turadi.
   const wrap = (children: ReactNode, className?: string) => (
     <motion.div
       key={t}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
-      className={cn("mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-8 px-4 py-10", className)}
+      className="flex min-h-0 w-full flex-1 flex-col overflow-y-auto overscroll-contain"
     >
-      {children}
-      <WelcomeExtras />
+      <div className={cn("mx-auto my-auto flex w-full max-w-3xl flex-col items-center gap-8 px-4 py-6 md:py-10", className)}>
+        {children}
+        <WelcomeExtras />
+      </div>
     </motion.div>
   );
 

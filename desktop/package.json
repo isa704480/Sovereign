@@ -32,7 +32,11 @@
   "build": {
     "appId": "app.sovereign.cowork",
     "productName": "SOVEREIGN Cowork",
-    "files": ["main.mjs", "preload.cjs", "ui-dist/**", "../cli/src/**"],
+    "files": ["main.mjs", "preload.cjs", "ui-dist/**"],
+    "extraResources": [
+      { "from": "../cli/src", "to": "cli/src", "filter": ["**/*.mjs"] },
+      { "from": "../cli/package.json", "to": "cli/package.json" }
+    ],
     "directories": { "output": "release" },
     "win": { "target": ["nsis"] },
     "mac": { "target": ["dmg"], "category": "public.app-category.developer-tools" },

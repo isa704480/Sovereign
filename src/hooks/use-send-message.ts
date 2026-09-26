@@ -104,6 +104,9 @@ export function useSendMessage() {
     };
     state.appendMessage(conversationId, assistant);
 
+    // Bir vaqtda faqat bitta oqim: oldingisi (boshqa suhbatda qayta yaratish va h.k.)
+    // to'xtatiladi — aks holda u boshqarib bo'lmaydigan bo'lib qolardi.
+    abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setStreaming(true);
@@ -190,6 +193,10 @@ export function useSendMessage() {
     const s = useChat.getState();
     if (failed && !text) {
       s.updateMessage(conversationId, assistant.id, { status: "error", error: failed });
+    } else if (!text) {
+      // Birinchi tokengacha to'xtatildi: bo'sh "done" xabari abadiy typing-indikator bo'lib
+      // qolardi — xato holatiga o'tkazamiz, shunda "Qayta urinish" ko'rinadi.
+      s.updateMessage(conversationId, assistant.id, { status: "error", error: translate(s.lang, "p3bStopped") });
     } else {
       const finalContent = hasMask ? applyTokenMap(text, tokenMap) : text;
       // Oqim yarmida uzilsa — qisman matnni saqlaymiz va "uzildi · qayta urinish" ko'rsatamiz
@@ -210,8 +217,12 @@ export function useSendMessage() {
       if (firstUser) s.setTitle(conversationId, firstUser.content.slice(0, 48).replace(/\s+/g, " "));
     }
 
-    setStreaming(false);
-    abortRef.current = null;
+    // Faqat o'zimiz egasi bo'lsak tozalaymiz: tahrirlash/qayta yaratish yangi oqimni
+    // boshlagan bo'lsa, eski run uning Stop tugmasi va abortRef'ini o'chirib yubormasin.
+    if (abortRef.current === controller) {
+      abortRef.current = null;
+      setStreaming(false);
+    }
 
     // Learn durable facts from this exchange (server no-ops without a session).
     // MUHIM: Blind Prompting yoqilgan bo'lsa, serverga masked matnni yuboramiz —
@@ -263,6 +274,7 @@ export function useSendMessage() {
     };
     useChat.getState().appendMessage(conversationId, assistant);
 
+    abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
     setStreaming(true);
@@ -283,7 +295,7 @@ export function useSendMessage() {
         body: JSON.stringify({ prompt: useChat.getState().blindPrompting ? mask(prompt).masked : prompt }),
         signal: controller.signal,
       });
-      let data: { urls?: string[]; error?: string } = {};
+      let data: { urls?: string[]; error?: string; upgrade?: string } = {};
       try {
         data = (await res.json()) as typeof data;
       } catch {
@@ -291,7 +303,10 @@ export function useSendMessage() {
         data = {};
       }
       if (!res.ok || !data.urls?.length) {
-        fail(typeof data.error === "string" && data.error ? data.error : translate(lang, "chImageFailed"));
+        const reason = typeof data.error === "string" && data.error ? data.error : translate(lang, "chImageFailed");
+        fail(reason);
+        // Kunlik limit: server `upgrade` qaytaradi — tarif oynasini ochamiz (chat yo'li kabi).
+        if (data.upgrade) window.dispatchEvent(new CustomEvent("sovereign:upgrade", { detail: { reason } }));
       } else {
         const md = data.urls.map((u) => `![](${u})`).join("\n\n");
         useChat.getState().updateMessage(conversationId, assistant.id, {
@@ -304,8 +319,14 @@ export function useSendMessage() {
       else fail(translate(lang, "chImageFailed"));
     } finally {
       clearInterval(tick);
-      if (abortRef.current === controller) abortRef.current = null;
-      setStreaming(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setStreaming(false);
+      }
+      // Faqat rasmdan iborat yangi suhbat ham nom oladi (run() dagi kabi).
+      const s = useChat.getState();
+      const c = s.conversations[conversationId];
+      if (c && c.title === "Yangi suhbat") s.setTitle(conversationId, prompt.slice(0, 48).replace(/\s+/g, " "));
     }
   }, []);
 
@@ -316,6 +337,8 @@ export function useSendMessage() {
       if (!conversationId || !state.conversations[conversationId]) {
         conversationId = state.createConversation(state.modelId, state.research).id;
       }
+      // Rasm: "+" → "Rasm yaratish" (majburiy) yoki matndan aniqlangan so'rov.
+      const isImage = !!opts?.image || (detectImageIntent(text) && !attachments?.length);
       const user: ChatMessage = {
         id: uuid(),
         role: "user",
@@ -323,11 +346,11 @@ export function useSendMessage() {
         attachments: attachments?.length ? attachments : undefined,
         createdAt: new Date().toISOString(),
         status: "done",
+        ...(isImage ? { kind: "image" as const } : {}),
       };
       state.appendMessage(conversationId, user);
 
-      // Rasm: "+" → "Rasm yaratish" (majburiy) yoki matndan aniqlangan so'rov.
-      if (opts?.image || (detectImageIntent(text) && !attachments?.length)) {
+      if (isImage) {
         await generateImage(conversationId, text);
         return;
       }
@@ -354,7 +377,12 @@ export function useSendMessage() {
     }
     // Rasm so'rovi bo'lsa — qayta urinish ham rasm yo'lidan boradi.
     const lastUser = [...history].reverse().find((m) => m.role === "user");
-    if (lastUser && typeof lastUser.content === "string" && !lastUser.attachments?.length && detectImageIntent(lastUser.content)) {
+    // kind: "image" — "+ → Rasm" rejimidagi so'rov (matnda fe'l bo'lmasa ham rasm).
+    if (
+      lastUser &&
+      typeof lastUser.content === "string" &&
+      (lastUser.kind === "image" || (!lastUser.attachments?.length && detectImageIntent(lastUser.content)))
+    ) {
       await generateImage(id, lastUser.content);
       return;
     }
@@ -380,9 +408,15 @@ export function useSendMessage() {
       useChat.setState((s) => ({
         conversations: { ...s.conversations, [id]: { ...conv, messages: history, updatedAt: new Date().toISOString() } },
       }));
+      // Rasm so'rovi tahrirlansa — javob ham rasm bo'ladi (matnli LLM'ga ketmaydi).
+      const edited = history[history.length - 1];
+      if (edited.kind === "image" || (!edited.attachments?.length && detectImageIntent(clean))) {
+        await generateImage(id, clean);
+        return;
+      }
       await run(id, history);
     },
-    [run],
+    [run, generateImage],
   );
 
   const stop = useCallback(() => abortRef.current?.abort(), []);

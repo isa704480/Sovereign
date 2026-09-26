@@ -100,25 +100,35 @@ export async function processFile(file: File, lang: Lang = DEFAULT_LANG): Promis
     } catch {
       base.text = "";
     }
+    // Skaner yoki parolli PDF: matn yo'q — jimgina tashlab yubormasdan foydalanuvchiga aytamiz.
+    if (!base.text?.trim()) throw new Error(fmt(translate(lang, "pnKbNoText"), { name: file.name }));
     return base;
   }
   if (kind === "audio" || kind === "video") {
-    base.previewUrl = URL.createObjectURL(file);
-    // Transcribe via /api/transcribe (best-effort; failure leaves preview only).
+    // Transcribe via /api/transcribe. Tarmoq uzilsa — faqat preview qoladi;
+    // server rad etsa (Pro tarif, limit, hajm) — sababini foydalanuvchiga ko'rsatamiz.
     if (file.size > 0 && file.size <= 25 * 1024 * 1024) {
+      const form = new FormData();
+      form.append("file", file, file.name);
+      // Whisper til ishorasi — interfeys tili (uz-cyrl ham "uz").
+      form.append("language", lang.slice(0, 2));
+      let res: Response | null = null;
       try {
-        const form = new FormData();
-        form.append("file", file, file.name);
-        form.append("language", "uz");
-        const res = await fetch("/api/transcribe", { method: "POST", body: form });
-        if (res.ok) {
-          const data = (await res.json()) as { text?: string };
-          if (data.text) base.text = data.text.slice(0, 40_000);
-        }
+        res = await fetch("/api/transcribe", { method: "POST", body: form });
       } catch {
         /* keep preview-only */
       }
+      if (res && res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { text?: string };
+        if (data.text) base.text = data.text.slice(0, 40_000);
+      } else if (res) {
+        // 5xx matni ichki tafsilot bo'lishi mumkin — faqat 4xx xabari (server tarjima qilgan) ko'rsatiladi.
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        const reason = res.status < 500 && data.error ? data.error : translate(lang, "chTranscribeFailed");
+        throw new Error(`${file.name}: ${reason}`);
+      }
     }
+    base.previewUrl = URL.createObjectURL(file);
     return base;
   }
   return base;

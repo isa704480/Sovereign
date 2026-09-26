@@ -1,7 +1,7 @@
 "use client";
 
 import type { StreamEvent } from "@/lib/ai/providers";
-import { DEFAULT_LANG } from "@/lib/i18n";
+import { DEFAULT_LANG, fmt, isLang, translate, type Lang } from "@/lib/i18n";
 
 export interface StreamChatOptions {
   modelId: string;
@@ -54,13 +54,22 @@ export async function streamChat({
     signal,
   });
 
+  const uiLang: Lang = isLang(lang) ? lang : DEFAULT_LANG;
+
   if (!res.ok || !res.body) {
-    let message = `Server xatosi (${res.status})`;
-    try {
-      const j = (await res.json()) as { error?: string };
-      if (j.error) message = j.error;
-    } catch {
-      /* ignore */
+    // 413: Vercel so'rov tanasi limiti (~4.5MB) — katta fayl. Javob HTML/matn bo'ladi,
+    // shuning uchun xom "Server xatosi (413)" o'rniga tushunarli, tarjima qilingan xabar.
+    let message =
+      res.status === 413
+        ? translate(uiLang, "p3bTooLarge")
+        : fmt(translate(uiLang, "p3bServerError"), { status: res.status });
+    if (res.status !== 413) {
+      try {
+        const j = (await res.json()) as { error?: unknown };
+        if (typeof j.error === "string" && j.error) message = j.error;
+      } catch {
+        /* ignore */
+      }
     }
     onEvent({ type: "error", message });
     return;
@@ -90,5 +99,7 @@ export async function streamChat({
       }
     }
   }
-  onEvent({ type: "done" });
+  // Server har doim [DONE] bilan yakunlaydi; usiz EOF — ulanish uzilgan (mas. funksiya
+  // vaqt limiti). Kesilgan javob "muvaffaqiyatli" ko'rinmasin — "uzildi" belgisi chiqadi.
+  onEvent({ type: "error", message: translate(uiLang, "uxInterrupted") });
 }

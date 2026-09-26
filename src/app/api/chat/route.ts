@@ -226,7 +226,7 @@ export async function POST(req: Request) {
   }
 
   // ---- Build the execution plan (single model, or Auto orchestration) ----
-  const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan, lang) : null;
+  const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan, lang, req.signal) : null;
   const steps = routePlan
     ? routePlan.steps
     : [
@@ -416,6 +416,8 @@ ${connectorContext}`
               extraSystem: extra || undefined,
               signal: req.signal,
               lang,
+              // Bepul "rescue" gateway faqat oxirgi nomzodda — avval o'z zaxiralarimiz.
+              freeRescue: ci === candidates.length - 1,
             })) {
               if (ev.type === "done") break;
               if (ev.type === "error") {

@@ -8,6 +8,7 @@ import { processFile } from "@/lib/chat/attachments";
 import { fmt } from "@/lib/i18n";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { useLang, useT } from "@/store/chat";
+import { useDialogA11y } from "./use-dialog-a11y";
 
 interface KnowledgePanelProps {
   open: boolean;
@@ -30,6 +31,7 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
+  const { panelRef, titleId, dialogProps } = useDialogA11y(open, onClose);
 
   useEffect(() => {
     if (!open) return;
@@ -37,13 +39,10 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
     listKnowledge()
       .then((r) => alive && setItems(r))
       .catch(() => alive && setItems([]));
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
     return () => {
       alive = false;
-      document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   async function onFiles(e: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -85,16 +84,16 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
           onClick={onClose}
-          role="dialog"
-          aria-modal
         >
           <motion.div
+            ref={panelRef}
+            {...dialogProps}
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[86vh] w-full max-w-2xl flex-col rounded-3xl border shadow-lg"
+            className="tt flex max-h-[86vh] w-full max-w-2xl flex-col rounded-3xl border shadow-lg outline-none"
             style={{
               background: "var(--t-surface, #0D1033)",
               borderColor: "var(--t-border, rgba(255,255,255,0.1))",
@@ -107,7 +106,7 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
             >
               <div className="flex items-center gap-2">
                 <FolderOpen className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
-                <span className="font-display text-lg font-bold">{t("knowledgeBase")}</span>
+                <h2 id={titleId} className="font-display text-lg font-bold">{t("knowledgeBase")}</h2>
                 {items && (
                   <span className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                     {items.length} {t("kbDocs")}
@@ -141,7 +140,7 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
                 {busy ? `${t("kbUploading")}: ${busy}` : t("kbUpload")}
               </button>
               {error && (
-                <p className="mt-2 text-sm" style={{ color: "var(--error, #EF4444)" }}>
+                <p role="alert" className="mt-2 text-sm" style={{ color: "var(--error, #EF4444)" }}>
                   {error}
                 </p>
               )}
@@ -181,7 +180,7 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
                       <button
                         type="button"
                         onClick={() => remove(d.id)}
-                        className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100"
+                        className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100 focus-visible:opacity-100"
                         aria-label={t("delete")}
                         style={{ color: "var(--t-text-muted, #9BA3CC)" }}
                       >

@@ -12,8 +12,9 @@ import {
 } from "@/app/actions/account";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { EASE_OUT_EXPO } from "@/lib/motion";
-import { LANGS } from "@/lib/i18n";
+import { LANGS, translate } from "@/lib/i18n";
 import { useChat, useT } from "@/store/chat";
+import { useDialogA11y } from "./use-dialog-a11y";
 
 interface SettingsPanelProps {
   open: boolean;
@@ -35,14 +36,16 @@ function Row({ title, desc, children }: { title: string; desc?: string; children
   );
 }
 
-function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void }) {
+function Toggle({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
+      aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!on)}
-      className="relative h-6 w-11 shrink-0 rounded-full p-0 transition-colors"
+      className="relative h-6 w-11 shrink-0 rounded-full p-0 transition-colors disabled:opacity-50"
       style={{ background: on ? "var(--t-primary, #5B50F0)" : "color-mix(in srgb, var(--t-text,#fff) 18%, transparent)" }}
     >
       {/* left-0.5 pins the knob to the track; without it the button's centered content box shifts it out. */}
@@ -54,13 +57,27 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
   );
 }
 
-function Segmented<T extends string>({ value, options, onChange }: { value: T; options: { value: T; label: string }[]; onChange: (v: T) => void }) {
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+  label,
+}: {
+  value: T;
+  options: { value: T; label: string; aria?: string; lang?: string }[];
+  onChange: (v: T) => void;
+  label: string;
+}) {
   return (
-    <div className="inline-flex rounded-lg border p-0.5" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
+    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg border p-0.5" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
       {options.map((o) => (
         <button
           key={o.value}
           type="button"
+          role="radio"
+          aria-checked={value === o.value}
+          aria-label={o.aria}
+          lang={o.lang}
           onClick={() => onChange(o.value)}
           className="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
           style={{
@@ -79,6 +96,18 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
   const [, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const { panelRef, titleId, dialogProps } = useDialogA11y(open, onClose);
+
+  // Panel yopilganda "O'chirishni tasdiqlash" qurolsizlanadi — keyingi ochilishda
+  // bitta bosish hamma narsani o'chirib yubormasin (render vaqtida, effektsiz).
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    if (!open) {
+      setConfirmDelete(false);
+      setMsg(null);
+    }
+  }
   const planName = (isPlanId(plan) ? PLAN_BY_ID[plan] : PLAN_BY_ID.free).name;
   const initials = user.name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase();
 
@@ -99,21 +128,32 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
   const setLang = useChat((s) => s.setLang);
   const t = useT();
 
-  const [trainingOptIn, setTrainingOptIn] = useState(true);
+  // null — hali server javobi kelmagan: switch o'chirilgan holda turadi, taxminiy "yoqilgan" ko'rsatilmaydi.
+  const [trainingOptIn, setTrainingOptIn] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!open) return;
     let alive = true;
     getTrainingOptIn()
       .then((v) => alive && setTrainingOptIn(v))
-      .catch(() => {});
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
+      .catch(() => alive && setMsg(translate(lang, "stLoadFailed")));
     return () => {
       alive = false;
-      document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open, lang]);
+
+  function changeTraining(v: boolean) {
+    const prev = trainingOptIn;
+    setTrainingOptIn(v);
+    startTransition(async () => {
+      const res = await saveTrainingOptIn(v).catch(() => ({ ok: false }));
+      if (!res.ok) {
+        // Saqlanmadi — switch haqiqiy holatga qaytadi.
+        setTrainingOptIn(prev);
+        setMsg(t("stSaveFailed"));
+      }
+    });
+  }
 
   function exportData() {
     setMsg(t("preparing"));
@@ -139,8 +179,14 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
       setConfirmDelete(true);
       return;
     }
+    setConfirmDelete(false);
     startTransition(async () => {
-      await deleteMyData();
+      const res = await deleteMyData().catch(() => ({ ok: false }));
+      if (!res.ok) {
+        // Server o'chirmadi — "o'chirildi" deb ko'rsatib qayta yuklamaymiz.
+        setMsg(t("stDeleteFailed"));
+        return;
+      }
       try {
         localStorage.removeItem("sovereign.chat");
       } catch {
@@ -159,22 +205,22 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
           onClick={onClose}
-          role="dialog"
-          aria-modal
         >
           <motion.div
+            ref={panelRef}
+            {...dialogProps}
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[88vh] w-full max-w-lg flex-col rounded-3xl border shadow-lg"
+            className="tt flex max-h-[88vh] w-full max-w-lg flex-col rounded-3xl border shadow-lg outline-none"
             style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <div className="flex items-center gap-2">
                 <Settings className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
-                <span className="font-display text-lg font-bold">{t("settings")}</span>
+                <h2 id={titleId} className="font-display text-lg font-bold">{t("settings")}</h2>
               </div>
               <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                 <X className="size-5" />
@@ -214,24 +260,27 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                 </div>
                 <Row title={t("language")} desc={t("languageHint")}>
                   <Segmented
+                    label={t("language")}
                     value={lang}
-                    options={LANGS.map((l) => ({ value: l.id, label: l.short }))}
+                    options={LANGS.map((l) => ({ value: l.id, label: l.short, aria: l.label, lang: l.htmlLang }))}
                     onChange={setLang}
                   />
                 </Row>
                 <Row title={t("fontSizeTitle")} desc={t("fontSizeDesc")}>
                   <Segmented
+                    label={t("fontSizeTitle")}
                     value={fontSize}
                     options={[
-                      { value: "sm", label: "S" },
-                      { value: "md", label: "M" },
-                      { value: "lg", label: "L" },
+                      { value: "sm", label: "S", aria: t("stFontSmall") },
+                      { value: "md", label: "M", aria: t("stFontMedium") },
+                      { value: "lg", label: "L", aria: t("stFontLarge") },
                     ]}
                     onChange={setFontSize}
                   />
                 </Row>
                 <Row title={t("densityTitle")} desc={t("densityDesc")}>
                   <Segmented
+                    label={t("densityTitle")}
                     value={density}
                     options={[
                       { value: "compact", label: t("densityCompact") },
@@ -241,7 +290,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                   />
                 </Row>
                 <Row title={t("reducedMotionTitle")} desc={t("reducedMotionDesc")}>
-                  <Toggle on={reducedMotion} onChange={setReducedMotion} />
+                  <Toggle on={reducedMotion} onChange={setReducedMotion} label={t("reducedMotionTitle")} />
                 </Row>
               </div>
 
@@ -250,10 +299,11 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                   <Keyboard className="size-3.5" /> {t("chatBehavior")}
                 </div>
                 <Row title={t("enterToSendTitle")} desc={t("enterToSendDesc")}>
-                  <Toggle on={enterToSend} onChange={setEnterToSend} />
+                  <Toggle on={enterToSend} onChange={setEnterToSend} label={t("enterToSendTitle")} />
                 </Row>
                 <Row title={t("streamingTitle")} desc={t("streamingDesc")}>
                   <Segmented
+                    label={t("streamingTitle")}
                     value={streamingSpeed}
                     options={[
                       { value: "natural", label: t("streamingNatural") },
@@ -263,7 +313,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                   />
                 </Row>
                 <Row title={t("autoScrollTitle")} desc={t("autoScrollDesc")}>
-                  <Toggle on={autoScroll} onChange={setAutoScroll} />
+                  <Toggle on={autoScroll} onChange={setAutoScroll} label={t("autoScrollTitle")} />
                 </Row>
               </div>
 
@@ -276,13 +326,10 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                   desc={t("trainingDesc")}
                 >
                   <Toggle
-                    on={trainingOptIn}
-                    onChange={(v) => {
-                      setTrainingOptIn(v);
-                      startTransition(async () => {
-                        await saveTrainingOptIn(v);
-                      });
-                    }}
+                    on={trainingOptIn ?? false}
+                    disabled={trainingOptIn === null}
+                    label={t("trainingTitle")}
+                    onChange={changeTraining}
                   />
                 </Row>
                 <Row title={t("exportTitle")} desc={t("exportDesc")}>
@@ -295,7 +342,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                     {confirmDelete ? t("confirmDelete") : t("delete")}
                   </button>
                 </Row>
-                {msg && <p className="pb-2 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{msg}</p>}
+                {msg && <p role="status" className="pb-2 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{msg}</p>}
               </div>
             </div>
 

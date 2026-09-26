@@ -16,18 +16,20 @@ import { EASE_OUT_EXPO } from "@/lib/motion";
 import { fmt } from "@/lib/i18n";
 import { connectorCategoryLabel, connectorText } from "@/lib/locales/panels-data";
 import { useLang, useT } from "@/store/chat";
+import { useDialogA11y } from "./use-dialog-a11y";
 
 interface ConnectorsPanelProps {
   open: boolean;
   onClose: () => void;
 }
 
-function Toggle({ on, onChange, disabled }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function Toggle({ on, onChange, disabled, label }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
+      aria-label={label}
       disabled={disabled}
       onClick={() => onChange(!on)}
       className="relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-40"
@@ -46,6 +48,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<Record<string, string>>({});
+  const { panelRef, titleId, dialogProps } = useDialogA11y(open, onClose);
 
   useEffect(() => {
     if (!open) return;
@@ -57,13 +60,10 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
         setLoaded(true);
       })
       .catch(() => alive && setLoaded(true));
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
     return () => {
       alive = false;
-      document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   const stateOf = (id: string): ConnectorState => states[id] ?? { connectorId: id, enabled: false, connected: false };
 
@@ -101,22 +101,22 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
           onClick={onClose}
-          role="dialog"
-          aria-modal
         >
           <motion.div
+            ref={panelRef}
+            {...dialogProps}
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[88vh] w-full max-w-xl flex-col rounded-3xl border shadow-lg"
+            className="tt flex max-h-[88vh] w-full max-w-xl flex-col rounded-3xl border shadow-lg outline-none"
             style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <div className="flex items-center gap-2">
                 <Plug className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
-                <span className="font-display text-lg font-bold">{t("pnConnectorsTitle")}</span>
+                <h2 id={titleId} className="font-display text-lg font-bold">{t("pnConnectorsTitle")}</h2>
               </div>
               <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                 <X className="size-5" />
@@ -160,7 +160,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                   <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{tx.description}</div>
                                 </div>
                                 {(st.connected || isBuiltin) && (
-                                  <Toggle on={st.enabled} onChange={(v) => toggle(spec, v)} />
+                                  <Toggle on={st.enabled} onChange={(v) => toggle(spec, v)} label={tx.name} />
                                 )}
                               </div>
 
@@ -173,6 +173,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                       value={draft[spec.id] ?? ""}
                                       onChange={(e) => setDraft((d) => ({ ...d, [spec.id]: e.target.value }))}
                                       placeholder={spec.tokenLabel ?? t("pnToken")}
+                                      aria-label={`${tx.name}: ${spec.tokenLabel ?? t("pnToken")}`}
                                       className="min-w-0 flex-1 rounded-lg border bg-transparent px-2.5 py-1.5 text-xs outline-none"
                                       style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                                     />

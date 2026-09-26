@@ -65,7 +65,7 @@ Interaktiv rejimda:
 › Shu dizaynga qarab HTML yoz
 ```
 
-Cheklovlar: rasm 8 MB, matn 2 MB, PDF 20 MB. PDF matnini ajratish uchun `npm i -g pdf-parse` o'rnating (ixtiyoriy).
+Cheklovlar: rasm 900 KB (server so'rov limiti tufayli — kattasini siqib yuboring), matn 2 MB, PDF 20 MB. PDF matnini ajratish uchun `npm i -g pdf-parse@2` o'rnating (ixtiyoriy).
 
 ## Xavfsizlik
 

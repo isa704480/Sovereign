@@ -5,7 +5,10 @@ import { useState, useTransition } from "react";
 import { signInWithOAuth } from "@/app/actions/auth";
 import { createClient } from "@/lib/supabase/client";
 import { googleIdTokenViaFirebase, isFirebaseConfigured } from "@/lib/firebase/client";
+import { authErrorKey } from "@/lib/locales/auth";
 import type { OAuthProvider } from "@/lib/validations/auth";
+import type { AuthMsgKey } from "./messages";
+import { safeNextPath } from "./next-path";
 import { cn } from "@/lib/utils";
 import { useT } from "@/store/chat";
 
@@ -28,6 +31,15 @@ function GitHubIcon() {
   );
 }
 
+/** Firebase/Supabase Google xatosi → lug'at kaliti (tanilmagani — umumiy "auErrGoogle"). */
+function googleErrorKey(message: string): AuthMsgKey {
+  if (/popup-closed|cancelled-popup|cancelled|closed by user/i.test(message)) return "auErrPopupClosed";
+  if (/popup-blocked/i.test(message)) return "auErrPopupBlocked";
+  if (/network-request-failed/i.test(message)) return "auErrNetwork";
+  if (/too-many-requests/i.test(message)) return "auErrRateLimit";
+  return authErrorKey(message) ?? "auErrGoogle";
+}
+
 interface OAuthButtonsProps {
   next?: string | null;
   onError?: (message: string) => void;
@@ -40,32 +52,42 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
 
   async function google() {
     setActive("google");
-    try {
-      if (isFirebaseConfigured()) {
-        // Firebase Google popup → Supabase session via ID token + nonce.
-        const { idToken, accessToken, nonce } = await googleIdTokenViaFirebase();
-        const supabase = createClient();
-        const { error } = await supabase.auth.signInWithIdToken({
-          provider: "google",
-          token: idToken,
-          access_token: accessToken,
-          nonce,
-        });
-        if (error) throw new Error(error.message);
-        // Open-redirect'ni to'sish: protokol-nisbiy `//evil.com` va backslash
-        // yo'llarini rad etamiz. Faqat toza absolute-path (/dan boshlanuvchi
-        // va ikkinchi belgi `/\` bo'lmagan) qabul qilinadi.
-        const isSafe = typeof next === "string" && /^\/[^/\\]/.test(next);
-        window.location.href = isSafe ? next : "/onboarding";
-        return;
+    if (!isFirebaseConfigured()) {
+      // Fallback: Supabase redirect OAuth. Server xatoni allaqachon tarjima qilib qaytaradi.
+      try {
+        const res = await signInWithOAuth("google", next);
+        if (res && !res.ok) {
+          onError?.(res.error);
+          setActive(null);
+        }
+      } catch (e) {
+        // redirect() ichki xatosi emas — tarmoq va h.k.
+        console.error("[auth] Google OAuth:", e);
+        onError?.("auErrGoogle");
+        setActive(null);
       }
-      // Fallback: Supabase redirect OAuth.
-      const res = await signInWithOAuth("google", next);
-      if (res && !res.ok) throw new Error(res.error);
+      return;
+    }
+    try {
+      // Firebase Google popup → Supabase session via ID token + nonce.
+      const { idToken, accessToken, nonce } = await googleIdTokenViaFirebase();
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: "google",
+        token: idToken,
+        access_token: accessToken,
+        nonce,
+      });
+      if (error) throw new Error(error.message);
+      // Open-redirect'ni to'sish: `/%09/evil.com` kabi yo'llar ham rad etiladi (qat'iy tekshiruv).
+      window.location.href = safeNextPath(next) ?? "/onboarding";
     } catch (e) {
-      // Kalitlar FormAlert'da tanlangan tilga o'giriladi.
-      const msg = e instanceof Error ? e.message : "auErrGoogle";
-      onError?.(/popup-closed|cancelled|closed by user/i.test(msg) ? "auErrPopupClosed" : msg);
+      // Xom Firebase/Supabase matni (client ID'lar bilan) foydalanuvchiga ko'rsatilmaydi —
+      // faqat lug'at kaliti; tafsilot konsolda.
+      const msg = e instanceof Error ? e.message : String(e);
+      const key = googleErrorKey(msg);
+      if (key === "auErrGoogle") console.error("[auth] Google sign-in:", msg);
+      onError?.(key);
       setActive(null);
     }
   }

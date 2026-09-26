@@ -1,6 +1,8 @@
 "use client";
 
+import { X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { deleteConversationAction } from "@/app/actions/chat";
 import { shareConversation } from "@/app/actions/share";
@@ -46,9 +48,16 @@ interface DashboardProps {
   memoryEnabled?: boolean;
   planState?: "free" | "active" | "expiring_soon" | "expired";
   daysLeft?: number | null;
+  /** /app?paid=1|0 — to'lov sahifasidan qaytish natijasi. */
+  paymentReturn?: "success" | "failed" | null;
 }
 
-export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null }: DashboardProps) {
+/** ?paid=1 dan keyin tarif yangilanishini kutish: shuncha marta, shuncha ms oralig'ida. */
+const PAID_POLL_TRIES = 15;
+const PAID_POLL_MS = 4000;
+
+export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null, paymentReturn = null }: DashboardProps) {
+  const router = useRouter();
   const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
   // Barqaror t — useCallback bog'liqliklari har renderda yangilanmasin.
   const lang = useLang();
@@ -99,6 +108,31 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const [coworkOpen, setCoworkOpen] = useState(false);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
   const [shareState, setShareState] = useState<"idle" | "busy" | "done">("idle");
+  // Biror panel/dialog ochiqmi — Esc shu holatda oqimni to'xtatmaydi, faqat panelni yopadi.
+  const overlayOpen =
+    memoryOpen || settingsOpen || kbOpen || skillsOpen || coworkOpen || connectorsOpen || pricing.open;
+
+  // Barqaror onClose'lar: panellar effektlari [open, onClose] ga bog'liq — inline closure
+  // har token'da yangi bo'lib, ochiq panel serverdan qayta-qayta yuklanardi.
+  const closeMemory = useCallback(() => setMemoryOpen(false), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const closeKb = useCallback(() => setKbOpen(false), []);
+  const closeSkills = useCallback(() => setSkillsOpen(false), []);
+  const closeCowork = useCallback(() => setCoworkOpen(false), []);
+  const closeConnectors = useCallback(() => setConnectorsOpen(false), []);
+  const closePricing = useCallback(() => setPricing((p) => ({ ...p, open: false })), []);
+  const closeArtifact = useCallback(() => setArtifact(null), []);
+  const closeSources = useCallback(() => setSourcesOpen(false), []);
+  const openMemory = useCallback(() => setMemoryOpen(true), []);
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const openKb = useCallback(() => setKbOpen(true), []);
+  const openSkills = useCallback(() => setSkillsOpen(true), []);
+  const openCowork = useCallback(() => setCoworkOpen(true), []);
+  const openConnectors = useCallback(() => setConnectorsOpen(true), []);
+  const upgradeFromSettings = useCallback(() => {
+    setSettingsOpen(false);
+    openPricing();
+  }, [openPricing]);
 
   /** Suhbatning matnli nusxasini ulashadi va havolani buferga oladi. */
   const handleShare = useCallback(async () => {
@@ -106,13 +140,21 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     const conv = s.activeId ? s.conversations[s.activeId] : null;
     if (!conv || !conv.messages.length) return;
     setShareState("busy");
-    const res = await shareConversation({
-      title: conv.title,
-      modelId: conv.modelId,
-      messages: conv.messages
-        .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
-        .map((m) => ({ role: m.role as "user" | "assistant", content: m.content, modelId: m.modelId ?? null, createdAt: m.createdAt })),
-    });
+    let res: Awaited<ReturnType<typeof shareConversation>>;
+    try {
+      res = await shareConversation({
+        title: conv.title,
+        modelId: conv.modelId,
+        messages: conv.messages
+          .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())
+          .map((m) => ({ role: m.role as "user" | "assistant", content: m.content, modelId: m.modelId ?? null, createdAt: m.createdAt })),
+      });
+    } catch {
+      // Tarmoq uzilishi / server action xatosi — tugma "busy" da qotib qolmasin.
+      setShareState("idle");
+      window.alert(t("p3bShareFailed"));
+      return;
+    }
     if (!res.ok) {
       setShareState("idle");
       window.alert(res.error);
@@ -141,17 +183,20 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       } else if (mod && e.key === "/") {
         e.preventDefault();
         inputRef.current?.focus();
-      } else if (e.key === "Escape" && isStreaming && !e.defaultPrevented) {
+      } else if (e.key === "Escape" && isStreaming && !e.defaultPrevented && !overlayOpen) {
         // Menyu/dialog Esc'ni o'zi yopgan bo'lsa (preventDefault) — oqimni to'xtatmaymiz.
-        // Fokus biror ochiq menyu/dialog ichida bo'lsa ham to'xtatmaymiz.
+        // Panel ochiq bo'lsa (overlayOpen) Esc faqat panelni yopadi: panellar document'da
+        // tinglaydi va bu yerdan oldin ishlaydi, holat esa hali "ochiq" — oqim to'xtamaydi.
+        // Fokus biror ochiq menyu/dialog ichida yoki boshqa matn maydonida bo'lsa ham to'xtatmaymiz.
         const el = document.activeElement;
         const inOverlay = el instanceof Element && !!el.closest('[role="dialog"], [role="menu"], [role="listbox"]');
-        if (!inOverlay) stop();
+        const inOtherField = el instanceof HTMLInputElement;
+        if (!inOverlay && !inOtherField) stop();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isStreaming, stop]);
+  }, [isStreaming, stop, overlayOpen]);
   const artifactCtx = useMemo(
     () => ({ open: (a: ArtifactPayload) => setArtifact(a) }),
     [],
@@ -212,12 +257,28 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       const s = useChat.getState();
       const conv = s.conversations[id];
       if (!conv) return;
+      // Oqimdagi suhbat o'chirilsa — oqimni to'xtatamiz (aks holda "Qaytarish" uni
+      // "streaming" holatida tiklardi va xabar osilib qolardi).
+      const live = conv.messages.some((m) => m.status === "streaming");
+      if (live) stop();
+      const snapshot: Conversation = live
+        ? {
+            ...conv,
+            messages: conv.messages.map((m) =>
+              m.status !== "streaming"
+                ? m
+                : m.modelId && m.content
+                  ? { ...m, status: "done" as const, error: t("uxInterrupted") }
+                  : { ...m, status: "error" as const, content: "", error: t("p3bStopped") },
+            ),
+          }
+        : conv;
       const timer = setTimeout(() => commitDelete(id), UNDO_MS);
-      pendingDeletes.current.set(id, { conv, wasActive: s.activeId === id, timer });
+      pendingDeletes.current.set(id, { conv: snapshot, wasActive: s.activeId === id, timer });
       remove(id);
       setUndoToast(id);
     },
-    [remove, commitDelete],
+    [remove, commitDelete, stop, t],
   );
 
   const undoDelete = useCallback((id: string) => {
@@ -324,6 +385,41 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     return () => window.removeEventListener("sovereign:upgrade", onUpgrade);
   }, [openPricing, plan.id]);
 
+  // To'lovdan qaytish (?paid=1 / ?paid=0): xabar ko'rsatamiz, URL'ni tozalaymiz va
+  // webhook tarifni yangilaguncha serverdan qayta o'qiymiz (router.refresh).
+  const [payNotice, setPayNotice] = useState<"success" | "failed" | null>(paymentReturn);
+  const [planAtReturn] = useState(plan.id);
+  const payShown = payNotice === "success" && plan.id !== planAtReturn ? "active" : payNotice;
+
+  useEffect(() => {
+    if (!paymentReturn) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("paid");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch {
+      /* ignore */
+    }
+  }, [paymentReturn]);
+
+  useEffect(() => {
+    if (payShown !== "success") return;
+    let tries = 0;
+    const id = setInterval(() => {
+      tries += 1;
+      if (tries > PAID_POLL_TRIES) clearInterval(id);
+      else router.refresh();
+    }, PAID_POLL_MS);
+    return () => clearInterval(id);
+  }, [payShown, router]);
+
+  // Tarif faollashgach xabar o'zi yopiladi.
+  useEffect(() => {
+    if (payShown !== "active") return;
+    const id = setTimeout(() => setPayNotice(null), 6000);
+    return () => clearTimeout(id);
+  }, [payShown]);
+
   const inputEl = (
     <InputArea
       onSend={send}
@@ -335,9 +431,9 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       onToggleSkill={toggleSkill}
       blindPrompting={blindPrompting}
       onToggleBlindPrompting={setBlindPrompting}
-      onOpenCowork={() => setCoworkOpen(true)}
-      onOpenKnowledge={() => setKbOpen(true)}
-      onOpenMemory={() => setMemoryOpen(true)}
+      onOpenCowork={openCowork}
+      onOpenKnowledge={openKb}
+      onOpenMemory={openMemory}
       ref={inputRef}
       autoFocus
     />
@@ -377,12 +473,12 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           isDev={isDev}
           plan={plan}
           onUpgrade={() => openPricing()}
-          onOpenMemory={() => setMemoryOpen(true)}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onOpenKnowledge={() => setKbOpen(true)}
-          onOpenSkills={() => setSkillsOpen(true)}
-          onOpenCowork={() => setCoworkOpen(true)}
-          onOpenConnectors={() => setConnectorsOpen(true)}
+          onOpenMemory={openMemory}
+          onOpenSettings={openSettings}
+          onOpenKnowledge={openKb}
+          onOpenSkills={openSkills}
+          onOpenCowork={openCowork}
+          onOpenConnectors={openConnectors}
         />
 
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -439,6 +535,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
               {!centered && (
                 <motion.div
                   layout
+                  // Faqat joylashuv haqiqatan o'zgarganda o'lchaydi — har token'da reflow bo'lmasin.
+                  layoutDependency={`${!!artifact}-${showSources}`}
                   transition={{ duration: 0.3, ease: EASE }}
                   className="px-3 pb-3 pt-2 md:px-6 md:pb-5"
                 >
@@ -449,14 +547,14 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
 
             <AnimatePresence>
               {artifact ? (
-                <ArtifactPanel key={artifact.code.slice(0, 64)} artifact={artifact} onClose={() => setArtifact(null)} />
+                <ArtifactPanel key={artifact.code.slice(0, 64)} artifact={artifact} onClose={closeArtifact} />
               ) : showSources ? (
                 <SourcesPanel
                   key="sources"
                   citations={citations}
                   query={typeof lastUser?.content === "string" ? lastUser.content : undefined}
                   updatedAt={lastAssistant?.createdAt}
-                  onClose={() => setSourcesOpen(false)}
+                  onClose={closeSources}
                 />
               ) : null}
             </AnimatePresence>
@@ -465,7 +563,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
 
         <PricingDialog
           open={pricing.open}
-          onClose={() => setPricing((p) => ({ ...p, open: false }))}
+          onClose={closePricing}
           currentPlan={plan.id}
           reason={pricing.reason}
           suggestedPlan={pricing.suggested}
@@ -498,20 +596,66 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
             </motion.div>
           )}
         </AnimatePresence>
-        <MemoryPanel open={memoryOpen} onClose={() => setMemoryOpen(false)} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
-        <SkillsMarket open={skillsOpen} onClose={() => setSkillsOpen(false)} enabled={enabledSkills} onToggle={toggleSkill} />
-        <CoworkPanel open={coworkOpen} onClose={() => setCoworkOpen(false)} messages={messages} />
-        <ConnectorsPanel open={connectorsOpen} onClose={() => setConnectorsOpen(false)} />
-        <KnowledgePanel open={kbOpen} onClose={() => setKbOpen(false)} />
+
+        {/* To'lovdan qaytish xabari (?paid=1 / ?paid=0) */}
+        <AnimatePresence>
+          {payShown && (
+            <motion.div
+              key={payShown}
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.2, ease: EASE }}
+              role={payShown === "failed" ? "alert" : "status"}
+              className="tt fixed left-1/2 top-4 z-50 flex w-[min(92vw,520px)] -translate-x-1/2 items-start gap-3 border py-2.5 pl-4 pr-2 text-sm shadow-lg"
+              style={{
+                background: "var(--t-surface)",
+                borderColor: payShown === "failed" ? "var(--error, #E0554E)" : "var(--t-border)",
+                borderRadius: 14,
+                color: "var(--t-text)",
+              }}
+            >
+              <span className="min-w-0 flex-1 py-1">
+                {payShown === "failed" ? t("p3bPaidFail") : payShown === "active" ? t("p3bPaidActive") : t("p3bPaidOk")}
+              </span>
+              {payShown === "failed" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPayNotice(null);
+                    openPricing();
+                  }}
+                  className="min-h-8 shrink-0 rounded-lg px-3 font-semibold transition-colors hover:bg-white/10"
+                  style={{ color: "var(--t-accent)" }}
+                >
+                  {t("p3bPaidRetry")}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setPayNotice(null)}
+                className="min-h-8 shrink-0 rounded-lg px-2 transition-colors hover:bg-white/10"
+                style={{ color: "var(--t-text-muted)" }}
+                aria-label={t("p3bDismiss")}
+                title={t("p3bDismiss")}
+              >
+                <X className="size-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <MemoryPanel open={memoryOpen} onClose={closeMemory} enabled={memoryEnabled} onEnabledChange={setMemoryEnabled} />
+        <SkillsMarket open={skillsOpen} onClose={closeSkills} enabled={enabledSkills} onToggle={toggleSkill} />
+        <CoworkPanel open={coworkOpen} onClose={closeCowork} messages={messages} />
+        <ConnectorsPanel open={connectorsOpen} onClose={closeConnectors} />
+        <KnowledgePanel open={kbOpen} onClose={closeKb} />
         <SettingsPanel
           open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
+          onClose={closeSettings}
           user={user}
           plan={plan.id}
-          onUpgrade={() => {
-            setSettingsOpen(false);
-            openPricing();
-          }}
+          onUpgrade={upgradeFromSettings}
         />
       </div>
       </ArtifactProvider>

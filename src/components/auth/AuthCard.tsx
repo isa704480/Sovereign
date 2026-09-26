@@ -5,11 +5,12 @@ import type { ReactNode } from "react";
 import { LogoMark } from "@/components/brand/Logo";
 import type { AuthKey } from "@/lib/locales/auth";
 import { useT } from "@/store/chat";
+import type { AuthMsgKey } from "./messages";
 
 interface AuthCardProps {
-  /** AUTH lug'ati kaliti — til almashganda jonli yangilanadi. */
-  title: AuthKey;
-  subtitle?: AuthKey;
+  /** Auth lug'ati kaliti — til almashganda jonli yangilanadi. */
+  title: AuthMsgKey;
+  subtitle?: AuthMsgKey;
   children: ReactNode;
   footer?: ReactNode;
 }

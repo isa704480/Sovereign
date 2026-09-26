@@ -8,6 +8,7 @@ import type { MemoryNode } from "@/lib/ai/memory";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { useT } from "@/store/chat";
 import type { TKey } from "@/lib/i18n";
+import { useDialogA11y } from "./use-dialog-a11y";
 
 interface MemoryPanelProps {
   open: boolean;
@@ -22,6 +23,7 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
   const t = useT();
   const [items, setItems] = useState<MemoryNode[] | null>(null);
   const [, startTransition] = useTransition();
+  const { panelRef, titleId, dialogProps } = useDialogA11y(open, onClose);
 
   useEffect(() => {
     if (!open) return;
@@ -29,13 +31,10 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
     listMemories()
       .then((r) => alive && setItems(r))
       .catch(() => alive && setItems([]));
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
-    document.addEventListener("keydown", onKey);
     return () => {
       alive = false;
-      document.removeEventListener("keydown", onKey);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   function remove(id: string) {
     setItems((prev) => prev?.filter((m) => m.id !== id) ?? null);
@@ -59,22 +58,22 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
           onClick={onClose}
-          role="dialog"
-          aria-modal
         >
           <motion.div
+            ref={panelRef}
+            {...dialogProps}
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[86vh] w-full max-w-lg flex-col rounded-3xl border shadow-lg"
+            className="tt flex max-h-[86vh] w-full max-w-lg flex-col rounded-3xl border shadow-lg outline-none"
             style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <div className="flex items-center gap-2">
                 <Brain className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
-                <span className="font-display text-lg font-bold">{t("memory")}</span>
+                <h2 id={titleId} className="font-display text-lg font-bold">{t("memory")}</h2>
                 {items && <span className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{items.length} {t("memoryNodes")}</span>}
               </div>
               <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
@@ -91,6 +90,7 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
                 type="button"
                 role="switch"
                 aria-checked={enabled}
+                aria-label={t("memoryQuestion")}
                 onClick={() => toggle(!enabled)}
                 className="relative h-6 w-11 shrink-0 rounded-full p-0 transition-colors"
                 style={{ background: enabled ? "var(--t-primary, #5B50F0)" : "color-mix(in srgb, var(--t-text, #fff) 18%, transparent)" }}
@@ -123,7 +123,7 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
                         {KIND_LABEL[m.kind] ? t(KIND_LABEL[m.kind]) : m.kind}
                       </span>
                       <span className="min-w-0 flex-1 text-sm">{m.content}</span>
-                      <button type="button" onClick={() => remove(m.id)} className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100" aria-label={t("delete")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                      <button type="button" onClick={() => remove(m.id)} className="rounded-md p-1 opacity-0 transition-opacity hover:bg-white/10 group-hover:opacity-100 focus-visible:opacity-100" aria-label={t("delete")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                         <Trash2 className="size-3.5" />
                       </button>
                     </li>

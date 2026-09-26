@@ -7,7 +7,8 @@ contextBridge.exposeInMainWorld("sovereign", {
   newTask: () => ipcRenderer.invoke("app:new-task"),
   fsTree: () => ipcRenderer.invoke("fs:tree"),
   fsRead: (path) => ipcRenderer.invoke("fs:read", path),
-  fsWrite: (path, content) => ipcRenderer.invoke("fs:write", { path, content }),
+  // Undo — ixtiyoriy yo'lga yozish yo'q; faqat main'dagi zaxira id'si bo'yicha tiklash.
+  fsRestore: (backupId) => ipcRenderer.invoke("fs:restore", backupId),
   setModel: (id) => ipcRenderer.invoke("app:set-model", id),
   models: (qs) => ipcRenderer.invoke("app:models", qs),
   send: (text, mode) => ipcRenderer.send("agent:send", { text, mode }),

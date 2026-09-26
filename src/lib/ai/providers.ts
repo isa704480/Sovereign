@@ -1,10 +1,25 @@
 import "server-only";
 import { MODELS, MODEL_BY_ID, type SovereignModel } from "@/config/models";
-import { DEFAULT_LANG, fmt, translate, type Lang } from "@/lib/i18n";
+import { DEFAULT_LANG, fmt, translate, type Lang, type TKey } from "@/lib/i18n";
 import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 
-/** Free provider models used as automatic fallbacks when one is rate-limited. */
-const FREE_FALLBACKS = MODELS.filter((m) => m.category === "free").map((m) => m.providerModel);
+/**
+ * O'z serverimizdagi modellar (providerModel). Ular faqat o'z serverimizda
+ * ishlaydi: tashqi provayderga (OpenRouter, LLM7 va h.k.) hech qachon yuborilmaydi.
+ */
+const OWN_MODELS = new Set(["tella-2"]);
+
+function isOwnModel(providerModel: string): boolean {
+  return OWN_MODELS.has(providerModel);
+}
+
+/**
+ * Free provider models used as automatic fallbacks when one is rate-limited.
+ * O'z modelimiz (Tella) OpenRouter'da yo'q — ro'yxatga kirmaydi.
+ */
+const FREE_FALLBACKS = MODELS.filter((m) => m.category === "free" && !isOwnModel(m.providerModel)).map(
+  (m) => m.providerModel,
+);
 
 export interface ChatMessageInput {
   role: "user" | "assistant" | "system";
@@ -225,6 +240,9 @@ function textOf(content: string | unknown[]): string {
 
 export function hasKeyFor(model: SovereignModel): boolean {
   if (isResearchModel(model)) return !!process.env.PERPLEXITY_API_KEY;
+  // Tella 2 faqat o'z serverimizda: TELLA_BASE_URL yo'q bo'lsa "ulanmagan" —
+  // OpenRouter'ga "tella-2" id bilan borib, begona model javob bermasin.
+  if (isOwnModel(model.providerModel)) return providerAvailable("tella");
   // Agar direct provider (Groq/Cerebras/SambaNova/Mistral/OpenAI) bor bo'lsa, OpenRouter shart emas.
   if (pickDirectRoute(model.providerModel)) return true;
   return !!process.env.OPENROUTER_API_KEY;
@@ -318,32 +336,120 @@ export const SIMPLE_CHAT_GUARDRAIL =
   "(odatda bitta fayl). Kodni yarim tashlab ketma — agar uzun bo'lsa oxirigacha yetkaz. " +
   "Ortiqcha izoh yozma, faqat kerakli kod va 1-2 gap tushuntirish.";
 
-/** Parses an SSE body into the JSON objects carried by `data:` lines. */
-async function* readSse(body: ReadableStream<Uint8Array>): AsyncGenerator<Record<string, unknown>> {
-  const reader = body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const raw of lines) {
-      const line = raw.trim();
-      if (!line.startsWith("data:")) continue;
-      const data = line.slice(5).trim();
-      if (data === "[DONE]") return;
-      try {
-        yield JSON.parse(data) as Record<string, unknown>;
-      } catch {
-        // partial / keep-alive line
-      }
-    }
+/**
+ * Upstream kutish chegaralari. Osilib qolgan provayder (masalan, "resource
+ * pressure"dagi OmniRoute) butun zaxira zanjirini maxDuration tugaguncha
+ * to'xtatib qo'ymasin — vaqt o'tsa keyingi nomzodga o'tamiz.
+ */
+/** Javob sarlavhalari (birinchi bayt) kelguncha. */
+const CONNECT_TIMEOUT_MS = 30_000;
+/** Zaxira shlyuzlar uchun qisqaroq — zanjir maxDuration ichida tugashi uchun. */
+const RESCUE_CONNECT_TIMEOUT_MS = 20_000;
+/** Oqim bo'laklari orasidagi eng uzun jimlik. */
+const IDLE_TIMEOUT_MS = 45_000;
+/** Perplexity qidiruv bosqichlari orasida uzoqroq jim turishi mumkin. */
+const PPLX_IDLE_TIMEOUT_MS = 60_000;
+
+/** Upstream belgilangan vaqtda javob bermadi (ulanish yoki oqim jim qoldi). */
+class UpstreamTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UpstreamTimeoutError";
   }
 }
 
-async function errorMessage(res: Response, lang: Lang = DEFAULT_LANG): Promise<string> {
+/**
+ * fetch + birinchi bayt uchun taymaut. Taymaut faqat sarlavhalar kelguncha
+ * ishlaydi (keyin tozalanadi) — oqimni readSse'ning jimlik taymeri kuzatadi.
+ * Foydalanuvchi to'xtatsa (signal) — odatdagidek AbortError.
+ */
+async function fetchUpstream(
+  url: string,
+  init: RequestInit,
+  signal: AbortSignal | undefined,
+  timeoutMs = CONNECT_TIMEOUT_MS,
+): Promise<Response> {
+  const connect = new AbortController();
+  const timer = setTimeout(
+    () => connect.abort(new UpstreamTimeoutError(`upstream ${timeoutMs}ms ichida javob bermadi`)),
+    timeoutMs,
+  );
+  try {
+    return await fetch(url, { ...init, signal: signal ? AbortSignal.any([signal, connect.signal]) : connect.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Foydalanuvchi so'rovni o'zi to'xtatganmi (unda xato emas — jim yopiladi). */
+function userAborted(opts: { signal?: AbortSignal }): boolean {
+  return !!opts.signal?.aborted;
+}
+
+/** Parses an SSE body into the JSON objects carried by `data:` lines. */
+async function* readSse(
+  body: ReadableStream<Uint8Array>,
+  idleMs = IDLE_TIMEOUT_MS,
+): AsyncGenerator<Record<string, unknown>> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      // Bo'laklar orasida idleMs'dan uzoq jimlik — oqim osilib qolgan.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const idle = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new UpstreamTimeoutError(`oqim ${idleMs}ms jim qoldi`)), idleMs);
+      });
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await Promise.race([reader.read(), idle]);
+      } finally {
+        clearTimeout(timer);
+      }
+      const { value, done } = chunk;
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") return;
+        try {
+          yield JSON.parse(data) as Record<string, unknown>;
+        } catch {
+          // partial / keep-alive line
+        }
+      }
+    }
+  } finally {
+    // Taymaut, erta chiqish yoki xato — upstream ulanishini yopamiz.
+    reader.cancel().catch(() => {});
+  }
+}
+
+/**
+ * Provayderning xom xatosini foydalanuvchi tilidagi umumiy xabarga aylantiradi.
+ * Xom matn (balans, provayder/model nomlari) faqat server logiga yoziladi.
+ */
+function friendlyError(raw: string, code: number, lang: Lang, fallback: TKey = "chErrRequestFailed"): string {
+  if (code === 429 || /rate-limited|rate limit/i.test(raw)) return translate(lang, "chErrModelBusy");
+  if (code === 402 || /credits|billing|payment|can only afford/i.test(raw)) return translate(lang, "chErrServerConfig");
+  if (code >= 500) return translate(lang, "chErrProviderTemporary");
+  if (code === 401 || code === 403) return translate(lang, "chErrServerConfig");
+  return translate(lang, fallback);
+}
+
+/**
+ * HTTP xato javobini o'qiydi. `message` — foydalanuvchiga ko'rsatsa bo'ladigan
+ * tarjima; `afford` — "can only afford N" bo'lsa N (low-credit qayta urinish uchun).
+ */
+async function errorMessage(
+  res: Response,
+  lang: Lang = DEFAULT_LANG,
+): Promise<{ message: string; afford: number | null }> {
   let rawMessage = `${res.status} ${res.statusText}`;
   let code = res.status;
   try {
@@ -362,26 +468,15 @@ async function errorMessage(res: Response, lang: Lang = DEFAULT_LANG): Promise<s
   // OmniRoute "resource pressure"ga tiqilib qolgan bo'lsa — fonda Railway restart.
   const omniBase = (process.env.OMNIROUTE_BASE_URL ?? "").replace(/\/$/, "");
   if (omniBase && res.url.startsWith(omniBase)) healOmniRouteIfStuck(res.status, rawMessage);
-  // Xato'ni serverga xotira uchun log qilamiz (agar keyinroq Sentry ulasak),
-  // lekin foydalanuvchiga faqat generic xabar qaytariladi — infra sirlarni fosh qilmaymiz.
-  const isAffordError = /can only afford (\d+)/i.exec(rawMessage);
-  if (isAffordError) {
-    // low-credit auto-retry uchun raw message qoladi (streamOpenRouter ichida ushlanadi)
-    return rawMessage;
-  }
-  if (code === 429 || /rate-limited|rate limit/i.test(rawMessage)) {
-    return translate(lang, "chErrModelBusy");
-  }
-  if (code === 402 || /credits|billing|payment/i.test(rawMessage)) {
-    return translate(lang, "chErrServerConfig");
-  }
-  if (code >= 500) {
-    return translate(lang, "chErrProviderTemporary");
-  }
-  if (code === 401 || code === 403) {
-    return translate(lang, "chErrServerConfig");
-  }
-  return translate(lang, "chErrRequestFailed");
+  // Xom xato faqat server logiga; foydalanuvchiga faqat generic xabar
+  // qaytariladi — infra sirlarni (balans, provayderlar) fosh qilmaymiz.
+  console.error(`[ai] upstream ${res.status}:`, rawMessage.slice(0, 500));
+  const afford = /can only afford (\d+)/i.exec(rawMessage);
+  return {
+    message: friendlyError(rawMessage, code, lang),
+    // low-credit auto-retry uchun (streamOpenRouter ichida ushlanadi)
+    afford: afford ? Number(afford[1]) : null,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -390,7 +485,7 @@ async function errorMessage(res: Response, lang: Lang = DEFAULT_LANG): Promise<s
 
 type OrChunk = {
   choices?: { delta?: { content?: string; reasoning?: string; reasoning_content?: string }; finish_reason?: string | null }[];
-  error?: { message?: string };
+  error?: { message?: string; code?: number | string };
 };
 
 /** How many times a truncated answer may be continued automatically. */
@@ -478,32 +573,52 @@ async function* streamFreeFallback(
   for (const target of fallbackTargets()) {
     let res: Response;
     try {
-      res = await fetch(target.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${target.auth}` },
-        body: JSON.stringify({
-          model: target.model,
-          messages: plain,
-          temperature: opts.temperature ?? 0.7,
-          max_tokens: Math.min(maxTokens, 2048),
-          stream: true,
-        }),
-        signal: opts.signal,
-      });
-    } catch {
-      continue; // network error — try the next gateway
+      res = await fetchUpstream(
+        target.url,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${target.auth}` },
+          body: JSON.stringify({
+            model: target.model,
+            messages: plain,
+            temperature: opts.temperature ?? 0.7,
+            max_tokens: Math.min(maxTokens, 2048),
+            stream: true,
+          }),
+        },
+        opts.signal,
+        RESCUE_CONNECT_TIMEOUT_MS,
+      );
+    } catch (err) {
+      if (userAborted(opts)) throw err;
+      console.error(`[ai] zaxira ${target.name} ulanmadi:`, err);
+      continue; // network error / timeout — try the next gateway
     }
-    if (!res.ok || !res.body) continue;
+    if (!res.ok || !res.body) {
+      res.body?.cancel().catch(() => {});
+      continue;
+    }
 
     let produced = false;
-    for await (const chunk of readSse(res.body)) {
-      const c = chunk as OrChunk;
-      if (c.error?.message) break;
-      const text = c.choices?.[0]?.delta?.content;
-      if (text) {
-        produced = true;
-        yield { type: "text", text };
+    try {
+      for await (const chunk of readSse(res.body)) {
+        const c = chunk as OrChunk;
+        if (c.error?.message) break;
+        const text = c.choices?.[0]?.delta?.content;
+        if (text) {
+          produced = true;
+          yield { type: "text", text };
+        }
       }
+    } catch (err) {
+      if (userAborted(opts)) throw err;
+      console.error(`[ai] zaxira ${target.name} oqimi uzildi:`, err);
+      if (produced) {
+        // Javobning bir qismi ko'rsatildi — boshqa shlyuzdan qaytadan boshlab bo'lmaydi.
+        yield { type: "error", message: translate(opts.lang ?? DEFAULT_LANG, "chErrProviderTemporary") };
+        return true;
+      }
+      continue;
     }
     if (produced) {
       yield { type: "done" };
@@ -560,35 +675,52 @@ async function* streamOpenRouter(
     }
   }
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-    signal: opts.signal,
-  });
+  const lang = opts.lang ?? DEFAULT_LANG;
 
-  if (!res.ok || !res.body) {
-    const message = await errorMessage(res, opts.lang);
-    // Low-credit accounts: "You requested up to N tokens, but can only afford M."
-    const afford = /can only afford (\d+)/i.exec(message);
-    if (afford && !retried) {
-      const allowed = Math.max(256, Number(afford[1]) - 64);
-      yield* streamOpenRouter(model, messages, opts, allowed, true, continuation, skipOmni);
-      return;
-    }
-    // OmniRoute (asosiy yo'l) tugagan/xato bergan bo'lsa — xuddi shu modelni
+  // Provayder xato bersa, javob bermasa yoki uzilib qolsa — bitta umumiy zanjir.
+  async function* failover(message: string): AsyncGenerator<StreamEvent> {
+    // OmniRoute/RSI (asosiy yo'l) tugagan/xato bergan bo'lsa — xuddi shu modelni
     // to'g'ridan-to'g'ri provayder yoki OpenRouter orqali qayta urinamiz.
-    if ((direct?.provider === "omniroute" || direct?.provider === "rsi") && !skipOmni) {
+    // OmniRoute katalog modeli (forced) bundan mustasno: uning id'si OpenRouter
+    // id'si emas va u yerda tarif tekshiruvidan o'tmagan modelga olib borishi mumkin.
+    if ((direct?.provider === "omniroute" || direct?.provider === "rsi") && !skipOmni && !forced) {
       yield* streamOpenRouter(model, messages, opts, maxTokens, retried, continuation, true);
       return;
     }
     // Last resort: the anonymous free tier, so the chat still answers when the
-    // paid/keyed providers are out of credit or rate-limited.
-    if (direct?.provider !== "llm7") {
+    // paid/keyed providers are out of credit or rate-limited. O'z modelimiz
+    // (Tella) uchun emas — begona javob "Tella 2" nomi bilan ko'rinmasin; chat
+    // route boshqa modelga ochiq ("switch") o'tadi.
+    const own = direct?.provider === "tella" || isOwnModel(model.providerModel);
+    if (direct?.provider !== "llm7" && !own && opts.freeRescue !== false) {
       const rescued = yield* streamFreeFallback(messages, opts, maxTokens);
       if (rescued) return;
     }
     yield { type: "error", message };
+  }
+
+  let res: Response;
+  try {
+    res = await fetchUpstream(url, { method: "POST", headers, body: JSON.stringify(body) }, opts.signal);
+  } catch (err) {
+    // Foydalanuvchi to'xtatdi — xato emas, chat route jim yopadi.
+    if (userAborted(opts)) throw err;
+    // Tarmoq xatosi yoki taymaut — generatordan otilmaydi (aks holda chat route
+    // zaxira nomzodlarni sinamay umumiy xato beradi), odatdagi zanjirga o'tadi.
+    console.error(`[ai] ${direct?.provider ?? "openrouter"} ulanmadi:`, err);
+    yield* failover(translate(lang, "chErrProviderTemporary"));
+    return;
+  }
+
+  if (!res.ok || !res.body) {
+    const { message, afford } = await errorMessage(res, lang);
+    // Low-credit accounts: "You requested up to N tokens, but can only afford M."
+    if (afford !== null && !retried) {
+      const allowed = Math.max(256, afford - 64);
+      yield* streamOpenRouter(model, messages, opts, allowed, true, continuation, skipOmni, forced);
+      return;
+    }
+    yield* failover(message);
     return;
   }
 
@@ -625,21 +757,38 @@ async function* streamOpenRouter(
       }
     }
   }
-  for await (const chunk of readSse(res.body)) {
-    const c = chunk as OrChunk;
-    if (c.error?.message) {
-      yield { type: "error", message: c.error.message };
+  try {
+    for await (const chunk of readSse(res.body)) {
+      const c = chunk as OrChunk;
+      if (c.error?.message) {
+        // Oqim ichidagi xato: xom matn faqat logga, foydalanuvchiga tarjima.
+        console.error(`[ai] ${direct?.provider ?? "openrouter"} oqim xatosi:`, c.error.message.slice(0, 500));
+        const code = typeof c.error.code === "number" ? c.error.code : Number(c.error.code) || 0;
+        yield { type: "error", message: friendlyError(c.error.message, code, lang, "chErrProviderTemporary") };
+        return;
+      }
+      const choice = c.choices?.[0];
+      if (choice?.finish_reason) finish = choice.finish_reason;
+      const reason = choice?.delta?.reasoning ?? choice?.delta?.reasoning_content;
+      if (reason) yield { type: "reasoning", text: reason };
+      const text = choice?.delta?.content;
+      if (text) {
+        pending += text;
+        yield* splitThink();
+      }
+    }
+  } catch (err) {
+    if (userAborted(opts)) throw err;
+    // Oqim uzildi yoki jim qoldi (taymaut). Hali matn chiqmagan bo'lsa — odatdagi
+    // zaxira zanjiri; aks holda xato (chat route qisman javobni saqlab to'xtaydi).
+    console.error(`[ai] ${direct?.provider ?? "openrouter"} oqimi uzildi:`, err);
+    if (!produced) {
+      yield* failover(translate(lang, "chErrProviderTemporary"));
       return;
     }
-    const choice = c.choices?.[0];
-    if (choice?.finish_reason) finish = choice.finish_reason;
-    const reason = choice?.delta?.reasoning ?? choice?.delta?.reasoning_content;
-    if (reason) yield { type: "reasoning", text: reason };
-    const text = choice?.delta?.content;
-    if (text) {
-      pending += text;
-      yield* splitThink();
-    }
+    if (pending) yield* splitThink(true);
+    yield { type: "error", message: translate(lang, "chErrProviderTemporary") };
+    return;
   }
   if (pending) yield* splitThink(true);
 
@@ -664,6 +813,9 @@ async function* streamOpenRouter(
       retried,
       continuation + 1,
       skipOmni,
+      // Katalog modeli davomi ham o'sha OmniRoute yo'lida qolsin (aks holda
+      // yarmi boshqa provayder/modeldan kelardi).
+      forced,
     );
     return;
   }
@@ -702,24 +854,37 @@ async function* streamPerplexity(
     .filter((m) => m.role !== "system")
     .map((m) => ({ role: m.role, content: textOf(m.content) }));
 
-  const res = await fetch(`${PERPLEXITY_BASE}/v1/responses`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
-    },
-    body: JSON.stringify({
-      preset: PERPLEXITY_PRESET[model.providerModel] ?? "fast",
-      input,
-      instructions: system,
-      max_output_tokens: opts.maxTokens ?? 1500,
-      stream: true,
-    }),
-    signal: opts.signal,
-  });
+  const lang = opts.lang ?? DEFAULT_LANG;
+  let res: Response;
+  try {
+    res = await fetchUpstream(
+      `${PERPLEXITY_BASE}/v1/responses`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.PERPLEXITY_API_KEY}`,
+        },
+        body: JSON.stringify({
+          preset: PERPLEXITY_PRESET[model.providerModel] ?? "fast",
+          input,
+          instructions: system,
+          max_output_tokens: opts.maxTokens ?? 1500,
+          stream: true,
+        }),
+      },
+      opts.signal,
+    );
+  } catch (err) {
+    if (userAborted(opts)) throw err;
+    // Tarmoq xatosi/taymaut — "error" hodisasi, chat route keyingi nomzodga o'tadi.
+    console.error("[ai] perplexity ulanmadi:", err);
+    yield { type: "error", message: translate(lang, "chErrPerplexity") };
+    return;
+  }
 
   if (!res.ok || !res.body) {
-    yield { type: "error", message: await errorMessage(res, opts.lang) };
+    yield { type: "error", message: (await errorMessage(res, lang)).message };
     return;
   }
 
@@ -727,46 +892,57 @@ async function* streamPerplexity(
   let sentCount = 0;
   let text = "";
 
-  for await (const chunk of readSse(res.body)) {
-    const ev = chunk as PplxEvent;
-    const type = ev.type ?? "";
+  try {
+    for await (const chunk of readSse(res.body, PPLX_IDLE_TIMEOUT_MS)) {
+      const ev = chunk as PplxEvent;
+      const type = ev.type ?? "";
 
-    if (type === "response.output_text.delta" && typeof ev.delta === "string") {
-      text += ev.delta;
-      yield { type: "text", text: ev.delta };
-      continue;
-    }
-
-    if (type === "response.reasoning.search_results" || ev.item?.type === "search_results") {
-      for (const u of collectUrls(ev.results ?? ev.item?.results)) if (!citations.includes(u)) citations.push(u);
-      if (citations.length > sentCount) {
-        sentCount = citations.length;
-        yield { type: "citations", citations: [...citations] };
+      if (type === "response.output_text.delta" && typeof ev.delta === "string") {
+        text += ev.delta;
+        yield { type: "text", text: ev.delta };
+        continue;
       }
-      continue;
-    }
 
-    if (type === "response.failed" || type === "error" || ev.error) {
-      yield { type: "error", message: ev.response?.error?.message ?? ev.error?.message ?? ev.message ?? translate(opts.lang ?? DEFAULT_LANG, "chErrPerplexity") };
-      return;
-    }
-
-    if (type === "response.completed" && ev.response?.output) {
-      for (const item of ev.response.output) {
-        if (item.type === "search_results" || Array.isArray(item.results)) {
-          for (const u of collectUrls(item.results)) if (!citations.includes(u)) citations.push(u);
+      if (type === "response.reasoning.search_results" || ev.item?.type === "search_results") {
+        for (const u of collectUrls(ev.results ?? ev.item?.results)) if (!citations.includes(u)) citations.push(u);
+        if (citations.length > sentCount) {
+          sentCount = citations.length;
+          yield { type: "citations", citations: [...citations] };
         }
-        // Fallback: no deltas were streamed → emit the final text once.
-        if (!text && item.type === "message" && item.content) {
-          const full = item.content.map((c) => c.text ?? "").join("");
-          if (full) {
-            text = full;
-            yield { type: "text", text: full };
+        continue;
+      }
+
+      if (type === "response.failed" || type === "error" || ev.error) {
+        // Xom xato faqat logga; foydalanuvchiga tarjima qilingan umumiy xabar.
+        const raw = ev.response?.error?.message ?? ev.error?.message ?? ev.message ?? "";
+        if (raw) console.error("[ai] perplexity oqim xatosi:", raw.slice(0, 500));
+        yield { type: "error", message: friendlyError(raw, 0, lang, "chErrPerplexity") };
+        return;
+      }
+
+      if (type === "response.completed" && ev.response?.output) {
+        for (const item of ev.response.output) {
+          if (item.type === "search_results" || Array.isArray(item.results)) {
+            for (const u of collectUrls(item.results)) if (!citations.includes(u)) citations.push(u);
+          }
+          // Fallback: no deltas were streamed → emit the final text once.
+          if (!text && item.type === "message" && item.content) {
+            const full = item.content.map((c) => c.text ?? "").join("");
+            if (full) {
+              text = full;
+              yield { type: "text", text: full };
+            }
           }
         }
+        if (citations.length > sentCount) yield { type: "citations", citations: [...citations] };
       }
-      if (citations.length > sentCount) yield { type: "citations", citations: [...citations] };
     }
+  } catch (err) {
+    if (userAborted(opts)) throw err;
+    // Oqim uzildi yoki jim qoldi — otilmaydi, "error" hodisasi bo'ladi.
+    console.error("[ai] perplexity oqimi uzildi:", err);
+    yield { type: "error", message: translate(lang, "chErrPerplexity") };
+    return;
   }
   yield { type: "done" };
 }
@@ -784,6 +960,12 @@ export interface StreamOptions {
   signal?: AbortSignal;
   /** Interfeys tili — foydalanuvchiga ko'rinadigan xato matnlari uchun. */
   lang?: Lang;
+  /**
+   * false — model yiqilsa tekin shlyuzlar (LLM7 va h.k.) jim javob bermaydi,
+   * "error" qaytadi va chaqiruvchi o'z navbatidagi keyingi nomzodga ("switch")
+   * o'tadi. Faqat oxirgi nomzod uchun true (standart: true — eski xatti-harakat).
+   */
+  freeRescue?: boolean;
 }
 
 /** Streams a completion from OpenRouter (or Perplexity for research models). */
