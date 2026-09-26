@@ -65,6 +65,21 @@ export function applyEvent(s, ev, { replay = false } = {}) {
       items[i] = { ...items[i], auto: ev.ok ? "ok" : ev.denied || "command" };
       return { ...s, changes, items };
     }
+    case "snapshot": {
+      // Shell Undo: fayllarni o'zgartirgan buyruq — O'zgarishlar paneliga (Undo main'dagi nusxa id'si bilan).
+      if (replay || !ev.entry?.id) return s;
+      const e = ev.entry;
+      const ch = {
+        kind: "command",
+        snapId: e.id,
+        command: String(e.command ?? ""),
+        counts: e.counts ?? { deleted: 0, modified: 0, created: 0, lost: 0 },
+        files: Array.isArray(e.files) ? e.files : [],
+        moreFiles: e.moreFiles ?? 0,
+        partial: !!e.partial,
+      };
+      return { ...s, changes: [ch, ...s.changes.filter((c) => c.snapId !== ch.snapId)] };
+    }
     case "ledger":
       return { ...s, items: [...s.items, { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, noteCode: ev.noteCode, maxSteps: ev.maxSteps }] };
     case "done":

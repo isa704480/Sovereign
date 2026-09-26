@@ -28,6 +28,7 @@ import {
   HONESTY_RULE,
 } from "../cli/src/tools.mjs";
 import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mjs";
+import { SnapshotStore, withCommandSnapshots } from "../cli/src/snapshot.mjs";
 
 import { OFFLINE, netAllowed, installOfflineGuard } from "./electron/net.mjs";
 import { loadSettings, updateFromRenderer, updateInternal, rememberFolder, isDir } from "./electron/settings.mjs";
@@ -145,7 +146,23 @@ const backupIdByReal = new Map(); // real -> id (bir fayl uchun ENG BIRINCHI asl
 function clearBackups() {
   backupsById.clear();
   backupIdByReal.clear();
+  snapshotStore?.clear().catch(() => {});
 }
+
+// ---- Shell Undo (run_command) ---------------------------------------------
+// "risky" buyruq tasdiqlangach (bajarilishidan oldin) ish papkasi nusxasi olinadi
+// (cli/src/snapshot.mjs — kontent-manzilli, userData/snapshots ichida); buyruqdan
+// keyin o'zgargan/o'chirilgan/yangi fayllar "snapshot" hodisasi bilan O'zgarishlar
+// paneliga yuboriladi. Tiklash faqat main'dagi nusxa id'si bo'yicha (fs:restore-snapshot).
+let snapshotStore = null;
+function getSnapshotStore() {
+  if (!snapshotStore) snapshotStore = new SnapshotStore({ baseDir: join(app.getPath("userData"), "snapshots") });
+  return snapshotStore;
+}
+const runToolWithUndo = withCommandSnapshots(runTool, () => (workspace ? getSnapshotStore() : null), {
+  getRoot: () => workspace,
+  onChange: (entry) => send("snapshot", { entry }),
+});
 
 /**
  * write_file meta'sini boyitadi: eski matn (diff uchun) va Undo zaxirasi id'si.
@@ -347,7 +364,7 @@ async function agentTurn(messages, config, turn) {
   const nudgeState = {};
   // signal: "To'xtatish" / yangi vazifa / papka almashtirish ishlayotgan buyruqni ham
   // (butun jarayon daraxti bilan) to'xtatadi — 120 s kutib qolmaydi.
-  const tracker = createTurnTracker((name, args) => runTool(name, args, confirm, { signal: turn.controller.signal }));
+  const tracker = createTurnTracker((name, args) => runToolWithUndo(name, args, confirm, { signal: turn.controller.signal }));
   for (let step = 0; step < maxSteps; step++) {
     if (turn.aborted) return "stopped";
     let round;
@@ -819,6 +836,19 @@ handle("fs:restore", async (_e, id) => {
     }
     dropBackup(id);
     return { ok: true };
+  } catch (e) {
+    return fsError(e);
+  }
+});
+
+// Shell Undo — buyruq o'zgartirgan fayllar main'dagi nusxadan tiklanadi (faqat nusxa
+// id'si; renderer yo'l bera olmaydi). Nusxa ish papkasi ichida, symlinkka ergashmaydi.
+handle("fs:restore-snapshot", async (_e, id) => {
+  if (typeof id !== "string" || id.length > 64 || !snapshotStore?.has(id)) return { error: "no-backup" };
+  try {
+    const r = await snapshotStore.restore(id);
+    if (r.ok) return { ok: true, restored: r.restored, removed: r.removed, kept: r.kept.length, lost: r.lost };
+    return { error: r.error || "io", detail: r.failed.length ? String(r.failed.length) : "", kept: r.kept.length };
   } catch (e) {
     return fsError(e);
   }

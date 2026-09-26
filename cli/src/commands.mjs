@@ -27,6 +27,7 @@ export const SLASH_COMMANDS = [
   { cmd: "/sessions", desc: "Saqlangan suhbatlar ro'yxati" },
   { cmd: "/resume",   desc: "Suhbatni davom ettirish — /resume <id>" },
   { cmd: "/rewind",   desc: "Oxirgi savolni qaytarish — /rewind [n]" },
+  { cmd: "/undo",     desc: "Buyruq o'zgartirgan fayllarni qaytarish — /undo [n | list]" },
   { cmd: "/fork",     desc: "Joriy suhbatdan yangi shox ochish" },
 
   { cmd: "/vibe",     desc: "Vibe rejim — kodni faqat AI yozadi" },

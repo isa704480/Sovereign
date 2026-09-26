@@ -119,7 +119,8 @@ export default function App() {
         return;
       }
       dispatch({ type: "event", ev });
-      if (ev.type === "tool-done" && (ev.name === "write_file" || ev.name === "make_dir") && ev.status === "ok") refreshTree();
+      if (ev.type === "tool-done" && (ev.name === "write_file" || ev.name === "make_dir" || ev.name === "run_command") && ev.status !== "declined" && ev.status !== "skipped") refreshTree();
+      if (ev.type === "snapshot") refreshTree();
     });
     return () => off();
   }, [refreshTree]);
@@ -225,14 +226,24 @@ export default function App() {
   };
 
   const restoreOne = async (ch) => {
+    if (ch.kind === "command") {
+      // Shell Undo — buyruq o'zgartirgan fayllar main'dagi nusxadan.
+      const r = await S().fsRestoreSnapshot(ch.snapId).catch(() => null);
+      if (r?.ok && r.kept) toast(t("changes.cmdKept", { n: r.kept }), "info");
+      return r?.ok ? null : fsErrText(r, t);
+    }
     if (!ch.backupId) return t("changes.noBackup");
     const r = await S().fsRestore(ch.backupId);
     return r?.ok ? null : fsErrText(r, t);
   };
   const undoChange = async (ch) => {
     const err = await restoreOne(ch);
-    if (err) toast(`${t("changes.undoFailed")}: ${ch.path} — ${err}`, "err");
-    else { dispatch({ type: "set-changes", changes: agent.changes.filter((c) => c.path !== ch.path) }); toast(t("changes.undone", { path: ch.path }), "ok"); }
+    const label = ch.kind === "command" ? ch.command : ch.path;
+    if (err) toast(`${t("changes.undoFailed")}: ${label} — ${err}`, "err");
+    else {
+      dispatch({ type: "set-changes", changes: agent.changes.filter((c) => c !== ch) });
+      toast(ch.kind === "command" ? t("changes.cmdUndone", { cmd: label }) : t("changes.undone", { path: label }), "ok");
+    }
     refreshTree();
   };
   const undoAll = async () => {
@@ -368,8 +379,10 @@ export default function App() {
     );
   }
 
-  const changedSet = new Set(agent.changes.map((c) => {
-    const abs = /^([a-zA-Z]:[\\/]|[\\/])/.test(c.path) ? c.path : `${info.cwd ?? ""}/${c.path}`;
+  // Buyruq yozuvlarida — o'zgargan/yangi fayllar (o'chirilganlar daraxtda yo'q).
+  const changedPaths = agent.changes.flatMap((c) => (c.kind === "command" ? c.files.filter((f) => f.kind === "modified" || f.kind === "created").map((f) => f.path) : [c.path]));
+  const changedSet = new Set(changedPaths.map((p) => {
+    const abs = /^([a-zA-Z]:[\\/]|[\\/])/.test(p) ? p : `${info.cwd ?? ""}/${p}`;
     return abs.replace(/\\/g, "/").replace(/\/\.\//g, "/").toLowerCase();
   }));
   const disabledReason = !info.authed ? "auth" : mode === "code" && !info.cwd ? "folder" : null;

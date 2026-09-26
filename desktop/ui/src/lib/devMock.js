@@ -84,6 +84,8 @@ export function install() {
       if (!ok) return { status: "declined", result: "Foydalanuvchi rad etdi." };
       await sleep(700);
       const output = "EXIT 0\n> demo-shop@1.0.0 test\n> node --test\n\n✔ health endpoint (12ms)\nℹ tests 1  pass 1  fail 0";
+      // Shell Undo namunasi: buyruq fayllarni o'zgartirgan — O'zgarishlar panelida Undo bilan.
+      emit({ type: "snapshot", entry: { id: uuid(), command: "npm test", counts: { deleted: 0, modified: 1, created: 1, lost: 0 }, total: 2, files: [{ path: "package-lock.json", kind: "modified" }, { path: "test-results.json", kind: "created" }], moreFiles: 0, partial: false } });
       emit({ type: "terminal", command: "npm test", output, status: "ok" });
       return { status: "ok", result: output, exit: "0" };
     });
@@ -123,6 +125,7 @@ export function install() {
     fsTree: async () => ({ cwd, nodes: cwd ? tree : [] }),
     fsRead: async (p) => ({ content: `// ${p}\nexport default function Demo() {\n  return null;\n}\n` }),
     fsRestore: async () => ({ ok: true }),
+    fsRestoreSnapshot: async () => ({ ok: true, restored: 1, removed: 1, kept: 0, lost: 0 }),
     setModel: async (id, label) => { model = id ? label || id : "Auto"; return { ok: true, model }; },
     models: async (q) => {
       await sleep(300);

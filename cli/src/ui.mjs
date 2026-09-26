@@ -247,7 +247,7 @@ export function slashMenu(items) {
   // Group by category — Apple-style hierarchy
   const groups = [
     { label: "Suhbat",   cmds: ["/help", "/clear", "/attach", "/detach"] },
-    { label: "Sessiya",  cmds: ["/sessions", "/resume", "/rewind", "/fork"] },
+    { label: "Sessiya",  cmds: ["/sessions", "/resume", "/rewind", "/undo", "/fork"] },
     { label: "Rejim",    cmds: ["/vibe", "/auto", "/swarm"] },
     { label: "Model",    cmds: ["/model", "/models"] },
     { label: "Skillar",  cmds: ["/skills", "/skill"] },
