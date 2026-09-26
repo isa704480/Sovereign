@@ -25,6 +25,7 @@ import { P8A } from "@/lib/locales/p8-a";
 import { P8B } from "@/lib/locales/p8-b";
 import { P8C } from "@/lib/locales/p8-c";
 import { P8D } from "@/lib/locales/p8-d";
+import { P9W } from "@/lib/locales/p9-web";
 
 export type Lang = "uz" | "uz-cyrl" | "ru" | "en";
 
@@ -518,7 +519,7 @@ const CORE = {
   onbEnter: { uz: "SOVEREIGN'ga kirish", "uz-cyrl": "SOVEREIGN'га кириш", ru: "Войти в SOVEREIGN", en: "Enter SOVEREIGN" },
 } as const;
 
-const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D };
+const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D, ...P9W };
 
 export type TKey = keyof typeof DICT;
 

@@ -6,6 +6,7 @@ import { persist, type PersistStorage, type StateStorage, type StorageValue } fr
 import { AUTO_MODEL_ID, DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
 import type { Attachment } from "@/lib/chat/attachments";
+import type { AnswerMeta } from "@/lib/chat/answer-meta";
 import { DEFAULT_AGENT_MODE } from "@/config/agent-modes";
 import { DEFAULT_LANG, isLang, translate, type Lang, type TKey } from "@/lib/i18n";
 
@@ -84,6 +85,8 @@ export interface ChatMessage {
   switched?: { from: string; to: string; reason: string }[];
   /** Verifier tomonidan topilgan shubhali faktlar. */
   verifier?: VerifierIssue[];
+  /** Haqiqatda javob bergan model va shu javob uchun hisoblangan token (server "meta" hodisasi). */
+  meta?: AnswerMeta;
   createdAt: string;
   /** User xabari rasm so'rovi bo'lgan ("+ → Rasm" rejimi) — qayta yaratish/tahrirlash ham rasm yo'lidan. */
   kind?: "image" | "video";
@@ -549,7 +552,18 @@ export const useChat = create<ChatState>()(
             const local = conversations[c.id];
             // Keep whichever side is newer; local streaming state always wins.
             if (!local || new Date(c.updatedAt) > new Date(local.updatedAt)) {
-              conversations[c.id] = { ...c, messages: c.messages.map((m) => ({ ...m, status: "done" as const })) };
+              const localById = new Map((local?.messages ?? []).map((m) => [m.id, m]));
+              conversations[c.id] = {
+                ...c,
+                messages: c.messages.map((m) => {
+                  const lm = localById.get(m.id);
+                  if (!lm) return { ...m, status: "done" as const };
+                  // Serverga rasm/video o'rniga belgi yuboriladi (data: URL juda katta) —
+                  // shu qurilmadagi asl nusxa va faqat mahalliy maydonlar (meta, fayllar) saqlanadi.
+                  const keepLocalMedia = /\]\(data:(image|video)\//.test(lm.content) && !m.content.includes("](data:");
+                  return { ...lm, ...m, content: keepLocalMedia ? lm.content : m.content, status: "done" as const };
+                }),
+              };
             }
           }
           const order = Object.values(conversations)

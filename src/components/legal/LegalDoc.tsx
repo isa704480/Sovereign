@@ -41,7 +41,7 @@ export function LegalDoc({ doc }: { doc: LegalDocId }) {
 
       <div className="mt-10 space-y-8 text-[15px] leading-relaxed text-text-secondary">
         {c.sections.map((s, i) => (
-          <section key={i}>
+          <section key={i} id={s.id} className={s.id ? "scroll-mt-28" : undefined}>
             <h2 className="font-display text-lg font-bold text-text-primary">
               <span className="mr-2 font-mono text-sm text-text-muted">{i + 1}.</span>
               {s.h}

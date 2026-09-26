@@ -8,6 +8,8 @@ import type { Lang } from "@/lib/i18n";
 export type LegalDocId = "terms" | "privacy" | "refund";
 
 export interface LegalSection {
+  /** Havola uchun langar (/privacy#chat-data). */
+  id?: string;
   h: string;
   body?: string;
   list?: string[];
@@ -20,7 +22,7 @@ export interface LegalContent {
   note?: string;
 }
 
-export const LEGAL_UPDATED = "2026-09-22";
+export const LEGAL_UPDATED = "2026-09-26";
 export const LEGAL_EMAIL = "isa704480@gmail.com";
 
 const MAIL = `[${LEGAL_EMAIL}](mailto:${LEGAL_EMAIL})`;
@@ -58,7 +60,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Maxfiylik va ma'lumotlar",
-          body: "Xotira va shaxsiy ma'lumotlaringiz AES-256-GCM bilan shifrlanadi va faqat sizning qurilmangizda ochiladi (zero-knowledge). Batafsil ma'lumot [Maxfiylik siyosati](/privacy)da. Xizmat ma'lumotlaringizni uchinchi tomonlarga sotmaydi.",
+          body: "Suhbat va xotirangiz ma'lumotlar bazamizda hisobingizga bog'langan holda saqlanadi va javob berish uchun AI provayderlarga yuboriladi. Nima saqlanishi, qaysi provayderlar qayta ishlashi va ma'lumotni qanday o'chirish — [Maxfiylik siyosati](/privacy#chat-data)da. Xizmat ma'lumotlaringizni uchinchi tomonlarga sotmaydi.",
         },
         {
           h: "Intellektual mulk",
@@ -101,7 +103,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Махфийлик ва маълумотлар",
-          body: "Хотира ва шахсий маълумотларингиз AES-256-GCM билан шифрланади ва фақат сизнинг қурилмангизда очилади (zero-knowledge). Батафсил маълумот [Махфийлик сиёсати](/privacy)да. Хизмат маълумотларингизни учинчи томонларга сотмайди.",
+          body: "Суҳбат ва хотирангиз маълумотлар базамизда ҳисобингизга боғланган ҳолда сақланади ва жавоб бериш учун AI провайдерларга юборилади. Нима сақланиши, қайси провайдерлар қайта ишлаши ва маълумотни қандай ўчириш — [Махфийлик сиёсати](/privacy#chat-data)да. Хизмат маълумотларингизни учинчи томонларга сотмайди.",
         },
         {
           h: "Интеллектуал мулк",
@@ -144,7 +146,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Конфиденциальность и данные",
-          body: "Ваша память и персональные данные шифруются с помощью AES-256-GCM и расшифровываются только на вашем устройстве (zero-knowledge). Подробнее — в [Политике конфиденциальности](/privacy). Сервис не продаёт ваши данные третьим лицам.",
+          body: "Ваши чаты и память хранятся в нашей базе данных с привязкой к аккаунту и отправляются AI-провайдерам для получения ответа. Что хранится, какие провайдеры обрабатывают запросы и как удалить данные — в [Политике конфиденциальности](/privacy#chat-data). Сервис не продаёт ваши данные третьим лицам.",
         },
         {
           h: "Интеллектуальная собственность",
@@ -187,7 +189,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Privacy and data",
-          body: "Your memory and personal data are encrypted with AES-256-GCM and are decrypted only on your device (zero-knowledge). See the [Privacy Policy](/privacy) for details. The Service does not sell your data to third parties.",
+          body: "Your chats and memory are stored in our database linked to your account and are sent to AI providers to generate answers. What is stored, which providers process requests and how to delete your data is described in the [Privacy Policy](/privacy#chat-data). The Service does not sell your data to third parties.",
         },
         {
           h: "Intellectual property",
@@ -221,17 +223,26 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
           list: [
             "**Hisob:** email, ism (ixtiyoriy), autentifikatsiya identifikatori.",
             "**Foydalanish:** so'rovlar soni, tanlangan model, tarif holati — xizmatni ta'minlash uchun.",
-            "**Xotira/suhbatlar:** siz saqlagan kontent — **shifrlangan** holda (quyida).",
+            "**Suhbatlar va xotira:** suhbatlaringiz, xotira saqlagan faktlar va bilim bazasi hujjatlari ma'lumotlar bazamizda (Supabase) hisobingizga bog'langan holda saqlanadi. Ularni faqat sizning hisobingiz o'qiy oladi va baza provayderi ularni diskda shifrlaydi, lekin ular **uchidan-uchiga (end-to-end) shifrlanmagan** — sizga javob berish uchun serverimiz ularni o'qiydi.",
             "**To'lov:** to'lov shlyuzi (Dodo Payments / kripto / RollyPay СБП) tomonidan qayta ishlanadi; biz karta ma'lumotlaringizni saqlamaymiz.",
           ],
         },
         {
-          h: "Zero-knowledge shifrlash",
-          body: "Xotira va shaxsiy kontentingiz **AES-256-GCM** bilan shifrlanadi. Shifrlash kaliti sizning qurilmangizda ochiladi — biz uni ko'ra olmaymiz (zero-knowledge). Serverda ma'lumot faqat shifrlangan ko'rinishda turadi.",
+          id: "chat-data",
+          h: "Suhbatlaringiz va AI modellar",
+          list: [
+            "**Qayerga yuboriladi:** har bir xabar serverimizdan siz tanlagan modelni ishlatadigan AI provayderga yuboriladi. Model va mavjudlikka qarab: OpenRouter, OmniRoute, Perplexity, Groq, Cerebras, SambaNova, Mistral, OpenAI, NVIDIA NIM, RSI AI. OmniRoute — bizning yo'naltirish shlyuzimiz, u so'rovni o'ziga ulangan provayderlarga uzatadi. Asosiy provayderlar ishlamasa — tekin zaxira shlyuzlar (LLM7, Experiential Labs). Bilim bazasi va javob keshi uchun matn embedding'i OpenRouter orqali hisoblanadi.",
+            "**Qaysi model javob berdi:** har javob ostida haqiqatda javob bergan model va shu javob uchun hisoblangan token ko'rsatiladi. Tanlangan model ishlamay, boshqasi javob bergan bo'lsa — buni ochiq yozamiz (\"so'ralgan: X → javob: Y\").",
+            "**Provayderlar siyosati:** bu provayderlar so'rovlarni o'z shartlari va maxfiylik siyosatlari asosida qayta ishlaydi; ba'zilari so'rovlarni saqlashi yoki jurnalga yozishi mumkin. Biz buni nazorat qilmaymiz va ular ma'lumotdan o'qitishda foydalanmasligiga kafolat bera olmaymiz. Maxfiy ma'lumot uchun maxfiy rejimni (Blind Prompting) yoqing.",
+            "**O'qitish:** SOVEREIGN suhbatlaringizni sotmaydi va provayderlarga o'qitish uchun bermaydi. Yagona istisno — o'z modelimiz Tella: Sozlamalardagi \"Tella 2 ni o'rgatish\" yoqilgan bo'lsa (standart holatda yoqilgan), oddiy suhbatlardagi qisqa savol-javoblar hisob identifikatorisiz saqlanishi mumkin. Hech qachon saqlanmaydi: fayl, bilim bazasi, xotira, ulangan servis, siz yuborgan havola, o'z skilingiz yoki maxfiy rejim ishlatilgan suhbatlar, shuningdek email, telefon, karta raqami yoki API kalit topilgan matn. Sozlamalar → Ma'lumotlar va maxfiylik bo'limida o'chirsangiz, yangi namunalar yig'ilmaydi.",
+            "**Javob keshi:** shaxsiy kontekstsiz oddiy savollar (xotira, fayl, havola, bilim bazasi yo'q) savol va javob matni sifatida, hisob identifikatorisiz umumiy keshga yoziladi va 24 soat davomida xuddi shunday savollarga — boshqa foydalanuvchilarga ham — tezroq javob berish uchun ishlatiladi.",
+            "**Yaratilgan rasmlar:** yaratilgan rasm va videolar faqat brauzeringizda saqlanadi; serverga (va boshqa qurilmalaringizga) ular o'rniga faqat belgi sinxronlanadi.",
+            "**O'chirish:** suhbatni ro'yxatdan alohida o'chirishingiz mumkin; Sozlamalar → Ma'lumotlar va maxfiylik → \"Barcha ma'lumotni o'chirish\" barcha suhbatlar (xabarlari bilan) va xotirangizni bazamizdan o'chiradi. Hisob identifikatorisiz saqlangan o'qitish namunalari va kesh yozuvlarini sizga bog'lab topib bo'lmaydi, shuning uchun ular bu yo'l bilan o'chmaydi. Hisobni butunlay o'chirish uchun bizga yozing.",
+          ],
         },
         {
           h: "Blind Prompting",
-          body: "AI modelga so'rov yuborilishidan oldin ism, raqam, kompaniya kabi maxfiy bo'laklar maskalanadi. Shu tufayli AI provayderlari sizning haqiqiy ma'lumotingizni ko'rmaydi.",
+          body: "Maxfiy rejim (Blind Prompting) yoqilganda AI modelga so'rov yuborilishidan oldin ism, raqam, kompaniya kabi maxfiy bo'laklar brauzeringizda maskalanadi, shuning uchun AI provayderlari ularni ko'rmaydi. Maskalash avtomatik va namunaga asoslangan — ba'zi tafsilotlarni o'tkazib yuborishi mumkin. Rejim o'chiq bo'lsa, so'rov matni provayderga o'zgarishsiz yuboriladi.",
         },
         {
           h: "Ma'lumotdan qanday foydalanamiz",
@@ -239,7 +250,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Uchinchi tomon xizmatlari",
-          body: "Xizmat ishlashi uchun: AI model provayderlari (maskalangan so'rov qayta ishlash uchun), hosting (Vercel), ma'lumotlar bazasi (Supabase) va to'lov shlyuzlari (Dodo Payments, kripto). Har biri o'z maxfiylik siyosatiga ega.",
+          body: "Xizmat ishlashi uchun: AI model provayderlari (so'rovlaringizni qayta ishlash uchun — ro'yxati yuqorida), hosting (Vercel), ma'lumotlar bazasi (Supabase) va to'lov shlyuzlari (Dodo Payments, kripto). Har biri o'z maxfiylik siyosatiga ega.",
         },
         {
           h: "Saqlash muddati",
@@ -272,17 +283,26 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
           list: [
             "**Ҳисоб:** email, исм (ихтиёрий), аутентификация идентификатори.",
             "**Фойдаланиш:** сўровлар сони, танланган модел, тариф ҳолати — хизматни таъминлаш учун.",
-            "**Хотира/суҳбатлар:** сиз сақлаган контент — **шифрланган** ҳолда (қуйида).",
+            "**Суҳбатлар ва хотира:** суҳбатларингиз, хотира сақлаган фактлар ва билимлар базаси ҳужжатлари маълумотлар базамизда (Supabase) ҳисобингизга боғланган ҳолда сақланади. Уларни фақат сизнинг ҳисобингиз ўқий олади ва база провайдери уларни дискда шифрлайди, лекин улар **учидан-учига (end-to-end) шифрланмаган** — сизга жавоб бериш учун серверимиз уларни ўқийди.",
             "**Тўлов:** тўлов шлюзи (Dodo Payments / крипто / RollyPay СБП) томонидан қайта ишланади; биз карта маълумотларингизни сақламаймиз.",
           ],
         },
         {
-          h: "Zero-knowledge шифрлаш",
-          body: "Хотира ва шахсий контентингиз **AES-256-GCM** билан шифрланади. Шифрлаш калити сизнинг қурилмангизда очилади — биз уни кўра олмаймиз (zero-knowledge). Серверда маълумот фақат шифрланган кўринишда туради.",
+          id: "chat-data",
+          h: "Суҳбатларингиз ва AI моделлар",
+          list: [
+            "**Қаерга юборилади:** ҳар бир хабар серверимиздан сиз танлаган моделни ишлатадиган AI провайдерга юборилади. Модел ва мавжудликка қараб: OpenRouter, OmniRoute, Perplexity, Groq, Cerebras, SambaNova, Mistral, OpenAI, NVIDIA NIM, RSI AI. OmniRoute — бизнинг йўналтириш шлюзимиз, у сўровни ўзига уланган провайдерларга узатади. Асосий провайдерлар ишламаса — текин захира шлюзлар (LLM7, Experiential Labs). Билимлар базаси ва жавоб кеши учун матн эмбеддинги OpenRouter орқали ҳисобланади.",
+            "**Қайси модел жавоб берди:** ҳар жавоб остида ҳақиқатда жавоб берган модел ва шу жавоб учун ҳисобланган токен кўрсатилади. Танланган модел ишламай, бошқаси жавоб берган бўлса — буни очиқ ёзамиз (\"сўралган: X → жавоб: Y\").",
+            "**Провайдерлар сиёсати:** бу провайдерлар сўровларни ўз шартлари ва махфийлик сиёсатлари асосида қайта ишлайди; баъзилари сўровларни сақлаши ёки журналга ёзиши мумкин. Биз буни назорат қилмаймиз ва улар маълумотдан ўқитишда фойдаланмаслигига кафолат бера олмаймиз. Махфий маълумот учун махфий режимни (Blind Prompting) ёқинг.",
+            "**Ўқитиш:** SOVEREIGN суҳбатларингизни сотмайди ва провайдерларга ўқитиш учун бермайди. Ягона истисно — ўз моделимиз Tella: Созламалардаги \"Tella 2 ни ўргатиш\" ёқилган бўлса (стандарт ҳолатда ёқилган), оддий суҳбатлардаги қисқа савол-жавоблар ҳисоб идентификаторисиз сақланиши мумкин. Ҳеч қачон сақланмайди: файл, билимлар базаси, хотира, уланган сервис, сиз юборган ҳавола, ўз скилингиз ёки махфий режим ишлатилган суҳбатлар, шунингдек email, телефон, карта рақами ёки API калит топилган матн. Созламалар → Маълумотлар ва махфийлик бўлимида ўчирсангиз, янги намуналар йиғилмайди.",
+            "**Жавоб кеши:** шахсий контекстсиз оддий саволлар (хотира, файл, ҳавола, билимлар базаси йўқ) савол ва жавоб матни сифатида, ҳисоб идентификаторисиз умумий кешга ёзилади ва 24 соат давомида худди шундай саволларга — бошқа фойдаланувчиларга ҳам — тезроқ жавоб бериш учун ишлатилади.",
+            "**Яратилган расмлар:** яратилган расм ва видеолар фақат браузерингизда сақланади; серверга (ва бошқа қурилмаларингизга) улар ўрнига фақат белги синхронланади.",
+            "**Ўчириш:** суҳбатни рўйхатдан алоҳида ўчиришингиз мумкин; Созламалар → Маълумотлар ва махфийлик → \"Барча маълумотни ўчириш\" барча суҳбатлар (хабарлари билан) ва хотирангизни базамиздан ўчиради. Ҳисоб идентификаторисиз сақланган ўқитиш намуналари ва кеш ёзувларини сизга боғлаб топиб бўлмайди, шунинг учун улар бу йўл билан ўчмайди. Ҳисобни бутунлай ўчириш учун бизга ёзинг.",
+          ],
         },
         {
           h: "Blind Prompting",
-          body: "AI моделга сўров юборилишидан олдин исм, рақам, компания каби махфий бўлаклар маскаланади. Шу туфайли AI провайдерлари сизнинг ҳақиқий маълумотингизни кўрмайди.",
+          body: "Махфий режим (Blind Prompting) ёқилганда AI моделга сўров юборилишидан олдин исм, рақам, компания каби махфий бўлаклар браузерингизда маскаланади, шунинг учун AI провайдерлари уларни кўрмайди. Маскалаш автоматик ва намунага асосланган — баъзи тафсилотларни ўтказиб юбориши мумкин. Режим ўчиқ бўлса, сўров матни провайдерга ўзгаришсиз юборилади.",
         },
         {
           h: "Маълумотдан қандай фойдаланамиз",
@@ -290,7 +310,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Учинчи томон хизматлари",
-          body: "Хизмат ишлаши учун: AI модел провайдерлари (маскаланган сўров қайта ишлаш учун), хостинг (Vercel), маълумотлар базаси (Supabase) ва тўлов шлюзлари (Dodo Payments, крипто). Ҳар бири ўз махфийлик сиёсатига эга.",
+          body: "Хизмат ишлаши учун: AI модел провайдерлари (сўровларингизни қайта ишлаш учун — рўйхати юқорида), хостинг (Vercel), маълумотлар базаси (Supabase) ва тўлов шлюзлари (Dodo Payments, крипто). Ҳар бири ўз махфийлик сиёсатига эга.",
         },
         {
           h: "Сақлаш муддати",
@@ -323,17 +343,26 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
           list: [
             "**Аккаунт:** email, имя (необязательно), идентификатор аутентификации.",
             "**Использование:** количество запросов, выбранная модель, статус тарифа — для предоставления сервиса.",
-            "**Память/чаты:** сохранённый вами контент — в **зашифрованном** виде (см. ниже).",
+            "**Чаты и память:** ваши чаты, факты, сохранённые памятью, и документы базы знаний хранятся в нашей базе данных (Supabase) с привязкой к аккаунту. Читать их может только ваш аккаунт, провайдер базы шифрует их на диске, но они **не зашифрованы сквозным (end-to-end) шифрованием** — наш сервер читает их, чтобы ответить вам.",
             "**Оплата:** обрабатывается платёжным шлюзом (Dodo Payments / крипто / RollyPay СБП); мы не храним данные вашей карты.",
           ],
         },
         {
-          h: "Шифрование zero-knowledge",
-          body: "Ваша память и личный контент шифруются с помощью **AES-256-GCM**. Ключ шифрования открывается на вашем устройстве — мы не можем его увидеть (zero-knowledge). На сервере данные хранятся только в зашифрованном виде.",
+          id: "chat-data",
+          h: "Ваши чаты и AI-модели",
+          list: [
+            "**Куда отправляются:** каждое сообщение отправляется с нашего сервера AI-провайдеру, который обслуживает выбранную модель. В зависимости от модели и доступности: OpenRouter, OmniRoute, Perplexity, Groq, Cerebras, SambaNova, Mistral, OpenAI, NVIDIA NIM, RSI AI. OmniRoute — наш шлюз маршрутизации, он передаёт запрос подключённым к нему провайдерам. Если основные провайдеры недоступны — бесплатные резервные шлюзы (LLM7, Experiential Labs). Эмбеддинги текста для базы знаний и кеша ответов вычисляются через OpenRouter.",
+            "**Какая модель ответила:** под каждым ответом показаны модель, которая на самом деле ответила, и число токенов, посчитанное за этот ответ. Если выбранная модель не сработала и ответила другая — мы пишем это открыто («запрошено: X → ответила: Y»).",
+            "**Политики провайдеров:** провайдеры обрабатывают запросы по своим условиям и политикам конфиденциальности; некоторые могут хранить или журналировать запросы. Мы это не контролируем и не можем гарантировать, что они не используют данные для обучения. Для конфиденциальных данных включайте приватный режим (Blind Prompting).",
+            "**Обучение:** SOVEREIGN не продаёт ваши чаты и не передаёт их провайдерам для обучения. Единственное исключение — наша собственная модель Tella: если в Настройках включено «Обучать Tella 2» (по умолчанию включено), короткие пары «вопрос-ответ» из обычных чатов могут сохраняться без идентификатора аккаунта. Никогда не сохраняются: чаты с файлами, базой знаний, памятью, подключёнными сервисами, присланными ссылками, собственными навыками или в приватном режиме, а также текст, в котором найдены email, телефон, номер карты или API-ключ. Если отключить это в Настройках → Данные и приватность, новые примеры не собираются.",
+            "**Кеш ответов:** простые вопросы без личного контекста (без памяти, файлов, ссылок и базы знаний) записываются в общий кеш как текст вопроса и ответа, без идентификатора аккаунта, и 24 часа используются для быстрого ответа на такие же вопросы — в том числе другим пользователям.",
+            "**Созданные изображения:** созданные изображения и видео хранятся только в вашем браузере; на сервер (и на другие ваши устройства) вместо них синхронизируется только отметка.",
+            "**Удаление:** чат можно удалить из списка по отдельности; Настройки → Данные и приватность → «Удалить все данные» удаляет из нашей базы все чаты (вместе с сообщениями) и память. Примеры для обучения и записи кеша хранятся без идентификатора аккаунта, поэтому их нельзя найти по вашему аккаунту, и так они не удаляются. Чтобы полностью удалить аккаунт, напишите нам.",
+          ],
         },
         {
           h: "Blind Prompting",
-          body: "Перед отправкой запроса модели ИИ конфиденциальные фрагменты — имена, номера, названия компаний и т. п. — маскируются. Благодаря этому поставщики ИИ не видят ваши реальные данные.",
+          body: "Когда включён приватный режим (Blind Prompting), конфиденциальные фрагменты — имена, номера, названия компаний и т. п. — маскируются в вашем браузере до отправки запроса модели, поэтому AI-провайдеры их не видят. Маскирование автоматическое и основано на шаблонах — отдельные детали могут быть пропущены. Если режим выключен, текст запроса отправляется провайдеру без изменений.",
         },
         {
           h: "Как мы используем данные",
@@ -341,7 +370,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Сторонние сервисы",
-          body: "Для работы Сервиса используются: поставщики моделей ИИ (для обработки замаскированных запросов), хостинг (Vercel), база данных (Supabase) и платёжные шлюзы (Dodo Payments, крипто). У каждого из них своя политика конфиденциальности.",
+          body: "Для работы Сервиса используются: поставщики моделей ИИ (для обработки ваших запросов — список выше), хостинг (Vercel), база данных (Supabase) и платёжные шлюзы (Dodo Payments, крипто). У каждого из них своя политика конфиденциальности.",
         },
         {
           h: "Срок хранения",
@@ -374,17 +403,26 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
           list: [
             "**Account:** email, name (optional), authentication identifier.",
             "**Usage:** number of requests, selected model, plan status — to provide the service.",
-            "**Memory/chats:** content you save — stored **encrypted** (see below).",
+            "**Chats and memory:** your chats, the facts saved by memory and your knowledge-base documents are stored in our database (Supabase), linked to your account. Only your account can read them and the database provider encrypts them at rest, but they are **not end-to-end encrypted** — our server reads them in order to answer you.",
             "**Payment:** processed by the payment gateway (Dodo Payments / crypto / RollyPay SBP); we do not store your card details.",
           ],
         },
         {
-          h: "Zero-knowledge encryption",
-          body: "Your memory and personal content are encrypted with **AES-256-GCM**. The encryption key is unlocked on your device — we cannot see it (zero-knowledge). On the server, data is stored only in encrypted form.",
+          id: "chat-data",
+          h: "Your chats and AI models",
+          list: [
+            "**Where they go:** each message is sent from our server to the AI provider that runs the model you chose. Depending on the model and availability: OpenRouter, OmniRoute, Perplexity, Groq, Cerebras, SambaNova, Mistral, OpenAI, NVIDIA NIM, RSI AI. OmniRoute is our routing gateway; it forwards the request to the providers connected to it. If the main providers fail, free backup gateways are used (LLM7, Experiential Labs). Text embeddings for the knowledge base and answer cache are computed via OpenRouter.",
+            "**Which model answered:** under every reply we show the model that actually answered and the tokens counted for that reply. If the model you chose failed and a different one answered, we say so openly (\"requested: X → answered by: Y\").",
+            "**Provider policies:** these providers process requests under their own terms and privacy policies; some may store or log requests. We do not control this and cannot guarantee that they do not use data for training. For sensitive data, turn on private mode (Blind Prompting).",
+            "**Training:** SOVEREIGN does not sell your chats or give them to providers for training. The only exception is our own model, Tella: if \"Train Tella 2\" is on in Settings (it is on by default), short question-answer pairs from ordinary chats may be saved without your account ID. Never saved: chats that used files, the knowledge base, memory, connected services, links you sent, your own skills or private mode, and any text where an email, phone number, card number or API key was detected. Turn it off in Settings → Data & privacy and no new samples are collected.",
+            "**Answer cache:** simple questions without personal context (no memory, files, links or knowledge base) are written to a shared cache as question and answer text, without your account ID, and are used for 24 hours to answer identical questions faster — including for other users.",
+            "**Generated images:** generated images and videos are kept only in your browser; only a placeholder is synced to our server (and your other devices) in their place.",
+            "**Deletion:** you can delete a single chat from the list; Settings → Data & privacy → \"Delete all data\" deletes all your chats (with their messages) and memory from our database. Training samples and cache entries are stored without an account ID, so they cannot be traced back to you and are not removed this way. To delete your account completely, email us.",
+          ],
         },
         {
           h: "Blind Prompting",
-          body: "Before a request is sent to an AI model, sensitive fragments such as names, numbers and company names are masked. As a result, AI providers do not see your real data.",
+          body: "When private mode (Blind Prompting) is on, sensitive fragments such as names, numbers and company names are masked in your browser before the request is sent to an AI model, so AI providers do not see them. Masking is automatic and pattern-based and may miss some details. When the mode is off, the request text is sent to the provider unchanged.",
         },
         {
           h: "How we use data",
@@ -392,7 +430,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Third-party services",
-          body: "To operate the Service we use: AI model providers (to process masked requests), hosting (Vercel), a database (Supabase) and payment gateways (Dodo Payments, crypto). Each has its own privacy policy.",
+          body: "To operate the Service we use: AI model providers (to process your requests — listed above), hosting (Vercel), a database (Supabase) and payment gateways (Dodo Payments, crypto). Each has its own privacy policy.",
         },
         {
           h: "Retention period",
