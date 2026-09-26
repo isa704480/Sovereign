@@ -31,6 +31,8 @@ const BOOL_FLAGS = {
   "-y": "yes",
   "--yes": "yes",
   "--vibe": "vibe",
+  "--full-auto": "fullAuto",
+  "--auto": "fullAuto",
   "--no-vibe": "noVibe",
   "--no-color": "noColor",
   "--no-verify": "noVerify",

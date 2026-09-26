@@ -9,6 +9,9 @@ import {
   ledgerWorthShowing,
   unsupportedClaim,
   HONESTY_RULE,
+  FULL_AUTO_RULE,
+  FULL_AUTO_MAX_NUDGES,
+  fullAutoNudge,
 } from "./tools.mjs";
 import { c, spinner, renderMarkdown, markdownStream } from "./ui.mjs";
 import { memorySystemMessage } from "./memory.mjs";
@@ -31,6 +34,12 @@ const SYSTEM = [
   HONESTY_RULE,
   "Ish tugagach, vosita natijalari TASDIQLAGAN ishni 1-2 gapda xulosala.",
 ].join(" ");
+
+function withFullAuto(messages) {
+  const system = messages.filter((m) => m.role === "system");
+  const rest = messages.filter((m) => m.role !== "system");
+  return [...system, { role: "system", content: FULL_AUTO_RULE }, ...rest];
+}
 
 /** Human, Uzbek description of a tool call — printed as a step line. */
 function describe(name, args) {
@@ -285,7 +294,9 @@ function isAbort(err, signal) {
  * @returns {Promise<{done?: boolean, error?: string, aborted?: boolean, truncated?: boolean,
  *   ledger: object[], final: string, honesty: {regex: string|null, judge: string[]|null, source: string}}>}
  */
-export async function agentTurn({ messages, config, confirm, maxSteps = 14, signal, print = true, stream = false, verify = true }) {
+export async function agentTurn({ messages, config, confirm, maxSteps, signal, print = true, stream = false, verify = true, fullAuto = false }) {
+  // Full auto: yoz → testla → tuzat sikli uchun ko'proq qadam.
+  maxSteps ??= fullAuto ? 40 : 14;
   let toolSpin = null;
   const exec = (name, args) =>
     runTool(
@@ -306,6 +317,8 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14, sign
     source: h.judge ? "llm+regex" : "regex",
   });
   let final = "";
+  let nudges = 0; // full auto: "vazifa tugamagan" avtomatik davom ettirishlar
+  const nudgeState = {};
 
   const finishAborted = () => {
     printLedger(tracker.entries, { note: "Bekor qilindi (Ctrl+C) — navbat to'xtatildi, qolgan amallar bajarilmadi." });
@@ -328,7 +341,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14, sign
             md.push(t);
           }
         : () => {};
-      round = await runRound(messages, config, onText, signal);
+      round = await runRound(fullAuto ? withFullAuto(messages) : messages, config, onText, signal);
     } catch (err) {
       spin.stop();
       md?.end();
@@ -351,6 +364,14 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14, sign
     }
 
     if (!round.toolCalls.length) {
+      // FULL AUTO: oxirgi buyruq yiqilgan yoki model "tekshiraman" deb to'xtagan — so'ramasdan davom.
+      const nudge = fullAuto && nudges < FULL_AUTO_MAX_NUDGES ? fullAutoNudge(tracker.entries, text, nudgeState) : null;
+      if (nudge) {
+        nudges++;
+        messages.push({ role: "user", content: nudge });
+        if (print) console.log("\n  " + c.warn(`⚡ full auto: vazifa hali tugamagan — davom ettiryapman (${nudges}/${FULL_AUTO_MAX_NUDGES})`));
+        continue;
+      }
       if (print) process.stdout.write("\n");
       const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print });
       printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge });

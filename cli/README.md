@@ -57,7 +57,7 @@ Lokal serverga (test): `sov login --local`.
 | `sov key <kalit>` · `sov config` | o'z kalitingiz · sozlash |
 | `sov help [buyruq]` · `sov --version` | yordam · versiya |
 
-Flaglar: `-p/--print`, `--json`, `-f/--file <yo'l>` (takrorlanadi), `-m/--model <id>` (shu ish uchun), `-y/--yes`, `--vibe`/`--no-vibe`, `--no-verify`, `--no-color`, `-h`, `-V`.
+Flaglar: `-p/--print`, `--json`, `-f/--file <yo'l>` (takrorlanadi), `-m/--model <id>` (shu ish uchun), `-y/--yes`, `--vibe`/`--no-vibe`, `--full-auto` (`--auto`), `--no-verify`, `--no-color`, `-h`, `-V`.
 
 ## Interaktivsiz (skript, CI, quvur)
 
@@ -101,6 +101,7 @@ Cheklovlar: rasm 900 KB, matn 2 MB, PDF 20 MB. PDF matni uchun `npm i -g pdf-par
 ## Xavfsizlik
 
 - Fayl amallari ish papkasi ichida; tashqi yo'l va xavfli buyruqlar **har doim** alohida so'raladi (`--yes`/vibe ham o'tkazib yubormaydi).
+- **Full auto** (`--full-auto` yoki `/auto`): hech narsa so'ralmaydi — ish papkasi ichida yozish, paket o'rnatish, test va build darhol bajariladi, agent test o'tguncha o'zi tuzatadi (yiqilgan buyruqdan keyin to'xtasa — avtomatik davom ettiriladi, ko'pi bilan 3 marta). Tashqi yo'llar, `git push`, publish, deploy, `sudo` va tizim sozlamalari so'ralmasdan **rad etiladi**; bloklangan/himoyalangan narsalar o'zgarmaydi.
 - Kalit/parol/tizim yo'llari (`.ssh`, `.aws`, `~/.sovereign`, brauzer profillari ...) — hech qachon.
 - Token va kalitlar faqat kompyuteringizda (`~/.sovereign/config.json`, 0600).
 

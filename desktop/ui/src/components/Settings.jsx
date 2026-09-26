@@ -69,6 +69,7 @@ export default function Settings({ initial = "general", onClose, info, settings,
                 <span className="label-sm">{t("settings.defaultMode")}</span>
                 <Seg label={t("settings.defaultMode")} value={settings.defaultMode} onChange={(v) => setSetting({ defaultMode: v })} options={[["code", t("mode.code"), "code"], ["chat", t("mode.chat"), "chat"]]} />
               </div>
+              <Toggle checked={!!settings.fullAuto} onChange={(v) => setSetting({ fullAuto: v })} label={t("settings.fullAuto")} desc={t("settings.fullAutoDesc")} />
               <Toggle checked={settings.notifications} onChange={(v) => setSetting({ notifications: v })} label={t("settings.notifications")} desc={t("settings.notificationsDesc")} />
             </>
           )}

@@ -4,7 +4,7 @@ import ModelPicker from "./ModelPicker.jsx";
 import { useT } from "../lib/i18n.js";
 
 /** Xabar yozish maydoni: rejim (Chat/Kod), model, yuborish / to'xtatish. */
-const Composer = forwardRef(function Composer({ value, onChange, onSend, onStop, busy, mode, setMode, model, onModel, disabledReason, onFix }, ref) {
+const Composer = forwardRef(function Composer({ value, onChange, onSend, onStop, busy, mode, setMode, model, onModel, disabledReason, onFix, fullAuto, onFullAuto }, ref) {
   const t = useT();
   const ta = useRef(null);
   useImperativeHandle(ref, () => ({ focus: () => ta.current?.focus() }));
@@ -58,6 +58,17 @@ const Composer = forwardRef(function Composer({ value, onChange, onSend, onStop,
               </button>
             ))}
           </div>
+          {mode === "code" && (
+            <button
+              type="button"
+              className={`auto-btn ${fullAuto ? "on" : ""}`}
+              aria-pressed={!!fullAuto}
+              onClick={() => onFullAuto(!fullAuto)}
+              title={fullAuto ? t("auto.onTitle") : t("auto.offTitle")}
+            >
+              <Icon name="bolt" size={13} stroke={2} /> {t("auto.label")}
+            </button>
+          )}
           <ModelPicker label={model} onSelect={onModel} disabled={busy} />
           <span className="grow composer-hint faint small">{t("composer.hint")}</span>
           {busy ? (

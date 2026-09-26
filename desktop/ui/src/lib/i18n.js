@@ -13,6 +13,18 @@ export const LANGS = [
 ];
 
 const uz = {
+  "auto.resetFolder": "Boshqa papka ochildi — xavfsizlik uchun Full auto o‘chirildi. Bu papkaga ishonsangiz, qayta yoqing.",
+  "auto.label": "Full auto",
+  "auto.offTitle": "Full auto o‘chiq — har amal tasdiqlanadi. Yoqsangiz, agent hech narsa so‘ramaydi.",
+  "auto.onTitle": "Full auto yoqiq — fayl yozish, paket o‘rnatish va testlar tasdiqsiz bajariladi. Tashqi papkalar, git push, publish, deploy va sudo rad etiladi.",
+  "auto.enabled": "Full auto yoqildi — agent hech narsa so‘ramaydi. Faqat ishonchli papkada ishlating.",
+  "auto.disabled": "Full auto o‘chirildi — amallar yana tasdiqlanadi.",
+  "auto.stepTitle": "Full auto bilan tasdiqlandi",
+  "auto.denied.outside": "Full auto: ish papkasidan tashqarida — so‘ralmasdan rad etildi.",
+  "auto.denied.command": "Full auto: push / publish / deploy / sudo kabi buyruqlar rad etiladi — kerak bo‘lsa qo‘lda bajaring.",
+  "settings.fullAuto": "Full auto (Kod rejimi)",
+  "settings.fullAutoDesc": "Hech narsa so‘ralmaydi: fayl yozish, paket o‘rnatish, test va build darhol bajariladi. Tashqi papkalar, git push, publish, deploy va sudo avtomatik rad etiladi. O‘zgarishlarni «O‘zgarishlar» panelidan qaytarish mumkin.",
+  "empty.codeSubAuto": "Full auto yoqiq: vazifani yozing — kod yozaman, testlayman va xatolarni tuzataman, hech narsa so‘ramayman. Har o‘zgarish «O‘zgarishlar» panelida, qaytarish mumkin.",
   "a11y.skip": "Xabar maydoniga o‘tish",
   "boot.errorTitle": "Ilova yadrosi bilan aloqa yo‘q",
   "boot.errorDesc": "Ichki ko‘prik (preload) yuklanmadi. Ilovani qayta ishga tushiring.",
@@ -167,6 +179,18 @@ const uz = {
 };
 
 const en = {
+  "auto.resetFolder": "Another folder was opened — Full auto was turned off for safety. Turn it back on if you trust this folder.",
+  "auto.label": "Full auto",
+  "auto.offTitle": "Full auto is off — every action asks for approval. Turn it on and the agent asks nothing.",
+  "auto.onTitle": "Full auto is on — file writes, package installs and tests run without approval. Outside folders, git push, publish, deploy and sudo are refused.",
+  "auto.enabled": "Full auto on — the agent won’t ask anything. Use it only in a folder you trust.",
+  "auto.disabled": "Full auto off — actions ask for approval again.",
+  "auto.stepTitle": "Approved by Full auto",
+  "auto.denied.outside": "Full auto: outside the working folder — refused without asking.",
+  "auto.denied.command": "Full auto: push / publish / deploy / sudo commands are refused — run them yourself if needed.",
+  "settings.fullAuto": "Full auto (Code mode)",
+  "settings.fullAutoDesc": "Nothing is asked: file writes, package installs, tests and builds run right away. Outside folders, git push, publish, deploy and sudo are refused automatically. Undo any change from the Changes panel.",
+  "empty.codeSubAuto": "Full auto is on: describe the task — I’ll write the code, test it and fix errors without asking. Every change is listed in the Changes panel and can be undone.",
   "a11y.skip": "Skip to message box",
   "boot.errorTitle": "Can’t reach the app core", "boot.errorDesc": "The internal bridge (preload) didn’t load. Please restart the app.",
   "common.back": "Back", "common.cancel": "Cancel", "common.close": "Close", "common.copied": "Copied", "common.copy": "Copy",
@@ -307,6 +331,18 @@ const en = {
 };
 
 const ru = {
+  "auto.resetFolder": "Открыта другая папка — полный авто выключен для безопасности. Включите снова, если доверяете этой папке.",
+  "auto.label": "Полный авто",
+  "auto.offTitle": "Полный авто выключен — каждое действие требует подтверждения. Включите, и агент ничего не будет спрашивать.",
+  "auto.onTitle": "Полный авто включён — запись файлов, установка пакетов и тесты выполняются без подтверждения. Внешние папки, git push, publish, deploy и sudo отклоняются.",
+  "auto.enabled": "Полный авто включён — агент ничего не спрашивает. Используйте только в доверенной папке.",
+  "auto.disabled": "Полный авто выключен — действия снова требуют подтверждения.",
+  "auto.stepTitle": "Подтверждено полным авто",
+  "auto.denied.outside": "Полный авто: вне рабочей папки — отклонено без вопроса.",
+  "auto.denied.command": "Полный авто: команды push / publish / deploy / sudo отклоняются — при необходимости выполните их сами.",
+  "settings.fullAuto": "Полный авто (режим «Код»)",
+  "settings.fullAutoDesc": "Ничего не спрашивается: запись файлов, установка пакетов, тесты и сборка выполняются сразу. Внешние папки, git push, publish, deploy и sudo отклоняются автоматически. Любое изменение можно отменить в панели «Изменения».",
+  "empty.codeSubAuto": "Полный авто включён: опишите задачу — я напишу код, протестирую и исправлю ошибки без вопросов. Каждое изменение видно в панели «Изменения», его можно отменить.",
   "a11y.skip": "Перейти к полю сообщения",
   "boot.errorTitle": "Нет связи с ядром приложения", "boot.errorDesc": "Внутренний мост (preload) не загрузился. Перезапустите приложение.",
   "common.back": "Назад", "common.cancel": "Отмена", "common.close": "Закрыть", "common.copied": "Скопировано", "common.copy": "Копировать",
@@ -452,6 +488,18 @@ const ru = {
  * опция), inglizcha iqtiboslar (SmartScreen). Bu yerda yo'q kalit — translit fallback.
  */
 const uzCyrl = {
+  "auto.resetFolder": "Бошқа папка очилди — хавфсизлик учун Тўлиқ авто ўчирилди. Бу папкага ишонсангиз, қайта ёқинг.",
+  "auto.label": "Тўлиқ авто",
+  "auto.offTitle": "Тўлиқ авто ўчиқ — ҳар амал тасдиқланади. Ёқсангиз, агент ҳеч нарса сўрамайди.",
+  "auto.onTitle": "Тўлиқ авто ёқиқ — файл ёзиш, пакет ўрнатиш ва тестлар тасдиқсиз бажарилади. Ташқи папкалар, git push, нашр, деплой ва sudo рад этилади.",
+  "auto.enabled": "Тўлиқ авто ёқилди — агент ҳеч нарса сўрамайди. Фақат ишончли папкада ишлатинг.",
+  "auto.disabled": "Тўлиқ авто ўчирилди — амаллар яна тасдиқланади.",
+  "auto.stepTitle": "Тўлиқ авто билан тасдиқланди",
+  "auto.denied.outside": "Тўлиқ авто: иш папкасидан ташқарида — сўралмасдан рад этилди.",
+  "auto.denied.command": "Тўлиқ авто: push / нашр / деплой / sudo каби буйруқлар рад этилади — керак бўлса қўлда бажаринг.",
+  "settings.fullAuto": "Тўлиқ авто (Код режими)",
+  "settings.fullAutoDesc": "Ҳеч нарса сўралмайди: файл ёзиш, пакет ўрнатиш, тест ва йиғиш дарҳол бажарилади. Ташқи папкалар, git push, нашр, деплой ва sudo автоматик рад этилади. Ўзгаришларни «Ўзгаришлар» панелидан қайтариш мумкин.",
+  "empty.codeSubAuto": "Тўлиқ авто ёқиқ: вазифани ёзинг — код ёзаман, тестлайман ва хатоларни тузатаман, ҳеч нарса сўрамайман. Ҳар ўзгариш «Ўзгаришлар» панелида, қайтариш мумкин.",
   // Versiya belgisi "v1.2.3" lotinda qoladi (translit uni "в" ga aylantirardi).
   "updCard.available": "Янгиланиш мавжуд — v{v}",
   "updCard.ready": "Янгиланиш тайёр — v{v}",

@@ -12,7 +12,7 @@ import { selectMenu } from "../src/menu.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, configureUi, gutter, hintBar, logo, skillsList, slashMenu, spinner, stopSpinner, stripAnsi } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
-import { isTrustableDir, resolvePath as resolveWs } from "../src/tools.mjs";
+import { fullAutoDenyReason, isTrustableDir, resolvePath as resolveWs } from "../src/tools.mjs";
 import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
 import { countTurns, listSessions, loadSession, rewind, saveSession } from "../src/sessions.mjs";
 import { EXIT, SUBCOMMANDS, parseArgs } from "../src/args.mjs";
@@ -35,6 +35,30 @@ const AUTO_YES = Boolean(flags.yes);
  */
 const invokedAs = (process.argv[1] ?? "").split(/[\\/]/).pop()?.replace(/\.(mjs|js|exe|cmd)$/i, "").toLowerCase() ?? "";
 const vibe = { on: !flags.noVibe && (invokedAs === "sov" || Boolean(flags.vibe)) };
+
+/**
+ * FULL AUTO — `--full-auto` yoki `/auto` (foydalanuvchi o'zi yoqadi): HECH NARSA
+ * so'ralmaydi. Ish papkasi ichidagi yozish va barcha buyruqlar (paket o'rnatish,
+ * test, build) tasdiqsiz bajariladi. So'ralmasdan RAD ETILADI: tashqi yo'llar,
+ * himoyalangan/bloklangan narsalar (tools.mjs) va push/publish/deploy/sudo.
+ */
+const fullAuto = { on: Boolean(flags.fullAuto) };
+
+/** Full auto qarori: true — bajar, false — rad et (hech qachon so'ramaydi). */
+function fullAutoDecision(question, meta) {
+  const q = stripAnsi(question);
+  if (meta?.outside) {
+    console.log(`  ${c.red("⊘")} ${c.dim(q)} ${c.red("full auto: ish papkasidan tashqarida — rad etildi")}`);
+    return false;
+  }
+  const deny = meta?.tool === "run_command" ? fullAutoDenyReason(meta.command) : null;
+  if (deny) {
+    console.log(`  ${c.red("⊘")} ${c.dim(q)} ${c.red(`full auto: ${deny} — rad etildi (qo'lda bajaring)`)}`);
+    return false;
+  }
+  console.log(`  ${c.emerald("⚡")} ${c.dim(q)} ${c.emerald("full auto")}`);
+  return true;
+}
 
 // -f <path> / --file <path> — birinchi xabarga biriktiriladigan fayllar.
 const attachFiles = parsed.files;
@@ -126,6 +150,11 @@ async function confirmer(rl) {
   };
   return async (question, forcePrompt = false, meta = null) => {
     stopSpinner();
+    if (fullAuto.on) {
+      const ok = fullAutoDecision(question, meta);
+      if (ok) previewWrite(meta, false);
+      return ok;
+    }
     const mustAsk = Boolean(forcePrompt || meta?.risky || meta?.outside);
     if (!mustAsk && (trust.all || inTrustedDir(meta?.path))) {
       console.log(`  ${c.dim("✓")} ${c.dim(stripAnsi(question))} ${c.green("auto")}`);
@@ -164,6 +193,7 @@ async function confirmer(rl) {
  */
 function nonInteractiveConfirmer() {
   return async (question, forcePrompt = false, meta = null) => {
+    if (fullAuto.on) return fullAutoDecision(question, meta);
     const mustAsk = Boolean(forcePrompt || meta?.risky || meta?.outside);
     const q = stripAnsi(question);
     if (!mustAsk && (AUTO_YES || flags.vibe)) {
@@ -248,6 +278,7 @@ function handleHelp(topic) {
       `    -m, --model <id>         shu ish uchun model (saqlanmaydi)`,
       `    -y, --yes                ish papkasi ichidagi oddiy amallarni avtomatik tasdiqlash`,
       `        --vibe, --no-vibe    vibe rejimni yoqish / o'chirish (sov nomi bilan yoqiq)`,
+      `        --full-auto, --auto  FULL AUTO: hech narsa so'ralmaydi (tashqi yo'l, push/publish/deploy rad etiladi)`,
       `        --no-verify          AI hakam (halollik tekshiruvi)ni o'chirish`,
       `        --no-color           rangsiz chiqish (yoki NO_COLOR=1)`,
       `    -V, --version            versiya`,
@@ -259,6 +290,7 @@ function handleHelp(topic) {
       `    sov -p "bu loyiha nima qiladi?"`,
       `    git diff | sov -p "shu o'zgarishni review qil"`,
       `    sov -p --json "package.json'ni tekshir" > natija.json`,
+    `    sov --full-auto "todo API yoz, test qil va xatolarni tuzat"`,
       `    sov "shu dizaynga HTML yoz" -f mockup.png`,
       `    sov doctor`,
       "",
@@ -267,6 +299,8 @@ function handleHelp(topic) {
       "",
       `  ${w("Xavfsizlik:")} ish papkasidan tashqaridagi yo'l va xavfli buyruqlar HAR DOIM so'raladi`,
       `    (--yes/vibe ham o'tkazib yubormaydi); -p rejimida ular avtomatik rad etiladi.`,
+      `    --full-auto: hech narsa so'ralmaydi — xavfli buyruqlar ham bajariladi; tashqi yo'l,`,
+      `    git push, publish, deploy, sudo va bloklangan buyruqlar esa so'ralmasdan rad etiladi.`,
       "",
       `  ${w("Chiqish kodlari:")} 0 muvaffaqiyat · 1 xato · 2 noto'g'ri foydalanish · 3 login kerak · 130 Ctrl+C`,
       `  ${w("Muhit:")} SOVEREIGN_URL, SOVEREIGN_TOKEN, OPENROUTER_API_KEY, SOVEREIGN_MODEL, NO_COLOR, SOV_VERIFY=0`,
@@ -420,8 +454,8 @@ async function repl() {
   }
 
   clearScreen();
-  console.log(banner(config, [...enabledSkills], vibe.on));
-  console.log(hintBar(config, pending.length, vibe.on));
+  console.log(banner(config, [...enabledSkills], vibe.on, fullAuto.on));
+  console.log(hintBar(config, pending.length, vibe.on, fullAuto.on));
 
   // Plan expired/expiring notice
   if (config.planState === "expired") {
@@ -461,6 +495,7 @@ async function repl() {
   const promptStr = () =>
     G +
     (pending.length ? `${c.warn("📎 " + pending.length)}  ` : "") +
+    (fullAuto.on ? `${c.warn("⚡")} ` : "") +
     `${c.accent("❯")} `;
 
   const rewritePrompt = () => {
@@ -481,6 +516,7 @@ async function repl() {
         signal: ac.signal,
         stream: !config.token, // to'g'ridan-to'g'ri OpenRouter — tokenlar oqim bilan
         verify: flags.verify,
+        fullAuto: fullAuto.on,
       });
       if (res.error) console.log(G + c.red(`Xato: ${res.error}\n`));
       return res;
@@ -706,6 +742,20 @@ async function repl() {
       continue;
     }
 
+    // ── Full auto ──
+    if (input === "/auto" || input === "/full-auto") {
+      fullAuto.on = !fullAuto.on;
+      say(
+        fullAuto.on
+          ? `${c.emerald("⚡ FULL AUTO")} ${c.dim("yoqildi — hech narsa so'ralmaydi: fayl yozish, paket o'rnatish, test va build darhol bajariladi.")}
+` +
+              G + c.amber("  ⚠ Faqat ishonchli papkada ishlating. ") + c.dim("Tashqi yo'llar, git push, publish, deploy va sudo avtomatik rad etiladi. /auto — o'chirish.")
+          : `${c.amber("○ FULL AUTO")} ${c.dim("o'chirildi — amallar yana tasdiqlanadi.")}`,
+      );
+      rewritePrompt();
+      continue;
+    }
+
     // ── Vibe rejim ──
     if (input === "/vibe") {
       vibe.on = !vibe.on;
@@ -850,6 +900,11 @@ async function repl() {
           process.chdir(p);
           messages = initialMessages(config);
           say(`${c.green("Ish papkasi:")} ${c.white(process.cwd())} ${c.dim("(kontekst yangilandi)")}`);
+          // Full auto faqat yoqilgan papkada — yangi papka ishonchsiz bo'lishi mumkin.
+          if (fullAuto.on) {
+            fullAuto.on = false;
+            say(`${c.amber("○ FULL AUTO")} ${c.dim("papka almashgani uchun o'chirildi — ishonsangiz /auto bilan qayta yoqing.")}`);
+          }
         } catch (err) {
           say(c.red(`Xato: ${err.message}`));
         }
@@ -1020,7 +1075,7 @@ async function oneShot(task) {
   const confirm = await confirmer(rl);
   const messages = initialMessages(config);
   messages.push(await buildUserMessage(task, attachFiles));
-  const res = await agentTurn({ messages, config, confirm, signal: ac.signal, stream: !config.token, verify: flags.verify });
+  const res = await agentTurn({ messages, config, confirm, signal: ac.signal, stream: !config.token, verify: flags.verify, fullAuto: fullAuto.on });
   turnState.ac = null;
   if (res.error) console.log(c.red(`  Xato: ${res.error}`));
   rl.close();
@@ -1107,6 +1162,7 @@ async function printMode(promptArg) {
     signal: ac.signal,
     print: false,
     verify: flags.verify,
+    fullAuto: fullAuto.on,
   });
   turnState.ac = null;
   const code = res.aborted ? EXIT.INTERRUPTED : res.error ? EXIT.ERROR : EXIT.OK;

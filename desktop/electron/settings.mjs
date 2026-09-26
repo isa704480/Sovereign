@@ -12,6 +12,8 @@ const DEFAULTS = {
   notifications: true,
   autoUpdate: true,
   defaultMode: "code", // code | chat
+  fullAuto: false, // Kod rejimida hech narsa so'ralmaydi (tashqi yo'l / push / deploy rad etiladi)
+  fullAutoFolder: "", // Full auto qaysi papka uchun yoqilgan (faqat main yozadi)
   sidebar: true,
   rightPanel: false,
   model: "", // OmniRoute katalog id ("" = Auto)
@@ -28,6 +30,7 @@ const VALID = {
   notifications: (v) => typeof v === "boolean",
   autoUpdate: (v) => typeof v === "boolean",
   defaultMode: (v) => ["code", "chat"].includes(v),
+  fullAuto: (v) => typeof v === "boolean",
   sidebar: (v) => typeof v === "boolean",
   rightPanel: (v) => typeof v === "boolean",
   model: (v) => typeof v === "string" && v.length <= 200,
@@ -50,6 +53,7 @@ export function loadSettings() {
   const out = { ...DEFAULTS };
   for (const k of Object.keys(VALID)) if (k in data && VALID[k](data[k])) out[k] = data[k];
   if (typeof data.lastFolder === "string") out.lastFolder = data.lastFolder;
+  if (typeof data.fullAutoFolder === "string") out.fullAutoFolder = data.fullAutoFolder;
   if (Array.isArray(data.recent)) out.recent = data.recent.filter((p) => typeof p === "string").slice(0, 8);
   if (data.window && typeof data.window === "object") out.window = sanitizeBounds(data.window);
   cache = out;

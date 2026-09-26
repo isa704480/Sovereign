@@ -50,6 +50,21 @@ export function applyEvent(s, ev, { replay = false } = {}) {
       }
       return { ...s, confirm: ev };
     }
+    case "auto": {
+      // Full auto: tasdiq oynasisiz qaror. Yozilgan fayl — o'zgarishlar ro'yxatiga (Undo);
+      // rad etilgan bo'lsa — sababi ishlayotgan qadamda ko'rinadi.
+      if (replay) return s;
+      const m = ev.meta ?? {};
+      let changes = s.changes;
+      if (ev.ok && m.tool === "write_file") {
+        changes = addChange(changes, { path: m.path, before: m.before ?? "", beforeUnknown: !!m.beforeUnknown, existed: !!(m.existed ?? m.exists), backupId: m.backupId ?? null, after: m.content });
+      }
+      const i = lastIndex(s.items, (it) => it.kind === "tool" && it.status === "running");
+      if (i === -1) return { ...s, changes };
+      const items = s.items.slice();
+      items[i] = { ...items[i], auto: ev.ok ? "ok" : ev.denied || "command" };
+      return { ...s, changes, items };
+    }
     case "ledger":
       return { ...s, items: [...s.items, { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, noteCode: ev.noteCode, maxSteps: ev.maxSteps }] };
     case "done":

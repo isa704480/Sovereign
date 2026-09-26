@@ -21,6 +21,10 @@ import {
   ledgerWorthShowing,
   unsupportedClaim,
   classifyCommand,
+  fullAutoDenyReason,
+  fullAutoNudge,
+  FULL_AUTO_MAX_NUDGES,
+  FULL_AUTO_RULE,
   HONESTY_RULE,
 } from "../cli/src/tools.mjs";
 import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mjs";
@@ -197,6 +201,14 @@ function askConfirm(question, forcePrompt = false, meta = null) {
   if (meta?.tool === "run_command" && meta.risky) {
     meta = { ...meta, riskReason: classifyCommand(meta.command ?? "").reason || "" };
   }
+  // FULL AUTO: hech narsa so'ralmaydi. Tashqi yo'l va push/publish/deploy/sudo —
+  // so'ralmasdan rad etiladi (himoyalangan/bloklanganlarni runTool o'zi rad etadi).
+  if (fullAutoActive()) {
+    const denied = meta?.outside ? "outside" : meta?.tool === "run_command" && fullAutoDenyReason(meta.command) ? "command" : null;
+    if (denied && createdId) dropBackup(createdId);
+    send("auto", { ok: !denied, denied, meta });
+    return Promise.resolve(!denied);
+  }
   return new Promise((resolve) => {
     const id = randomUUID();
     pending.set(id, (ok) => {
@@ -325,8 +337,14 @@ function uiArgs(args) {
   return out;
 }
 
-async function agentTurn(messages, config, turn, maxSteps = 14) {
+async function agentTurn(messages, config, turn) {
+  // Full auto — navbat boshida o'qiladi: yoz → testla → tuzat sikli uchun ko'proq qadam;
+  // qoida faqat so'rovga qo'shiladi (tarixga yozilmaydi).
+  const fullAuto = fullAutoActive();
+  const maxSteps = fullAuto ? 40 : 14;
   const confirm = confirmFor(turn);
+  let nudges = 0; // full auto: "vazifa tugamagan" avtomatik davom ettirishlar
+  const nudgeState = {};
   // signal: "To'xtatish" / yangi vazifa / papka almashtirish ishlayotgan buyruqni ham
   // (butun jarayon daraxti bilan) to'xtatadi — 120 s kutib qolmaydi.
   const tracker = createTurnTracker((name, args) => runTool(name, args, confirm, { signal: turn.controller.signal }));
@@ -334,7 +352,7 @@ async function agentTurn(messages, config, turn, maxSteps = 14) {
     if (turn.aborted) return "stopped";
     let round;
     try {
-      round = await runRound(messages, config, true, turn.controller.signal);
+      round = await runRound(fullAuto ? [...messages, { role: "system", content: FULL_AUTO_RULE }] : messages, config, true, turn.controller.signal);
     } catch (e) {
       if (turn.aborted) return "stopped";
       sendLedger(tracker.entries, { noteCode: tracker.entries.length ? "error" : null });
@@ -347,6 +365,13 @@ async function agentTurn(messages, config, turn, maxSteps = 14) {
       send("text", { text: round.message.content });
     }
     if (!round.toolCalls.length) {
+      // FULL AUTO: oxirgi buyruq yiqilgan yoki model "tekshiraman" deb to'xtagan — so'ramasdan davom.
+      const nudge = fullAuto && nudges < FULL_AUTO_MAX_NUDGES ? fullAutoNudge(tracker.entries, round.message.content ?? "", nudgeState) : null;
+      if (nudge) {
+        nudges++;
+        messages.push({ role: "user", content: nudge });
+        continue;
+      }
       sendLedger(tracker.entries, { finalText: round.message.content ?? "" });
       send("done");
       return "done";
@@ -444,7 +469,7 @@ function stateInfo() {
 }
 
 function publicSettings() {
-  const { window: _w, recent: _r, lastFolder: _l, ...rest } = loadSettings();
+  const { window: _w, recent: _r, lastFolder: _l, fullAutoFolder: _f, ...rest } = loadSettings();
   return rest;
 }
 
@@ -456,6 +481,23 @@ function setWorkspace(dir) {
   process.chdir(dir);
   workspace = dir;
   rememberFolder(dir);
+  // Full auto faqat yoqilgan papkada: boshqa (ehtimol ishonchsiz) papka ochilsa — o'chadi.
+  const s = loadSettings();
+  if (s.fullAuto && !samePath(s.fullAutoFolder, dir)) {
+    updateInternal({ fullAuto: false, fullAutoFolder: "" });
+    return true;
+  }
+  return false;
+}
+
+function samePath(a, b) {
+  return !!a && !!b && a.replace(/[\\/]+$/, "").toLowerCase() === b.replace(/[\\/]+$/, "").toLowerCase();
+}
+
+/** Full auto hozir amaldami: yoqilgan VA aynan shu papka uchun yoqilgan. */
+function fullAutoActive() {
+  const s = loadSettings();
+  return !!(s.fullAuto && workspace && samePath(s.fullAutoFolder, workspace));
 }
 
 function resetSession() {
@@ -481,9 +523,9 @@ handle("app:state", async () => stateInfo());
 async function switchFolder(dir) {
   // Avval ishlayotgan navbatni to'xtatamiz — aks holda u nisbiy yo'llarni YANGI papkada yozadi.
   resetSession();
-  setWorkspace(dir);
+  const fullAutoOff = setWorkspace(dir);
   session.messages = initialMessages(session.config); // yangi kontekst
-  return { cwd: workspace, recent: loadSettings().recent.filter(isDir) };
+  return { cwd: workspace, recent: loadSettings().recent.filter(isDir), settings: publicSettings(), fullAutoOff };
 }
 
 handle("app:pick-folder", async () => {
@@ -628,14 +670,15 @@ handle("history:open", async (_e, id) => {
   if (!t) return { error: "not-found" };
   resetSession();
   let folderMissing = false;
+  let fullAutoOff = false;
   if (t.meta.cwd) {
-    if (isDir(t.meta.cwd)) setWorkspace(t.meta.cwd);
+    if (isDir(t.meta.cwd)) fullAutoOff = setWorkspace(t.meta.cwd);
     else folderMissing = true;
   }
   currentTask = { ...t.meta, events: t.events };
   // Davom ettirish: system (joriy kontekst) + saqlangan suhbat.
   session.messages = [...initialMessages(session.config), ...t.messages];
-  return { task: t.meta, events: t.events, cwd: workspace, folderMissing, recent: loadSettings().recent.filter(isDir) };
+  return { task: t.meta, events: t.events, cwd: workspace, folderMissing, recent: loadSettings().recent.filter(isDir), settings: publicSettings(), fullAutoOff };
 });
 
 handle("history:remove", async (_e, id) => {
@@ -659,6 +702,8 @@ handle("history:clear", async () => {
 // ---- Sozlamalar -------------------------------------------------------------
 handle("settings:set", async (_e, patch) => {
   const s = updateFromRenderer(patch);
+  // Full auto shu (joriy) papkaga bog'lanadi; o'chirilsa — bog'lanish ham o'chadi.
+  if (patch && "fullAuto" in patch) updateInternal({ fullAutoFolder: s.fullAuto ? workspace ?? "" : "" });
   if (patch && "theme" in patch) applyTheme();
   if (patch && "lang" in patch) buildAppMenu(); // menyu yorliqlari ham darhol yangi tilda
   if (patch && "model" in patch && session.config) session.config.omniModel = s.model || loadConfig().omniModel || "";

@@ -6,6 +6,7 @@
 const PROTECT = new Set([
   "Ctrl", "Shift", "Enter", "Esc", "Tab", "Alt", "Backspace", "Windows", "GitHub", "SmartScreen",
   "Cowork", "Explorer", "OmniRoute", "Undo", "Auto", "Claude", "Mac", "Linux", "Chromium", "Electron",
+  "Full", "auto", "push", "publish", "deploy", "sudo", "build",
   // Texnik atamalar, buyruq va mahsulot nomlari — kirillda ham lotinda yoziladi.
   "diff", "Diff", "src", "npm", "git", "Git", "rebase", "merge", "hook", "hooks", "tasks", "Code",
   "React", "Express", "Node", "Vite", "Releases", "preload", "sovereign", "exit", "EXIT",

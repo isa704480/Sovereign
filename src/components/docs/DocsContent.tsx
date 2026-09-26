@@ -103,6 +103,7 @@ const CLI_COMMANDS: readonly [string, TKey][] = [
   ["/attach <path>, /detach", "p7bDCmdAttach"],
   ["/cwd <path>", "p7bDCmdCwd"],
   ["/vibe", "p7bDCmdVibe"],
+  ["/auto", "p7bDCmdAuto"],
   ["/swarm <n> <task>", "p7bDCmdSwarm"],
   ["/sessions, /resume <id>", "p7bDCmdSessions"],
   ["/rewind [n], /fork", "p7bDCmdRewind"],
@@ -119,6 +120,7 @@ const CLI_USAGE = [
   'sov "build a React todo app"      # one task, then exit',
   'sov "..." -f diagram.png -f a.pdf # attach files (--file)',
   'sov --yes "..."                   # auto-confirm safe actions (-y)',
+  'sov --full-auto "..."             # Full auto: nothing asked (push/deploy refused)',
   "sov login                         # connect your account in the browser",
   "sov logout                        # sign out",
   "sov whoami                        # connection status",
@@ -458,6 +460,7 @@ export function DocsContent({ data }: { data: DocsData }) {
                   <li>{r("p7bDSafety1")}</li>
                   <li>{r("p7bDSafety2")}</li>
                   <li>{r("p7bDSafety3")}</li>
+                  <li>{r("p7bDSafetyAuto")}</li>
                 </List>
                 <Note>{r("p7bDSafetyNote")}</Note>
               </Sub>

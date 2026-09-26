@@ -25,8 +25,10 @@ export function ToolStep({ it, awaiting }) {
           {status === "running" || status === "awaiting" ? <span className="spinner" aria-hidden="true" /> : <Icon name={STATUS_ICON[status] ?? "check"} size={12} stroke={2} />}
           {t(`status.${status}`)}
         </span>
+        {it.auto === "ok" && <span className="step-auto" title={t("auto.stepTitle")} aria-label={t("auto.stepTitle")}><Icon name="bolt" size={11} stroke={2} /></span>}
         {canExpand && <Icon name="chevron" size={12} className={`caret ${open ? "open" : ""}`} />}
       </button>
+      {it.auto && it.auto !== "ok" && <div className="step-note small">{t(`auto.denied.${it.auto}`)}</div>}
       {open && <pre className="step-result">{localizeResult(it.result, t)}</pre>}
     </div>
   );
@@ -119,7 +121,7 @@ function Thinking({ startedAt, mode, awaiting }) {
   );
 }
 
-export function EmptyState({ mode, info, onPick, onSignIn, onSuggest }) {
+export function EmptyState({ mode, info, onPick, onSignIn, onSuggest, fullAuto }) {
   const t = useT();
   const sugg = mode === "chat" ? ["chat.s1", "chat.s2", "chat.s3"] : ["code.s1", "code.s2", "code.s3", "code.s4"];
   const icons = ["sparkle", "code", "play", "file"];
@@ -127,7 +129,7 @@ export function EmptyState({ mode, info, onPick, onSignIn, onSuggest }) {
     <div className="empty-hero">
       <Logo size={52} className="hero-logo" />
       <h1>{mode === "chat" ? t("empty.chatTitle") : t("empty.codeTitle")}</h1>
-      <p className="muted">{mode === "chat" ? t("empty.chatSub") : t("empty.codeSub")}</p>
+      <p className="muted">{mode === "chat" ? t("empty.chatSub") : fullAuto ? t("empty.codeSubAuto") : t("empty.codeSub")}</p>
       {!info.authed && (
         <div className="callout">
           <Icon name="user" size={16} />
@@ -155,7 +157,7 @@ export function EmptyState({ mode, info, onPick, onSignIn, onSuggest }) {
 }
 
 /** Suhbat oqimi: xabarlar, vosita qadamlari, jurnal, xatolar. */
-export default function Conversation({ agent, mode, info, onAction, onPick, onSignIn, onSuggest }) {
+export default function Conversation({ agent, mode, info, onAction, onPick, onSignIn, onSuggest, fullAuto }) {
   const t = useT();
   const ref = useRef(null);
   const stick = useRef(true);
@@ -188,7 +190,7 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
   return (
     <div ref={ref} className="conv-scroll" onScroll={onScroll} onClick={onClick}>
       {items.length === 0 ? (
-        <EmptyState mode={mode} info={info} onPick={onPick} onSignIn={onSignIn} onSuggest={onSuggest} />
+        <EmptyState mode={mode} info={info} onPick={onPick} onSignIn={onSignIn} onSuggest={onSuggest} fullAuto={fullAuto} />
       ) : (
         <div className="conv" aria-live="polite" aria-relevant="additions">
           {items.map((it) => {

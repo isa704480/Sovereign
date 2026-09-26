@@ -30,6 +30,7 @@ export const SLASH_COMMANDS = [
   { cmd: "/fork",     desc: "Joriy suhbatdan yangi shox ochish" },
 
   { cmd: "/vibe",     desc: "Vibe rejim — kodni faqat AI yozadi" },
+  { cmd: "/auto",     desc: "FULL AUTO — hech narsa so'ralmaydi (yoz → testla → tuzat)" },
   { cmd: "/swarm",    desc: "Parallel ishchilar — /swarm 4 <vazifa>" },
 
   { cmd: "/model",    desc: "Modelni tanlash — strelka menyusi (yoki /model <id>, /model auto)" },

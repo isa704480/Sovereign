@@ -739,4 +739,16 @@ export const P7B = {
     en: "Some payment methods not configured",
   },
   p7bSNCheckFailed: { uz: "Tekshiruv amalga oshmadi", "uz-cyrl": "Текширув амалга ошмади", ru: "Проверка не удалась", en: "Check failed" },
+  p7bDCmdAuto: {
+    uz: "Full auto rejimini yoqish/o'chirish — hech narsa so'ralmaydi (Xavfsizlik modeliga qarang)",
+    "uz-cyrl": "Тўлиқ авто режимини ёқиш/ўчириш — ҳеч нарса сўралмайди (Хавфсизлик моделига қаранг)",
+    ru: "Включить/выключить полный авто — без вопросов (см. «Модель безопасности»)",
+    en: "Toggle Full auto — nothing is asked (see Safety model)",
+  },
+  p7bDSafetyAuto: {
+    uz: "**Full auto** (`--full-auto` yoki `/auto`; Cowork'da ⚡ tugmasi) — hech narsa so'ralmaydi: ish papkasi ichida fayl yozish, paket o'rnatish, test va build darhol bajariladi; agent test o'tguncha o'zi tuzatadi. Ish papkasidan tashqaridagi yo'llar, `git push`, publish, deploy va `sudo` so'ralmasdan **rad etiladi**; himoyalangan yo'llar va xavfli buyruqlar baribir bloklanadi. Faqat ishonchli papkada yoqing.",
+    "uz-cyrl": "**Тўлиқ авто** (`--full-auto` ёки `/auto`; Cowork'да ⚡ тугмаси) — ҳеч нарса сўралмайди: иш папкаси ичида файл ёзиш, пакет ўрнатиш, тест ва йиғиш дарҳол бажарилади; агент тест ўтгунча ўзи тузатади. Иш папкасидан ташқаридаги йўллар, `git push`, нашр, деплой ва `sudo` сўралмасдан **рад этилади**; ҳимояланган йўллар ва хавфли буйруқлар барибир блокланади. Фақат ишончли папкада ёқинг.",
+    ru: "**Полный авто** (`--full-auto` или `/auto`; в Cowork — кнопка ⚡) — ничего не спрашивается: запись файлов, установка пакетов, тесты и сборка внутри рабочей папки выполняются сразу; агент сам исправляет ошибки, пока тесты не пройдут. Пути вне рабочей папки, `git push`, publish, deploy и `sudo` **отклоняются** без вопросов; защищённые пути и опасные команды по-прежнему блокируются. Включайте только в доверенной папке.",
+    en: "**Full auto** (`--full-auto` or `/auto`; the ⚡ button in Cowork) — nothing is asked: file writes, package installs, tests and builds inside the working folder run right away, and the agent keeps fixing until tests pass. Paths outside the working folder, `git push`, publish, deploy and `sudo` are **refused** without asking; protected paths and dangerous commands stay blocked. Turn it on only in a folder you trust.",
+  },
 } satisfies Dict;

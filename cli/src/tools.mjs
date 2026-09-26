@@ -282,6 +282,127 @@ export function classifyCommand(command) {
   return { level: "safe", reason: "" };
 }
 
+/**
+ * FULL AUTO rejimida ham bajarilmaydigan (lekin so'ralmaydigan — darhol rad
+ * etiladigan) buyruqlar: kodni tashqariga chiqaradigan yoki tizimni o'zgartiradigan
+ * amallar. Ish papkasi ichidagi yozish/test/o'rnatish esa tasdiqsiz bajariladi.
+ */
+// Dastur nomidan keyin .exe/.cmd/.ps1 va oraliq flaglar bo'lishi mumkin (`git.exe -c x push`,
+// `npm.cmd publish`) — shuning uchun fe'l shu buyruq bo'lagining ISTALGAN joyida qidiriladi
+// (xato-musbat xavfsiz tomonga: ortiqcha rad etiladi, o'tkazib yuborilmaydi).
+const SEG = String.raw`[^\n;&|]*`;
+const EXE = String.raw`(?:\.exe|\.cmd|\.bat|\.ps1)?`;
+const FULL_AUTO_DENY = [
+  [new RegExp(String.raw`\bgit${EXE}\b${SEG}(?:^|\s)push(?:\s|$)`, "i"), "git push"],
+  [new RegExp(String.raw`\bgit${EXE}\b${SEG}\bremote\b${SEG}\b(add|set-url)\b`, "i"), "git remote"],
+  [new RegExp(String.raw`\bgit${EXE}\b${SEG}(?:^|\s)-c\s+\S*(credential|extraheader|sshcommand|askpass)`, "i"), "git credential/header"],
+  [new RegExp(String.raw`\b(npm|pnpm|yarn|bun|npx)${EXE}\b${SEG}(?:^|\s)(publish|unpublish|login|logout|adduser|token|owner|deprecate|dist-tag)(?:\s|$)`, "i"), "paket nashri / npm akkaunt"],
+  [new RegExp(String.raw`\b(npm|pnpm|yarn|bun)${EXE}\s+(?:run\s+)?(deploy|release|publish)\b`, "i"), "deploy/release skripti"],
+  // Bu CLI'lar standart holatda ham deploy qiladi (`npx vercel` — preview deploy).
+  [new RegExp(String.raw`\b(vercel|netlify|railway|heroku|wrangler|flyctl|fly|surge|gh|amplify|now)${EXE}\b`, "i"), "deploy / GitHub CLI"],
+  [new RegExp(String.raw`\b(firebase|supabase)${EXE}\b${SEG}\b(deploy|login|secrets?|push|link)\b`, "i"), "deploy / sir"],
+  [/(?:^|\s)--prod(?:uction)?\b/i, "--prod"],
+  [new RegExp(String.raw`\b(sudo|su|doas|runas|gsudo)${EXE}\b`, "i"), "admin huquqi"],
+  [new RegExp(String.raw`\b(shutdown|reboot|halt|poweroff|setx|bcdedit|diskpart|schtasks|crontab|launchctl|systemctl|reg${EXE}\s+(add|delete|import))\b`, "i"), "tizim sozlamasi"],
+  [new RegExp(String.raw`\b(docker|podman)${EXE}\b${SEG}(?:^|\s)(login|push)(?:\s|$)`, "i"), "registry login/push"],
+  // Tarmoq orqali fayl/ma'lumot uzatish (kodni tashqariga chiqarish yo'li).
+  [new RegExp(String.raw`\b(curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod|scp|sftp|ftp|rsync|ssh|nc|ncat|socat|telnet)${EXE}\b`, "i"), "tarmoq uzatish"],
+  // Kodlangan/yashirin buyruq — matn tekshiruvini chetlab o'tadi.
+  [new RegExp(String.raw`\b(powershell|pwsh)${EXE}\b${SEG}\s-(e|ec|en|enc|encodedcommand)\b`, "i"), "kodlangan PowerShell"],
+  [/\b(base64|certutil)\b[^\n]*(-d\b|--decode|-decode)/i, "kodlangan buyruq"],
+];
+
+/**
+ * Buyruq matnidagi yo'llar ish papkasidan TASHQARIGA yoki himoyalangan joyga
+ * olib chiqadimi (Full auto uchun — faqat-o'qish ro'yxatida bo'lmagan buyruqlar
+ * uchun ham). Sabab yoki null.
+ */
+function commandPathEscape(cmd) {
+  if (/(^|[\s"'=(])~([\\/\s"']|$)/.test(cmd)) return "uy papkasi (~)";
+  if (/\$(\{?HOME\b|env:|\{?USERPROFILE\b|\{?APPDATA\b)|%[A-Z_]+%/i.test(cmd)) return "muhit o'zgaruvchisi orqali yo'l";
+  for (const raw of cmd.split(/[\s;&|<>()"'`,]+/)) {
+    const tok = raw.trim();
+    if (!tok || tok.includes("://")) continue; // URL — yo'l emas
+    if (IS_WIN && /^\/[a-z?]{1,3}$/i.test(tok)) continue; // Windows kaliti (/c, /s, /b)
+    for (const cand of pathCandidates(tok)) {
+      if (!cand || cand === "-" || cand === "--") continue;
+      if (cand.startsWith("-") && !looksLikePath(cand)) continue;
+      if (!looksLikePath(cand) && !/[\\/]/.test(cand)) continue; // oddiy so'z
+      let r;
+      try {
+        r = resolvePath(cand);
+      } catch {
+        return `noto'g'ri yo'l: ${cand}`;
+      }
+      if (r.outside) return `ish papkasidan tashqarida: ${cand}`;
+      if (isProtected(r.real)) return `himoyalangan yo'l: ${cand}`;
+    }
+  }
+  return null;
+}
+
+/**
+ * FULL AUTO — foydalanuvchi o'zi yoqqan rejim: ish papkasi ichidagi amallar tasdiqsiz
+ * bajariladi. Model vazifani oxirigacha (test o'tguncha) olib borishi kerak.
+ * Faqat so'rov vaqtida qo'shiladi — sessiya tarixiga yozilmaydi.
+ */
+export const FULL_AUTO_RULE = [
+  "FULL AUTO REJIM YOQIQ: foydalanuvchi har amalni tasdiqlamaydi — ish papkasi ichidagi fayl yozish, papka yaratish, paket o'rnatish va test/build buyruqlari DARHOL bajariladi.",
+  "Vazifani OXIRIGACHA olib bor: kod yoz → ishga tushir yoki testla → xato bo'lsa sababini o'qib tuzat → qayta tekshir. Test/build o'tmaguncha 'tayyor' dema. Foydalanuvchiga savol berma — oqilona standart tanla.",
+  "YAKUNLASHDAN OLDIN foydalanuvchi talablarini BITTALAB solishtir (sonlar — mas. 'kamida 6 ta test', fayl nomlari va joyi, funksiya nomlari, skriptlar): kerak bo'lsa faylni qayta o'qi yoki test chiqishidagi sonni tekshir. Birortasi bajarilmagan bo'lsa — tuzat; tuzatib bo'lmasa, xulosada ochiq ayt.",
+  "Ish papkasidan TASHQARIDAGI yo'llar, git push, npm publish, deploy, sudo va tizim sozlamalari bu rejimda AVTOMATIK RAD ETILADI — ularga urinma; kerak bo'lsa oxirida foydalanuvchiga qo'lda qilishni ayt.",
+  "Interaktiv kiritish kutadigan buyruqlardan qoch (stdin yopiq): `--yes`/`-y`, `CI=1` kabi interaktivsiz variantlarni ishlat; dev-serverlarni (to'xtamaydigan jarayonlar) ishga tushirma.",
+].join(" ");
+
+/** Model "davom etaman" deb vositasiz to'xtagan bo'lsa (uz lotin/kirill, ru, en). */
+const CONTINUE_INTENT =
+  /(tekshiraman|tuzataman|boshlayman|davom etaman|ko'rib chiqaman|yozaman|qayta urinaman|текшираман|тузатаман|бошлайман|давом этаман|проверю|исправлю|сейчас (посмотрю|исправлю)|продолжу|let me|i'll (check|fix|try|now)|i will (check|fix|try|now)|next,? i)/i;
+
+/** Ishga tushirib tekshirsa bo'ladigan kod fayllari (hujjat/konfiguratsiya emas). */
+const CODE_EXT = /\.(m?[jt]sx?|cjs|cts|mts|py|go|rs|java|kt|rb|php|cs|cpp|cc|c|h|hpp|swift|dart|vue|svelte|lua|sh|ps1)$/i;
+
+/** Full auto'da bir navbatdagi avtomatik "davom et" eslatmalari chegarasi. */
+export const FULL_AUTO_MAX_NUDGES = 3;
+
+/**
+ * FULL AUTO: model vositasiz javob bilan to'xtaganda — vazifa haqiqatan tugaganmi?
+ * Oxirgi buyruq xato bilan tugagan yoki model "tekshiraman" deb to'xtagan bo'lsa,
+ * modelga beriladigan eslatma matni; aks holda null (navbat tugaydi).
+ */
+export function fullAutoNudge(entries, finalText, state = {}) {
+  const list = entries ?? [];
+  const lastCmd = [...list].reverse().find((e) => e.tool === "run_command" && e.status !== "declined" && e.status !== "skipped");
+  // Kod o'zgartirildi, lekin keyin hech narsa ishga tushirilmadi — bir marta "tekshir" deymiz.
+  const ranIdx = lastCmd ? list.lastIndexOf(lastCmd) : -1;
+  const codeWriteIdx = list.findLastIndex((e) => e.tool === "write_file" && e.status === "ok" && CODE_EXT.test(e.target));
+  if (codeWriteIdx > ranIdx && !state.verifyNudged) {
+    state.verifyNudged = true;
+    return "[Avtomatik eslatma — FULL AUTO] Kodni o'zgartirding, lekin undan keyin hech narsa ishga tushirmading. Loyihada test yoki build bo'lsa — hozir ishga tushir va natijaga qarab tuzat; bo'lmasa kodni qisqa ishga tushirib tekshir. Tekshirib bo'lmasa — buni ochiq ayt. Tekshirmay turib 'testlar o'tdi' dema.";
+  }
+  if (lastCmd?.status === "failed") {
+    return (
+      `[Avtomatik eslatma — FULL AUTO] Vazifa hali tugamagan: oxirgi buyruq \`${lastCmd.target}\` xato bilan tugadi` +
+      (lastCmd.exit != null ? ` (exit ${lastCmd.exit})` : "") +
+      (lastCmd.detail ? `: ${lastCmd.detail}` : "") +
+      ". To'xtama va savol berma: xato sababini o'qi, tuzat va buyruqni qayta ishga tushir. Tuzatib bo'lmasa — nima uchunligini ochiq aytib yakunla."
+    );
+  }
+  if (CONTINUE_INTENT.test(String(finalText ?? "").slice(-300))) {
+    return "[Avtomatik eslatma — FULL AUTO] Sen davom etishingni aytding, lekin vosita chaqirmading. Hozir kerakli vositani chaqir; ish haqiqatan tugagan bo'lsa — vosita natijalari tasdiqlagan yakuniy xulosani yoz.";
+  }
+  return null;
+}
+
+/** FULL AUTO'da ham rad etiladigan buyruq bo'lsa — sababi (o'zbekcha), aks holda null. */
+export function fullAutoDenyReason(command) {
+  const cmd = String(command ?? "");
+  // Bo'shliqli qo'shtirnoq ichidagi matn (commit xabari va h.k.) — argument, fe'l emas;
+  // qolgan qo'shtirnoqlar olib tashlanadi (`git "push"` = `git push`).
+  const verbs = cmd.replace(/"[^"]*\s[^"]*"|'[^']*\s[^']*'/g, " _ ").replace(/["']/g, "");
+  for (const [re, why] of FULL_AUTO_DENY) if (re.test(verbs)) return why;
+  return commandPathEscape(cmd);
+}
+
 /** OpenAI-style tool schema advertised to the model. */
 export const TOOL_SCHEMA = [
   {

@@ -182,7 +182,7 @@ export function logo() {
  */
 // Claude Code uslubidagi ixcham, MARKAZLASHTIRILGAN splash.
 // Faqat rang/nom/logo bizniki (SOVEREIGN). Apple restraint: bitta accent, grayscale.
-export function banner(config, enabledSkills = [], vibeOn = false) {
+export function banner(config, enabledSkills = [], vibeOn = false, fullAutoOn = false) {
   const NL = String.fromCharCode(10);
   const w = rawWidth();
   const mark = c.accent("◆");
@@ -195,7 +195,9 @@ export function banner(config, enabledSkills = [], vibeOn = false) {
     ? (config.email || "akkaunt") + " · " + (config.baseUrl || "").replace(/^https?:\/\//, "")
     : "to'g'ridan-to'g'ri (OpenRouter)";
   const skills = enabledSkills.length ? enabledSkills.join(" · ") : "—";
-  const modeLine = vibeOn
+  const modeLine = fullAutoOn
+    ? c.warn("⚡ FULL AUTO · hech narsa so'ralmaydi (tashqi yo'l, push/deploy rad etiladi)")
+    : vibeOn
     ? c.ok("avto rejim · kodni AI yozadi")
     : c.subtle("oddiy rejim · har o'zgarish tasdiqlanadi");
 
@@ -219,11 +221,11 @@ export function banner(config, enabledSkills = [], vibeOn = false) {
  * Bottom hint bar — Apple system bar aesthetic. Small caps, dim, single accent.
  */
 // Claude Code'dagi pastki status qatori uslubida — markazlashtirilgan.
-export function hintBar(config, pendingCount = 0, vibeOn = false) {
+export function hintBar(config, pendingCount = 0, vibeOn = false, fullAutoOn = false) {
   const dot = c.faint("·");
-  const status = vibeOn ? c.warn("▶▶ avto rejim yoniq") : c.subtle("oddiy rejim");
+  const status = fullAutoOn ? c.warn("⚡ full auto") : vibeOn ? c.warn("▶▶ avto rejim yoniq") : c.subtle("oddiy rejim");
   const parts = [
-    status + c.faint(" (/vibe)"),
+    status + c.faint(fullAutoOn ? " (/auto)" : " (/vibe)"),
     c.faint("/swarm agentlar"),
     pendingCount ? c.warn("📎 " + pendingCount) : null,
     c.faint("/ menyu"),
@@ -246,7 +248,7 @@ export function slashMenu(items) {
   const groups = [
     { label: "Suhbat",   cmds: ["/help", "/clear", "/attach", "/detach"] },
     { label: "Sessiya",  cmds: ["/sessions", "/resume", "/rewind", "/fork"] },
-    { label: "Rejim",    cmds: ["/vibe", "/swarm"] },
+    { label: "Rejim",    cmds: ["/vibe", "/auto", "/swarm"] },
     { label: "Model",    cmds: ["/model", "/models"] },
     { label: "Skillar",  cmds: ["/skills", "/skill"] },
     { label: "Xotira",   cmds: ["/memory", "/remember", "/forget"] },

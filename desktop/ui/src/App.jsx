@@ -146,6 +146,10 @@ export default function App() {
     if (next) setSettings(next);
   }, []);
   const setLang = (l) => setSetting({ lang: l });
+  const setFullAuto = (on) => {
+    setSetting({ fullAuto: on });
+    toast(on ? t("auto.enabled") : t("auto.disabled"), on ? "info" : "ok");
+  };
   const toggleSidebar = () => setSetting({ sidebar: !settings.sidebar });
   const togglePanel = (tab) => {
     if (tab && (!settings.rightPanel || panelTab !== tab)) { setPanelTab(tab); setSetting({ rightPanel: true }); return; }
@@ -155,6 +159,8 @@ export default function App() {
   const afterFolder = (r) => {
     if (!r || r.error) { if (r?.error) toast(t("folder.notFound"), "err"); return; }
     setInfo((i) => ({ ...i, cwd: r.cwd, recent: r.recent ?? i.recent }));
+    if (r.settings) setSettings(r.settings);
+    if (r.fullAutoOff) toast(t("auto.resetFolder"), "info");
     dispatch({ type: "reset" });
     setActiveTaskId(null);
     setTree(null);
@@ -184,6 +190,8 @@ export default function App() {
     setActiveTaskId(id);
     setMode(r.task.mode === "chat" ? "chat" : "code");
     setInfo((i) => ({ ...i, cwd: r.cwd, recent: r.recent ?? i.recent }));
+    if (r.settings) setSettings(r.settings);
+    if (r.fullAutoOff) toast(t("auto.resetFolder"), "info");
     refreshTree();
     if (r.folderMissing) toast(t("tasks.folderMissing"), "err");
   };
@@ -398,7 +406,7 @@ export default function App() {
             />
           )}
           <main className="main-col"aria-label={t("chat.label")}>
-            <Conversation agent={agent} mode={mode} info={info} onAction={onErrorAction} onPick={pickFolder} onSignIn={() => setSettingsOpen("account")} onSuggest={(s) => { setInput(s); composerRef.current?.focus(); }} />
+            <Conversation agent={agent} mode={mode} info={info} fullAuto={!!settings.fullAuto} onAction={onErrorAction} onPick={pickFolder} onSignIn={() => setSettingsOpen("account")} onSuggest={(s) => { setInput(s); composerRef.current?.focus(); }} />
             {(agent.changes.length > 0 || agent.term.length > 0) && !settings.rightPanel && (
               <div className="peek">
                 {agent.changes.length > 0 && <button type="button" className="chip" onClick={() => togglePanel("changes")}><Icon name="diff" size={13} /> {t("changes.count", { n: agent.changes.length })}</button>}
@@ -408,6 +416,7 @@ export default function App() {
             <Composer
               ref={composerRef} value={input} onChange={setInput} onSend={send} onStop={stop} busy={agent.busy} mode={mode} setMode={setMode}
               model={info.model} onModel={onModel} disabledReason={disabledReason} onFix={(r) => (r === "auth" ? setSettingsOpen("account") : pickFolder())}
+              fullAuto={!!settings.fullAuto} onFullAuto={setFullAuto}
             />
           </main>
           {settings.rightPanel && (
