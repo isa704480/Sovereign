@@ -1067,11 +1067,30 @@ function auditSql(sqlFiles, add) {
     }
   }
 
-  // Siyosatlar: using (true) / with check (true).
+  // Siyosatlar: using (true) / with check (true). Migratsiyalar tartibida kuzatiladi — keyingi
+  // faylda `drop policy` qilingan (yoki qayta yaratilgan) siyosat eski holati bo'yicha xabar
+  // qilinmaydi (mas. 0019 da using(true), 0028 da o'chirilgan → hozir xavf yo'q).
+  const policies = new Map(); // "schema.table|name" -> oxirgi create policy hodisasi yoki null (o'chirilgan)
+  const polKey = (name, qname) => {
+    const { schema, table } = splitName(qname);
+    return `${schema}.${table}|${unq(name)}`;
+  };
+  const polEvents = [];
   for (const f of ordered) {
     const text = stripSqlComments(f.text);
-    const re = new RegExp(String.raw`create\s+policy\s+("[^"]+"|[\w$]+)\s+on\s+${QNAME}([^;]*);`, "gi");
-    for (const m of text.matchAll(re)) {
+    for (const m of text.matchAll(new RegExp(String.raw`create\s+policy\s+("[^"]+"|[\w$]+)\s+on\s+${QNAME}([^;]*);`, "gi"))) {
+      polEvents.push({ type: "create", m, f, pos: m.index });
+    }
+    for (const m of text.matchAll(new RegExp(String.raw`drop\s+policy\s+(?:if\s+exists\s+)?("[^"]+"|[\w$]+)\s+on\s+${QNAME}`, "gi"))) {
+      polEvents.push({ type: "drop", m, f, pos: m.index });
+    }
+  }
+  polEvents.sort((a, b) => a.f.rel.localeCompare(b.f.rel) || a.pos - b.pos);
+  for (const ev of polEvents) policies.set(polKey(ev.m[1], ev.m[2]), ev.type === "create" ? ev : null);
+  for (const ev of policies.values()) {
+    if (!ev) continue;
+    const { m, f } = ev;
+    {
       const body = m[3];
       const usingTrue = /\busing\s*\(\s*\(?\s*true\s*\)?\s*\)/i.test(body);
       const checkTrue = /\bwith\s+check\s*\(\s*\(?\s*true\s*\)?\s*\)/i.test(body);
