@@ -35,10 +35,10 @@ export const P7B = {
   // ───────────── 1. Boshlash ─────────────
   p7bDGsTitle: { uz: "Boshlash", "uz-cyrl": "Бошлаш", ru: "Начало работы", en: "Getting started" },
   p7bDGsIntro: {
-    uz: "SOVEREIGN AI — **ko'p modelli AI chat**: Anthropic, OpenAI, Google, Mistral, Meta, DeepSeek, Qwen, xAI, Z.ai, NVIDIA va Perplexity'ning {n}+ modeli bir joyda, bitta obuna bilan. U **maxfiylikni birinchi o'ringa qo'yib** qurilgan — Blind Prompting shaxsiy ma'lumotlarni so'rov brauzeringizdan chiqmasidan oldin niqoblay oladi, xotira esa shifrlangan holda saqlanadi.",
-    "uz-cyrl": "SOVEREIGN AI — **кўп моделли AI чат**: Anthropic, OpenAI, Google, Mistral, Meta, DeepSeek, Qwen, xAI, Z.ai, NVIDIA ва Perplexity'нинг {n}+ модели бир жойда, битта обуна билан. У **махфийликни биринчи ўринга қўйиб** қурилган — Blind Prompting шахсий маълумотларни сўров браузерингиздан чиқмасидан олдин ниқоблай олади, хотира эса шифрланган ҳолда сақланади.",
-    ru: "SOVEREIGN AI — это **мультимодельный AI-чат**: {n}+ моделей от Anthropic, OpenAI, Google, Mistral, Meta, DeepSeek, Qwen, xAI, Z.ai, NVIDIA и Perplexity в одном месте и по одной подписке. Он построен с **приоритетом приватности**: Blind Prompting может маскировать персональные данные до того, как запрос покинет ваш браузер, а память хранится в зашифрованном виде.",
-    en: "SOVEREIGN AI is a **multi-model AI chat**: {n}+ models from Anthropic, OpenAI, Google, Mistral, Meta, DeepSeek, Qwen, xAI, Z.ai, NVIDIA and Perplexity in one place, with one subscription. It is built **privacy-first** — Blind Prompting can mask personal data before a request leaves your browser, and memory is stored encrypted.",
+    uz: "SOVEREIGN AI — **ko'p modelli AI chat**: Anthropic, OpenAI, Google, Mistral, Meta, DeepSeek, Qwen, xAI, Z.ai, NVIDIA va Perplexity'ning {n}+ modeli bir joyda, bitta obuna bilan. U **maxfiylikni birinchi o'ringa qo'yib** qurilgan — Blind Prompting shaxsiy ma'lumotlarni so'rov brauzeringizdan chiqmasidan oldin niqoblay oladi, xotirani esa istalgan payt ko'rib, o'chira olasiz.",
+    "uz-cyrl": "SOVEREIGN AI — **кўп моделли AI чат**: Anthropic, OpenAI, Google, Mistral, Meta, DeepSeek, Qwen, xAI, Z.ai, NVIDIA ва Perplexity'нинг {n}+ модели бир жойда, битта обуна билан. У **махфийликни биринчи ўринга қўйиб** қурилган — Blind Prompting шахсий маълумотларни сўров браузерингиздан чиқмасидан олдин ниқоблай олади, хотирани эса исталган пайт кўриб, ўчира оласиз.",
+    ru: "SOVEREIGN AI — это **мультимодельный AI-чат**: {n}+ моделей от Anthropic, OpenAI, Google, Mistral, Meta, DeepSeek, Qwen, xAI, Z.ai, NVIDIA и Perplexity в одном месте и по одной подписке. Он построен с **приоритетом приватности**: Blind Prompting может маскировать персональные данные до того, как запрос покинет ваш браузер, а память можно в любой момент посмотреть и удалить.",
+    en: "SOVEREIGN AI is a **multi-model AI chat**: {n}+ models from Anthropic, OpenAI, Google, Mistral, Meta, DeepSeek, Qwen, xAI, Z.ai, NVIDIA and Perplexity in one place, with one subscription. It is built **privacy-first** — Blind Prompting can mask personal data before a request leaves your browser, and you can view or delete your memory at any time.",
   },
   p7bDSignUpTitle: { uz: "Ro'yxatdan o'tish", "uz-cyrl": "Рўйхатдан ўтиш", ru: "Регистрация", en: "Sign up" },
   p7bDSignUpBody: {
@@ -144,10 +144,10 @@ export const P7B = {
   },
   p7bDMemoryTitle: { uz: "Xotira", "uz-cyrl": "Хотира", ru: "Память", en: "Memory" },
   p7bDMemoryBody: {
-    uz: "SOVEREIGN muhim faktlarni — ismingiz, loyihalaringiz va sevimli uslubingizni — suhbatlar davomida eslab qoladi. U nimalarni bilishini ko'rish, alohida yozuvlarni o'chirish yoki hammasini tozalash uchun + menyusidan **Xotira**ni oching. Xotira shifrlangan holda saqlanadi ([Maxfiylik]({aPrivacy}) bo'limiga qarang).",
-    "uz-cyrl": "SOVEREIGN муҳим фактларни — исмингиз, лойиҳаларингиз ва севимли услубингизни — суҳбатлар давомида эслаб қолади. У нималарни билишини кўриш, алоҳида ёзувларни ўчириш ёки ҳаммасини тозалаш учун + менюсидан **Хотира**ни очинг. Хотира шифрланган ҳолда сақланади ([Махфийлик]({aPrivacy}) бўлимига қаранг).",
-    ru: "SOVEREIGN запоминает ключевые факты — ваше имя, проекты и предпочитаемый стиль — между чатами. Откройте **Память** в меню +, чтобы посмотреть, что он знает, удалить отдельные записи или очистить всё. Память хранится в зашифрованном виде (см. [Приватность]({aPrivacy})).",
-    en: "SOVEREIGN remembers key facts — your name, projects and preferred style — across chats. Open **Memory** from the + menu to see what it knows, delete single items or clear everything. Memory is stored encrypted (see [Privacy]({aPrivacy})).",
+    uz: "SOVEREIGN muhim faktlarni — ismingiz, loyihalaringiz va sevimli uslubingizni — suhbatlar davomida eslab qoladi. U nimalarni bilishini ko'rish, alohida yozuvlarni o'chirish yoki hammasini tozalash uchun + menyusidan **Xotira**ni oching. Xotira qanday saqlanishi haqida [Maxfiylik]({aPrivacy}) bo'limiga qarang.",
+    "uz-cyrl": "SOVEREIGN муҳим фактларни — исмингиз, лойиҳаларингиз ва севимли услубингизни — суҳбатлар давомида эслаб қолади. У нималарни билишини кўриш, алоҳида ёзувларни ўчириш ёки ҳаммасини тозалаш учун + менюсидан **Хотира**ни очинг. Хотира қандай сақланиши ҳақида [Махфийлик]({aPrivacy}) бўлимига қаранг.",
+    ru: "SOVEREIGN запоминает ключевые факты — ваше имя, проекты и предпочитаемый стиль — между чатами. Откройте **Память** в меню +, чтобы посмотреть, что он знает, удалить отдельные записи или очистить всё. Как хранится память — см. [Приватность]({aPrivacy}).",
+    en: "SOVEREIGN remembers key facts — your name, projects and preferred style — across chats. Open **Memory** from the + menu to see what it knows, delete single items or clear everything. See [Privacy]({aPrivacy}) for how memory is stored.",
   },
   p7bDKbNav: { uz: "Bilim bazasi", "uz-cyrl": "Билимлар базаси", ru: "База знаний", en: "Knowledge base" },
   p7bDKbTitle: { uz: "Bilim bazasi (hujjatlar)", "uz-cyrl": "Билимлар базаси (ҳужжатлар)", ru: "База знаний (документы)", en: "Knowledge base (documents)" },
@@ -547,10 +547,10 @@ export const P7B = {
   // ───────────── 7. Maxfiylik ─────────────
   p7bDPrivacyTitle: { uz: "Maxfiylik va xavfsizlik", "uz-cyrl": "Махфийлик ва хавфсизлик", ru: "Приватность и безопасность", en: "Privacy & security" },
   p7bDPriv1: {
-    uz: "**Shifrlangan xotira** — xotira va shaxsiy kontent AES-256-GCM bilan shifrlanadi va serverda faqat shifrlangan holda saqlanadi.",
-    "uz-cyrl": "**Шифрланган хотира** — хотира ва шахсий контент AES-256-GCM билан шифрланади ва серверда фақат шифрланган ҳолда сақланади.",
-    ru: "**Зашифрованная память** — память и личный контент шифруются AES-256-GCM и хранятся на сервере только в зашифрованном виде.",
-    en: "**Encrypted memory** — memory and personal content are encrypted with AES-256-GCM and stored on the server only in encrypted form.",
+    uz: "**Xotira va suhbatlar** — hisobingizga bog'langan holda ma'lumotlar bazasida (Supabase) saqlanadi; provayder ularni diskda shifrlaydi, lekin ular uchidan-uchiga (end-to-end) shifrlanmagan — javob berish uchun serverimiz ularni o'qiydi. Xotirani istalgan payt ko'rib, eksport qilib yoki o'chirib yuborishingiz mumkin.",
+    "uz-cyrl": "**Хотира ва суҳбатлар** — ҳисобингизга боғланган ҳолда маълумотлар базасида (Supabase) сақланади; провайдер уларни дискда шифрлайди, лекин улар учидан-учига шифрланмаган — жавоб бериш учун серверимиз уларни ўқийди. Хотирани исталган пайт кўриб, экспорт қилиб ёки ўчириб юборишингиз мумкин.",
+    ru: "**Память и чаты** хранятся в базе данных (Supabase) с привязкой к вашему аккаунту; провайдер шифрует их на диске, но они не зашифрованы сквозным (end-to-end) шифрованием — наш сервер читает их, чтобы ответить вам. Память можно в любой момент посмотреть, экспортировать или удалить.",
+    en: "**Memory and chats** are stored in our database (Supabase), tied to your account; the provider encrypts them at rest, but they are not end-to-end encrypted — our server reads them to answer you. You can view, export or delete your memory at any time.",
   },
   p7bDPriv2: {
     uz: "**Blind Prompting** — so'rov AI provayderiga yetib borishidan oldin ismlar, kontaktlar, moliyaviy ma'lumotlar va ID raqamlarni ixtiyoriy niqoblash ([batafsil]({aBlind})).",

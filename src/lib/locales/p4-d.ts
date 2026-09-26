@@ -132,11 +132,11 @@ export const P4D = {
   },
   p4dAudBizTitle: { uz: "Bizneslar", "uz-cyrl": "Бизнеслар", ru: "Бизнес", en: "Businesses" },
   p4dAudBizBody: {
-    uz: "Blind Prompting mijoz ismlari, raqamlar va kompaniya nomlarini so'rov SOVEREIGN'dan chiqishidan oldin maskalaydi; xotira AES-256-GCM bilan shifrlanadi.",
+    uz: "Blind Prompting (yoqilganda) mijoz ismlari, raqamlar va kompaniya nomlarini so'rov SOVEREIGN'dan chiqishidan oldin maskalaydi; suhbat va xotirani istalgan payt o'chirish mumkin.",
     "uz-cyrl":
-      "Blind Prompting мижоз исмлари, рақамлар ва компания номларини сўров SOVEREIGN'дан чиқишидан олдин маскалайди; хотира AES-256-GCM билан шифрланади.",
-    ru: "Blind Prompting скрывает имена клиентов, номера и названия компаний до того, как запрос покинет SOVEREIGN; память шифруется AES-256-GCM.",
-    en: "Blind Prompting masks client names, numbers and companies before a request leaves SOVEREIGN; memory is encrypted with AES-256-GCM.",
+      "Blind Prompting (ёқилганда) мижоз исмлари, рақамлар ва компания номларини сўров SOVEREIGN'дан чиқишидан олдин маскалайди; суҳбат ва хотирани исталган пайт ўчириш мумкин.",
+    ru: "Blind Prompting (если включён) скрывает имена клиентов, номера и названия компаний до того, как запрос покинет SOVEREIGN; чаты и память можно удалить в любой момент.",
+    en: "Blind Prompting (when on) masks client names, numbers and companies before a request leaves SOVEREIGN; chats and memory can be deleted at any time.",
   },
   p4dAudLangs: { uz: "Interfeys tillari", "uz-cyrl": "Интерфейс тиллари", ru: "Языки интерфейса", en: "Interface languages" },
   p4dAudPay: { uz: "To'lov usullari", "uz-cyrl": "Тўлов усуллари", ru: "Способы оплаты", en: "Payment methods" },

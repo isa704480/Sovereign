@@ -13,7 +13,7 @@ const FEATURES: { icon: typeof ShieldCheck; tag: string; tagKey?: TKey; title: T
   { icon: BadgeCheck, tag: "Verified", title: "ldFeat3Title", body: "ldFeat3Body" },
   { icon: Layers, tag: "1700+ model", tagKey: "ldFeat4Tag", title: "ldFeat4Title", body: "ldFeat4Body" },
   { icon: Zap, tag: "Auto", title: "ldFeat5Title", body: "ldFeat5Body" },
-  { icon: Lock, tag: "AES-256-GCM", title: "ldFeat6Title", body: "ldFeat6Body" },
+  { icon: Lock, tag: "Blind Prompting", title: "ldFeat6Title", body: "ldFeat6Body" },
 ];
 
 export function Features() {

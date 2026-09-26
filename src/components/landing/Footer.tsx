@@ -79,7 +79,7 @@ export function Footer() {
             © 2026 SOVEREIGN AI. {t("p4dRights")}
             {LEGAL_ENTITY && <> · {fmt(t("p4dOperatedBy"), { entity: LEGAL_ENTITY })}</>}
           </p>
-          <span className="font-mono">AES-256-GCM · Zero-knowledge · GDPR</span>
+          <span className="font-mono">TLS · Blind Prompting · RLS</span>
         </div>
       </div>
     </footer>

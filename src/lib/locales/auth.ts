@@ -19,16 +19,16 @@ export const AUTH = {
   auSignInLink: { uz: "Kiring →", "uz-cyrl": "Киринг →", ru: "Войдите →", en: "Log in →" },
 
   // ── Trust badges / vizual panel ──
-  auBadgeEncryption: { uz: "256-bit shifrlash", "uz-cyrl": "256-бит шифрлаш", ru: "256-битное шифрование", en: "256-bit encryption" },
+  auBadgeEncryption: { uz: "Shifrlangan ulanish (TLS)", "uz-cyrl": "Шифрланган уланиш (TLS)", ru: "Шифрованное соединение (TLS)", en: "Encrypted connection (TLS)" },
   auBadgeNoAds: { uz: "Reklamasiz", "uz-cyrl": "Рекламасиз", ru: "Без рекламы", en: "No ads" },
   auHeroA: { uz: "Birinchi marta AI ", "uz-cyrl": "Биринчи марта AI ", ru: "Впервые ИИ принадлежит ", en: "For the first time, AI belongs to " },
   auHeroB: { uz: "sizga", "uz-cyrl": "сизга", ru: "вам", en: "you" },
   auHeroC: { uz: " tegishli.", "uz-cyrl": " тегишли.", ru: ".", en: "." },
   auHeroDesc: {
-    uz: "Bitta hisob. Barcha modellar. Shifrlangan xotira — faqat sizning qurilmangizda ochiladi.",
-    "uz-cyrl": "Битта ҳисоб. Барча моделлар. Шифрланган хотира — фақат сизнинг қурилмангизда очилади.",
-    ru: "Один аккаунт. Все модели. Зашифрованная память — открывается только на вашем устройстве.",
-    en: "One account. Every model. Encrypted memory — unlocked only on your device.",
+    uz: "Bitta hisob. Barcha modellar. Xotira sizning nazoratingizda — istalgan payt ko'rasiz yoki o'chirasiz.",
+    "uz-cyrl": "Битта ҳисоб. Барча моделлар. Хотира сизнинг назоратингизда — исталган пайт кўрасиз ёки ўчирасиз.",
+    ru: "Один аккаунт. Все модели. Память под вашим контролем — смотрите или удаляйте в любой момент.",
+    en: "One account. Every model. Memory under your control — view or delete it any time.",
   },
 
   // ── Formalar ──

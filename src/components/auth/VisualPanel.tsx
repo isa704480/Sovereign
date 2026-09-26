@@ -41,7 +41,7 @@ export function VisualPanel() {
           </p>
           <div className="mt-6 flex items-center gap-2 font-mono text-xs text-text-muted">
             <span className="size-1.5 rounded-full bg-success" />
-            AES-256-GCM · Zero-knowledge · GDPR
+            TLS · Blind Prompting · RLS
           </div>
         </blockquote>
       </div>
