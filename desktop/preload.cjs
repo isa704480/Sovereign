@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld("sovereign", {
   fsRead: (path) => invoke("fs:read", path),
   // Undo — ixtiyoriy yo'lga yozish yo'q; faqat main'dagi zaxira id'si bo'yicha tiklash.
   fsRestore: (backupId) => invoke("fs:restore", backupId),
+  // Xavfsizlik tekshiruvi — faqat o'qish (ish papkasi).
+  audit: () => invoke("audit:run"),
   setModel: (id, label) => invoke("app:set-model", id, label),
   models: (qs) => invoke("app:models", qs),
   send: (text, mode) => ipcRenderer.send("agent:send", { text, mode }),

@@ -105,6 +105,7 @@ const CLI_COMMANDS: readonly [string, TKey][] = [
   ["/vibe", "p7bDCmdVibe"],
   ["/auto", "p7bDCmdAuto"],
   ["/swarm <n> <task>", "p7bDCmdSwarm"],
+  ["/audit", "p7bDCmdAudit"],
   ["/sessions, /resume <id>", "p7bDCmdSessions"],
   ["/rewind [n], /fork", "p7bDCmdRewind"],
   ["/memory, /remember, /forget", "p7bDCmdMemory"],
@@ -125,6 +126,7 @@ const CLI_USAGE = [
   "sov logout                        # sign out",
   "sov whoami                        # connection status",
   "sov key sk-or-v1-...              # use your own OpenRouter key",
+  "sov audit [--json]                # pre-deploy security audit (offline)",
   "sov models                        # list models",
   "sov help                          # help",
 ].join("\n");
@@ -182,6 +184,7 @@ export function DocsContent({ data }: { data: DocsData }) {
         { id: "cli-install", label: t("p7bDInstallTitle") },
         { id: "cli-usage", label: t("p7bDUsageTitle") },
         { id: "cli-commands", label: t("p7bDCmdsTitle") },
+        { id: "cli-audit", label: t("p7bDAuditTitle") },
         { id: "cli-safety", label: t("p7bDSafetyTitle") },
       ],
     },
@@ -453,6 +456,14 @@ export function DocsContent({ data }: { data: DocsData }) {
                     </tbody>
                   </table>
                 </div>
+              </Sub>
+
+              <Sub id="cli-audit" title={t("p7bDAuditTitle")}>
+                <p>{r("p7bDAuditIntro")}</p>
+                <CopyCode label={t("p7bDRun")} code="sov audit" prompt />
+                <CopyCode label="CI / JSON" code="sov audit --json > audit.json" prompt />
+                <p>{r("p7bDAuditChecks")}</p>
+                <Note>{r("p7bDAuditFix")}</Note>
               </Sub>
 
               <Sub id="cli-safety" title={t("p7bDSafetyTitle")}>

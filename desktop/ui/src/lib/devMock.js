@@ -123,6 +123,21 @@ export function install() {
     fsTree: async () => ({ cwd, nodes: cwd ? tree : [] }),
     fsRead: async (p) => ({ content: `// ${p}\nexport default function Demo() {\n  return null;\n}\n` }),
     fsRestore: async () => ({ ok: true }),
+    // Xavfsizlik tekshiruvi — namunaviy natija (haqiqiy skaner main'da; ?cleanaudit=1 — toza).
+    audit: async () => {
+      await sleep(500);
+      if (!cwd) return { error: "no-folder" };
+      const L = (uz, ru, en) => ({ uz, "uz-cyrl": uz, ru, en });
+      const findings = qs.has("cleanaudit") ? [] : [
+        { severity: "critical", rule: "supabase.no-rls", file: "supabase/migrations/001_init.sql", line: 3, message: L("«orders» jadvalida RLS yoqilmagan.", "В таблице «orders» не включён RLS.", "Table “orders” has no RLS."), fix: L("alter table orders enable row level security;", "alter table orders enable row level security;", "alter table orders enable row level security;") },
+        { severity: "high", rule: "client.server-env", file: "src/app/admin/page.tsx", line: 7, message: L("\"use client\" komponent server env o'qiydi.", "Клиентский компонент читает серверный env.", "A \"use client\" component reads a server env."), fix: L("Server route'ga ko'chiring.", "Перенесите на сервер.", "Move it to a server route.") },
+        { severity: "medium", rule: "xss.inner-html", file: "src/components/Bio.tsx", line: 12, message: L("dangerouslySetInnerHTML", "dangerouslySetInnerHTML", "dangerouslySetInnerHTML"), fix: L("DOMPurify.sanitize()", "DOMPurify.sanitize()", "DOMPurify.sanitize()") },
+      ];
+      const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+      for (const f of findings) counts[f.severity]++;
+      const prompt = `Security audit (mock): ${findings.length} findings\n` + findings.map((f) => `- [${f.severity}] ${f.file}:${f.line}`).join("\n");
+      return { findings, counts, ok: !counts.critical && !counts.high, scanned: 42, durationMs: 180, truncated: false, prompts: { uz: prompt, "uz-cyrl": prompt, ru: prompt, en: prompt } };
+    },
     setModel: async (id, label) => { model = id ? label || id : "Auto"; return { ok: true, model }; },
     models: async (q) => {
       await sleep(300);
