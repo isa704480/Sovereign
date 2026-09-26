@@ -47,7 +47,7 @@ export function isOmniId(id) {
 
 /** Serverdan OmniRoute katalogini (1700+ model) qidirib oladi (oila yoki qidiruv). */
 export async function fetchCatalog(config, q = "", limit = 40, family = "") {
-  const base = (config.baseUrl || "https://sovhq.vercel.app").replace(/\/$/, "");
+  const base = (config.baseUrl || "https://soveregn.xyz").replace(/\/$/, "");
   const params = new URLSearchParams({ limit: String(limit) });
   if (q) params.set("q", q);
   if (family) params.set("family", family);
@@ -63,7 +63,7 @@ export async function fetchCatalog(config, q = "", limit = 40, family = "") {
 
 /** Oilalar ro'yxatini oladi (Cursor uslubi: Claude, Gemini, GPT...). */
 export async function fetchFamilies(config) {
-  const base = (config.baseUrl || "https://sovhq.vercel.app").replace(/\/$/, "");
+  const base = (config.baseUrl || "https://soveregn.xyz").replace(/\/$/, "");
   try {
     const res = await fetch(`${base}/api/models?families=1`, config.token ? { headers: { Authorization: `Bearer ${config.token}` } } : {});
     if (!res.ok) return { configured: false, families: [] };

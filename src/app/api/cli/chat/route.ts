@@ -231,7 +231,7 @@ export async function POST(req: Request) {
       Authorization: `Bearer ${cand.auth}`,
     };
     if (cand.referer) {
-      headers["HTTP-Referer"] = process.env.NEXT_PUBLIC_SITE_URL ?? "https://sovhq.vercel.app";
+      headers["HTTP-Referer"] = process.env.NEXT_PUBLIC_SITE_URL ?? "https://soveregn.xyz";
       headers["X-Title"] = "SOVEREIGN CLI";
     }
 

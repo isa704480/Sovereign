@@ -59,7 +59,7 @@ export async function shareConversation(raw: unknown): Promise<ShareResult> {
   });
   if (error) return { ok: false, error: t("chShareFailed") };
 
-  const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sovhq.vercel.app").replace(/\/$/, "");
+  const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://soveregn.xyz").replace(/\/$/, "");
   return { ok: true, id, url: `${origin}/share/${id}` };
 }
 

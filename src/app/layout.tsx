@@ -26,7 +26,7 @@ const dmMono = DM_Mono({
   display: "swap",
 });
 
-const SITE_URL = "https://sovhq.vercel.app";
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://soveregn.xyz").replace(/\/$/, "");
 
 /**
  * Metadata va <html lang> STATIK (en — sayt standart tili): cookie o'qilsa har sahifa har so'rovda

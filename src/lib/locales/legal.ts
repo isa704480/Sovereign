@@ -24,7 +24,7 @@ export const LEGAL_UPDATED = "2026-09-22";
 export const LEGAL_EMAIL = "isa704480@gmail.com";
 
 const MAIL = `[${LEGAL_EMAIL}](mailto:${LEGAL_EMAIL})`;
-const SITE = "[sovhq.vercel.app](https://sovhq.vercel.app)";
+const SITE = "[soveregn.xyz](https://soveregn.xyz)";
 
 export const LEGAL_LABELS: Record<Lang, { eyebrow: string; updated: string }> = {
   uz: { eyebrow: "Huquqiy", updated: "Oxirgi yangilanish" },

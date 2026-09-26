@@ -15,4 +15,4 @@ jobs:
         run: |
           curl -sS --max-time 120 \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://sovhq.vercel.app/api/cron/omniroute-watchdog"
+            "https://soveregn.xyz/api/cron/omniroute-watchdog"

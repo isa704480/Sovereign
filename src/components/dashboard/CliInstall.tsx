@@ -65,7 +65,7 @@ function CopyLine({ text }: { text: string }) {
 export function CliInstall() {
   const t = useT();
   const [os, setOs] = useState<Os>(guessOs);
-  const origin = typeof window !== "undefined" ? window.location.origin : "https://sovhq.vercel.app";
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://soveregn.xyz";
 
   return (
     <div

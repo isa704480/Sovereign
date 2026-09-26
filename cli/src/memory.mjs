@@ -38,7 +38,7 @@ function save(config, list) {
 
 // ---- server (akkaunt rejimi) -----------------------------------------
 function memUrl(config, qs = "") {
-  return `${(config.baseUrl || "https://sovhq.vercel.app").replace(/\/$/, "")}/api/cli/memory${qs}`;
+  return `${(config.baseUrl || "https://soveregn.xyz").replace(/\/$/, "")}/api/cli/memory${qs}`;
 }
 const authHeaders = (config) => ({ "Content-Type": "application/json", Authorization: `Bearer ${config.token}` });
 const timeout = (ms) => new Promise((_, r) => setTimeout(() => r(new Error("timeout")), ms));

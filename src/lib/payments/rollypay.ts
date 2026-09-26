@@ -7,7 +7,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
  *
  * Env: ROLLYPAY_API_KEY (kassa api_key), ROLLYPAY_SIGNING_SECRET (kassa
  * signing_secret — webhook imzosi), ROLLYPAY_TEST=true — sandbox to'lovlar.
- * Webhook URL kassa sozlamasida: https://sovhq.vercel.app/api/webhooks/rollypay
+ * Webhook URL kassa sozlamasida: https://soveregn.xyz/api/webhooks/rollypay
  */
 const BASE = (process.env.ROLLYPAY_BASE_URL ?? "https://api.rollypay.io/api/v1").replace(/\/$/, "");
 /** Webhook vaqt tamg'asi shu oraliqdan eski bo'lsa — replay deb rad etiladi. */

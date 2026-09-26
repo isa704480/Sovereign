@@ -1,6 +1,6 @@
 # SOVEREIGN CLI installer — Windows (PowerShell)
-#   irm https://sovhq.vercel.app/install.ps1 | iex
-# CMD:  powershell -c "irm https://sovhq.vercel.app/install.ps1 | iex"
+#   irm https://soveregn.xyz/install.ps1 | iex
+# CMD:  powershell -c "irm https://soveregn.xyz/install.ps1 | iex"
 # `iex` ichida `exit` oynani yopib yuboradi — shuning uchun `return`.
 
 $pkg = '@islombekrrr/sov-cli'

@@ -75,5 +75,5 @@ Cheklovlar: rasm 8 MB, matn 2 MB, PDF 20 MB. PDF matnini ajratish uchun `npm i -
 
 ## Sozlash manzili
 
-`SOVEREIGN_URL` — server manzili (default `https://sovhq.vercel.app`).
+`SOVEREIGN_URL` — server manzili (default `https://soveregn.xyz`).
 `SOVEREIGN_TOKEN` — akkaunt tokeni (env orqali).

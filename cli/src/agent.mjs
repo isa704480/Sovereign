@@ -111,7 +111,7 @@ async function runRound(messages, config, onText) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${config.openrouterKey}`,
-      "HTTP-Referer": "https://sovhq.vercel.app",
+      "HTTP-Referer": "https://soveregn.xyz",
       "X-Title": "SOVEREIGN CLI",
     },
     body: JSON.stringify({
@@ -241,7 +241,7 @@ async function askOnce(messages, config, maxTokens = 900) {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${config.openrouterKey}`,
-      "HTTP-Referer": "https://sovhq.vercel.app",
+      "HTTP-Referer": "https://soveregn.xyz",
       "X-Title": "SOVEREIGN CLI",
     },
     body: JSON.stringify({ model: config.model, messages, temperature: 0.8, max_tokens: maxTokens }),

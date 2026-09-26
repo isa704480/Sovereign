@@ -345,7 +345,7 @@ export async function readPage(raw: string): Promise<PageRead | null> {
       maxHops: MAX_HOPS,
       headers: {
         // Identify honestly; many sites block unknown clients.
-        "User-Agent": "SovereignBot/1.0 (+https://sovhq.vercel.app)",
+        "User-Agent": "SovereignBot/1.0 (+https://soveregn.xyz)",
         Accept: "text/html,text/plain,application/json;q=0.9,*/*;q=0.1",
         "Accept-Language": "uz,en;q=0.8,ru;q=0.6",
       },

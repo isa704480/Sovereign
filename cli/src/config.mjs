@@ -7,7 +7,7 @@ const FILE = join(DIR, "config.json");
 
 const DEFAULTS = {
   // Account mode: SOVEREIGN server base URL + issued token.
-  baseUrl: "https://sovhq.vercel.app",
+  baseUrl: "https://soveregn.xyz",
   token: "",
   email: "",
   // Direct mode: user's own OpenRouter key + model. Kod-agent uchun tekin va tez

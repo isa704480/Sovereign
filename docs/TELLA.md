@@ -72,7 +72,7 @@ Yoqish: Vercel env'ga `TRAINING_CAPTURE=on` va `0018` migratsiyani ishga tushiri
 Admin sifatida:
 
 ```
-https://sovhq.vercel.app/api/admin/training?limit=2000
+https://soveregn.xyz/api/admin/training?limit=2000
 ```
 
 JSONL fayl yuklanadi — `finetune/train_qlora.py` aynan shu formatni kutadi:

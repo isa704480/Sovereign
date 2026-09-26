@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # SOVEREIGN CLI installer — macOS / Linux
-#   curl -fsSL https://sovhq.vercel.app/install.sh | sh
+#   curl -fsSL https://soveregn.xyz/install.sh | sh
 set -e
 
 PKG="@islombekrrr/sov-cli"
