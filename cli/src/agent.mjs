@@ -1,4 +1,4 @@
-import { TOOL_SCHEMA, runTool, contextSummary } from "./tools.mjs";
+import { TOOL_SCHEMA, runTool, contextSummary, visible } from "./tools.mjs";
 import { c, spinner, renderMarkdown } from "./ui.mjs";
 import { memorySystemMessage } from "./memory.mjs";
 
@@ -23,15 +23,15 @@ const SYSTEM = [
 function describe(name, args) {
   switch (name) {
     case "write_file":
-      return `${c.green("✎")} ${c.white(args.path)} ${c.dim("faylini yozyapman")}`;
+      return `${c.green("✎")} ${c.white(visible(args.path))} ${c.dim("faylini yozyapman")}`;
     case "make_dir":
-      return `${c.green("📁")} ${c.white(args.path)} ${c.dim("papkasini yaratyapman")}`;
+      return `${c.green("📁")} ${c.white(visible(args.path))} ${c.dim("papkasini yaratyapman")}`;
     case "read_file":
-      return `${c.teal("📖")} ${c.white(args.path)} ${c.dim("faylini o'qiyapman")}`;
+      return `${c.teal("📖")} ${c.white(visible(args.path))} ${c.dim("faylini o'qiyapman")}`;
     case "list_dir":
       return `${c.teal("📂")} ${c.dim("papkani ko'zdan kechiryapman")}`;
     case "run_command":
-      return `${c.amber("▶")} ${c.white(args.command)} ${c.dim("buyrug'ini bajaryapman")}`;
+      return `${c.amber("▶")} ${c.white(visible(args.command))} ${c.dim("buyrug'ini bajaryapman")}`;
     default:
       return `${c.teal("▸")} ${c.dim(name)}`;
   }

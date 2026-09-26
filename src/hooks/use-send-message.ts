@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { syncConversation } from "@/app/actions/chat";
 import { rememberExchange } from "@/app/actions/memory";
-import { mask } from "@/lib/ai/blind-prompting";
+import { createMaskSession, mask } from "@/lib/ai/blind-prompting";
 import { detectImageIntent } from "@/lib/chat/image-intent";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
@@ -43,12 +43,10 @@ function stripInlineImages(text: string): string {
  * the returned `tokenMap` is used to un-mask the streamed answer on the client.
  */
 function toWire(messages: ChatMessage[], blind: boolean, lang: Lang) {
-  const tokenMap: Record<string, string> = {};
-  const maskText = (text: string) => {
-    const r = mask(text);
-    Object.assign(tokenMap, r.tokenMap);
-    return r.masked;
-  };
+  // Bitta sessiya — butun tarix bo'ylab token'lar noyob (turli qiymat → turli token).
+  const session = createMaskSession();
+  const tokenMap = session.tokenMap;
+  const maskText = (text: string) => mask(text, session).masked;
   const wire = messages.map((m) => {
     // Blind Prompting yoqilganda BARCHA user xabarlari (nafaqat oxirgi)
     // maskalanadi — chunki avvalgi turlarda ham PII kelishi mumkin.
@@ -281,7 +279,8 @@ export function useSendMessage() {
       const res = await fetch("/api/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        // Maxfiy rejim: PII rasm provayderiga (tashqi xizmat) ochiq ketmasin.
+        body: JSON.stringify({ prompt: useChat.getState().blindPrompting ? mask(prompt).masked : prompt }),
         signal: controller.signal,
       });
       let data: { urls?: string[]; error?: string } = {};

@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { isZenoConfigured, zeno } from "@/lib/payments/zenobank";
 import { getServerT } from "@/lib/i18n-server";
 import { normalizePromo, reservePromoOrder, resolvePromo } from "@/lib/payments/promo";
+import { purchaseBlocker } from "@/lib/payments/entitlement";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
@@ -55,6 +56,9 @@ export async function POST(req: Request) {
     console.error("[checkout/zeno] service client:", e);
     return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
   }
+  // Pastroq tarif (yuqorisi faol) yoki ikkinchi parallel karta obunasi — rad (0033).
+  const blocked = await purchaseBlocker(service, user.id, planId, "zenobank");
+  if (blocked) return Response.json({ error: t(blocked) }, { status: 409 });
 
   if (promo) {
     const r = await resolvePromo(promo, user.id, price);

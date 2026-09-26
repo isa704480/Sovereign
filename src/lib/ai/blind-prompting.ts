@@ -50,20 +50,34 @@ function counter(): Counters {
 }
 
 function label(cat: keyof Counters, n: number): string {
-  return `[${cat}_${String.fromCharCode(64 + n)}]`;
+  // A..Z, keyin raqam — 26 dan ko'p qiymat bitta tokenga to'qnashmasin.
+  return `[${cat}_${n <= 26 ? String.fromCharCode(64 + n) : n}]`;
+}
+
+/**
+ * Bir suhbat (bir so'rov) davomidagi umumiy holat: turli xabarlardagi qiymatlar
+ * turli token oladi, bir xil qiymat — bir xil token. Sessiyasiz har mask() chaqiruvi
+ * hisobni noldan boshlardi va ikki xabardagi ikki ism ikkalasi ham [PERSON_A] bo'lardi.
+ */
+export interface MaskSession {
+  cnt: Counters;
+  revIndex: Map<string, string>;
+  tokenMap: Record<string, string>;
+}
+
+export function createMaskSession(): MaskSession {
+  return { cnt: counter(), revIndex: new Map(), tokenMap: {} };
 }
 
 /** Mask PII inside `text` into stable tokens; returns the token map. */
-export function mask(text: string): BlindResult {
-  const cnt = counter();
-  const revIndex = new Map<string, string>(); // original → token
-  const tokenMap: Record<string, string> = {};
+export function mask(text: string, session: MaskSession = createMaskSession()): BlindResult {
+  const { cnt, revIndex, tokenMap } = session; // revIndex: original → token
 
   const alloc = (cat: keyof Counters, value: string): string => {
     const key = `${cat}:${value.trim().toLowerCase()}`;
     const found = revIndex.get(key);
     if (found) return found;
-    cnt[cat] = Math.min(cnt[cat] + 1, 26);
+    cnt[cat] += 1;
     const tok = label(cat, cnt[cat]);
     revIndex.set(key, tok);
     tokenMap[tok] = value;

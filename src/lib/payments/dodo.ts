@@ -74,6 +74,13 @@ export async function createDodoCheckout(input: {
   return { sessionId: session.session_id, checkoutUrl: session.checkout_url };
 }
 
+/** Refund/dispute event'ida to'lovni buyurtmaga bog'lash uchun (metadata.order_id, obuna id). */
+export async function retrieveDodoPayment(paymentId: string): Promise<{ orderId?: string; subscriptionId?: string }> {
+  const pay = await dodo().payments.retrieve(paymentId);
+  const meta = (pay.metadata ?? {}) as Record<string, string>;
+  return { orderId: meta.order_id, subscriptionId: pay.subscription_id ?? undefined };
+}
+
 /**
  * Verifies the Standard Webhooks signature (id.timestamp.body, HMAC-SHA256,
  * 5-minute tolerance) via the official SDK. Throws on any mismatch.

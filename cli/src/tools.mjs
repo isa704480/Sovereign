@@ -16,7 +16,9 @@ function realResolve(abs) {
   const tail = [];
   for (;;) {
     try {
-      const real = realpathSync(cur);
+      // .native — Windows'da 8.3 qisqa nomlarni (SOVERE~1) to'liq nomga ochadi,
+      // aks holda himoya ro'yxatlari qisqa nom bilan aylanib o'tilardi.
+      const real = realpathSync.native(cur);
       return tail.length ? join(real, ...tail.reverse()) : real;
     } catch {
       const parent = dirname(cur);
@@ -91,8 +93,12 @@ const ANYWHERE_DENY = [
   /\/system32(\/|$)/,
 ];
 
-/** Faqat YOZISH taqiqlangan (o'qish mumkin) — git hook/config orqali kod ijrosi. */
-const WRITE_DENY = [/\/\.git\/hooks(\/|$)/, /\/\.git\/config$/];
+/**
+ * Faqat YOZISH taqiqlangan (o'qish mumkin) — git orqali kod ijrosi. Butun .git
+ * (hooks/config emas, commondir/info va h.k. ham) va istalgan chuqurlikdagi .git
+ * FAYLI (gitdir yo'naltirish) — "xavfsiz" git status fsmonitor bilan RCE bermasin.
+ */
+const WRITE_DENY = [/\/\.git(\/|$)/];
 
 let HOME_REAL = null;
 function homeDirs() {
@@ -111,6 +117,8 @@ function homeDirs() {
  */
 export function isProtected(real, { write = false, outside = false } = {}) {
   const n = norm(real);
+  // NTFS muqobil oqimlari (file::$DATA, file:stream) — ro'yxatlarni aylanib o'tish yo'li.
+  if (IS_WIN && n.replace(/^[a-z]:/, "").includes(":")) return true;
   for (const h of homeDirs()) {
     for (const d of HOME_DENY) {
       const full = `${h}/${d}`;
@@ -162,7 +170,9 @@ const GIT_READONLY = new Set(["status", "diff", "log", "show", "rev-parse", "ls-
 const GIT_BAD_ARG = /^(--output|--ext-diff|--textconv|--exec|--upload-pack|--receive-pack|--config-env|-c$|-o$)/i;
 
 // Shell metasimvollari: zanjir, subshell, yo'naltirish, o'zgaruvchi (sh/cmd), uy (~), brace, escape.
-const RISKY_CHARS = IS_WIN ? /[;&|$()`<>\n\r~%^@{}!,]/ : /[;&|$()`<>\n\r~%^@{}!\\]/;
+// POSIX: glob belgilari (*?[]) ham — sh ularni kengaytiradi va symlink orqali
+// ish papkasidan tashqaridagi fayllarni o'qish mumkin bo'lardi.
+const RISKY_CHARS = IS_WIN ? /[;&|$()`<>\n\r~%^@{}!,]/ : /[;&|$()`<>\n\r~%^@{}!\\*?[\]]/;
 
 const HARD_BLOCKED = [
   /\brm\s+-[a-z]*r[a-z]*\s+(\/|~|\$HOME)/i,
@@ -369,13 +379,25 @@ function tree(dir, prefix = "", depth = 0, max = 2) {
 const AUTO_RUN_FILES = new Set([
   "package.json", ".npmrc", ".yarnrc", ".yarnrc.yml", "makefile", "justfile",
   "taskfile.yml", "taskfile.yaml", ".envrc", "pyproject.toml", "setup.py", "setup.cfg",
+  ".pre-commit-config.yaml", "lefthook.yml", "lefthook.yaml", ".lefthook.yml", ".gitlab-ci.yml",
 ]);
-const AUTO_RUN_DIRS = [".vscode", ".idea", ".github", ".husky", ".devcontainer", ".circleci", ".gitlab"];
+const AUTO_RUN_DIRS = [".vscode", ".idea", ".github", ".husky", ".devcontainer", ".circleci", ".gitlab", ".claude", ".cargo"];
+/** IDE/linter avtomatik yuklaydigan konfiglar (eslint.config.mjs, .prettierrc.js ...). */
+const AUTO_RUN_CONFIG = /^(eslint\.config\.|\.eslintrc|prettier\.config\.|\.prettierrc)/;
+/** Windows'da nomi bilan chaqirilsa ishga tushadigan fayllar (git.bat, npm.cmd ...). */
+const EXEC_EXT = /\.(bat|cmd|com|exe|ps1|psm1|vbs|vbe|wsf|wsh|msc|cpl|scr|lnk)$/;
 function isAutoRunPath(real) {
   const rel = relative(process.cwd(), real).split(sep).join("/").toLowerCase();
-  const base = rel.split("/").pop() ?? "";
-  if (AUTO_RUN_FILES.has(base) || base.startsWith(".env") || base === ".gitlab-ci.yml") return true;
-  return AUTO_RUN_DIRS.some((d) => rel === d || rel.startsWith(d + "/"));
+  const parts = rel.split("/");
+  const base = parts[parts.length - 1] ?? "";
+  if (AUTO_RUN_FILES.has(base) || base.startsWith(".env") || AUTO_RUN_CONFIG.test(base) || EXEC_EXT.test(base)) return true;
+  // Istalgan chuqurlikda (apps/web/.vscode/tasks.json ham).
+  return parts.some((seg) => AUTO_RUN_DIRS.includes(seg));
+}
+
+/** Model yuborgan matnni terminalda xavfsiz ko'rsatish: boshqaruv belgilari ko'rinadigan bo'ladi. */
+export function visible(s) {
+  return String(s ?? "").replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, (ch) => "\\x" + ch.charCodeAt(0).toString(16).padStart(2, "0"));
 }
 
 export async function runTool(name, args, confirm) {
@@ -408,7 +430,7 @@ export async function runTool(name, args, confirm) {
       if (isProtected(r.real, { write: true, outside: r.outside })) return `XATO: "${args.path}" — himoyalangan yo'l (kalit/parol/tizim/git hook), yozilmaydi.`;
       const exists = existsSync(r.real);
       const ok = await confirm(
-        `${outsideNote(r)}${exists ? "Almashtirilsinmi" : "Yaratilsinmi"}: ${c.white(r.outside ? r.real : args.path)} (${(args.content ?? "").length} belgi)?`,
+        `${outsideNote(r)}${exists ? "Almashtirilsinmi" : "Yaratilsinmi"}: ${c.white(visible(r.outside ? r.real : args.path))} (${(args.content ?? "").length} belgi)?`,
         /*forcePrompt=*/ r.outside || autoRun,
         { tool: "write_file", path: r.outside ? r.real : args.path, content: args.content ?? "", exists, outside: r.outside, autoRun },
       );
@@ -422,7 +444,7 @@ export async function runTool(name, args, confirm) {
       const r = resolvePath(args.path);
       if (isProtected(r.real, { write: true, outside: r.outside })) return `XATO: "${args.path}" — himoyalangan yo'l, yaratilmaydi.`;
       const ok = await confirm(
-        `${outsideNote(r)}Papka yaratilsinmi: ${c.white(r.outside ? r.real : args.path)}?`,
+        `${outsideNote(r)}Papka yaratilsinmi: ${c.white(visible(r.outside ? r.real : args.path))}?`,
         /*forcePrompt=*/ r.outside,
         { tool: "make_dir", path: r.outside ? r.real : args.path, dir: true, outside: r.outside },
       );
@@ -433,6 +455,11 @@ export async function runTool(name, args, confirm) {
     }
     case "run_command": {
       const cls = classifyCommand(args.command ?? "");
+      // Terminal boshqaruv belgilari (ESC va h.k.) tasdiq oynasida ko'rinadigan buyruqni
+      // soxtalashtirishi mumkin — bunday buyruq umuman bajarilmaydi.
+      if (/[\x00-\x08\x0b-\x1f\x7f-\x9f]/.test(args.command ?? "")) {
+        return "XATO: Buyruqda terminal boshqaruv belgilari bor — xavfsizlik uchun bajarilmaydi.";
+      }
       if (cls.level === "blocked") {
         return `XATO: Bu buyruq xavfli sifatida bloklandi (${cls.reason}). Boshqa yechim ishlab bering.`;
       }
@@ -440,15 +467,23 @@ export async function runTool(name, args, confirm) {
       // "risky" — `--yes`, vibe yoki "a" bilan ham HAR DOIM so'raladi.
       const label =
         cls.level === "safe"
-          ? `Buyruq bajarilsinmi: ${c.amber(args.command)}?`
-          : `⚠️  ${cls.reason.toUpperCase()} — bajarilsinmi: ${c.amber(args.command)}?`;
+          ? `Buyruq bajarilsinmi: ${c.amber(visible(args.command))}?`
+          : `⚠️  ${cls.reason.toUpperCase()} — bajarilsinmi: ${c.amber(visible(args.command))}?`;
       const cmdMeta = { tool: "run_command", command: args.command, risky: cls.level !== "safe" };
       const ok = cls.level === "safe"
         ? await confirm(label, false, cmdMeta)
         : await confirm(label, /*forcePrompt=*/ true, cmdMeta);
       if (!ok) return "Foydalanuvchi rad etdi.";
       try {
-        const out = execSync(args.command, { cwd: process.cwd(), encoding: "utf8", stdio: "pipe", timeout: 120_000 });
+        const out = execSync(args.command, {
+          cwd: process.cwd(),
+          encoding: "utf8",
+          stdio: "pipe",
+          timeout: 120_000,
+          // Windows cmd.exe buyruqni avval JORIY papkadan qidiradi — agent yaratgan
+          // git.bat "xavfsiz" git status o'rniga ishga tushmasin.
+          env: IS_WIN ? { ...process.env, NoDefaultCurrentDirectoryInExePath: "1" } : process.env,
+        });
         return `EXIT 0\n${out.slice(0, 20_000)}`;
       } catch (err) {
         return `XATO (exit ${err.status ?? "?"}):\n${(err.stdout ?? "") + (err.stderr ?? err.message)}`.slice(0, 20_000);

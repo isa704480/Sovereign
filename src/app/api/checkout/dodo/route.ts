@@ -6,6 +6,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createDodoCheckout, dodoMode, dodoProductId, isDodoConfigured } from "@/lib/payments/dodo";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { normalizePromo } from "@/lib/payments/promo";
+import { purchaseBlocker } from "@/lib/payments/entitlement";
 import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
@@ -50,6 +51,9 @@ export async function POST(req: Request) {
     console.error("[checkout/dodo] service client:", e);
     return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
   }
+  // Pastroq tarif (yuqorisi faol) yoki ikkinchi parallel karta obunasi — rad (0033).
+  const blocked = await purchaseBlocker(service, user.id, planId, "dodo");
+  if (blocked) return Response.json({ error: t(blocked) }, { status: 409 });
   const { error: insErr } = await service.from("orders").insert({
     id: orderId,
     user_id: user.id,

@@ -69,7 +69,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
     if (open) {
       if (initialPeriod) setPeriod(initialPeriod);
       const ip = initialPlan ? PLAN_BY_ID[initialPlan] : null;
-      if (ip && ip.price > 0 && ip.id !== currentPlan) setSelected(ip.id);
+      if (ip && ip.price > 0) setSelected(ip.id);
     }
   }
   const hint = usePriceHint();
@@ -206,8 +206,10 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    {PLANS.map((p) => {
-                      const current = p.id === currentPlan;
+                    {PLANS.map((p, idx) => {
+                      const current = p.id === currentPlan && p.price > 0;
+                      // Yuqoriroq tarif faol — pastrog'ini sotib olish qiymatni yo'qotadi (0033).
+                      const lower = idx < PLANS.findIndex((x) => x.id === currentPlan) && p.price > 0;
                       const suggested = p.id === suggestedPlan;
                       const tx = planText(lang, p);
                       return (
@@ -259,22 +261,30 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
 
                           <button
                             type="button"
-                            disabled={current || p.price === 0}
+                            disabled={lower || p.price === 0}
                             onClick={() => {
                               setMessage(null);
                               setSelected(p.id);
                             }}
                             className={cn(
                               "mt-5 h-10 w-full rounded-xl text-sm font-semibold transition-opacity disabled:cursor-default",
-                              current || p.price === 0 ? "opacity-60" : "hover:opacity-90",
+                              lower || p.price === 0 ? "opacity-60" : "hover:opacity-90",
                             )}
                             style={
-                              current || p.price === 0
+                              lower || p.price === 0
                                 ? { border: "1px solid var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text-muted, #9BA3CC)" }
                                 : { background: p.color, color: "#fff" }
                             }
                           >
-                            {current ? t("currentPlan") : p.price === 0 ? t("uxFree") : `${priceLabel(p, period)} — ${t("selectSuffix")}`}
+                            {lower
+                              ? t("uxHigherPlanActive")
+                              : p.price === 0
+                                ? p.id === currentPlan
+                                  ? t("currentPlan")
+                                  : t("uxFree")
+                                : current
+                                  ? `${priceLabel(p, period)} — ${t("uxExtendPlan")}`
+                                  : `${priceLabel(p, period)} — ${t("selectSuffix")}`}
                           </button>
                         </div>
                       );

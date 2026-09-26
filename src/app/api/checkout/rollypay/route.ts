@@ -5,6 +5,7 @@ import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createRollyPayment, isRollyConfigured, rollyRate } from "@/lib/payments/rollypay";
 import { normalizePromo, reservePromoOrder, resolvePromo } from "@/lib/payments/promo";
+import { purchaseBlocker } from "@/lib/payments/entitlement";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
 
@@ -74,6 +75,9 @@ export async function POST(req: Request) {
     console.error("[checkout/rollypay] service client:", e);
     return Response.json({ error: t("chOrderNotCreated") }, { status: 500 });
   }
+  // Pastroq tarif (yuqorisi faol) yoki ikkinchi parallel karta obunasi — rad (0033).
+  const blocked = await purchaseBlocker(service, user.id, planId, "rollypay");
+  if (blocked) return Response.json({ error: t(blocked) }, { status: 409 });
 
   if (promo) {
     const r = await resolvePromo(promo, user.id, price, Math.min(price, MIN_RUB));

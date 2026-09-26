@@ -36,11 +36,18 @@ export async function POST(req: Request) {
       return Response.json({ error: "DB write failed" }, { status: 500 });
     }
 
-    const { data: order } = await supabase
+    const { data: order, error: selErr } = await supabase
       .from("orders")
       .select("id, amount, currency, provider, status")
       .eq("id", orderId)
       .maybeSingle();
+    if (selErr) {
+      // Vaqtinchalik DB xatosi to'langan buyurtmani yo'qotmasin: dedupe'ni bo'shatib,
+      // 500 qaytaramiz — RollyPay qayta yuboradi.
+      console.error("[rollypay] order select:", selErr.message);
+      await supabase.from("webhook_events").delete().eq("id", dedupeId);
+      return Response.json({ error: "DB read failed" }, { status: 500 });
+    }
     // Faqat o'zimiz yaratgan, summasi va valyutasi mos buyurtma.
     const amountOk = order && Number(order.amount).toFixed(2) === Number(event.amount ?? NaN).toFixed(2);
     if (!order || order.provider !== "rollypay" || order.currency !== (event.currency ?? "RUB") || !amountOk) {

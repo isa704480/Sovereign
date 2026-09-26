@@ -142,4 +142,20 @@ export const UX = {
   },
   cliThenRun: { uz: "So'ng ishga tushiring:", "uz-cyrl": "Сўнг ишга туширинг:", ru: "Затем запустите:", en: "Then run:" },
   cliOrNpm: { uz: "Yoki npm orqali:", "uz-cyrl": "Ёки npm орқали:", ru: "Или через npm:", en: "Or with npm:" },
+
+  // To'lov: tarif darajasi (0033)
+  chLowerPlanActive: {
+    uz: "Sizda yuqoriroq tarif faol. Pastroq tarifni u tugagach oling — yoki joriy tarifingizni uzaytiring.",
+    "uz-cyrl": "Сизда юқорироқ тариф фаол. Пастроқ тарифни у тугагач олинг — ёки жорий тарифингизни узайтиринг.",
+    ru: "У вас активен тариф выше. Купите более дешёвый после его окончания — или продлите текущий.",
+    en: "You already have a higher plan active. Buy a lower one after it ends — or extend your current plan.",
+  },
+  chCardSubActive: {
+    uz: "Karta obunangiz faol. Ikkinchi obuna ikki marta pul yechardi: tarifni almashtirish uchun avval joriy obunani bekor qiling (Dodo xatidagi havola) yoki kripto/СБП orqali to'lang — qolgan muddat avtomatik hisoblanadi.",
+    "uz-cyrl": "Карта обунангиз фаол. Иккинчи обуна икки марта пул ечарди: тарифни алмаштириш учун аввал жорий обунани бекор қилинг (Dodo хатидаги ҳавола) ёки крипто/СБП орқали тўланг — қолган муддат автоматик ҳисобланади.",
+    ru: "У вас активна подписка по карте. Вторая списывала бы деньги дважды: чтобы сменить тариф, сначала отмените текущую (ссылка в письме Dodo) или оплатите криптой/СБП — остаток срока пересчитается автоматически.",
+    en: "Your card subscription is active. A second one would charge you twice: to change plans, cancel the current subscription first (link in your Dodo email) or pay by crypto/SBP — your remaining time is converted automatically.",
+  },
+  uxExtendPlan: { uz: "Uzaytirish", "uz-cyrl": "Узайтириш", ru: "Продлить", en: "Extend" },
+  uxHigherPlanActive: { uz: "Yuqoriroq tarif faol", "uz-cyrl": "Юқорироқ тариф фаол", ru: "Активен тариф выше", en: "Higher plan active" },
 } satisfies Dict;
