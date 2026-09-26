@@ -280,6 +280,7 @@ function handleHelp(topic) {
       `        --vibe, --no-vibe    vibe rejimni yoqish / o'chirish (sov nomi bilan yoqiq)`,
       `        --full-auto, --auto  FULL AUTO: hech narsa so'ralmaydi (tashqi yo'l, push/publish/deploy rad etiladi)`,
       `        --no-verify          AI hakam (halollik tekshiruvi)ni o'chirish`,
+      `        --budget <token>     bitta vazifa uchun token byudjeti (mas. 50k) — oshsa navbat to'xtaydi`,
       `        --no-color           rangsiz chiqish (yoki NO_COLOR=1)`,
       `    -V, --version            versiya`,
       `    -h, --help               shu yordam`,
@@ -517,6 +518,7 @@ async function repl() {
         stream: !config.token, // to'g'ridan-to'g'ri OpenRouter — tokenlar oqim bilan
         verify: flags.verify,
         fullAuto: fullAuto.on,
+        budget: flags.budget ?? 0,
       });
       if (res.error) console.log(G + c.red(`Xato: ${res.error}\n`));
       return res;
@@ -1075,7 +1077,7 @@ async function oneShot(task) {
   const confirm = await confirmer(rl);
   const messages = initialMessages(config);
   messages.push(await buildUserMessage(task, attachFiles));
-  const res = await agentTurn({ messages, config, confirm, signal: ac.signal, stream: !config.token, verify: flags.verify, fullAuto: fullAuto.on });
+  const res = await agentTurn({ messages, config, confirm, signal: ac.signal, stream: !config.token, verify: flags.verify, fullAuto: fullAuto.on, budget: flags.budget ?? 0 });
   turnState.ac = null;
   if (res.error) console.log(c.red(`  Xato: ${res.error}`));
   rl.close();
@@ -1163,6 +1165,7 @@ async function printMode(promptArg) {
     print: false,
     verify: flags.verify,
     fullAuto: fullAuto.on,
+    budget: flags.budget ?? 0,
   });
   turnState.ac = null;
   const code = res.aborted ? EXIT.INTERRUPTED : res.error ? EXIT.ERROR : EXIT.OK;
@@ -1175,6 +1178,9 @@ async function printMode(promptArg) {
         ...(res.error ? { error: res.error } : {}),
         aborted: Boolean(res.aborted),
         truncated: Boolean(res.truncated),
+        ...(res.loop ? { loop: res.loop } : {}),
+        ...(res.budgetExceeded ? { budget_exceeded: true } : {}),
+        usage: res.usage ?? null,
         ledger: res.ledger ?? [],
         honesty: res.honesty ?? null,
         exit_code: code,

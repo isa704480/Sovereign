@@ -326,6 +326,8 @@ button.update-card:hover { border-color: var(--accent-soft); filter: brightness(
 .s-ok > svg { color: var(--ok); } .s-failed > svg { color: var(--err); } .s-declined > svg { color: var(--warn); } .s-skipped > svg { color: var(--faint); }
 .s-failed, .s-declined { color: var(--text); }
 .ledger-reads { display: flex; align-items: center; gap: 6px; }
+/* vazifa narxi: token · qadam */
+.usage-line { display: flex; align-items: center; justify-content: flex-end; gap: 5px; font-size: 11.5px; margin-top: -4px; }
 
 /* empty state */
 .empty-hero { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 28px; text-align: center; animation: fade 0.25s; }

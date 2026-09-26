@@ -91,6 +91,7 @@ export function install() {
     await sleep(500);
     emit({ type: "text", text: "Tayyor: `/health` endpoint qo‘shildi va testlar o‘tdi." });
     emit({ type: "ledger", entries, warning: entries.some((e) => e.status === "declined") ? "Javobda tilga olingan, lekin aslida yozilmagan: src/server.js." : null, noteCode: null });
+    emit({ type: "usage", tokens: 8420, rounds: 3, estimated: false, budget: 0 });
     emit({ type: "done" });
     finish("done");
   }

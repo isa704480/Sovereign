@@ -8,7 +8,14 @@ import {
   ledgerLines,
   ledgerWorthShowing,
   unsupportedClaim,
+  testClaimIssue,
+  testClaimText,
+  loopText,
+  createUsageMeter,
+  formatTokens,
+  statusTag,
   HONESTY_RULE,
+  FAILURE_EXPLAIN_RULE,
   FULL_AUTO_RULE,
   FULL_AUTO_MAX_NUDGES,
   fullAutoNudge,
@@ -32,6 +39,7 @@ const SYSTEM = [
   "Kod toza, ishlaydigan va xavfsiz bo'lsin. Fayl uchun write_file, papka uchun make_dir vositasidan foydalan.",
   "Foydalanuvchi rasm biriktirsa — uni ko'rib, tavsifla; PDF/matn biriktirsa — mazmunini o'qib xulosa qil.",
   HONESTY_RULE,
+  FAILURE_EXPLAIN_RULE,
   "Ish tugagach, vosita natijalari TASDIQLAGAN ishni 1-2 gapda xulosala.",
 ].join(" ");
 
@@ -168,9 +176,10 @@ async function runRound(messages, config, onText, signal) {
       }
       throw new Error(m);
     }
-    const { message } = await res.json();
+    // `usage` — server yangi versiyada qaytaradi (eski server: yo'q → taxmin).
+    const { message, usage } = await res.json();
     const toolCalls = message.tool_calls ?? [];
-    return { message, toolCalls };
+    return { message, toolCalls, usage };
   }
 
   // Direct OpenRouter — true token streaming with low-balance auto-retry.
@@ -190,6 +199,7 @@ async function runRound(messages, config, onText, signal) {
       temperature: 0.4,
       max_tokens: maxTokens,
       stream: true,
+      usage: { include: true }, // OpenRouter: oxirgi SSE bo'lagida token hisobi
     }),
     signal,
   });
@@ -219,7 +229,9 @@ async function runRound(messages, config, onText, signal) {
 
   let content = "";
   const calls = [];
+  let usage = null;
   for await (const data of sseLines(res.body)) {
+    if (data.usage) usage = data.usage;
     const d = data.choices?.[0]?.delta;
     if (!d) continue;
     if (d.content) {
@@ -236,17 +248,20 @@ async function runRound(messages, config, onText, signal) {
   }
   const toolCalls = calls.filter(Boolean);
   const message = { role: "assistant", content: content || null, ...(toolCalls.length ? { tool_calls: toolCalls } : {}) };
-  return { message, toolCalls };
+  return { message, toolCalls, usage };
 }
 
 /**
  * "Aslida nima bo'ldi" — modelning so'zlariga emas, vosita natijalariga
  * asoslangan xulosa. Faqat iz qoldiruvchi amal yoki muammo bo'lsa chiqadi.
  */
-function printLedger(entries, { note = "", regexWarn = null, judge = null } = {}) {
+function printLedger(entries, { note = "", regexWarn = null, judge = null, usage = null } = {}) {
   const worth = ledgerWorthShowing(entries);
   const judgeHits = judge?.unsupported ?? [];
-  if (!worth && !regexWarn && !note && !judgeHits.length) return;
+  if (!worth && !regexWarn && !note && !judgeHits.length) {
+    if (usage) console.log(usageLine(usage) + "\n");
+    return;
+  }
   const icon = { ok: c.green("✓"), failed: c.red("✕"), declined: c.amber("⊘") };
   if (worth) {
     console.log("   " + c.dim("Aslida nima bo'ldi (tizim jurnali):"));
@@ -260,7 +275,14 @@ function printLedger(entries, { note = "", regexWarn = null, judge = null } = {}
   } else if (judge && worth) {
     console.log("   " + c.dim("✓ Mustaqil tekshiruv (AI hakam): javob jurnalga zid emas."));
   }
+  if (usage) console.log(usageLine(usage));
   console.log("");
+}
+
+/** "≈ 12.3k token · 4 qadam" — vazifa qancha sarfladi (faqat token, pul emas). */
+function usageLine(u) {
+  const budget = u.budget ? ` / byudjet ${formatTokens(u.budget)}` : "";
+  return "   " + c.dim(`≈ ${formatTokens(u.tokens)} token${budget} · ${u.rounds} qadam${u.estimated ? " (taxminiy)" : ""}`);
 }
 
 /**
@@ -270,14 +292,16 @@ function printLedger(entries, { note = "", regexWarn = null, judge = null } = {}
  * "hammasi joyida" deyishga majburlasa ham regex ogohlantirishi qoladi).
  */
 async function checkHonesty(entries, finalText, { config, signal, verify, print }) {
-  const regexWarn = finalText ? unsupportedClaim(finalText, entries) : null;
+  // Har rejimda: "bajardim" da'vosi + "testlar o'tdi" da'vosi (test yo'q / eskirgan / yiqilgan).
+  const tests = finalText ? testClaimIssue(finalText, entries) : null;
+  const regexWarn = finalText ? [unsupportedClaim(finalText, entries), testClaimText(tests)].filter(Boolean).join(" ") || null : null;
   let judge = null;
   if (verify && finalText && config?.token && !signal?.aborted && shouldVerify(entries, regexWarn)) {
     const spin = print ? spinner("javob jurnal bilan solishtirilyapti...") : null;
     judge = await verifyClaims(config, { answer: finalText, entries, signal });
     spin?.stop();
   }
-  return { regexWarn, judge };
+  return { regexWarn, judge, tests };
 }
 
 function isAbort(err, signal) {
@@ -291,10 +315,12 @@ function isAbort(err, signal) {
  * @param {boolean} [p.print=true]  javob matnini terminalga chiqarish (-p rejimida false)
  * @param {boolean} [p.stream=false] to'g'ridan-to'g'ri (OpenRouter) rejimda tokenlarni oqim bilan ko'rsatish
  * @param {boolean} [p.verify=true] LLM hakamni ishlatish (akkaunt rejimi)
+ * @param {number} [p.budget=0]  shu vazifa uchun token byudjeti (0 — cheklovsiz); oshsa navbat to'xtaydi
  * @returns {Promise<{done?: boolean, error?: string, aborted?: boolean, truncated?: boolean,
- *   ledger: object[], final: string, honesty: {regex: string|null, judge: string[]|null, source: string}}>}
+ *   loop?: object, budgetExceeded?: boolean, usage: object,
+ *   ledger: object[], final: string, honesty: {regex: string|null, judge: string[]|null, tests: object|null, source: string}}>}
  */
-export async function agentTurn({ messages, config, confirm, maxSteps, signal, print = true, stream = false, verify = true, fullAuto = false }) {
+export async function agentTurn({ messages, config, confirm, maxSteps, signal, print = true, stream = false, verify = true, fullAuto = false, budget = 0 }) {
   // Full auto: yoz → testla → tuzat sikli uchun ko'proq qadam.
   maxSteps ??= fullAuto ? 40 : 14;
   let toolSpin = null;
@@ -314,19 +340,32 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
   const honestyOut = (h) => ({
     regex: h.regexWarn ?? null,
     judge: h.judge ? h.judge.unsupported : null,
+    tests: h.tests ?? null,
     source: h.judge ? "llm+regex" : "regex",
   });
+  const noHonesty = { regex: null, judge: null, tests: null, source: "regex" };
+  // Vazifa narxi: token (server/provayder `usage`, bo'lmasa taxmin) va qadamlar soni.
+  const meter = createUsageMeter(budget);
+  const usage = () => meter.snapshot();
   let final = "";
   let nudges = 0; // full auto: "vazifa tugamagan" avtomatik davom ettirishlar
   const nudgeState = {};
 
   const finishAborted = () => {
-    printLedger(tracker.entries, { note: "Bekor qilindi (Ctrl+C) — navbat to'xtatildi, qolgan amallar bajarilmadi." });
-    return { aborted: true, ledger: tracker.entries, final, honesty: { regex: null, judge: null, source: "regex" } };
+    printLedger(tracker.entries, { note: "Bekor qilindi (Ctrl+C) — navbat to'xtatildi, qolgan amallar bajarilmadi.", usage: usage() });
+    return { aborted: true, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty };
   };
 
   for (let step = 0; step < maxSteps; step++) {
     if (signal?.aborted) return finishAborted();
+    // Token byudjeti — keyingi model chaqiruvidan OLDIN tekshiriladi (bajarilgan vositalar javobsiz qolmaydi).
+    if (meter.over()) {
+      printLedger(tracker.entries, {
+        note: `Token byudjeti tugadi: ≈${formatTokens(meter.tokens)} / ${formatTokens(meter.budget)} token — navbat to'xtatildi, vazifa oxirigacha bajarilmagan bo'lishi mumkin. Davom etish uchun "davom et" deb yozing (yoki --budget ni oshiring).`,
+        usage: usage(),
+      });
+      return { done: true, budgetExceeded: true, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty };
+    }
     const spin = spinner(step === 0 ? "o'ylayapti..." : "davom etyapti...");
     let round;
     let md = null;
@@ -341,14 +380,16 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
             md.push(t);
           }
         : () => {};
-      round = await runRound(fullAuto ? withFullAuto(messages) : messages, config, onText, signal);
+      const sent = fullAuto ? withFullAuto(messages) : messages;
+      round = await runRound(sent, config, onText, signal);
+      meter.add(round.usage, sent, round.message);
     } catch (err) {
       spin.stop();
       md?.end();
       if (isAbort(err, signal)) return finishAborted();
       // Xatodan oldin bajarilgan amallar ham ko'rinsin.
-      printLedger(tracker.entries, { note: "Navbat xato bilan to'xtadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin." });
-      return { error: err.message, ledger: tracker.entries, final, honesty: { regex: null, judge: null, source: "regex" } };
+      printLedger(tracker.entries, { note: "Navbat xato bilan to'xtadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin.", usage: meter.rounds ? usage() : null });
+      return { error: err.message, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty };
     }
     spin.stop();
 
@@ -374,13 +415,18 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
       }
       if (print) process.stdout.write("\n");
       const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print });
-      printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge });
-      return { done: true, ledger: tracker.entries, final: text, honesty: honestyOut(h) };
+      printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge, usage: usage() });
+      return { done: true, ledger: tracker.entries, final: text, usage: usage(), honesty: honestyOut(h) };
     }
 
     // Model asked for tools — narrate & run each, then loop.
     let lastTool = null;
     for (const call of round.toolCalls) {
+      if (tracker.loop) {
+        // Takroriy sikl aniqlandi — qolgan chaqiruvlar bajarilmaydi, lekin har biriga javob bo'lishi shart.
+        messages.push({ role: "tool", tool_call_id: call.id, content: `${statusTag("skipped")}\nTakroriy sikl aniqlangani uchun navbat to'xtatildi — bu amal BAJARILMADI.` });
+        continue;
+      }
       let args = {};
       try {
         args = JSON.parse(call.function.arguments || "{}");
@@ -407,14 +453,22 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
     // Faktlar jurnali — model keyingi qadamda (va yakuniy xulosada) shunga tayansin.
     const ledgerText = tracker.forModel();
     if (lastTool && ledgerText) lastTool.content += `\n\n${ledgerText}`;
+    // DOOM LOOP: bir xil buyruq 3 marta yiqildi / bir xil fayl bir xil tarkib bilan qayta-qayta
+    // yozildi — qadamlarni behuda yoqmasdan, halol izoh bilan to'xtaymiz.
+    if (tracker.loop) {
+      if (print) process.stdout.write("\n");
+      printLedger(tracker.entries, { note: loopText(tracker.loop), usage: usage() });
+      return { done: true, loop: tracker.loop, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty };
+    }
   }
   const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print });
   printLedger(tracker.entries, {
     note: `Qadamlar chegarasi (${maxSteps}) tugadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin. "davom et" deb yozing.`,
     regexWarn: h.regexWarn,
     judge: h.judge,
+    usage: usage(),
   });
-  return { done: true, ledger: tracker.entries, truncated: true, final, honesty: honestyOut(h) };
+  return { done: true, ledger: tracker.entries, truncated: true, final, usage: usage(), honesty: honestyOut(h) };
 }
 
 /** Bitta javob — vositalarsiz, oqimsiz. Parallel rejim uchun. */

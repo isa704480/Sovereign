@@ -360,6 +360,13 @@ const CONTINUE_INTENT =
 
 /** Ishga tushirib tekshirsa bo'ladigan kod fayllari (hujjat/konfiguratsiya emas). */
 const CODE_EXT = /\.(m?[jt]sx?|cjs|cts|mts|py|go|rs|java|kt|rb|php|cs|cpp|cc|c|h|hpp|swift|dart|vue|svelte|lua|sh|ps1)$/i;
+/** Test/build natijasiga ta'sir qiladigan konfiguratsiya fayllari (package.json, tsconfig...). */
+const BUILD_CONFIG = /(^|[\\/])(package\.json|tsconfig[^\\/]*\.json|pyproject\.toml|setup\.cfg|Cargo\.toml|go\.mod|pom\.xml|build\.gradle(\.kts)?)$/i;
+/** Yozilgandan keyin test/build natijasini eskirtiradigan fayl. */
+export function isCodeFile(path) {
+  const p = String(path ?? "");
+  return CODE_EXT.test(p) || BUILD_CONFIG.test(p);
+}
 
 /** Full auto'da bir navbatdagi avtomatik "davom et" eslatmalari chegarasi. */
 export const FULL_AUTO_MAX_NUDGES = 3;
@@ -374,10 +381,17 @@ export function fullAutoNudge(entries, finalText, state = {}) {
   const lastCmd = [...list].reverse().find((e) => e.tool === "run_command" && e.status !== "declined" && e.status !== "skipped");
   // Kod o'zgartirildi, lekin keyin hech narsa ishga tushirilmadi — bir marta "tekshir" deymiz.
   const ranIdx = lastCmd ? list.lastIndexOf(lastCmd) : -1;
-  const codeWriteIdx = list.findLastIndex((e) => e.tool === "write_file" && e.status === "ok" && CODE_EXT.test(e.target));
+  const codeWriteIdx = list.findLastIndex((e) => e.tool === "write_file" && e.status === "ok" && isCodeFile(e.target));
   if (codeWriteIdx > ranIdx && !state.verifyNudged) {
     state.verifyNudged = true;
     return "[Avtomatik eslatma — FULL AUTO] Kodni o'zgartirding, lekin undan keyin hech narsa ishga tushirmading. Loyihada test yoki build bo'lsa — hozir ishga tushir va natijaga qarab tuzat; bo'lmasa kodni qisqa ishga tushirib tekshir. Tekshirib bo'lmasa — buni ochiq ayt. Tekshirmay turib 'testlar o'tdi' dema.";
+  }
+  // "Testlar o'tdi" deyilgan, lekin jurnal buni tasdiqlamaydi (test yo'q / eskirgan / yiqilgan) —
+  // yakuniy ogohlantirish (testClaimIssue) bilan bir xil mezon; bir marta qayta tekshirtiramiz.
+  const claim = !state.claimNudged ? testClaimIssue(finalText, list) : null;
+  if (claim) {
+    state.claimNudged = true;
+    return `[Avtomatik eslatma — FULL AUTO] ${testClaimText(claim)} Test/build buyrug'ini HOZIR qayta ishga tushir va natijaga qarab xulosa yoz; tekshirib bo'lmasa — 'testlar o'tdi' dema, buni ochiq ayt.`;
   }
   if (lastCmd?.status === "failed") {
     return (
@@ -721,7 +735,14 @@ export const HONESTY_RULE = [
   "Har bir vosita natijasi boshida [HOLAT: ...] belgisi bor: BAJARILDI bo'lmasa (XATO, RAD ETILDI, TAKROR) — o'sha amal BAJARILMAGAN; buni foydalanuvchiga ochiq ayt va muvaffaqiyat deb ko'rsatma.",
   "Vositani chaqirmasdan turib fayl yozdim, buyruq bajardim yoki test o'tdi dema. Buyruq exit kodi 0 bo'lmasa — u muvaffaqiyatsiz.",
   "[SOVEREIGN TIZIM JURNALI] bloki tizim tomonidan qo'shiladi va haqiqiy natijalarni ko'rsatadi — yakuniy xulosang unga zid bo'lmasin.",
+  "'Testlar o'tdi / build ishladi' faqat test yoki build buyrug'i SHU navbatda, kodni OXIRGI o'zgartirgandan KEYIN exit 0 bilan tugagan bo'lsa ayt; aks holda testni qayta ishga tushir yoki 'tekshirilmadi' deb ochiq ayt.",
 ].join(" ");
+
+/**
+ * Buyruq yiqilganda — dasturchi bo'lmagan foydalanuvchi ham tushunsin (CLI va desktop SYSTEM).
+ */
+export const FAILURE_EXPLAIN_RULE =
+  "Buyruq (run_command) xato bilan tugasa, tuzatishdan OLDIN foydalanuvchiga uning tilida 1-2 ta ODDIY gap bilan (texnik atamasiz, dasturchi bo'lmagan odam tushunadigan qilib) nima noto'g'ri ketganini va nima qilmoqchi ekaningni tushuntir — xato matnini ko'chirib qo'yma; keyin tuzat.";
 
 /** Diskda yoki tizimda iz qoldiradigan vositalar. */
 export const SIDE_EFFECT_TOOLS = new Set(["write_file", "make_dir", "run_command"]);
@@ -834,39 +855,67 @@ export function ledgerForModel(entries) {
 export function createTurnTracker(exec) {
   const entries = [];
   const seen = new Map(); // fp -> { status, mutation, detail }
+  const repeats = new Map(); // fp -> { fails, writes, skips } — takroriy sikl (doom loop) hisoblagichi
   let mutation = 0; // muvaffaqiyatli iz qoldiruvchi amallar soni
-  return {
+  const tracker = {
     entries,
+    /** Takroriy sikl aniqlansa: { kind: "command"|"write"|"repeat", tool, target, count }. */
+    loop: null,
     async run(name, args) {
-      const fp = `${name}:${JSON.stringify(args ?? {})}`;
-      const prev = seen.get(fp);
-      if (prev && (prev.status === "declined" || prev.mutation === mutation)) {
-        const msg =
-          prev.status === "ok"
-            ? "Bu amal shu navbatda allaqachon MUVAFFAQIYATLI bajarilgan va shundan beri hech narsa o'zgarmagan. Boshqa qadamga o't yoki ishni yakunla."
-            : prev.status === "declined"
-              ? "Bu amalni foydalanuvchi shu navbatda RAD ETGAN — u BAJARILMAGAN. Qayta so'rama; foydalanuvchiga rad etilganini ayt."
-              : `Bu amal shu navbatda XATO bergan${prev.detail ? ` (${prev.detail})` : ""} va shundan beri hech narsa o'zgarmagan — u BAJARILMAGAN. Sababini tuzat yoki foydalanuvchiga ayt.`;
-        return { status: "skipped", result: msg, content: `${statusTag("skipped")}\n${msg}` };
-      }
-      let result;
-      try {
-        result = String(await exec(name, args));
-      } catch (err) {
-        result = `XATO: ${err?.message ?? err}`;
-      }
-      const status = toolStatus(name, result);
-      if (status === "ok" && SIDE_EFFECT_TOOLS.has(name)) mutation++;
-      const entry = ledgerEntry(name, args, result, status);
-      seen.set(fp, { status, mutation, detail: entry.detail || (entry.exit != null ? `exit ${entry.exit}` : "") });
-      entries.push(entry);
-      return { status, result, entry, content: `${statusTag(status)}\n${result}` };
+      const r = await runOnce(name, args);
+      if (!tracker.loop) tracker.loop = detectLoop(name, args, r.status);
+      return r;
     },
     /** Modelga beriladigan jurnal (ko'rsatishga arzimasa — bo'sh). */
     forModel() {
       return ledgerWorthShowing(entries) ? ledgerForModel(entries) : "";
     },
   };
+
+  function detectLoop(name, args, status) {
+    const fp = `${name}:${JSON.stringify(args ?? {})}`;
+    const cnt = repeats.get(fp) ?? { fails: 0, writes: 0, skips: 0 };
+    repeats.set(fp, cnt);
+    const target = name === "run_command" ? oneLine(args?.command) : oneLine(args?.path ?? ".");
+    // Bir xil buyruq qayta-qayta yiqilyapti (o'zgarishsiz takror ham hisoblanadi).
+    if (name === "run_command" && (status === "failed" || (status === "skipped" && seen.get(fp)?.status === "failed"))) {
+      if (++cnt.fails >= LOOP_MAX) return { kind: "command", tool: name, target, count: cnt.fails };
+    }
+    // Aynan bir xil tarkib bilan bitta fayl qayta-qayta yozilyapti (A→B→A "tuzatish" tebranishi ham).
+    if (name === "write_file" && (status === "ok" || status === "skipped")) {
+      if (++cnt.writes >= LOOP_MAX) return { kind: "write", tool: name, target, count: cnt.writes };
+    }
+    // Hech narsa o'zgarmagan holda aynan bir xil chaqiruv qayta-qayta.
+    if (status === "skipped" && ++cnt.skips >= LOOP_MAX) return { kind: "repeat", tool: name, target, count: cnt.skips + 1 };
+    return null;
+  }
+
+  async function runOnce(name, args) {
+    const fp = `${name}:${JSON.stringify(args ?? {})}`;
+    const prev = seen.get(fp);
+    if (prev && (prev.status === "declined" || prev.mutation === mutation)) {
+      const msg =
+        prev.status === "ok"
+          ? "Bu amal shu navbatda allaqachon MUVAFFAQIYATLI bajarilgan va shundan beri hech narsa o'zgarmagan. Boshqa qadamga o't yoki ishni yakunla."
+          : prev.status === "declined"
+            ? "Bu amalni foydalanuvchi shu navbatda RAD ETGAN — u BAJARILMAGAN. Qayta so'rama; foydalanuvchiga rad etilganini ayt."
+            : `Bu amal shu navbatda XATO bergan${prev.detail ? ` (${prev.detail})` : ""} va shundan beri hech narsa o'zgarmagan — u BAJARILMAGAN. Sababini tuzat yoki foydalanuvchiga ayt.`;
+      return { status: "skipped", result: msg, content: `${statusTag("skipped")}\n${msg}` };
+    }
+    let result;
+    try {
+      result = String(await exec(name, args));
+    } catch (err) {
+      result = `XATO: ${err?.message ?? err}`;
+    }
+    const status = toolStatus(name, result);
+    if (status === "ok" && SIDE_EFFECT_TOOLS.has(name)) mutation++;
+    const entry = ledgerEntry(name, args, result, status);
+    seen.set(fp, { status, mutation, detail: entry.detail || (entry.exit != null ? `exit ${entry.exit}` : "") });
+    entries.push(entry);
+    return { status, result, entry, content: `${statusTag(status)}\n${result}` };
+  }
+  return tracker;
 }
 
 // Modelning "bajardim" turidagi da'volari (uz lotin/kirill, ru, en).
@@ -902,6 +951,195 @@ export function unsupportedClaim(finalText, entries) {
     if (mentions.length && !mentions.every((l) => NEG_RE.test(l))) missed.push(e.target);
   }
   return missed.length ? `Javobda tilga olingan, lekin aslida yozilmagan: ${missed.join(", ")}.` : null;
+}
+
+// ---- "Testlar o'tdi" da'vosi — eskirgan/tasdiqlanmagan natija ----------------
+// Audit: "testlar o'tdi" da'volarining ~35% noto'g'ri — ko'pincha kod oxirgi test
+// ishga tushirilgandan KEYIN o'zgartirilgan. Jurnalga qarab deterministik tekshiramiz.
+
+/** Test/build/typecheck buyrug'imi (evristika; lint hisoblanmaydi). */
+const VERIFY_CMD_RE = new RegExp(
+  [
+    String.raw`\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|tests|build|check|typecheck|type-check|verify|ci)(?![\w-])`,
+    String.raw`\b(?:npm|pnpm|yarn)\s+t(?![\w-])`,
+    String.raw`\b(?:npx|pnpx|bunx|pnpm\s+exec|yarn)\s+(?:vitest|jest|mocha|ava|tap|tsc|playwright|cypress|vue-tsc|next\s+build|vite\s+build)\b`,
+    String.raw`(?:^|[\s;&|(])(?:vitest|jest|mocha|pytest|tsc|vue-tsc|ava|phpunit|rspec|ctest|tox|nox)(?![\w-])`,
+    String.raw`\bpython3?\s+-m\s+(?:pytest|unittest)\b`,
+    String.raw`\bnode\s+(?:[^\s;&|]+\s+)*--test\b`,
+    String.raw`\b(?:go|cargo)\s+(?:test|build|vet|check)\b`,
+    String.raw`\bdeno\s+(?:test|check)\b`,
+    String.raw`\bdotnet\s+(?:test|build)\b`,
+    String.raw`\b(?:mvn|mvnw|gradle|gradlew)\b[^;&|]*\b(?:test|verify|build|package|check)\b`,
+    String.raw`\bmake\s+(?:test|check|build)\b`,
+    String.raw`\b(?:bundle\s+exec\s+)?rake\s+(?:test|spec)\b`,
+    String.raw`\bflutter\s+(?:test|build)\b`,
+    String.raw`\bswift\s+(?:test|build)\b`,
+  ].join("|"),
+  "i",
+);
+
+/** Buyruq test yoki build'mi (jurnaldagi `target` bilan ham ishlaydi). */
+export function isVerifyCommand(command) {
+  return VERIFY_CMD_RE.test(String(command ?? ""));
+}
+
+const AP = "['‘’ʻ`]?";
+const APC = "'‘’ʻ`"; // belgi sinfi ichida
+const NL = String.raw`(?<!\p{L})`; // kirill/lotin uchun so'z boshi (\b faqat ASCII)
+const NR = String.raw`(?!\p{L})`;
+// "Testlar o'tdi / build ishladi" da'vosi (uz lotin, uz kirill, ru, en). Gap darajasida tekshiriladi.
+const TEST_CLAIM_RE = new RegExp(
+  [
+    // en
+    String.raw`\b(?:tests?|specs?|test suites?|unit tests|e2e tests|checks)\s+(?:now\s+|all\s+|still\s+|also\s+)?(?:are\s+|is\s+)?(?:pass(?:es|ed|ing)?|succeed(?:s|ed)?|green|working)\b`,
+    String.raw`\b(?:all|\d+)\s+(?:\w+\s+)?tests?\s+(?:\w+\s+)?pass(?:ed|es|ing)?\b`,
+    String.raw`\bpass(?:es|ed|ing)?\s+all\s+(?:the\s+)?(?:\w+\s+)?tests\b`,
+    String.raw`\b(?:the\s+)?(?:build|compilation|typecheck|type-check|type check|tsc)\s+(?:now\s+|also\s+)?(?:is\s+|was\s+)?(?:pass(?:es|ed)?|succeed(?:s|ed)?|successful|works?|working|green|clean)\b`,
+    String.raw`\b(?:builds|compiles)\s+(?:successfully|fine|cleanly|without (?:any\s+)?errors)\b`,
+    String.raw`\btests?\s+(?:ran|run)\s+successfully\b`,
+    // uz lotin
+    String.raw`\btest\w*\s+(?:[\w${APC}]+\s+){0,2}?o${AP}t(?:di|yapti|moqda|adi|ib\s+ketdi)\b`,
+    String.raw`\btest\w*\s+(?:ham\s+)?muvaffaqiyatli\b`,
+    String.raw`\b(?:build|yig${AP}ish|kompilyatsiya)\w*\s+(?:[\w${APC}]+\s+)?(?:muvaffaqiyatli|ishla(?:di|yapti|moqda)|o${AP}t(?:di|adi))\b`,
+    // uz kirill
+    String.raw`${NL}тест\p{L}*\s+(?:\p{L}+\s+){0,2}?ўт(?:ди|япти|моқда|ади)${NR}`,
+    String.raw`${NL}тест\p{L}*\s+(?:ҳам\s+)?муваффақиятли${NR}`,
+    String.raw`${NL}(?:билд|йиғиш|компиляция)\p{L}*\s+(?:\p{L}+\s+)?(?:муваффақиятли|ишла(?:ди|япти|моқда)|ўт(?:ди|ади))${NR}`,
+    // ru
+    String.raw`${NL}тест\p{L}*\s+(?:\p{L}+\s+){0,2}?(?:прош(?:ли|ёл|ел)|проход(?:ят|ит)|пройден\p{L}*|зел[её]н\p{L}*|успешн\p{L}*)${NR}`,
+    String.raw`${NL}(?:сборка|билд|компиляция|проверка типов)\s+(?:\p{L}+\s+)?(?:прош(?:ла|ёл|ел)|проходит|успешн\p{L}*|работает|зел[её]н\p{L}*)${NR}`,
+    String.raw`${NL}(?:собирается|компилируется)\s+(?:успешно|без ошибок)${NR}`,
+  ].join("|"),
+  "iu",
+);
+// Inkor / shart / taxmin — bunday gap da'vo emas ("testlar o'tmadi", "if tests pass", "должны пройти").
+const TEST_HEDGE_RE = new RegExp(
+  [
+    String.raw`\b(?:not|never|no|cannot|unable|without|should|would|could|might|may|if|once|until|unless|whether|expect(?:ed)?|hopefully|to (?:verify|confirm|check|make sure|ensure))\b`,
+    String.raw`n['’]t\b`,
+    String.raw`\b(?:emas|agar|kerak|mumkin|ehtimol|balki|hali|tekshirilmadi)\b`,
+    String.raw`\w+m[ae](?:di|dim|gan|ganman|ydi|ymiz)\b`,
+    String.raw`${NL}(?:эмас|агар|керак|мумкин|эҳтимол|балки|ҳали)${NR}`,
+    String.raw`\p{L}+ма(?:ди|дим|ган|йди)${NR}`,
+    String.raw`${NL}(?:не|нет|ни|если|ли|должн\p{L}*|может|могут|возможно|проверьте|убедитесь)${NR}`,
+  ].join("|"),
+  "iu",
+);
+
+/** Javobda "testlar o'tdi / build ishladi" degan tasdiq (inkor/shartsiz) bormi. */
+export function claimsTestsPass(text) {
+  const sentences = String(text ?? "").split(/(?<=[.!?…])\s+|\n+/);
+  return sentences.some((s) => TEST_CLAIM_RE.test(s) && !TEST_HEDGE_RE.test(s));
+}
+
+/**
+ * "Testlar o'tdi" da'vosini jurnal bilan solishtiradi. Qaytaradi: null (muammo yo'q) yoki
+ *  { code: "noTest" }                         — test/build umuman ishga tushirilmagan;
+ *  { code: "testFailed", command }            — test/build ishga tushgan, lekin muvaffaqiyatli emas;
+ *  { code: "stale", command, files: [...] }   — oxirgi muvaffaqiyatli test/build'dan KEYIN kod yozilgan.
+ */
+export function testClaimIssue(finalText, entries) {
+  if (!claimsTestsPass(finalText)) return null;
+  const list = entries ?? [];
+  const isVerify = (e) => e.tool === "run_command" && isVerifyCommand(e.target);
+  const okIdx = list.findLastIndex((e) => isVerify(e) && e.status === "ok");
+  if (okIdx === -1) {
+    const failed = list.findLast((e) => isVerify(e) && e.status === "failed");
+    return failed ? { code: "testFailed", command: failed.target } : { code: "noTest" };
+  }
+  const files = [];
+  for (const e of list.slice(okIdx + 1)) {
+    if (e.tool === "write_file" && e.status === "ok" && isCodeFile(e.target) && !files.includes(e.target)) files.push(e.target);
+  }
+  return files.length ? { code: "stale", command: list[okIdx].target, files } : null;
+}
+
+/** testClaimIssue natijasining o'zbekcha matni (CLI; desktop o'zi tarjima qiladi). */
+export function testClaimText(issue) {
+  if (!issue) return "";
+  if (issue.code === "noTest") return "Javobda testlar/build o'tdi deyilgan, lekin bu navbatda birorta test yoki build buyrug'i ishga tushirilmadi — da'vo tekshirilmagan.";
+  if (issue.code === "testFailed") return `Javobda testlar/build o'tdi deyilgan, lekin bu navbatdagi test/build buyrug'i muvaffaqiyatli tugamagan (${issue.command}).`;
+  return `Javobda testlar o'tdi deyilgan, lekin oxirgi muvaffaqiyatli test/build (${issue.command}) ishga tushirilgandan KEYIN kod o'zgartirilgan (${issue.files.join(", ")}) — natija eskirgan, testlar qayta ishga tushirilmagan.`;
+}
+
+// ---- Takroriy sikl (doom loop) ---------------------------------------------
+/** Bir xil buyruq shuncha marta yiqilsa / bir xil fayl shuncha marta yozilsa — navbat to'xtatiladi. */
+export const LOOP_MAX = 3;
+
+/** Takroriy sikl haqidagi o'zbekcha izoh (CLI; desktop o'zi tarjima qiladi). */
+export function loopText(loop) {
+  if (!loop) return "";
+  const head = "Takroriy sikl aniqlandi — qadamlar behuda sarflanmasligi uchun navbat to'xtatildi: ";
+  const tail = " Boshqa yondashuvni ayting yoki xatoni birga ko'rib chiqaylik.";
+  if (loop.kind === "command") return `${head}\`${loop.target}\` buyrug'i ${loop.count} marta xato bilan tugadi.${tail}`;
+  if (loop.kind === "write") return `${head}${loop.target} fayli ${loop.count} marta aynan bir xil tarkib bilan yozildi (bir xil "tuzatish" takrorlanyapti).${tail}`;
+  return `${head}bir xil amal (${loop.target}) hech narsa o'zgarmagan holda ${loop.count} marta chaqirildi.${tail}`;
+}
+
+// ---- Token hisobi va byudjet -------------------------------------------------
+/** Xabar(lar) hajmidan taxminiy token soni (server `usage` qaytarmasa). Rasm — ~1000 token. */
+export function estimateTokens(messages) {
+  let chars = 0;
+  let images = 0;
+  for (const m of Array.isArray(messages) ? messages : [messages]) {
+    if (!m) continue;
+    if (typeof m.content === "string") chars += m.content.length;
+    else if (Array.isArray(m.content)) {
+      for (const p of m.content) {
+        if (typeof p?.text === "string") chars += p.text.length;
+        else if (p?.type === "image_url") images++;
+      }
+    }
+    for (const tc of m.tool_calls ?? []) chars += String(tc?.function?.arguments ?? "").length + 20;
+  }
+  return Math.ceil(chars / 4) + images * 1000;
+}
+
+/**
+ * Bitta navbatning token hisoblagichi. `add(usage, sent, reply)` — server/provayder `usage`
+ * bo'lsa o'shani, bo'lmasa taxminni qo'shadi. `budget` (0 = cheklovsiz).
+ */
+export function createUsageMeter(budget = 0) {
+  const b = Number(budget);
+  const meter = {
+    budget: Number.isFinite(b) && b > 0 ? Math.floor(b) : 0,
+    prompt: 0,
+    completion: 0,
+    rounds: 0,
+    estimated: false,
+    get tokens() {
+      return meter.prompt + meter.completion;
+    },
+    add(usage, sent, reply) {
+      meter.rounds++;
+      const p = Number(usage?.prompt_tokens);
+      const c2 = Number(usage?.completion_tokens);
+      if (Number.isFinite(p) && Number.isFinite(c2) && p + c2 > 0) {
+        meter.prompt += p;
+        meter.completion += c2;
+      } else {
+        meter.estimated = true;
+        meter.prompt += estimateTokens(sent);
+        meter.completion += estimateTokens(reply);
+      }
+    },
+    /** Byudjet tugadimi. */
+    over() {
+      return meter.budget > 0 && meter.tokens >= meter.budget;
+    },
+    snapshot() {
+      return { tokens: meter.tokens, prompt: meter.prompt, completion: meter.completion, rounds: meter.rounds, estimated: meter.estimated, budget: meter.budget };
+    },
+  };
+  return meter;
+}
+
+/** 1234 → "1.2k", 999 → "999". */
+export function formatTokens(n) {
+  const v = Math.max(0, Math.round(Number(n) || 0));
+  if (v < 1000) return String(v);
+  if (v < 1_000_000) return `${(v / 1000).toFixed(v < 10_000 ? 1 : 0)}k`;
+  return `${(v / 1_000_000).toFixed(1)}M`;
 }
 
 // The server caps a single message at 40k chars; a big cwd (e.g. the home folder)

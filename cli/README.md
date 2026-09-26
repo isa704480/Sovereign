@@ -57,7 +57,7 @@ Lokal serverga (test): `sov login --local`.
 | `sov key <kalit>` · `sov config` | o'z kalitingiz · sozlash |
 | `sov help [buyruq]` · `sov --version` | yordam · versiya |
 
-Flaglar: `-p/--print`, `--json`, `-f/--file <yo'l>` (takrorlanadi), `-m/--model <id>` (shu ish uchun), `-y/--yes`, `--vibe`/`--no-vibe`, `--full-auto` (`--auto`), `--no-verify`, `--no-color`, `-h`, `-V`.
+Flaglar: `-p/--print`, `--json`, `-f/--file <yo'l>` (takrorlanadi), `-m/--model <id>` (shu ish uchun), `-y/--yes`, `--vibe`/`--no-vibe`, `--full-auto` (`--auto`), `--no-verify`, `--budget <token>`, `--no-color`, `-h`, `-V`.
 
 ## Interaktivsiz (skript, CI, quvur)
 

@@ -312,7 +312,15 @@ export async function POST(req: Request) {
       };
       const message = data.choices?.[0]?.message ?? { role: "assistant", content: "" };
       await recordCliUsage(userId, cand.model, data.usage, raw.length, message);
-      return Response.json({ message, plan: planId, model: cand.model, provider: cand.provider });
+      // `usage` — mijoz (CLI/Cowork) har vazifa qancha token sarflaganini ko'rsatadi va
+      // --budget'ni tekshiradi. Qo'shimcha maydon: eski mijozlar e'tiborsiz qoldiradi.
+      const pt = Number(data.usage?.prompt_tokens);
+      const ct = Number(data.usage?.completion_tokens);
+      const usage =
+        Number.isFinite(pt) && Number.isFinite(ct)
+          ? { prompt_tokens: pt, completion_tokens: ct, total_tokens: pt + ct }
+          : undefined;
+      return Response.json({ message, plan: planId, model: cand.model, provider: cand.provider, ...(usage ? { usage } : {}) });
     }
 
     let message = `${res.status}`;
