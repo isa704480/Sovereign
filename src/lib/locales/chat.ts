@@ -62,7 +62,7 @@ export const CHAT = {
   },
   chPrivateTitle: {
     uz: "Blind Prompting — ism, telefon, email va boshqa shaxsiy ma'lumotlarni AI ko'rmasligi uchun maskalash",
-    "uz-cyrl": "Blind Prompting — исм, телефон, email ва бошқа шахсий маълумотларни AI кўрмаслиги учун маскалаш",
+    "uz-cyrl": "Blind Prompting — исм, телефон, электрон почта ва бошқа шахсий маълумотларни AI кўрмаслиги учун маскалаш",
     ru: "Blind Prompting — маскирует имя, телефон, email и другие личные данные, чтобы ИИ их не видел",
     en: "Blind Prompting — masks names, phone numbers, emails and other personal data so the AI never sees them",
   },
@@ -265,7 +265,7 @@ export const CHAT = {
     ru: "Транскрипция доступна на тарифе Pro.",
     en: "Transcription unlocks on the Pro plan.",
   },
-  chMultipartExpected: { uz: "Multipart body kutildi", "uz-cyrl": "Multipart body кутилди", ru: "Ожидалось тело multipart", en: "Expected a multipart body" },
+  chMultipartExpected: { uz: "Multipart so'rov tanasi kutildi", "uz-cyrl": "Multipart сўров танаси кутилди", ru: "Ожидалось тело multipart", en: "Expected a multipart body" },
   chNoFile: { uz: "Fayl yo'q", "uz-cyrl": "Файл йўқ", ru: "Файл отсутствует", en: "No file" },
   chFileTooBig25: { uz: "Fayl juda katta (max 25 MB)", "uz-cyrl": "Файл жуда катта (max 25 MB)", ru: "Файл слишком большой (макс. 25 МБ)", en: "File too large (max 25 MB)" },
   chTranscribeFailed: { uz: "Transkripsiya xato", "uz-cyrl": "Транскрипция хато", ru: "Ошибка транскрипции", en: "Transcription failed" },
@@ -360,7 +360,7 @@ export const CHAT = {
   chErrPerplexity: { uz: "Perplexity xatosi", "uz-cyrl": "Perplexity хатоси", ru: "Ошибка Perplexity", en: "Perplexity error" },
   chErrOmniNotConfigured: {
     uz: "OmniRoute ulanmagan (server env sozlanmagan).",
-    "uz-cyrl": "OmniRoute уланмаган (server env созланмаган).",
+    "uz-cyrl": "OmniRoute уланмаган (сервер env созланмаган).",
     ru: "OmniRoute не подключён (не настроены переменные окружения сервера).",
     en: "OmniRoute isn't connected (server env not configured).",
   },
@@ -434,7 +434,7 @@ export const CHAT = {
     ru: "Годовая оплата пока недоступна. Выберите помесячный тариф.",
     en: "Yearly billing isn't available yet. Please choose monthly.",
   },
-  chPayBySbp: { uz: "СБП — rublda (Rossiya)", "uz-cyrl": "СБП — рублда (Россия)", ru: "СБП — в рублях (Россия)", en: "SBP — in rubles (Russia)" },
+  chPayBySbp: { uz: "SBP — rublda (Rossiya)", "uz-cyrl": "СБП — рублда (Россия)", ru: "СБП — в рублях (Россия)", en: "SBP — in rubles (Russia)" },
   chPayBySbpNote: {
     uz: "Rossiya banki ilovasi yoki QR orqali. Tanlangan muddatga bir martalik to'lov.",
     "uz-cyrl": "Россия банки иловаси ёки QR орқали. Танланган муддатга бир марталик тўлов.",

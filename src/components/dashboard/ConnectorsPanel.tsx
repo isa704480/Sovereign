@@ -172,8 +172,8 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                       type={spec.auth === "mcp" ? "text" : "password"}
                                       value={draft[spec.id] ?? ""}
                                       onChange={(e) => setDraft((d) => ({ ...d, [spec.id]: e.target.value }))}
-                                      placeholder={spec.tokenLabel ?? t("pnToken")}
-                                      aria-label={`${tx.name}: ${spec.tokenLabel ?? t("pnToken")}`}
+                                      placeholder={spec.auth === "mcp" ? t("p7cMcpServerUrl") : (spec.tokenLabel ?? t("pnToken"))}
+                                      aria-label={`${tx.name}: ${spec.auth === "mcp" ? t("p7cMcpServerUrl") : (spec.tokenLabel ?? t("pnToken"))}`}
                                       className="min-w-0 flex-1 rounded-lg border bg-transparent px-2.5 py-1.5 text-xs outline-none"
                                       style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                                     />

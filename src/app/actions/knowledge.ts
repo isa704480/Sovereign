@@ -52,7 +52,11 @@ export async function uploadKnowledge(input: unknown): Promise<UploadResult> {
     .insert({ user_id: s.user.id, name, mime: mime ?? null, size: content.length, status: "processing" })
     .select("id")
     .single();
-  if (docErr || !doc) return { ok: false, error: docErr?.message ?? t("pnErrFileNotSaved") };
+  if (docErr || !doc) {
+    // Xom Postgres xatosi foydalanuvchiga chiqmaydi — faqat server logida.
+    if (docErr) console.error("[knowledge] insert document:", docErr.message);
+    return { ok: false, error: t("pnErrFileNotSaved") };
+  }
 
   try {
     // Embed in batches so we don't hit provider payload limits.
@@ -73,7 +77,8 @@ export async function uploadKnowledge(input: unknown): Promise<UploadResult> {
     await s.supabase.from("kb_documents").update({ status: "ready" }).eq("id", doc.id);
   } catch (e) {
     await s.supabase.from("kb_documents").update({ status: "error" }).eq("id", doc.id);
-    return { ok: false, error: e instanceof Error ? e.message : t("pnErrIndexing") };
+    console.error("[knowledge] indexing:", e instanceof Error ? e.message : e);
+    return { ok: false, error: t("pnErrIndexing") };
   }
 
   return { ok: true, documentId: doc.id, chunks: chunks.length };

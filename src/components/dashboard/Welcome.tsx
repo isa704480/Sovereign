@@ -171,7 +171,7 @@ export function Welcome({ userName, onSuggestion, input }: WelcomeProps) {
         </div>
         {input}
         <Suggestions items={suggestions} onPick={onSuggestion} variant="chips" />
-        <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>Made by Anthropic · via SOVEREIGN</span>
+        <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>{tr("p7cMadeByAnthropic")}</span>
       </>,
     );
   }

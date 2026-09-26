@@ -3,7 +3,6 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { recommendModel } from "@/lib/recommend-model";
-import { fmt } from "@/lib/i18n";
 import { getServerT } from "@/lib/i18n-server";
 
 const answersSchema = z.object({
@@ -56,7 +55,11 @@ export async function completeOnboarding(raw: unknown): Promise<OnboardingResult
     })
     .eq("id", user.id);
 
-  if (error) return { ok: false, error: fmt(t("auOnbErrSave"), { msg: error.message }) };
+  if (error) {
+    // Xom Postgres xatosi UI'ga chiqmaydi.
+    console.error("[onboarding] save:", error.message);
+    return { ok: false, error: t("p7cOnbSaveFailed") };
+  }
 
   return { ok: true, modelId: rec.model.id, modelName: rec.model.name, reason: rec.reason };
 }

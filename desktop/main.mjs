@@ -20,6 +20,7 @@ import {
   createTurnTracker,
   ledgerWorthShowing,
   unsupportedClaim,
+  classifyCommand,
   HONESTY_RULE,
 } from "../cli/src/tools.mjs";
 import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mjs";
@@ -29,6 +30,7 @@ import { loadSettings, updateFromRenderer, updateInternal, rememberFolder, isDir
 import { listTasks, saveTask, loadTask, removeTask, clearTasks, metaOf, validId } from "./electron/history.mjs";
 import { startLogin } from "./electron/auth.mjs";
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, updateState } from "./electron/updater.mjs";
+import { mt } from "./electron/i18n.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ID = "app.sovereign.cowork";
@@ -79,15 +81,22 @@ function on(channel, fn) {
 /**
  * Renderer bergan yo'lni tekshiradi: realpath (eng yaqin mavjud ota) orqali
  * yechiladi; ish papkasidan tashqari / boshqa disk / UNC / himoyalangan yo'l rad etiladi.
+ * Xato — kod (renderer uni `fsErr.<kod>` i18n kaliti bilan tarjima qiladi).
  */
 function checkUiPath(p, { write = false } = {}) {
-  if (!workspace) return { error: "papka tanlanmagan" };
-  if (typeof p !== "string" || !p || p.includes("\0")) return { error: "yo'l noto'g'ri" };
-  if (/^[\\/]{2}/.test(p)) return { error: "UNC yo'l taqiqlangan" };
+  if (!workspace) return { error: "no-folder" };
+  if (typeof p !== "string" || !p || p.includes("\0")) return { error: "bad-path" };
+  if (/^[\\/]{2}/.test(p)) return { error: "unc" };
   const r = resolvePath(p);
-  if (r.outside || /^[\\/]{2}/.test(r.real)) return { error: "tashqarida" };
-  if (isProtected(r.real, { write, outside: false })) return { error: "himoyalangan yo'l" };
+  if (r.outside || /^[\\/]{2}/.test(r.real)) return { error: "outside" };
+  if (isProtected(r.real, { write, outside: false })) return { error: "protected" };
   return { real: r.real };
+}
+
+/** Fayl tizimi xatosi → { error: kod, detail } (detail — Node xato kodi, mas. EACCES). */
+function fsError(e) {
+  if (e?.code === "ENOENT") return { error: "not-found" };
+  return { error: "io", detail: typeof e?.code === "string" ? e.code : "" };
 }
 
 const SYSTEM = [
@@ -182,6 +191,10 @@ function askConfirm(question, forcePrompt = false, meta = null) {
   let createdId = null;
   if (meta?.tool === "write_file" && typeof meta.path === "string") {
     ({ meta, createdId } = prepareWriteMeta(meta));
+  }
+  // Xavf sababi asl ko'rinishda (CLI savolida KATTA harfda) — renderer uni UI tiliga o'giradi.
+  if (meta?.tool === "run_command" && meta.risky) {
+    meta = { ...meta, riskReason: classifyCommand(meta.command ?? "").reason || "" };
   }
   return new Promise((resolve) => {
     const id = randomUUID();
@@ -471,7 +484,7 @@ async function switchFolder(dir) {
 }
 
 handle("app:pick-folder", async () => {
-  const r = await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"] });
+  const r = await dialog.showOpenDialog(win, { title: mt("dialog.pickFolder"), properties: ["openDirectory", "createDirectory"] });
   if (r.canceled || !r.filePaths[0]) return null;
   return switchFolder(r.filePaths[0]);
 });
@@ -556,9 +569,10 @@ on("agent:send", async (_e, payload) => {
 function notifyDone(outcome) {
   if (!win || win.isDestroyed() || win.isFocused() || !loadSettings().notifications) return;
   if (!Notification.isSupported()) return;
+  // Matn bildirishnoma paytidagi UI tilida (sozlamadan) — til almashsa keyingisi yangi tilda.
   const n = new Notification({
     title: "SOVEREIGN Cowork",
-    body: outcome === "done" ? "Vazifa tugadi · Task finished" : "Vazifa xato bilan to'xtadi · Task stopped with an error",
+    body: outcome === "done" ? mt("notify.done") : mt("notify.error"),
     silent: false,
   });
   n.on("click", () => {
@@ -641,6 +655,7 @@ handle("history:clear", async () => {
 handle("settings:set", async (_e, patch) => {
   const s = updateFromRenderer(patch);
   if (patch && "theme" in patch) applyTheme();
+  if (patch && "lang" in patch) buildAppMenu(); // menyu yorliqlari ham darhol yangi tilda
   if (patch && "model" in patch && session.config) session.config.omniModel = s.model || loadConfig().omniModel || "";
   return publicSettings();
 });
@@ -731,11 +746,12 @@ handle("fs:read", async (_e, path) => {
   try {
     const chk = checkUiPath(path);
     if (chk.error) return { error: chk.error };
-    if (statSync(chk.real).size > 8 * 1024 * 1024) return { error: "juda katta fayl" };
+    if (statSync(chk.real).size > 8 * 1024 * 1024) return { error: "too-large" };
     const content = readFileSync(chk.real, "utf8");
-    return { content: content.length > 400_000 ? content.slice(0, 400_000) + "\n… (qisqartirildi)" : content };
+    // Qisqartirish belgisi — flag; izoh matnini renderer UI tilida qo'shadi.
+    return content.length > 400_000 ? { content: content.slice(0, 400_000), truncated: true } : { content };
   } catch (e) {
-    return { error: e.message };
+    return fsError(e);
   }
 });
 
@@ -743,7 +759,7 @@ handle("fs:read", async (_e, path) => {
 // avval yo'q bo'lgan fayl o'chiriladi. Renderer ixtiyoriy yo'l bera olmaydi.
 handle("fs:restore", async (_e, id) => {
   const b = typeof id === "string" ? backupsById.get(id) : null;
-  if (!b) return { error: "zaxira topilmadi (Undo mumkin emas)" };
+  if (!b) return { error: "no-backup" };
   try {
     if (b.existed) {
       mkdirSync(dirname(b.real), { recursive: true });
@@ -754,7 +770,7 @@ handle("fs:restore", async (_e, id) => {
     dropBackup(id);
     return { ok: true };
   } catch (e) {
-    return { error: e.message };
+    return fsError(e);
   }
 });
 
@@ -892,6 +908,56 @@ function smokeCapture(outPath) {
   });
 }
 
+/**
+ * Ilova menyusi. O'rnatilgan ilovada standart menyu (Ctrl+R qayta yuklash, DevTools)
+ * kerak emas. macOS'da tahrirlash (nusxa/qo'yish) uchun minimal menyu qoladi —
+ * yorliqlar UI tilida; til almashganda (settings:set) qayta quriladi.
+ */
+function buildAppMenu() {
+  if (process.platform !== "darwin") {
+    if (app.isPackaged) Menu.setApplicationMenu(null);
+    return;
+  }
+  const sep = { type: "separator" };
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: app.name,
+        submenu: [
+          { role: "about", label: mt("menu.about") },
+          sep,
+          { role: "hide", label: mt("menu.hide") },
+          { role: "hideOthers", label: mt("menu.hideOthers") },
+          { role: "unhide", label: mt("menu.unhide") },
+          sep,
+          { role: "quit", label: mt("menu.quit") },
+        ],
+      },
+      {
+        label: mt("menu.edit"),
+        submenu: [
+          { role: "undo", label: mt("menu.undo") },
+          { role: "redo", label: mt("menu.redo") },
+          sep,
+          { role: "cut", label: mt("menu.cut") },
+          { role: "copy", label: mt("menu.copy") },
+          { role: "paste", label: mt("menu.paste") },
+          { role: "selectAll", label: mt("menu.selectAll") },
+        ],
+      },
+      {
+        label: mt("menu.window"),
+        submenu: [
+          { role: "minimize", label: mt("menu.minimize") },
+          { role: "zoom", label: mt("menu.zoom") },
+          sep,
+          { role: "close", label: mt("menu.close") },
+        ],
+      },
+    ]),
+  );
+}
+
 // Har qanday webContents: yangi oyna, tashqi navigatsiya, webview — taqiqlangan.
 app.on("web-contents-created", (_e, contents) => {
   contents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -918,13 +984,7 @@ if (!app.requestSingleInstanceLock()) {
     // Kamera/mikrofon/geolokatsiya va h.k. — hammasi rad (faqat nusxalash ruxsat).
     const allowed = new Set(["clipboard-sanitized-write"]);
     electronSession.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(allowed.has(permission)));
-    // O'rnatilgan ilovada standart menyu (Ctrl+R qayta yuklash, DevTools) kerak emas.
-    // macOS'da tahrirlash (nusxa/qo'yish) uchun minimal menyu qoladi.
-    if (process.platform === "darwin") {
-      Menu.setApplicationMenu(Menu.buildFromTemplate([{ role: "appMenu" }, { role: "editMenu" }, { role: "windowMenu" }]));
-    } else if (app.isPackaged) {
-      Menu.setApplicationMenu(null);
-    }
+    buildAppMenu();
     // Oxirgi ish papkasi (mavjud bo'lsa) avtomatik ochiladi.
     const last = loadSettings().lastFolder;
     if (isDir(last)) {

@@ -32,7 +32,7 @@ export function Pricing() {
         <div className="mt-8 flex justify-center">
           <BillingToggle value={period} onChange={setPeriod} />
         </div>
-        <p className="mt-3 text-center text-xs text-text-muted">Visa/Mastercard · USDT/BTC · СБП (₽)</p>
+        <p className="mt-3 text-center text-xs text-text-muted">{t("p7cPricingMethods")}</p>
       </FadeIn>
 
       <Stagger inView stagger={0.06} className="mt-14 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">

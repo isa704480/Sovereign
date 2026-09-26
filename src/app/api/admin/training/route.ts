@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 
@@ -11,14 +12,15 @@ export const runtime = "nodejs";
  * Faqat admin. Oddiy foydalanuvchi bu ma'lumotni ko'ra olmaydi.
  */
 export async function GET(req: Request) {
+  const t = await getServerT();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return Response.json({ error: "Avval kiring" }, { status: 401 });
+  if (!user) return Response.json({ error: t("pnErrLoginFirst") }, { status: 401 });
 
   const { data: profile } = await supabase.from("profiles").select("is_admin").eq("id", user.id).maybeSingle();
-  if (!profile?.is_admin) return Response.json({ error: "Ruxsat yo'q" }, { status: 403 });
+  if (!profile?.is_admin) return Response.json({ error: t("p7cNoAccess") }, { status: 403 });
 
   const url = new URL(req.url);
   const limit = Math.min(Number(url.searchParams.get("limit") ?? 2000), 10_000);
@@ -29,7 +31,10 @@ export async function GET(req: Request) {
     .select("question, answer, model, rating, created_at")
     .order("created_at", { ascending: false })
     .limit(limit);
-  if (error) return Response.json({ error: "O'qib bo'lmadi" }, { status: 500 });
+  if (error) {
+    console.error("[admin/training]", error.message);
+    return Response.json({ error: t("p7cLoadFailed") }, { status: 500 });
+  }
 
   const rows = (data ?? [])
     .filter((r) => r.answer.length >= minLen && r.rating !== -1)

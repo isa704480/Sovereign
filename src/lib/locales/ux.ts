@@ -151,7 +151,7 @@ export const UX = {
     en: "You already have a higher plan active. Buy a lower one after it ends — or extend your current plan.",
   },
   chCardSubActive: {
-    uz: "Karta obunangiz faol. Ikkinchi obuna ikki marta pul yechardi: tarifni almashtirish uchun avval joriy obunani bekor qiling (Dodo xatidagi havola) yoki kripto/СБП orqali to'lang — qolgan muddat avtomatik hisoblanadi.",
+    uz: "Karta obunangiz faol. Ikkinchi obuna ikki marta pul yechardi: tarifni almashtirish uchun avval joriy obunani bekor qiling (Dodo xatidagi havola) yoki kripto/SBP orqali to'lang — qolgan muddat avtomatik hisoblanadi.",
     "uz-cyrl": "Карта обунангиз фаол. Иккинчи обуна икки марта пул ечарди: тарифни алмаштириш учун аввал жорий обунани бекор қилинг (Dodo хатидаги ҳавола) ёки крипто/СБП орқали тўланг — қолган муддат автоматик ҳисобланади.",
     ru: "У вас активна подписка по карте. Вторая списывала бы деньги дважды: чтобы сменить тариф, сначала отмените текущую (ссылка в письме Dodo) или оплатите криптой/СБП — остаток срока пересчитается автоматически.",
     en: "Your card subscription is active. A second one would charge you twice: to change plans, cancel the current subscription first (link in your Dodo email) or pay by crypto/SBP — your remaining time is converted automatically.",

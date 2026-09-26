@@ -241,9 +241,10 @@ function CliPanel({ os }: { os: Os | null }) {
 }
 
 // ---- Bo'lim --------------------------------------------------------------
-const TABS: { id: Tab; icon: typeof Monitor; title: TKey; name: string; desc: TKey }[] = [
-  { id: "desktop", icon: Laptop, title: "dlDesktopTitle", name: "SOVEREIGN Cowork", desc: "dlDesktopDesc" },
-  { id: "cli", icon: SquareTerminal, title: "dlCliTitle", name: "sov", desc: "dlCliDesc" },
+// Yonma-yon ikki tanlov: chapda "Cowork" (desktop ilova), o'ngda "CLI".
+const TABS: { id: Tab; icon: typeof Monitor; title: TKey; name: TKey; desc: TKey }[] = [
+  { id: "desktop", icon: Laptop, title: "p7cDlCoworkTitle", name: "p7cDlCoworkName", desc: "dlDesktopDesc" },
+  { id: "cli", icon: SquareTerminal, title: "p7cDlCliTitle", name: "p7cDlCliName", desc: "dlCliDesc" },
 ];
 
 export function Download() {
@@ -275,7 +276,7 @@ export function Download() {
       aria-labelledby="download-title"
       className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 md:px-8 md:py-28"
     >
-      <SectionHeading id="download-title" eyebrow={t("dlNav")} title={t("dlTitle")} sub={t("dlSub")} />
+      <SectionHeading id="download-title" eyebrow={t("dlNav")} title={t("dlTitle")} sub={t("p7cDlSub")} />
 
       <FadeIn inView className="mt-12">
         <div
@@ -317,7 +318,7 @@ export function Download() {
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="font-display block text-lg font-bold text-text-primary">{t(x.title)}</span>
-                  <span className="mt-0.5 block font-mono text-xs text-primary-soft">{x.name}</span>
+                  <span className="mt-0.5 block font-mono text-xs text-primary-soft">{t(x.name)}</span>
                   <span className="mt-2 block text-sm leading-relaxed text-text-secondary">{t(x.desc)}</span>
                 </span>
               </button>

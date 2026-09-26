@@ -52,7 +52,10 @@ async function translate(message: string): Promise<string> {
   const t = await getServerT();
   if (isAuthMsgKey(message)) return t(message);
   const key = authErrorKey(message);
-  return key ? t(key) : message;
+  if (key) return t(key);
+  // Tanilmagan provayder xatosi UI'ga xom holda chiqmaydi — logga yoziladi.
+  console.error("[auth] unmapped error:", message);
+  return t("p7cErrGeneric");
 }
 
 async function fail(message: string): Promise<AuthResult> {

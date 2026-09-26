@@ -18,6 +18,7 @@
     "start:offline": "vite build && cross-env SOV_OFFLINE=1 electron .",
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env VITE_DEV=1 electron .\"",
     "icons": "node scripts/make-icons.mjs",
+    "i18n:check": "node scripts/check-i18n.mjs",
     "dist": "vite build && electron-builder --publish never",
     "dist:win": "vite build && electron-builder --win --publish never",
     "dist:mac": "vite build && electron-builder --mac --publish never",

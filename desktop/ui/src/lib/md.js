@@ -52,7 +52,8 @@ function block(text) {
   return out;
 }
 
-export function md(text, copyLabel = "Copy") {
+/** copyLabel / codeLabel — chaqiruvchi i18n'dan beradi (t("common.copy"), t("md.code")). */
+export function md(text, copyLabel = "Copy", codeLabel = "code") {
   const parts = String(text ?? "").split(/```/);
   let out = "";
   parts.forEach((seg, i) => {
@@ -60,7 +61,7 @@ export function md(text, copyLabel = "Copy") {
       const nl = seg.indexOf("\n");
       const lang = nl === -1 ? "" : seg.slice(0, nl).trim().slice(0, 20);
       const code = (nl === -1 ? seg : seg.slice(nl + 1)).replace(/\n$/, "");
-      out += `<div class="codeblock"><div class="codeblock-bar"><span>${esc(lang || "code")}</span><button type="button" class="codeblock-copy" data-copy>${esc(copyLabel)}</button></div><pre><code>${esc(code)}</code></pre></div>`;
+      out += `<div class="codeblock"><div class="codeblock-bar"><span>${esc(lang || codeLabel)}</span><button type="button" class="codeblock-copy" data-copy>${esc(copyLabel)}</button></div><pre><code>${esc(code)}</code></pre></div>`;
     } else {
       out += block(seg);
     }

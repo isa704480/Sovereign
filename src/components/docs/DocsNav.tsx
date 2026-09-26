@@ -3,6 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { useT } from "@/store/chat";
 
 export interface DocsNavItem {
   id: string;
@@ -91,10 +92,11 @@ function allIds(items: DocsNavItem[]): string[] {
 
 /** Desktop: sticky left sidebar. */
 export function DocsSidebar({ items }: { items: DocsNavItem[] }) {
+  const t = useT();
   const active = useActiveSection(allIds(items));
   return (
-    <nav aria-label="Documentation" className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pb-8 pr-2">
-      <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">On this page</p>
+    <nav aria-label={t("p7bDEyebrow")} className="sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pb-8 pr-2">
+      <p className="mb-3 px-3 text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">{t("p7bDOnThisPage")}</p>
       <NavList items={items} active={active} />
     </nav>
   );
@@ -102,6 +104,7 @@ export function DocsSidebar({ items }: { items: DocsNavItem[] }) {
 
 /** Mobile / tablet: collapsible "On this page" menu under the header. */
 export function DocsMobileNav({ items }: { items: DocsNavItem[] }) {
+  const t = useT();
   const ref = useRef<HTMLDetailsElement>(null);
   const active = useActiveSection(allIds(items));
   const current = items.flatMap((i) => [i, ...(i.children ?? [])]).find((i) => i.id === active);
@@ -110,12 +113,12 @@ export function DocsMobileNav({ items }: { items: DocsNavItem[] }) {
     <details ref={ref} className="group">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm text-text-secondary [&::-webkit-details-marker]:hidden">
         <span className="min-w-0 truncate">
-          <span className="text-text-muted">On this page</span>
+          <span className="text-text-muted">{t("p7bDOnThisPage")}</span>
           {current && <span className="text-text-primary"> · {current.label}</span>}
         </span>
         <ChevronDown className="size-4 shrink-0 transition-transform group-open:rotate-180" aria-hidden />
       </summary>
-      <nav aria-label="Documentation" className="max-h-[70vh] overflow-y-auto border-t border-border px-2 py-3">
+      <nav aria-label={t("p7bDEyebrow")} className="max-h-[70vh] overflow-y-auto border-t border-border px-2 py-3">
         <NavList
           items={items}
           active={active}

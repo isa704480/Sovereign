@@ -3,6 +3,7 @@ import Icon, { Logo } from "./Icon.jsx";
 import { md } from "../lib/md.js";
 import { ledgerStats } from "../lib/agent.js";
 import { useT } from "../lib/i18n.js";
+import { localizeResult, localizeBody, ledgerWarning } from "../lib/cliText.js";
 
 const TOOL_ICON = { write_file: "pencil", make_dir: "folder", read_file: "file", list_dir: "list", run_command: "play" };
 const STATUS_ICON = { ok: "check", failed: "x", declined: "ban", skipped: "repeat", stopped: "stop" };
@@ -26,7 +27,7 @@ export function ToolStep({ it, awaiting }) {
         </span>
         {canExpand && <Icon name="chevron" size={12} className={`caret ${open ? "open" : ""}`} />}
       </button>
-      {open && <pre className="step-result">{it.result}</pre>}
+      {open && <pre className="step-result">{localizeResult(it.result, t)}</pre>}
     </div>
   );
 }
@@ -57,8 +58,8 @@ export function LedgerCard({ it }) {
               <Icon name={STATUS_ICON[e.status] ?? "info"} size={13} stroke={2} />
               <span className="grow">
                 {t(`ledger.${e.tool}.${e.status}`, null, `${e.tool}: ${e.status}`)} <span className="mono">{e.target}</span>
-                {e.tool === "run_command" && e.exit != null && <span className="faint"> (exit {e.exit})</span>}
-                {e.status === "failed" && e.detail && e.tool !== "run_command" && <span className="faint"> — {e.detail}</span>}
+                {e.tool === "run_command" && e.exit != null && <span className="faint"> ({t("ledger.exit", { code: e.exit })})</span>}
+                {e.status === "failed" && e.detail && e.tool !== "run_command" && <span className="faint"> — {localizeBody(e.detail, t)}</span>}
               </span>
             </li>
           ))}
@@ -66,7 +67,7 @@ export function LedgerCard({ it }) {
       )}
       {st.reads > 0 && <div className="ledger-reads faint small"><Icon name="eye" size={12} /> {t("ledger.reads", { n: st.reads })}</div>}
       {it.noteCode && <div className="banner banner-warn"><Icon name="alert" size={14} /><span>{it.noteCode === "steps" ? t("ledger.noteSteps", { n: it.maxSteps || 14 }) : t("ledger.noteError")}</span></div>}
-      {it.warning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.claimWarn")}</b> {it.warning}</span></div>}
+      {it.warning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.claimWarn")}</b> {ledgerWarning(it.warning, t)}</span></div>}
     </section>
   );
 }
@@ -95,7 +96,7 @@ function ErrorCard({ it, onAction, last }) {
 
 const Assistant = memo(function Assistant({ text }) {
   const t = useT();
-  const html = useMemo(() => md(text, t("common.copy")), [text, t]);
+  const html = useMemo(() => md(text, t("common.copy"), t("md.code")), [text, t]);
   return (
     <div className="msg msg-assistant">
       <span className="avatar"><Logo size={18} /></span>
@@ -113,7 +114,7 @@ function Thinking({ startedAt, mode, awaiting }) {
     <div className="thinking" role="status" aria-live="polite">
       <span className="avatar"><Logo size={18} className="pulse" /></span>
       <span className="shimmer">{awaiting ? t("status.awaitingLong") : mode === "chat" ? t("chat.writing") : t("chat.thinking")}</span>
-      <span className="faint small tnum">{sec}s</span>
+      <span className="faint small tnum">{t("time.sec", { n: sec })}</span>
     </div>
   );
 }

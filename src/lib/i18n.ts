@@ -19,6 +19,8 @@ import { P4E } from "@/lib/locales/p4-e";
 import { P5A } from "@/lib/locales/p5-a";
 import { P5B } from "@/lib/locales/p5-b";
 import { P6A } from "@/lib/locales/p6-a";
+import { P7B } from "@/lib/locales/p7-b";
+import { P7C } from "@/lib/locales/p7-c";
 
 export type Lang = "uz" | "uz-cyrl" | "ru" | "en";
 
@@ -294,8 +296,8 @@ const CORE = {
   skillsEnabled: { uz: "yoqilgan", "uz-cyrl": "ёқилган", ru: "включено", en: "enabled" },
   skillsSearch: { uz: "Skill qidirish", "uz-cyrl": "Skill қидириш", ru: "Поиск навыка", en: "Search skill" },
   catAll: { uz: "Barchasi", "uz-cyrl": "Барчаси", ru: "Все", en: "All" },
-  catMine: { uz: "Mening skillarim", "uz-cyrl": "Менинг skillарим", ru: "Мои навыки", en: "My skills" },
-  skillCustomDesc: { uz: "Siz yaratgan skill", "uz-cyrl": "Сиз яратган skill", ru: "Навык, созданный вами", en: "A skill you created" },
+  catMine: { uz: "Mening skillarim", "uz-cyrl": "Менинг скилларим", ru: "Мои навыки", en: "My skills" },
+  skillCustomDesc: { uz: "Siz yaratgan skill", "uz-cyrl": "Сиз яратган скилл", ru: "Навык, созданный вами", en: "A skill you created" },
   skillNamePlaceholder: {
     uz: "Skill nomi (masalan: Huquqiy tahlil)",
     "uz-cyrl": "Skill номи (масалан: Ҳуқуқий таҳлил)",
@@ -304,11 +306,11 @@ const CORE = {
   },
   skillInstrPlaceholder: {
     uz: "AI shu skill yoqilganda nimaga amal qilsin? Aniq qoidalar yozing.",
-    "uz-cyrl": "AI шу skill ёқилганда нимага амал қилсин? Аниқ қоидалар ёзинг.",
+    "uz-cyrl": "AI шу скилл ёқилганда нимага амал қилсин? Аниқ қоидалар ёзинг.",
     ru: "Чему должен следовать ИИ при включённом навыке? Опишите чёткие правила.",
     en: "What should the AI follow when this skill is on? Write clear rules.",
   },
-  createSkill: { uz: "O'z skilingizni yarating", "uz-cyrl": "Ўз skilингизни яратинг", ru: "Создайте свой навык", en: "Create your own skill" },
+  createSkill: { uz: "O'z skilingizni yarating", "uz-cyrl": "Ўз скилингизни яратинг", ru: "Создайте свой навык", en: "Create your own skill" },
   skillPickerSubtitle: {
     uz: "Ekspert rejimlar. Yoqilganlar har javobga qo'shiladi; mos so'rovlar avtomatik ham faollashadi.",
     "uz-cyrl": "Эксперт режимлар. Ёқилганлар ҳар жавобга қўшилади; мос сўровлар автоматик ҳам фаоллашади.",
@@ -512,7 +514,7 @@ const CORE = {
   onbEnter: { uz: "SOVEREIGN'ga kirish", "uz-cyrl": "SOVEREIGN'га кириш", ru: "Войти в SOVEREIGN", en: "Enter SOVEREIGN" },
 } as const;
 
-const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A };
+const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C };
 
 export type TKey = keyof typeof DICT;
 

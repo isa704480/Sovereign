@@ -19,7 +19,7 @@ export const AUTH = {
   auSignInLink: { uz: "Kiring →", "uz-cyrl": "Киринг →", ru: "Войдите →", en: "Log in →" },
 
   // ── Trust badges / vizual panel ──
-  auBadgeEncryption: { uz: "256-bit shifrlash", "uz-cyrl": "256-bit шифрлаш", ru: "256-битное шифрование", en: "256-bit encryption" },
+  auBadgeEncryption: { uz: "256-bit shifrlash", "uz-cyrl": "256-бит шифрлаш", ru: "256-битное шифрование", en: "256-bit encryption" },
   auBadgeNoAds: { uz: "Reklamasiz", "uz-cyrl": "Рекламасиз", ru: "Без рекламы", en: "No ads" },
   auHeroA: { uz: "Birinchi marta AI ", "uz-cyrl": "Биринчи марта AI ", ru: "Впервые ИИ принадлежит ", en: "For the first time, AI belongs to " },
   auHeroB: { uz: "sizga", "uz-cyrl": "сизга", ru: "вам", en: "you" },
@@ -46,7 +46,7 @@ export const AUTH = {
   },
   auResetSent: {
     uz: "Parolni tiklash havolasi emailingizga yuborildi.",
-    "uz-cyrl": "Паролни тиклаш ҳаволаси email манзилингизга юборилди.",
+    "uz-cyrl": "Паролни тиклаш ҳаволаси электрон почтангизга юборилди.",
     ru: "Ссылка для сброса пароля отправлена на вашу почту.",
     en: "A password reset link has been sent to your email.",
   },
@@ -92,7 +92,7 @@ export const AUTH = {
   },
 
   // ── Validatsiya (zod) ──
-  auErrEmail: { uz: "To'g'ri email manzil kiriting", "uz-cyrl": "Тўғри email манзил киритинг", ru: "Введите корректный email", en: "Enter a valid email address" },
+  auErrEmail: { uz: "To'g'ri email manzil kiriting", "uz-cyrl": "Тўғри электрон почта манзилини киритинг", ru: "Введите корректный email", en: "Enter a valid email address" },
   auErrPwMin: {
     uz: "Parol kamida 8 belgidan iborat bo'lsin",
     "uz-cyrl": "Парол камида 8 белгидан иборат бўлсин",
@@ -109,7 +109,7 @@ export const AUTH = {
   auErrPwMismatch: { uz: "Parollar mos kelmadi", "uz-cyrl": "Пароллар мос келмади", ru: "Пароли не совпадают", en: "Passwords don't match" },
   auErrPwRequired: { uz: "Parolni kiriting", "uz-cyrl": "Паролни киритинг", ru: "Введите пароль", en: "Enter your password" },
   auErrInvalidData: { uz: "Noto'g'ri ma'lumot", "uz-cyrl": "Нотўғри маълумот", ru: "Неверные данные", en: "Invalid data" },
-  auErrInvalidEmail: { uz: "Noto'g'ri email", "uz-cyrl": "Нотўғри email", ru: "Неверный email", en: "Invalid email" },
+  auErrInvalidEmail: { uz: "Noto'g'ri email", "uz-cyrl": "Нотўғри электрон почта", ru: "Неверный email", en: "Invalid email" },
 
   // ── Server (Supabase) xatolari ──
   auErrInvalidCreds: { uz: "Email yoki parol noto'g'ri.", "uz-cyrl": "Email ёки парол нотўғри.", ru: "Неверный email или пароль.", en: "Incorrect email or password." },
@@ -121,7 +121,7 @@ export const AUTH = {
   },
   auErrAlreadyRegistered: {
     uz: "Bu email allaqachon ro'yxatdan o'tgan. Kirishga harakat qiling.",
-    "uz-cyrl": "Бу email аллақачон рўйхатдан ўтган. Киришга ҳаракат қилинг.",
+    "uz-cyrl": "Бу электрон почта аллақачон рўйхатдан ўтган. Киришга ҳаракат қилинг.",
     ru: "Этот email уже зарегистрирован. Попробуйте войти.",
     en: "This email is already registered. Try logging in.",
   },
@@ -151,7 +151,7 @@ export const AUTH = {
   },
   auErrExistsWrongPw: {
     uz: "Bu email allaqachon ro'yxatdan o'tgan, lekin parol mos kelmadi. Kirish sahifasidan urinib ko'ring.",
-    "uz-cyrl": "Бу email аллақачон рўйхатдан ўтган, лекин парол мос келмади. Кириш саҳифасидан уриниб кўринг.",
+    "uz-cyrl": "Бу электрон почта аллақачон рўйхатдан ўтган, лекин парол мос келмади. Кириш саҳифасидан уриниб кўринг.",
     ru: "Этот email уже зарегистрирован, но пароль не подошёл. Попробуйте на странице входа.",
     en: "This email is already registered, but the password didn't match. Try the login page.",
   },

@@ -113,7 +113,7 @@ export default function ModelPicker({ label, onSelect, disabled, placement = "up
                       <span className="grow" style={{ minWidth: 0 }}>
                         <span className="trunc mono block strong">{m.id}</span>
                         <span className="faint small block">
-                          {m.owner}{m.context ? ` · ${Math.round(m.context / 1000)}k` : ""}{m.tools ? " · tools" : ""}{m.vision ? " · vision" : ""}{m.reasoning ? " · reasoning" : ""}
+                          {m.owner}{m.context ? ` · ${Math.round(m.context / 1000)}k` : ""}{m.tools ? ` · ${t("model.cap.tools")}` : ""}{m.vision ? ` · ${t("model.cap.vision")}` : ""}{m.reasoning ? ` · ${t("model.cap.reasoning")}` : ""}
                         </span>
                       </span>
                       {m.id.split("/").pop() === label && <Icon name="check" size={15} className="accent" />}

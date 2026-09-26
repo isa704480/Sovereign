@@ -3,14 +3,19 @@ import { lineDiff, diffStats, collapseContext } from "../lib/diff.js";
 import { useFocusTrap } from "./Modal.jsx";
 import Icon from "./Icon.jsx";
 import { useT } from "../lib/i18n.js";
+import { riskText } from "../lib/cliText.js";
 
 // Dialogda bir martada chiziladigan diff qatorlari (o'zgarmagan qismlar yig'ilgandan keyin).
 const MAX_RENDER = 2000;
 
-/** runTool savolidan xavf sababini ajratadi: "⚠️  SABAB — bajarilsinmi: ..." */
-function riskReason(question) {
+/**
+ * Xavf sababi: main meta.riskReason (classifyCommand, asl registr) beradi; eski/soxta
+ * manbada — CLI savolidan ajratiladi: "⚠️  SABAB — bajarilsinmi: ...". Matn UI tilida.
+ */
+function riskReason(meta, question, t) {
+  if (meta.riskReason) return riskText(meta.riskReason, t);
   const m = /⚠️?\s*(.+?)\s+—\s+bajarilsinmi:/su.exec(String(question || ""));
-  return m ? m[1].trim() : "";
+  return m ? riskText(m[1].trim(), t) : "";
 }
 
 function Banner({ tone = "warn", children }) {
@@ -53,7 +58,7 @@ export default function ConfirmDialog({ req, onReply }) {
   if (meta.autoRun) warnings.push({ tone: "danger", text: t("confirm.autoRun") });
   if (beforeUnknown) warnings.push({ tone: "danger", text: t("confirm.beforeUnknown") });
   if (isCmd && meta.risky) {
-    const why = riskReason(req.question);
+    const why = riskReason(meta, req.question, t);
     warnings.push({ tone: "danger", text: <>{t("confirm.risky")}{why ? <>: <b>{why}</b></> : ""}. {t("confirm.riskyHint")}</> });
   }
   if (hiddenRows) warnings.push({ tone: "warn", text: t("confirm.hidden", { rows: hiddenRows, changes: hiddenChanges }) });
@@ -111,7 +116,11 @@ export default function ConfirmDialog({ req, onReply }) {
               <p className="muted small">{t("confirm.cmdCwd")}</p>
             </div>
           ) : (
-            <div className="pad question">{req.question || t("confirm.default")}</div>
+            // CLI savoli o'zbekcha — o'rniga meta.tool bo'yicha UI tilidagi savol + aniq yo'l.
+            <div className="pad question">
+              {["list_dir", "read_file", "make_dir"].includes(meta.tool) ? t(`confirm.q.${meta.tool}`) : t("confirm.default")}
+              {meta.path && <pre className="cmd">{meta.path}</pre>}
+            </div>
           )}
         </div>
 

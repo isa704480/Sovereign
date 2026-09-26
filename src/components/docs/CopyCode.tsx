@@ -2,6 +2,8 @@
 
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
+import { fmt } from "@/lib/i18n";
+import { useT } from "@/store/chat";
 
 interface CopyCodeProps {
   /** Text copied to the clipboard (and shown). */
@@ -14,6 +16,7 @@ interface CopyCodeProps {
 
 /** Docs code block with a copy-to-clipboard button. */
 export function CopyCode({ code, label, prompt = false }: CopyCodeProps) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   function copy() {
@@ -43,14 +46,14 @@ export function CopyCode({ code, label, prompt = false }: CopyCodeProps) {
         <button
           type="button"
           onClick={copy}
-          aria-label={copied ? "Copied" : label ? `Copy ${label} command` : "Copy to clipboard"}
-          title={copied ? "Copied" : "Copy"}
+          aria-label={copied ? t("p7bDCopied") : label ? fmt(t("p7bDCopyCmd"), { label }) : t("p7bDCopyClip")}
+          title={copied ? t("p7bDCopied") : t("p7bDCopy")}
           className="grid size-8 shrink-0 place-items-center rounded-lg text-text-secondary transition-colors hover:bg-white/10 hover:text-text-primary"
         >
           {copied ? <Check className="size-4 text-success" aria-hidden /> : <Copy className="size-4" aria-hidden />}
         </button>
         <span className="sr-only" aria-live="polite">
-          {copied ? "Copied to clipboard" : ""}
+          {copied ? t("p7bDCopiedClip") : ""}
         </span>
       </div>
     </figure>

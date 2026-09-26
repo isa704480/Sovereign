@@ -6,7 +6,8 @@ import { useMemo, useRef, useState } from "react";
 import { extractWriteBlocks, matchFiles } from "@/lib/cowork/folder";
 import { fmt } from "@/lib/i18n";
 import { EASE_OUT_EXPO } from "@/lib/motion";
-import { useT, type ChatMessage } from "@/store/chat";
+import { useLang, useT, type ChatMessage } from "@/store/chat";
+import { plural } from "@/lib/plural";
 import { useCowork } from "./cowork-context";
 import { useDialogA11y } from "./use-dialog-a11y";
 
@@ -31,6 +32,7 @@ function collectChanges(messages: ChatMessage[]): Change[] {
 /** O'zgarishlar paneli — Reja→Fayllar→Natija oqimining "Fayllar/Natija" qismi. */
 function CoworkChanges({ changes }: { changes: Change[] }) {
   const t = useT();
+  const lang = useLang();
   const { canWrite, applyWrite } = useCowork();
   const [applied, setApplied] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -103,7 +105,7 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-mono text-xs" style={{ color: "var(--t-text)" }} title={c.path}>{c.path}</span>
-                <span className="nums text-[10px]" style={{ color: "var(--t-text-muted)" }}>{fmt(t("pnCwLines"), { n: lines })}</span>
+                <span className="nums text-[10px]" style={{ color: "var(--t-text-muted)" }}>{plural(lang, lines, { one: "p7cLinesOne", few: "p7cLinesFew", many: "p7cLinesMany" })}</span>
               </span>
               {done ? (
                 <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "#10D4A0" }}>

@@ -1,5 +1,7 @@
-// Tarjimalar: o'zbek (lotin — asosiy), o'zbek (kirill — avtomatik transliteratsiya),
-// rus, ingliz. Kalit topilmasa: tanlangan til → ingliz → uzbek → fallback → kalit.
+// Tarjimalar: o'zbek (lotin — asosiy), o'zbek (kirill), rus, ingliz.
+// Kirill: `uzCyrl` dagi qo'lda tekshirilgan matn; u yerda yo'q kalitlar uchun —
+// translit.js (qoida asosidagi fallback). Kalit topilmasa: tanlangan til → ingliz → uzbek → fallback → kalit.
+// Har yangi matn 4 tilda qo'shiladi; tekshiruv: `npm run i18n:check`.
 import { createContext, useContext } from "react";
 import { toCyrillic } from "./translit.js";
 
@@ -39,7 +41,7 @@ const uz = {
   "account.waiting": "Brauzerda tasdiqlashni kutyapmiz…", "account.waitingHint": "Ochilgan sahifada kod mosligini tekshiring va «Ruxsat berish»ni bosing.",
   "account.codeLabel": "Tasdiqlash kodi:", "account.openFailed": "Brauzer avtomatik ochilmadi — kirish sahifasini qo‘lda oching.",
   "account.expired": "Kod eskirdi. Qaytadan urinib ko‘ring.", "account.cancelled": "Kirish bekor qilindi.", "account.error": "Serverga ulanib bo‘lmadi. Internetni tekshiring.",
-  "account.offline": "Offline rejim — kirish o‘chirilgan.", "account.welcome": "Xush kelibsiz! Akkaunt ulandi.", "account.signedOut": "Akkauntdan chiqildi",
+  "account.offline": "Oflayn rejim — kirish o‘chirilgan.", "account.welcome": "Xush kelibsiz! Akkaunt ulandi.", "account.signedOut": "Akkauntdan chiqildi",
 
   "mode.label": "Ish rejimi", "mode.code": "Kod", "mode.chat": "Chat",
   "chat.label": "Suhbat", "chat.thinking": "O‘ylayapti", "chat.writing": "Yozyapti", "chat.stopped": "Siz to‘xtatdingiz",
@@ -56,7 +58,7 @@ const uz = {
   "tool.write_file": "Fayl yozish", "tool.make_dir": "Papka yaratish", "tool.read_file": "Faylni o‘qish", "tool.list_dir": "Papkani ko‘rish", "tool.run_command": "Buyruq", "tool.chars": "{n} belgi",
   "status.running": "Bajarilmoqda", "status.awaiting": "Tasdiqingiz kutilmoqda", "status.awaitingLong": "Tasdiqingiz kutilmoqda", "status.ok": "Bajarildi", "status.failed": "Xato",
   "status.declined": "Rad etildi", "status.skipped": "Takror — o‘tkazildi", "status.stopped": "To‘xtatildi",
-  "status.connected": "Ulangan", "status.offlineMode": "Offline rejim", "status.working": "Ishlayapti…",
+  "status.connected": "Ulangan", "status.offlineMode": "Oflayn rejim", "status.working": "Ishlayapti…",
 
   "ledger.title": "Aslida nima bo‘ldi", "ledger.subtitle": "Tizim jurnali — modelning so‘zlari emas, vositalarning haqiqiy natijalari",
   "ledger.reads": "{n} ta o‘qish/ko‘rish amali bajarildi", "ledger.noteSteps": "Qadamlar chegarasi ({n}) tugadi — vazifa oxirigacha bajarilmagan bo‘lishi mumkin. «davom et» deb yozing.",
@@ -68,7 +70,7 @@ const uz = {
 
   "err.auth.title": "Akkauntga kirilmagan yoki sessiya tugagan", "err.auth.desc": "Davom etish uchun qayta kiring.",
   "err.network.title": "SOVEREIGN serveriga ulanib bo‘lmadi", "err.network.desc": "Internet aloqasini tekshirib, qayta urinib ko‘ring.",
-  "err.offline.title": "Offline rejim", "err.offline.desc": "Ilova offline rejimda ishga tushirilgan — tarmoq so‘rovlari o‘chirilgan.",
+  "err.offline.title": "Oflayn rejim", "err.offline.desc": "Ilova oflayn rejimda ishga tushirilgan — tarmoq so‘rovlari o‘chirilgan.",
   "err.limit.title": "Limit tugadi", "err.limit.desc": "Tarif yoki so‘rovlar chegarasiga yetildi.",
   "err.no-folder.title": "Ish papkasi tanlanmagan", "err.no-folder.desc": "Kod rejimi fayllar bilan ishlaydi — avval papka oching.",
   "err.busy.title": "Oldingi vazifa hali bajarilmoqda", "err.busy.desc": "Tugashini kuting yoki to‘xtating (Ctrl+.).",
@@ -94,7 +96,7 @@ const uz = {
   "term.empty": "Hali buyruq bajarilmagan", "term.emptyHint": "Agent ishga tushirgan buyruqlar va ularning natijasi shu yerda.", "term.count": "{n} buyruq", "term.clear": "Tozalash", "term.noOutput": "(chiqish yo‘q)",
 
   "model.pick": "Modelni tanlash", "model.search": "Model qidirish… (claude, gemini, deepseek)", "model.featured": "Tekin — tavsiya", "model.none": "Hech narsa topilmadi",
-  "model.error": "Model katalogini yuklab bo‘lmadi.", "model.offline": "Offline — katalog mavjud emas.", "model.useAuto": "Auto’dan foydalanish", "model.foot": "oila → model · Esc — yopish",
+  "model.error": "Model katalogini yuklab bo‘lmadi.", "model.offline": "Oflayn — katalog mavjud emas.", "model.useAuto": "Auto’dan foydalanish", "model.foot": "oila → model · Esc — yopish",
 
   "palette.title": "Buyruqlar", "palette.open": "Buyruqlar palitrasini ochish", "palette.placeholder": "Buyruq yoki sozlama qidiring…", "palette.placeholderShort": "Buyruqlar va qidiruv",
   "palette.none": "Mos buyruq yo‘q", "palette.gTask": "Vazifa", "palette.gView": "Ko‘rinish", "palette.gApp": "Ilova",
@@ -133,6 +135,31 @@ const uz = {
   "onb.safety.s3.t": "Har bir o‘zgarishni qaytarish mumkin", "onb.safety.s3.d": "Vazifa davomida istalgan faylni yoki hammasini bir bosishda asl holiga qaytarasiz.",
   "onb.safety.s4.t": "«Aslida nima bo‘ldi» jurnali", "onb.safety.s4.d": "Har vazifa oxirida tizim haqiqiy natijalarni ko‘rsatadi: bajarildi, xato yoki rad etildi — modelning da’vosiga emas, jurnalga ishoning.",
   "onb.start": "Ishni boshlash",
+
+  "time.sec": "{n} s", "md.code": "kod", "about.offline": "oflayn",
+  "model.cap.tools": "vositalar", "model.cap.vision": "rasm", "model.cap.reasoning": "fikrlash",
+  "ledger.exit": "chiqish kodi {code}",
+  "ledger.warn.noEffects": "Javobda amal bajarilgandek aytilgan, lekin bu navbatda birorta fayl yozilmadi, papka yaratilmadi yoki buyruq muvaffaqiyatli bajarilmadi.",
+  "ledger.warn.missed": "Javobda tilga olingan, lekin aslida yozilmagan: {files}.",
+  "files.truncated": "… (qisqartirildi — faqat birinchi 400 000 belgi ko‘rsatildi)",
+  "fsErr.no-folder": "Ish papkasi tanlanmagan", "fsErr.bad-path": "Yo‘l noto‘g‘ri", "fsErr.unc": "Tarmoq (UNC) yo‘llari taqiqlangan",
+  "fsErr.outside": "Fayl ish papkasidan tashqarida", "fsErr.protected": "Himoyalangan yo‘l (kalit, parol yoki tizim fayli) — ochilmaydi",
+  "fsErr.too-large": "Fayl juda katta (8 MB dan ortiq)", "fsErr.not-found": "Fayl topilmadi",
+  "fsErr.no-backup": "Zaxira topilmadi — bu o‘zgarishni qaytarib bo‘lmaydi", "fsErr.io": "Diskdan o‘qish yoki yozishda xato",
+  "confirm.q.list_dir": "Shu papka tarkibi ko‘rilsinmi?", "confirm.q.read_file": "Shu fayl o‘qilsinmi?", "confirm.q.make_dir": "Shu papka yaratilsinmi?",
+  "risk.empty": "Bo‘sh buyruq", "risk.shell": "Shell metasimvollari (zanjir, yo‘naltirish yoki o‘zgaruvchi)",
+  "risk.path-exe": "Dastur yo‘l orqali chaqirilgan", "risk.git-write": "git {arg} — faqat o‘qish uchun emas",
+  "risk.git-arg": "git: faylga yozuvchi yoki tashqi dastur chaqiruvchi opsiya", "risk.grep-r": "grep -R simvolik havolalarga ergashadi",
+  "risk.not-readonly": "Faqat o‘qish uchun buyruqlar ro‘yxatida yo‘q: {arg}", "risk.drive-rel": "Diskka nisbiy yo‘l (C:foo)",
+  "risk.outside": "Ish papkasidan tashqaridagi yo‘l: {arg}", "risk.protected": "Himoyalangan yo‘l: {arg}", "risk.blocked": "Xavfli naqsh",
+  "cli.error": "XATO", "cli.exitFail": "XATO (chiqish kodi {code}):", "cli.written": "OK: {path} yozildi.", "cli.dirCreated": "OK: {path} papkasi yaratildi.",
+  "cli.declined": "Rad etildi — amal bajarilmadi.", "cli.protected": "«{path}» — himoyalangan yo‘l (kalit, parol yoki tizim fayli), ruxsat yo‘q.",
+  "cli.notFound": "«{path}» topilmadi.", "cli.ctrlChars": "Buyruqda terminal boshqaruv belgilari bor — xavfsizlik uchun bajarilmadi.",
+  "cli.blocked": "Buyruq xavfli deb bloklandi ({reason}).", "cli.unknownTool": "Noma’lum vosita: {name}", "cli.empty": "(bo‘sh)", "cli.truncated": "… (qisqartirildi)",
+  "cli.aborted": "Bekor qilindi — jarayon to‘xtatildi.", "cli.timeout": "Vaqt tugadi (120 s) — jarayon to‘xtatildi.", "cli.notStarted": "Bekor qilindi — buyruq ishga tushirilmadi.",
+  "cli.skip.ok": "Bu amal shu navbatda allaqachon muvaffaqiyatli bajarilgan — qayta bajarilmadi.",
+  "cli.skip.declined": "Bu amalni shu navbatda rad etgansiz — qayta so‘ralmadi.",
+  "cli.skip.failed": "Bu amal shu navbatda xato bergan{detail} — qayta bajarilmadi.",
 };
 
 const en = {
@@ -244,6 +271,31 @@ const en = {
   "onb.safety.s3.t": "Every change can be undone", "onb.safety.s3.d": "During a task, restore any file — or all of them — in one click.",
   "onb.safety.s4.t": "“What actually happened” log", "onb.safety.s4.d": "After each task the system shows real outcomes: done, failed or declined — trust the log, not the model’s claims.",
   "onb.start": "Start working",
+
+  "time.sec": "{n}s", "md.code": "code", "about.offline": "offline",
+  "model.cap.tools": "tools", "model.cap.vision": "vision", "model.cap.reasoning": "reasoning",
+  "ledger.exit": "exit {code}",
+  "ledger.warn.noEffects": "The reply says work was done, but this turn didn’t write a file, create a folder or run a command successfully.",
+  "ledger.warn.missed": "Mentioned in the reply but never actually written: {files}.",
+  "files.truncated": "… (truncated — only the first 400,000 characters are shown)",
+  "fsErr.no-folder": "No working folder selected", "fsErr.bad-path": "Invalid path", "fsErr.unc": "Network (UNC) paths aren’t allowed",
+  "fsErr.outside": "The file is outside the working folder", "fsErr.protected": "Protected path (keys, passwords or system files) — can’t be opened",
+  "fsErr.too-large": "The file is too large (over 8 MB)", "fsErr.not-found": "File not found",
+  "fsErr.no-backup": "No backup found — this change can’t be undone", "fsErr.io": "Disk read or write error",
+  "confirm.q.list_dir": "List the contents of this folder?", "confirm.q.read_file": "Read this file?", "confirm.q.make_dir": "Create this folder?",
+  "risk.empty": "Empty command", "risk.shell": "Shell metacharacters (chaining, redirection or variables)",
+  "risk.path-exe": "The program is called by path", "risk.git-write": "git {arg} isn’t read-only",
+  "risk.git-arg": "git: an option that writes files or runs external programs", "risk.grep-r": "grep -R follows symbolic links",
+  "risk.not-readonly": "Not on the read-only command list: {arg}", "risk.drive-rel": "Drive-relative path (C:foo)",
+  "risk.outside": "Path outside the working folder: {arg}", "risk.protected": "Protected path: {arg}", "risk.blocked": "Dangerous pattern",
+  "cli.error": "ERROR", "cli.exitFail": "ERROR (exit {code}):", "cli.written": "OK: {path} written.", "cli.dirCreated": "OK: folder {path} created.",
+  "cli.declined": "Declined — the action wasn’t performed.", "cli.protected": "“{path}” is a protected path (keys, passwords or system files) — access denied.",
+  "cli.notFound": "“{path}” not found.", "cli.ctrlChars": "The command contains terminal control characters — not run for safety.",
+  "cli.blocked": "The command was blocked as dangerous ({reason}).", "cli.unknownTool": "Unknown tool: {name}", "cli.empty": "(empty)", "cli.truncated": "… (truncated)",
+  "cli.aborted": "Cancelled — the process was stopped.", "cli.timeout": "Timed out (120 s) — the process was stopped.", "cli.notStarted": "Cancelled — the command wasn’t started.",
+  "cli.skip.ok": "This action already succeeded earlier in this turn — not repeated.",
+  "cli.skip.declined": "You declined this action earlier in this turn — not asked again.",
+  "cli.skip.failed": "This action failed earlier in this turn{detail} — not repeated.",
 };
 
 const ru = {
@@ -251,7 +303,7 @@ const ru = {
   "boot.errorTitle": "Нет связи с ядром приложения", "boot.errorDesc": "Внутренний мост (preload) не загрузился. Перезапустите приложение.",
   "common.back": "Назад", "common.cancel": "Отмена", "common.close": "Закрыть", "common.copied": "Скопировано", "common.copy": "Копировать",
   "common.loading": "Загрузка…", "common.next": "Продолжить", "common.retry": "Повторить", "common.skip": "Пропустить", "common.unknownError": "неизвестная ошибка",
-  "time.now": "только что", "time.min": "{n} мин назад", "time.hour": "{n} ч назад", "time.day": "{n} дн назад",
+  "time.now": "только что", "time.min": "{n} мин назад", "time.hour": "{n} ч назад", "time.day": "{n} дн. назад",
   "tb.sidebar": "Боковая панель", "tb.panel": "Панель изменений и терминала", "sidebar.label": "Задачи и файлы",
   "tasks.title": "Задачи", "tasks.new": "Новая задача", "tasks.today": "Сегодня", "tasks.earlier": "Ранее",
   "tasks.empty": "Задач пока нет", "tasks.emptyHint": "Ваши задачи сохраняются здесь — продолжайте в любой момент.",
@@ -261,7 +313,7 @@ const ru = {
   "files.noFolder": "Рабочая папка не выбрана", "files.missing": "Папка не найдена или удалена", "files.refresh": "Обновить", "files.reveal": "Показать в Проводнике",
   "files.changed": "Изменён в этой задаче", "files.readError": "Не удалось прочитать файл",
   "folder.open": "Открыть папку", "folder.none": "Папка не выбрана", "folder.pickHint": "Выберите папку проекта", "folder.choose": "Выберите рабочую папку",
-  "folder.browse": "Выбрать…", "folder.change": "Сменить", "folder.recent": "Недавние папки", "folder.recentOpen": "Недавняя",
+  "folder.browse": "Выбрать…", "folder.change": "Сменить", "folder.recent": "Недавние папки", "folder.recentOpen": "Недавняя папка",
   "folder.opened": "Открыта папка «{name}»", "folder.notFound": "Папка не найдена",
   "account.signIn": "Войти", "account.signOut": "Выйти", "account.notSignedIn": "Вход не выполнен", "account.signInHint": "Нажмите, чтобы войти",
   "account.connected": "Аккаунт подключён", "account.connectedAs": "Вы вошли", "account.synced": "Память и настройки модели синхронизированы",
@@ -289,10 +341,10 @@ const ru = {
   "status.connected": "Подключено", "status.offlineMode": "Офлайн-режим", "status.working": "Работает…",
   "ledger.title": "Что произошло на самом деле", "ledger.subtitle": "Системный журнал — реальные результаты инструментов, а не слова модели",
   "ledger.reads": "Выполнено действий чтения/просмотра: {n}", "ledger.noteSteps": "Достигнут лимит шагов ({n}) — задача может быть не завершена. Напишите «продолжай».",
-  "ledger.noteError": "Ход остановился с ошибкой — задача может быть не завершена.", "ledger.claimWarn": "Внимание: ответ не совпадает с журналом.",
+  "ledger.noteError": "Выполнение прервалось с ошибкой — задача может быть не завершена.", "ledger.claimWarn": "Внимание: ответ не совпадает с журналом.",
   "ledger.write_file.ok": "Файл записан:", "ledger.write_file.failed": "Файл НЕ записан (ошибка):", "ledger.write_file.declined": "Файл НЕ записан (отклонено):", "ledger.write_file.skipped": "Повторный вызов:",
   "ledger.make_dir.ok": "Папка создана:", "ledger.make_dir.failed": "Папка НЕ создана (ошибка):", "ledger.make_dir.declined": "Папка НЕ создана (отклонено):", "ledger.make_dir.skipped": "Повторный вызов:",
-  "ledger.run_command.ok": "Команда выполнена:", "ledger.run_command.failed": "Команда НЕ УДАЛАСЬ:", "ledger.run_command.declined": "Команда НЕ выполнена (отклонено):", "ledger.run_command.skipped": "Повторный вызов:",
+  "ledger.run_command.ok": "Команда выполнена:", "ledger.run_command.failed": "Команда завершилась с ОШИБКОЙ:", "ledger.run_command.declined": "Команда НЕ выполнена (отклонено):", "ledger.run_command.skipped": "Повторный вызов:",
   "ledger.read_file.failed": "Не прочитан (ошибка):", "ledger.read_file.declined": "Не прочитан (отклонено):", "ledger.list_dir.failed": "Не просмотрена (ошибка):", "ledger.list_dir.declined": "Не просмотрена (отклонено):",
   "err.auth.title": "Вход не выполнен или сессия истекла", "err.auth.desc": "Войдите снова, чтобы продолжить.",
   "err.network.title": "Не удалось связаться с сервером SOVEREIGN", "err.network.desc": "Проверьте интернет и попробуйте ещё раз.",
@@ -306,13 +358,13 @@ const ru = {
   "confirm.outside": "ЗА ПРЕДЕЛАМИ рабочей папки:", "confirm.autoRun": "Этот файл автоматически выполняет код (npm-скрипты, задачи VS Code, CI, git hooks, .env) — проверьте его внимательно.",
   "confirm.beforeUnknown": "Существующий файл будет ПОЛНОСТЬЮ заменён — старое содержимое слишком большое или нечитаемое, поэтому показано только новое.",
   "confirm.risky": "Опасная команда", "confirm.riskyHint": "Если не уверены, что она делает, — отмените.",
-  "confirm.hidden": "Diff слишком длинный: последние {rows} строк ({changes} изменений) здесь не показаны.", "confirm.hiddenShort": "ещё {rows} строк ({changes} изменений) не показано",
-  "confirm.diffCaption": "{n} строк · только изменённые фрагменты", "confirm.cmdLabel": "Команда для запуска", "confirm.cmdCwd": "Выполняется в рабочей папке, тайм-аут 2 минуты.",
-  "confirm.default": "Разрешить это действие?", "confirm.ack": "Согласен применить непросмотренную часть",
+  "confirm.hidden": "Diff слишком длинный: последние строки ({rows}, изменений: {changes}) здесь не показаны.", "confirm.hiddenShort": "не показано ещё строк: {rows} (изменений: {changes})",
+  "confirm.diffCaption": "Строк: {n} · только изменённые фрагменты", "confirm.cmdLabel": "Команда для запуска", "confirm.cmdCwd": "Выполняется в рабочей папке, тайм-аут 2 минуты.",
+  "confirm.default": "Разрешить это действие?", "confirm.ack": "Согласен применить и непросмотренную часть",
   "confirm.footHint": "Enter — кнопка в фокусе · Esc — отмена", "confirm.cancel": "Отмена", "confirm.apply": "Применить", "confirm.run": "Выполнить",
-  "diff.gap": "{n} неизменённых строк", "diff.more": "ещё {n} строк не показано", "diff.showAll": "Весь файл", "diff.changedOnly": "Только изменения", "diff.stats": "добавлено строк: {add}, удалено: {del}",
+  "diff.gap": "без изменений строк: {n}", "diff.more": "не показано ещё строк: {n}", "diff.showAll": "Весь файл", "diff.changedOnly": "Только изменения", "diff.stats": "добавлено строк: {add}, удалено: {del}",
   "panel.label": "Изменения и терминал", "panel.changes": "Изменения", "panel.terminal": "Терминал", "panel.close": "Закрыть панель",
-  "changes.count": "Изменено файлов: {n}", "changes.empty": "Изменений пока нет", "changes.emptyHint": "Одобренные вами записи файлов появятся здесь с diff.",
+  "changes.count": "Изменено файлов: {n}", "changes.empty": "Изменений пока нет", "changes.emptyHint": "Здесь появятся одобренные вами изменения файлов с diff.",
   "changes.modified": "изменён", "changes.new": "новый", "changes.undo": "Отменить", "changes.undoAll": "Отменить всё",
   "changes.noBackup": "Нет резервной копии (файл слишком большой или нечитаемый)", "changes.undoFailed": "Отмена не удалась", "changes.undone": "Восстановлено: {path}",
   "changes.undoneAll": "Все изменения отменены", "changes.undoPartial": "Не удалось восстановить файлов: {n}",
@@ -323,7 +375,7 @@ const ru = {
   "palette.title": "Команды", "palette.open": "Открыть палитру команд", "palette.placeholder": "Поиск команд и настроек…", "palette.placeholderShort": "Команды и поиск",
   "palette.none": "Нет подходящих команд", "palette.gTask": "Задача", "palette.gView": "Вид", "palette.gApp": "Приложение",
   "palette.toChat": "Перейти в режим «Чат»", "palette.toCode": "Перейти в режим «Код»", "palette.showChanges": "Показать изменения", "palette.showTerminal": "Показать терминал",
-  "palette.model": "Выбрать модель", "palette.onboarding": "Показать знакомство снова",
+  "palette.model": "Выбрать модель", "palette.onboarding": "Снова показать приветственный тур",
   "sc.title": "Горячие клавиши", "sc.palette": "Палитра команд", "sc.help": "Список сочетаний", "sc.new": "Новая задача", "sc.open": "Открыть папку",
   "sc.settings": "Настройки", "sc.sidebar": "Показать/скрыть боковую панель", "sc.panel": "Правая панель (изменения/терминал)", "sc.focus": "Перейти к полю сообщения",
   "sc.mode": "Режим «Чат» / «Код»", "sc.stop": "Остановить задачу", "sc.send": "Отправить", "sc.newline": "Новая строка", "sc.close": "Закрыть окно / отмена",
@@ -340,11 +392,11 @@ const ru = {
   "update.available": "Новая версия: {v}", "update.ready": "Обновление готово — перезапустите",
   "update.state.idle": "Ещё не проверялось.", "update.state.disabled": "Обновления работают только в установленном приложении (и онлайн).", "update.state.checking": "Проверка…",
   "update.state.available": "Доступна новая версия: {v}", "update.state.latest": "У вас последняя версия.", "update.state.downloading": "Загрузка… {p}%",
-  "update.state.ready": "{v} загружена — установится при перезапуске.", "update.state.no-release": "Релизов пока нет.", "update.state.offline": "Нет интернета — попробуйте позже.",
+  "update.state.ready": "Версия {v} загружена — установится при перезапуске.", "update.state.no-release": "Релизов пока нет.", "update.state.offline": "Нет интернета — попробуйте позже.",
   "update.state.error": "Не удалось проверить.",
   "about.smartscreen": "Приложение пока без цифровой подписи. Если SmartScreen пишет «Windows protected your PC», нажмите «More info» → «Run anyway».",
   "about.website": "Сайт", "about.docs": "Документация", "about.status": "Статус", "about.releases": "Релизы",
-  "onb.progress": "Шаг {n} из {total}", "onb.step.welcome": "Привет", "onb.step.account": "Аккаунт", "onb.step.folder": "Папка", "onb.step.safety": "Безопасность",
+  "onb.progress": "Шаг {n} из {total}", "onb.step.welcome": "Начало", "onb.step.account": "Аккаунт", "onb.step.folder": "Папка", "onb.step.safety": "Безопасность",
   "onb.welcome.title": "Добро пожаловать в SOVEREIGN Cowork", "onb.welcome.sub": "AI-напарник для кода на вашем компьютере: читает проект, планирует, пишет код и запускает команды — только с вашего разрешения.",
   "onb.account.title": "Подключите аккаунт", "onb.account.sub": "Модели, память и лимиты работают через ваш аккаунт SOVEREIGN.",
   "onb.folder.title": "Выберите рабочую папку", "onb.folder.sub": "Агент работает только внутри этой папки. Для любого пути снаружи запрашивается отдельное разрешение.",
@@ -355,13 +407,76 @@ const ru = {
   "onb.safety.s3.t": "Любое изменение можно отменить", "onb.safety.s3.d": "В ходе задачи восстановите любой файл — или все сразу — одним нажатием.",
   "onb.safety.s4.t": "Журнал «Что произошло на самом деле»", "onb.safety.s4.d": "После каждой задачи система показывает реальные итоги: выполнено, ошибка или отклонено — доверяйте журналу, а не словам модели.",
   "onb.start": "Начать работу",
+
+  "time.sec": "{n} с", "md.code": "код", "about.offline": "офлайн",
+  "model.cap.tools": "инструменты", "model.cap.vision": "зрение", "model.cap.reasoning": "рассуждения",
+  "ledger.exit": "код выхода {code}",
+  "ledger.warn.noEffects": "В ответе сказано, что работа сделана, но на самом деле ни один файл не записан, ни одна папка не создана и ни одна команда не выполнена успешно.",
+  "ledger.warn.missed": "Упомянуто в ответе, но на самом деле не записано: {files}.",
+  "files.truncated": "… (обрезано — показаны только первые 400 000 символов)",
+  "fsErr.no-folder": "Рабочая папка не выбрана", "fsErr.bad-path": "Неверный путь", "fsErr.unc": "Сетевые (UNC) пути запрещены",
+  "fsErr.outside": "Файл находится вне рабочей папки", "fsErr.protected": "Защищённый путь (ключи, пароли или системные файлы) — открыть нельзя",
+  "fsErr.too-large": "Файл слишком большой (более 8 МБ)", "fsErr.not-found": "Файл не найден",
+  "fsErr.no-backup": "Резервная копия не найдена — это изменение нельзя отменить", "fsErr.io": "Ошибка чтения или записи на диск",
+  "confirm.q.list_dir": "Показать содержимое этой папки?", "confirm.q.read_file": "Прочитать этот файл?", "confirm.q.make_dir": "Создать эту папку?",
+  "risk.empty": "Пустая команда", "risk.shell": "Метасимволы оболочки (цепочки, перенаправление или переменные)",
+  "risk.path-exe": "Программа вызвана по пути", "risk.git-write": "git {arg} — не только чтение",
+  "risk.git-arg": "git: параметр, который пишет файлы или запускает внешние программы", "risk.grep-r": "grep -R переходит по символическим ссылкам",
+  "risk.not-readonly": "Нет в списке команд только для чтения: {arg}", "risk.drive-rel": "Путь относительно диска (C:foo)",
+  "risk.outside": "Путь вне рабочей папки: {arg}", "risk.protected": "Защищённый путь: {arg}", "risk.blocked": "Опасный шаблон",
+  "cli.error": "ОШИБКА", "cli.exitFail": "ОШИБКА (код выхода {code}):", "cli.written": "OK: {path} записан.", "cli.dirCreated": "OK: папка {path} создана.",
+  "cli.declined": "Отклонено — действие не выполнено.", "cli.protected": "«{path}» — защищённый путь (ключи, пароли или системные файлы), доступ запрещён.",
+  "cli.notFound": "«{path}» не найден.", "cli.ctrlChars": "Команда содержит управляющие символы терминала — не выполнена в целях безопасности.",
+  "cli.blocked": "Команда заблокирована как опасная ({reason}).", "cli.unknownTool": "Неизвестный инструмент: {name}", "cli.empty": "(пусто)", "cli.truncated": "… (обрезано)",
+  "cli.aborted": "Отменено — процесс остановлен.", "cli.timeout": "Время истекло (120 с) — процесс остановлен.", "cli.notStarted": "Отменено — команда не запускалась.",
+  "cli.skip.ok": "Это действие уже успешно выполнено ранее — повторно не выполнялось.",
+  "cli.skip.declined": "Вы уже отклонили это действие — повторно не запрашивалось.",
+  "cli.skip.failed": "Это действие ранее завершилось ошибкой{detail} — повторно не выполнялось.",
+};
+
+/**
+ * O'zbek kirill — qo'lda tekshirilgan matnlar. Translit xato beradigan joylar:
+ * texnik atamalar (diff, npm, git hooks, Ctrl+O), o'zlashma so'zlar (компьютер, офлайн,
+ * опция), inglizcha iqtiboslar (SmartScreen). Bu yerda yo'q kalit — translit fallback.
+ */
+const uzCyrl = {
+  "boot.errorDesc": "Ички кўприк (preload) юкланмади. Иловани қайта ишга туширинг.",
+  "account.sharedWithCli": "Терминалдаги sovereign CLI билан бир хил кириш.",
+  "account.offline": "Офлайн режим — кириш ўчирилган.",
+  "status.offlineMode": "Офлайн режим",
+  "err.offline.title": "Офлайн режим",
+  "err.offline.desc": "Илова офлайн режимда ишга туширилган — тармоқ сўровлари ўчирилган.",
+  "model.offline": "Офлайн — каталог мавжуд эмас.",
+  "about.offline": "офлайн",
+  "empty.codeSub": "Вазифани оддий тилда ёзинг. Файлларни ўқийман, ўзгаришни diff билан кўрсатаман — сиз тасдиқламагунингизча ҳеч нарса ёзилмайди.",
+  "code.s2": "src ичида Express сервер ярат",
+  "chat.s1": "Менга React hook’ларини тушунтир",
+  "chat.s2": "Git rebase ва merge фарқи нима?",
+  "confirm.autoRun": "Бу файл ишга тушганда код бажаради (npm скриптлари, VS Code tasks, CI, git hooks, .env) — таркибини диққат билан текширинг.",
+  "confirm.hidden": "Diff жуда узун: охирги {rows} қатор ({changes} та ўзгариш) бу ойнада кўрсатилмади.",
+  "changes.emptyHint": "Сиз тасдиқлаган файл ёзувлари шу ерда diff билан кўринади.",
+  "model.search": "Модел қидириш… (claude, gemini, deepseek)",
+  "settings.autoUpdateDesc": "Ишга тушганда GitHub Releases’дан текширади; юклаб олиш фақат сиз босганда.",
+  "privacy.p2": "Вазифалар тарихи фақат шу компьютерда сақланади.",
+  "privacy.clearDesc": "Барча сақланган вазифалар шу компьютердан ўчирилади.",
+  "about.smartscreen": "Илова ҳозирча рақамли имзосиз. Windows SmartScreen «Windows protected your PC» деса: «More info» → «Run anyway».",
+  "onb.folder.note": "Папкани исталган пайт ён панелдан ёки Ctrl+O билан алмаштирасиз.",
+  "onb.safety.s1.d": "Ҳар бир файл ўзгариши diff билан кўрсатилади; «Қўллаш»ни босмагунингизча дискка тегилмайди.",
+  "ledger.exit": "чиқиш коди {code}",
+  "fsErr.too-large": "Файл жуда катта (8 МБ дан ортиқ)",
+  "risk.shell": "Shell метасимволлари (занжир, йўналтириш ёки ўзгарувчи)",
+  "risk.git-arg": "git: файлга ёзувчи ёки ташқи дастур чақирувчи опция",
+  "risk.grep-r": "grep -R символик ҳаволаларга эргашади",
+  "risk.drive-rel": "Дискка нисбий йўл (C:foo)",
+  "cli.error": "ХАТО",
+  "cli.exitFail": "ХАТО (чиқиш коди {code}):",
 };
 
 const DICTS = { uz, en, ru };
 let cyrl = null;
 function dict(lang) {
   if (lang === "uz-cyrl") {
-    if (!cyrl) cyrl = Object.fromEntries(Object.entries(uz).map(([k, v]) => [k, toCyrillic(v)]));
+    if (!cyrl) cyrl = { ...Object.fromEntries(Object.entries(uz).map(([k, v]) => [k, toCyrillic(v)])), ...uzCyrl };
     return cyrl;
   }
   return DICTS[lang] ?? uz;
@@ -395,3 +510,5 @@ export function relTime(ts, t) {
 export const I18n = createContext(makeT("uz"));
 export const useT = () => useContext(I18n);
 export const KEYS = { uz, en, ru };
+/** Qo'lda tekshirilgan kirill (qolganlari translit) — i18n:check uchun. */
+export const UZ_CYRL = uzCyrl;

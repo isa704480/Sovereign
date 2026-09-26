@@ -207,7 +207,7 @@ export const P4D = {
   p4dRoadMusic: { uz: "Musiqa generatsiyasi", "uz-cyrl": "Мусиқа генерацияси", ru: "Генерация музыки", en: "Music generation" },
   p4dRoadTella: {
     uz: "Tella — o'zimizning fine-tune qilingan modelimiz",
-    "uz-cyrl": "Tella — ўзимизнинг fine-tune қилинган моделимиз",
+    "uz-cyrl": "Tella — ўзимизнинг файн-тюн қилинган моделимиз",
     ru: "Tella — собственная дообученная модель",
     en: "Tella — our own fine-tuned model",
   },

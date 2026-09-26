@@ -64,7 +64,8 @@ export function install() {
     });
     if (aborted) return;
     await step("run_command", { command: "npm test" }, async () => {
-      const ok = await confirm({ tool: "run_command", command: "npm test", risky: false }, "Buyruq bajarilsinmi: npm test?");
+      // Haqiqiy classifyCommand'dagi kabi: npm faqat-o'qish ro'yxatida yo'q → risky; main riskReason qo'shadi.
+      const ok = await confirm({ tool: "run_command", command: "npm test", risky: true, riskReason: "Faqat-o'qish ro'yxatida yo'q: npm" }, "⚠️  FAQAT-O'QISH RO'YXATIDA YO'Q: NPM — bajarilsinmi: npm test?");
       if (!ok) return { status: "declined", result: "Foydalanuvchi rad etdi." };
       await sleep(700);
       const output = "EXIT 0\n> demo-shop@1.0.0 test\n> node --test\n\n✔ health endpoint (12ms)\nℹ tests 1  pass 1  fail 0";

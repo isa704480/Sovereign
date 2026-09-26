@@ -1,7 +1,8 @@
 import { ImageResponse } from "next/og";
 
-// Ijtimoiy tarmoq ulashish rasmi (1200×630 PNG). Build vaqtida bir marta yaratiladi.
-export const alt = "SOVEREIGN: Barcha AI. Bitta oyna.";
+// Ijtimoiy tarmoq ulashish rasmi (1200×630 PNG). Build vaqtida bir marta yaratiladi —
+// shuning uchun standart til (ingliz, openGraph.locale = en_US) bilan; ldHeroTitle1/2 ning en varianti.
+export const alt = "SOVEREIGN: Every AI. One window.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -44,9 +45,9 @@ export default function Image() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", marginTop: 56 }}>
-          <div style={{ fontSize: 96, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2 }}>Barcha AI.</div>
+          <div style={{ fontSize: 96, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2 }}>Every AI.</div>
           <div style={{ fontSize: 96, fontWeight: 800, lineHeight: 1.05, letterSpacing: -2, color: ACCENT }}>
-            Bitta oyna.
+            One window.
           </div>
         </div>
 

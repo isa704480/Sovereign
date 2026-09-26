@@ -20,7 +20,10 @@ export async function approveCliDevice(code: string): Promise<Result> {
   if (!user) return { ok: false, error: t("auCliErrLogin") };
 
   const { data, error } = await supabase.rpc("cli_approve", { p_code: code });
-  if (error) return { ok: false, error: error.message };
+  if (error) {
+    console.error("[cli] approve:", error.message);
+    return { ok: false, error: t("p7cErrGeneric") };
+  }
   if (data !== true) return { ok: false, error: t("auCliErrExpired") };
   return { ok: true };
 }

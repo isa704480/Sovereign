@@ -149,7 +149,7 @@ export default function Settings({ initial = "general", onClose, info, settings,
                 <Logo size={40} />
                 <div>
                   <div className="strong">SOVEREIGN Cowork</div>
-                  <div className="faint small mono">v{info.version} · {info.platform}{info.offline ? " · offline" : ""}</div>
+                  <div className="faint small mono">v{info.version} · {info.platform}{info.offline ? ` · ${t("about.offline")}` : ""}</div>
                 </div>
               </div>
               <div className="field mt">

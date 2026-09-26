@@ -56,7 +56,7 @@ export function StatusBar({ info, mode, model, busy, onShortcuts, update, onUpda
       {update?.state === "ready" && <button type="button" className="sb-item sb-link" onClick={onUpdate}><Icon name="refresh" size={12} /> {t("update.ready")}</button>}
       <span className="sb-item">{mode === "chat" ? t("mode.chat") : t("mode.code")}</span>
       <span className="sb-item"><Icon name="sparkle" size={12} /> {model}</span>
-      <button type="button" className="sb-item sb-link" onClick={onShortcuts}><Icon name="keyboard" size={12} /> Ctrl /</button>
+      <button type="button" className="sb-item sb-link" onClick={onShortcuts} title={t("sc.title")} aria-label={`${t("sc.title")} (Ctrl /)`}><Icon name="keyboard" size={12} /> Ctrl /</button>
       <span className="sb-item faint">v{info.version}</span>
     </footer>
   );
@@ -64,6 +64,7 @@ export function StatusBar({ info, mode, model, busy, onShortcuts, update, onUpda
 
 /** Ekran o'quvchilari uchun e'lonlar + vizual toast'lar. */
 export function Toasts({ toasts, onDismiss }) {
+  const t = useT();
   return (
     <div className="toasts" role="status" aria-live="polite">
       {toasts.map((x) => (
@@ -71,7 +72,7 @@ export function Toasts({ toasts, onDismiss }) {
           <Icon name={x.tone === "err" ? "alert" : x.tone === "ok" ? "check" : "info"} size={15} />
           <span className="grow">{x.text}</span>
           {x.action && <button type="button" className="link-btn" onClick={() => { x.action.run(); onDismiss(x.id); }}>{x.action.label}</button>}
-          <button type="button" className="icon-btn" aria-label="×" onClick={() => onDismiss(x.id)}><Icon name="x" size={12} /></button>
+          <button type="button" className="icon-btn" aria-label={t("common.close")} title={t("common.close")} onClick={() => onDismiss(x.id)}><Icon name="x" size={12} /></button>
         </div>
       ))}
     </div>

@@ -1,10 +1,19 @@
 // O'zbek lotin → kirill transliteratsiyasi (UI matnlari uchun, qoida asosida).
 // {placeholder}, klaviatura/brend nomlari va raqamli so'zlar o'zgarmaydi.
 
+// Bu fallback: aniq (qo'lda tekshirilgan) kirill matni i18n.js dagi `uzCyrl` lug'atida.
+// Translit faqat uzCyrl'da yo'q kalitlar uchun ishlatiladi.
 const PROTECT = new Set([
   "Ctrl", "Shift", "Enter", "Esc", "Tab", "Alt", "Backspace", "Windows", "GitHub", "SmartScreen",
   "Cowork", "Explorer", "OmniRoute", "Undo", "Auto", "Claude", "Mac", "Linux", "Chromium", "Electron",
+  // Texnik atamalar, buyruq va mahsulot nomlari — kirillda ham lotinda yoziladi.
+  "diff", "Diff", "src", "npm", "git", "Git", "rebase", "merge", "hook", "hooks", "tasks", "Code",
+  "React", "Express", "Node", "Vite", "Releases", "preload", "sovereign", "exit", "EXIT",
+  "claude", "gemini", "deepseek", "Gemini", "DeepSeek", "Llama", "Qwen", "tools", "vision", "reasoning",
 ]);
+
+/** Translit qoidasiga bo'ysunmaydigan o'zlashma so'zlar (kichik harf asos → kirill asos). */
+const STEMS = [["kompyuter", "компьютер"]];
 
 /** Qisqartma va brendlar — lotinda qoladi. */
 const CAPS = new Set(["SOVEREIGN", "CLI", "OK", "AI", "SQL", "VS", "CI", "README", "API", "URL", "UNC", "JSON", "HTML", "CSS", "UI", "UX", "PC", "GUI"]);
@@ -39,6 +48,10 @@ function word(w) {
     }
     if (lo === "s" && nlo === "h") { out += up("ш", ch); i++; continue; }
     if (lo === "c" && nlo === "h") { out += up("ч", ch); i++; continue; }
+    // "-tsiya/-tsion" (operatsiya, integratsiya) → "ц".
+    if (lo === "t" && nlo === "s" && /^(iya|io)/i.test(w.slice(i + 2))) { out += up("ц", ch); i++; continue; }
+    // "Is’hoq": tutuq belgisi s+h ni ajratadi — kirillda "сҳ", ъ yozilmaydi.
+    if (isApos(ch) && (w[i - 1] ?? "").toLowerCase() === "s" && nlo === "h") continue;
     if (lo === "y" && "oaue".includes(nlo) && nlo && !(nlo === "o" && isApos(w[i + 2]))) {
       const m = { o: "ё", a: "я", u: "ю", e: "е" }[nlo];
       if (m) { out += up(m, ch); i++; continue; }
@@ -60,8 +73,15 @@ const isApos = (ch) => !!ch && APOS.includes(ch);
 export function toCyrillic(text) {
   return String(text).replace(/\{\w+\}|[A-Za-z][A-Za-z‘’'ʻ`]*/g, (tok, offset, all) => {
     if (tok.startsWith("{")) return tok;
-    // Fayl/yo'l bo'laklari (.ssh, ~/.sovereign, src/x) o'zgarmaydi.
-    if (/[.~\\]/.test(all[offset - 1] ?? "")) return tok;
+    // Fayl/yo'l bo'laklari (.ssh, ~/.sovereign) va tugma birikmalari (Ctrl+O) o'zgarmaydi.
+    if (/[.~\\+]/.test(all[offset - 1] ?? "")) return tok;
+    const lower = tok.toLowerCase();
+    for (const [lat, cyr] of STEMS) {
+      if (lower.startsWith(lat)) {
+        const rest = word(tok.slice(lat.length));
+        return (tok[0] === tok[0].toUpperCase() ? cyr[0].toUpperCase() + cyr.slice(1) : cyr) + rest;
+      }
+    }
     // "Cowork’ga" — himoyalangan asos + o'zbekcha qo'shimcha.
     const m = /^([A-Za-z]+)[’'`]([A-Za-z]+)$/.exec(tok);
     if (m && (PROTECT.has(m[1]) || CAPS.has(m[1]))) return `${m[1]}’${word(m[2])}`;

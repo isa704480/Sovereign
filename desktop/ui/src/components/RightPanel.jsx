@@ -3,6 +3,7 @@ import Icon from "./Icon.jsx";
 import DiffView from "./DiffView.jsx";
 import { lineDiff, diffStats } from "../lib/diff.js";
 import { useT } from "../lib/i18n.js";
+import { localizeTerminal } from "../lib/cliText.js";
 
 function ChangeRow({ c, open, onToggle, onUndo }) {
   const t = useT();
@@ -53,10 +54,10 @@ function Terminal({ term, onClear }) {
           <div className="term-cmd">
             <span className="accent">$</span>
             <span className="grow mono">{x.command}</span>
-            <span className={`pill pill-${x.status === "ok" ? "ok" : "failed"}`}>{x.status === "ok" ? "exit 0" : t("status.failed")}</span>
-            <button type="button" className="icon-btn" aria-label={t("common.copy")} onClick={() => copy(x)}><Icon name={copied === x.id ? "check" : "copy"} size={13} /></button>
+            <span className={`pill pill-${x.status === "ok" ? "ok" : "failed"}`}>{x.status === "ok" ? t("ledger.exit", { code: 0 }) : t("status.failed")}</span>
+            <button type="button" className="icon-btn" aria-label={t("common.copy")} title={copied === x.id ? t("common.copied") : t("common.copy")} onClick={() => copy(x)}><Icon name={copied === x.id ? "check" : "copy"} size={13} /></button>
           </div>
-          <pre className="term-out">{String(x.output || "").replace(/^EXIT 0\n?/, "") || t("term.noOutput")}</pre>
+          <pre className="term-out">{localizeTerminal(x.output || "", t) || t("term.noOutput")}</pre>
         </div>
       ))}
     </div>

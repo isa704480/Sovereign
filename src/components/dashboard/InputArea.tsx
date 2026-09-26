@@ -19,6 +19,7 @@ import { matchFiles, type CoworkFile } from "@/lib/cowork/folder";
 import { videoAvailable } from "@/lib/chat/video-intent";
 import { useChat, useLang, useT } from "@/store/chat";
 import { fmt, type Lang } from "@/lib/i18n";
+import { plural } from "@/lib/plural";
 import { agentModeDescription, agentModeName } from "@/lib/locales/chat-data";
 import { AGENT_MODES, AGENT_MODE_BY_ID } from "@/config/agent-modes";
 import { useCowork } from "./cowork-context";
@@ -722,7 +723,9 @@ export function InputArea({
                         {
                           id: "cowork",
                           label: cowork.folder ? `Cowork · ${cowork.folder.name}` : t("coworkFolder"),
-                          hint: cowork.folder ? fmt(t("chCoworkHint"), { n: cowork.folder.files.length }) : t("chCoworkHintEmpty"),
+                          hint: cowork.folder
+                            ? plural(lang, cowork.folder.files.length, { one: "p7cCwFilesOne", few: "p7cCwFilesFew", many: "p7cCwFilesMany" })
+                            : t("chCoworkHintEmpty"),
                           Icon: FolderTree,
                           enabled: !!onOpenCowork,
                         },

@@ -29,6 +29,13 @@ function reducer(s, a) {
 
 let toastSeq = 0;
 
+/** Main'dan kelgan fayl xatosi kodi (fs:read / fs:restore) → UI tilidagi matn. */
+const fsErrText = (r, t) => {
+  const code = String(r?.error ?? "");
+  const text = t(`fsErr.${code}`, null, code || t("common.unknownError"));
+  return r?.detail ? `${text} (${r.detail})` : text;
+};
+
 export default function App() {
   const [boot, setBoot] = useState("loading");
   const [info, setInfo] = useState(null);
@@ -200,7 +207,7 @@ export default function App() {
   const restoreOne = async (ch) => {
     if (!ch.backupId) return t("changes.noBackup");
     const r = await S().fsRestore(ch.backupId);
-    return r?.ok ? null : r?.error || t("common.unknownError");
+    return r?.ok ? null : fsErrText(r, t);
   };
   const undoChange = async (ch) => {
     const err = await restoreOne(ch);
@@ -237,7 +244,7 @@ export default function App() {
 
   const openFile = async (node) => {
     const r = await S().fsRead(node.path);
-    setViewer({ path: node.path, name: node.name, content: r?.content ?? "", error: r?.error ?? null });
+    setViewer({ path: node.path, name: node.name, content: r?.content ?? "", truncated: !!r?.truncated, error: r?.error ? r : null });
   };
 
   const onErrorAction = (a) => {
@@ -307,10 +314,12 @@ export default function App() {
   // ---- Render ----
   if (boot === "loading") {
     return (
-      <div className="app">
-        <TitleBar minimal />
-        <div className="splash" role="status" aria-label="Loading"><Logo size={56} className="pulse" /><div className="splash-bar" /></div>
-      </div>
+      <I18n.Provider value={t}>
+        <div className="app">
+          <TitleBar minimal />
+          <div className="splash" role="status" aria-label={t("common.loading")}><Logo size={56} className="pulse" /><div className="splash-bar" /></div>
+        </div>
+      </I18n.Provider>
     );
   }
   if (boot === "error" || !info || !settings) {
@@ -387,9 +396,12 @@ export default function App() {
         {viewer && (
           <Modal title={<span className="mono">{viewer.name}</span>} onClose={() => setViewer(null)} width={920} className="viewer">
             {viewer.error ? (
-              <div className="banner banner-warn"><Icon name="alert" size={14} /><span>{t("files.readError")}: {viewer.error}</span></div>
+              <div className="banner banner-warn"><Icon name="alert" size={14} /><span>{t("files.readError")}: {fsErrText(viewer.error, t)}</span></div>
             ) : (
-              <pre className="viewer-code"><code>{viewer.content.split("\n").map((l, i) => <span key={i} className="vl"><span className="ln">{i + 1}</span>{l || " "}{"\n"}</span>)}</code></pre>
+              <>
+                <pre className="viewer-code"><code>{viewer.content.split("\n").map((l, i) => <span key={i} className="vl"><span className="ln">{i + 1}</span>{l || " "}{"\n"}</span>)}</code></pre>
+                {viewer.truncated && <p className="faint small pad-sm">{t("files.truncated")}</p>}
+              </>
             )}
           </Modal>
         )}

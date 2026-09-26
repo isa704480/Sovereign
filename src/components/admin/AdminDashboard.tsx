@@ -23,7 +23,11 @@ import {
 import { countryFlag, countryName } from "@/config/countries";
 import { AUTO_MODEL, AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { PLAN_BY_ID, type PlanId } from "@/config/plans";
+import { fmt as fmtT, type TKey } from "@/lib/i18n";
+import { localeOf } from "@/lib/locales/chat-data";
 import { EASE } from "@/lib/motion";
+import { plural } from "@/lib/plural";
+import { useLang, useT } from "@/store/chat";
 
 interface DailyStat {
   day: string;
@@ -99,12 +103,21 @@ interface AdminDashboardProps {
 }
 
 const AGE_LABEL: Record<string, string> = {
-  u18: "18 gacha",
   "18-24": "18–24",
   "25-34": "25–34",
   "35-44": "35–44",
   "45-54": "45–54",
   "55+": "55+",
+};
+
+/** Buyurtma holati (DB qiymati) → tarjima kaliti; noma'lum holat o'zicha ko'rsatiladi. */
+const ORDER_STATUS: Record<string, TKey> = {
+  paid: "p7cAdStatusPaid",
+  pending: "p7cAdStatusPending",
+  expired: "p7cAdStatusExpired",
+  refunded: "p7cAdStatusRefunded",
+  cancelled: "p7cAdStatusCancelled",
+  review: "p7cAdStatusReview",
 };
 
 const PLAN_COLORS: Record<string, string> = {
@@ -145,7 +158,13 @@ function KPI({ label, value, sub, color }: { label: string; value: string; sub?:
 }
 
 export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onboarding, models }: AdminDashboardProps) {
-  const ageBars = (onboarding?.by_age ?? []).map((a) => ({ name: AGE_LABEL[a.age_group] ?? a.age_group, users: a.users }));
+  const t = useT();
+  const lang = useLang();
+  const locale = localeOf(lang);
+  const ageBars = (onboarding?.by_age ?? []).map((a) => ({
+    name: a.age_group === "u18" ? t("p7cAdAgeUnder18") : (AGE_LABEL[a.age_group] ?? a.age_group),
+    users: a.users,
+  }));
   const countryRows = onboarding?.by_country ?? [];
   const countryTotal = countryRows.reduce((acc, r) => acc + r.users, 0);
   const modelRows = models?.by_model ?? [];
@@ -165,11 +184,11 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
   const daily30 = useMemo(() => {
     return [...daily].reverse().map((d) => ({
       ...d,
-      day: new Date(d.day).toLocaleDateString("uz-UZ", { month: "short", day: "numeric" }),
+      day: new Date(d.day).toLocaleDateString(locale, { month: "short", day: "numeric" }),
       revenue_usd: Number(d.revenue_usd || 0),
       tokens_k: Math.round((d.tokens_used || 0) / 1000),
     }));
-  }, [daily]);
+  }, [daily, locale]);
 
   const totalRevenue = daily.reduce((acc, d) => acc + Number(d.revenue_usd || 0), 0);
   const totalTokens = daily.reduce((acc, d) => acc + Number(d.tokens_used || 0), 0);
@@ -194,7 +213,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
               href="/app"
               className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-white/70 hover:bg-white/5"
             >
-              ← Dashboard
+              {t("p7cAdBack")}
             </Link>
           </div>
         </div>
@@ -209,12 +228,12 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
           className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6"
         >
           {/* Apple: KPI raqamlari hammasi bir xil rangda. Faqat "To'lovchi" — daromad va'dasi — accent'da. */}
-          <KPI label="Jami foydalanuvchi" value={fmt(summary?.total_users)} />
-          <KPI label="Bugun yangi" value={fmt(summary?.new_today)} />
-          <KPI label="Kunlik faol (DAU)" value={fmt(summary?.dau)} />
-          <KPI label="Haftalik (WAU)" value={fmt(summary?.wau)} />
-          <KPI label="Oylik (MAU)" value={fmt(summary?.mau)} />
-          <KPI label="To'lovchi" value={fmt(summary?.paying_users)} color="#8B7DFF" />
+          <KPI label={t("p7cAdTotalUsers")} value={fmt(summary?.total_users)} />
+          <KPI label={t("p7cAdNewToday")} value={fmt(summary?.new_today)} />
+          <KPI label={t("p7cAdDau")} value={fmt(summary?.dau)} />
+          <KPI label={t("p7cAdWau")} value={fmt(summary?.wau)} />
+          <KPI label={t("p7cAdMau")} value={fmt(summary?.mau)} />
+          <KPI label={t("p7cAdPaying")} value={fmt(summary?.paying_users)} color="#8B7DFF" />
         </motion.div>
 
         {/* Revenue + Tokens (30 kun) */}
@@ -222,7 +241,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
             <div className="mb-1 flex items-center justify-between">
               <div>
-                <div className="text-[11px] uppercase tracking-wider text-white/50">Daromad · 30 kun</div>
+                <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdRevenue30")}</div>
                 <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: "#10D4A0" }}>
                   {fmtMoney(totalRevenue)}
                 </div>
@@ -242,7 +261,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                   <CartesianGrid strokeDasharray="3 3" stroke="#22243A" />
                   <Tooltip
                     contentStyle={{ background: "#0A0B12", border: "1px solid #22243A", borderRadius: 12, fontSize: 12 }}
-                    formatter={(v) => [fmtMoney(Number(v)), "Daromad"] as [string, string]}
+                    formatter={(v) => [fmtMoney(Number(v)), t("p7cAdRevenue")] as [string, string]}
                   />
                   <Area type="monotone" dataKey="revenue_usd" stroke="#10D4A0" fill="url(#rev)" strokeWidth={2} />
                 </AreaChart>
@@ -253,7 +272,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
             <div className="mb-1 flex items-center justify-between">
               <div>
-                <div className="text-[11px] uppercase tracking-wider text-white/50">Tokenlar · 30 kun</div>
+                <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdTokens30")}</div>
                 <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: "#5B50F0" }}>
                   {fmt(totalTokens)}
                 </div>
@@ -273,7 +292,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                   <CartesianGrid strokeDasharray="3 3" stroke="#22243A" />
                   <Tooltip
                     contentStyle={{ background: "#0A0B12", border: "1px solid #22243A", borderRadius: 12, fontSize: 12 }}
-                    formatter={(v) => [`${v}k`, "Tokenlar"] as [string, string]}
+                    formatter={(v) => [`${v}k`, t("p7cAdTokens")] as [string, string]}
                   />
                   <Area type="monotone" dataKey="tokens_k" stroke="#5B50F0" fill="url(#tok)" strokeWidth={2} />
                 </AreaChart>
@@ -285,7 +304,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
         {/* Faol foydalanuvchilar (line) + Plan taqsimoti (pie) */}
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 lg:col-span-2">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">Faollik · 30 kun</div>
+            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdActivity30")}</div>
             <div className="mt-4 h-56">
               <ResponsiveContainer>
                 <LineChart data={daily30}>
@@ -296,16 +315,16 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                     contentStyle={{ background: "#0A0B12", border: "1px solid #22243A", borderRadius: 12, fontSize: 12 }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12, color: "#78798E" }} />
-                  <Line type="monotone" dataKey="active_users" name="Faol" stroke="#5B50F0" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="new_users" name="Yangi" stroke="#10D4A0" strokeWidth={2} dot={false} />
-                  <Line type="monotone" dataKey="messages_count" name="Xabar" stroke="#F5AA3C" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="active_users" name={t("p7cAdActive")} stroke="#5B50F0" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="new_users" name={t("p7cAdNew")} stroke="#10D4A0" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="messages_count" name={t("p7cAdMessages")} stroke="#F5AA3C" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           </section>
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">Tarif taqsimoti</div>
+            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdPlanSplit")}</div>
             <div className="mt-4 h-56">
               <ResponsiveContainer>
                 <PieChart>
@@ -337,12 +356,14 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
         {/* Auditoriya: yosh va davlat (onboarding'dan) */}
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">Yosh taqsimoti</div>
+            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdAgeSplit")}</div>
             {onboarding ? (
               <>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className="text-3xl font-semibold tabular-nums">{onboarding.avg_age ?? "—"}</span>
-                  <span className="text-xs text-white/50">o&apos;rtacha yosh · {onboarding.with_age} ta javob</span>
+                  <span className="text-xs text-white/50">
+                    {t("p7cAdAvgAge")} · {plural(lang, onboarding.with_age, { one: "p7cAdAnswersOne", few: "p7cAdAnswersFew", many: "p7cAdAnswersMany" })}
+                  </span>
                 </div>
                 <div className="mt-4 h-48">
                   <ResponsiveContainer>
@@ -351,22 +372,23 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                       <XAxis dataKey="name" stroke="#6E7191" fontSize={11} />
                       <YAxis stroke="#6E7191" fontSize={11} allowDecimals={false} />
                       <Tooltip contentStyle={{ background: "#0A0B12", border: "1px solid #22243A", borderRadius: 12, fontSize: 12 }} />
-                      <Bar dataKey="users" name="Foydalanuvchi" fill="#5B50F0" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="users" name={t("p7cAdUsers")} fill="#5B50F0" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               </>
             ) : (
-              <p className="mt-3 text-sm text-white/50">Ma&apos;lumot yo&apos;q — 0020 migratsiyasini ishga tushiring.</p>
+              <p className="mt-3 text-sm text-white/50">{fmtT(t("p7cAdNoDataMigration"), { m: "0020" })}</p>
             )}
           </section>
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
-              <div className="text-[11px] uppercase tracking-wider text-white/50">Davlatlar bo&apos;yicha ro&apos;yxatdan o&apos;tganlar</div>
+              <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdByCountry")}</div>
               <div className="text-xs text-white/50 tabular-nums">
-                {countryRows.length} davlat · {countryTotal} foydalanuvchi
-                {onboarding ? ` · oxirgi 30 kun: ${onboarding.signups_30d}` : ""}
+                {plural(lang, countryRows.length, { one: "p7cAdCountriesOne", few: "p7cAdCountriesFew", many: "p7cAdCountriesMany" })} ·{" "}
+                {plural(lang, countryTotal, { one: "p7cAdUsersOne", few: "p7cAdUsersFew", many: "p7cAdUsersMany" })}
+                {onboarding ? ` · ${fmtT(t("p7cAdLast30"), { n: onboarding.signups_30d })}` : ""}
               </div>
             </div>
             {countryRows.length ? (
@@ -375,9 +397,9 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                   <thead className="sticky top-0 bg-[#0A0B12] text-[11px] uppercase tracking-wider text-white/40">
                     <tr>
                       <th className="px-3 py-2 text-left">#</th>
-                      <th className="px-3 py-2 text-left">Davlat</th>
-                      <th className="px-3 py-2 text-right">Foydalanuvchi</th>
-                      <th className="px-3 py-2 text-right">Ulush</th>
+                      <th className="px-3 py-2 text-left">{t("p7cAdCountry")}</th>
+                      <th className="px-3 py-2 text-right">{t("p7cAdUsers")}</th>
+                      <th className="px-3 py-2 text-right">{t("p7cAdShare")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -385,7 +407,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                       <tr key={r.country} className="border-t border-white/5">
                         <td className="px-3 py-2 tabular-nums text-white/40">{i + 1}</td>
                         <td className="px-3 py-2">
-                          {countryFlag(r.country)} {countryName(r.country, "uz")}{" "}
+                          {countryFlag(r.country)} {countryName(r.country, lang)}{" "}
                           <span className="text-white/40">{r.country}</span>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{r.users}</td>
@@ -398,7 +420,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-white/50">Hali davlat tanlagan foydalanuvchi yo&apos;q.</p>
+              <p className="text-sm text-white/50">{t("p7cAdNoCountries")}</p>
             )}
           </section>
         </div>
@@ -406,10 +428,10 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
         {/* Modellar: ishlatilishi va sifati (messages jadvalidan) */}
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">Modellar — ishlatilishi va sifati</div>
+            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdModelsTitle")}</div>
             {models && (
               <div className="text-xs text-white/50 tabular-nums">
-                {fmt(models.total_messages)} javob · {models.active_models} model · {fmt(models.total_tokens)} token
+                {fmtT(t("p7cAdModelsSummary"), { answers: fmt(models.total_messages), models: models.active_models, tokens: fmt(models.total_tokens) })}
               </div>
             )}
           </div>
@@ -418,7 +440,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
             <>
               <div className="mt-5 grid gap-6 lg:grid-cols-2">
                 <div>
-                  <div className="mb-2 text-sm text-white/70">Eng ko&apos;p ishlatilgan (javoblar soni)</div>
+                  <div className="mb-2 text-sm text-white/70">{t("p7cAdMostUsed")}</div>
                   <ResponsiveContainer width="100%" height={Math.max(180, usageBars.length * 34)}>
                     <BarChart data={usageBars} layout="vertical" margin={{ left: 8, right: 16 }}>
                       <XAxis type="number" hide />
@@ -427,7 +449,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                         cursor={{ fill: "rgba(255,255,255,0.04)" }}
                         contentStyle={{ background: "#0D1033", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }}
                         labelStyle={{ color: "#EBEEFA" }}
-                        formatter={(v) => [fmt(Number(v)), "Javoblar"] as [string, string]}
+                        formatter={(v) => [fmt(Number(v)), t("p7cAdAnswers")] as [string, string]}
                       />
                       <Bar dataKey="messages" radius={[0, 6, 6, 0]}>
                         {usageBars.map((d, i) => (
@@ -439,7 +461,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                 </div>
 
                 <div>
-                  <div className="mb-2 text-sm text-white/70">Yaxshi ishlayapti — o&apos;rtacha javob (token)</div>
+                  <div className="mb-2 text-sm text-white/70">{t("p7cAdAvgAnswerTitle")}</div>
                   {qualityBars.length > 0 ? (
                     <ResponsiveContainer width="100%" height={Math.max(180, qualityBars.length * 34)}>
                       <BarChart data={qualityBars} layout="vertical" margin={{ left: 8, right: 16 }}>
@@ -449,7 +471,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                           cursor={{ fill: "rgba(255,255,255,0.04)" }}
                           contentStyle={{ background: "#0D1033", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }}
                           labelStyle={{ color: "#EBEEFA" }}
-                          formatter={(v) => [fmt(Number(v)), "O'rt. token"] as [string, string]}
+                          formatter={(v) => [fmt(Number(v)), t("p7cAdAvgTokens")] as [string, string]}
                         />
                         <Bar dataKey="avg" radius={[0, 6, 6, 0]}>
                           {qualityBars.map((d, i) => (
@@ -459,24 +481,24 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <p className="text-sm text-white/40">Token ma&apos;lumoti yetarli emas.</p>
+                    <p className="text-sm text-white/40">{t("p7cAdNotEnoughTokens")}</p>
                   )}
                 </div>
               </div>
 
               <div className="mt-6">
-                <div className="mb-2 text-sm text-white/70">Barcha modellar — to&apos;liq ro&apos;yxat</div>
+                <div className="mb-2 text-sm text-white/70">{t("p7cAdAllModels")}</div>
                 <div className="overflow-x-auto rounded-xl border border-white/5">
                   <table className="w-full text-sm">
                     <thead className="bg-white/[0.02] text-[11px] uppercase tracking-wider text-white/50">
                       <tr>
-                        <th className="p-3 text-left font-normal">Model</th>
-                        <th className="p-3 text-right font-normal">Javoblar</th>
-                        <th className="p-3 text-right font-normal">Ulush</th>
-                        <th className="p-3 text-right font-normal">Foydalanuvchi</th>
-                        <th className="p-3 text-right font-normal">O&apos;rt. javob</th>
-                        <th className="p-3 text-right font-normal">Jami token</th>
-                        <th className="p-3 text-right font-normal">Oxirgi</th>
+                        <th className="p-3 text-left font-normal">{t("p7cAdModel")}</th>
+                        <th className="p-3 text-right font-normal">{t("p7cAdAnswers")}</th>
+                        <th className="p-3 text-right font-normal">{t("p7cAdShare")}</th>
+                        <th className="p-3 text-right font-normal">{t("p7cAdUsers")}</th>
+                        <th className="p-3 text-right font-normal">{t("p7cAdAvgAnswer")}</th>
+                        <th className="p-3 text-right font-normal">{t("p7cAdTotalTokens")}</th>
+                        <th className="p-3 text-right font-normal">{t("p7cAdLastUsed")}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -509,7 +531,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                             <td className="p-3 text-right tabular-nums text-white/60">{fmt(r.avg_out)}</td>
                             <td className="p-3 text-right tabular-nums text-white/60">{fmt(r.total_tokens)}</td>
                             <td className="p-3 text-right text-white/50 tabular-nums">
-                              {r.last_used ? new Date(r.last_used).toLocaleDateString("uz-UZ") : "—"}
+                              {r.last_used ? new Date(r.last_used).toLocaleDateString(locale) : "—"}
                             </td>
                           </tr>
                         );
@@ -521,9 +543,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
             </>
           ) : (
             <p className="mt-4 text-sm text-white/50">
-              {models
-                ? "Hali model ishlatilmagan — suhbatlar boshlanganda bu yerda ko'rinadi."
-                : "Ma'lumot yo'q — 0021_admin_model_stats migratsiyasini ishga tushiring."}
+              {models ? t("p7cAdNoModelsYet") : fmtT(t("p7cAdNoDataMigration"), { m: "0021_admin_model_stats" })}
             </p>
           )}
         </section>
@@ -531,32 +551,34 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
         {/* Oxirgi to'lovlar jadvali */}
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
           <div className="mb-4 flex items-center justify-between">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">Oxirgi to&apos;lovlar</div>
-            <div className="text-xs text-white/50 tabular-nums">{recentOrders.length} yozuv</div>
+            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdRecentPayments")}</div>
+            <div className="text-xs text-white/50 tabular-nums">
+              {plural(lang, recentOrders.length, { one: "p7cAdRecordsOne", few: "p7cAdRecordsFew", many: "p7cAdRecordsMany" })}
+            </div>
           </div>
           <div className="overflow-hidden rounded-xl border border-white/5">
             <table className="w-full text-sm">
               <thead className="bg-white/[0.02] text-[11px] uppercase tracking-wider text-white/50">
                 <tr>
-                  <th className="p-3 text-left font-normal">Sana</th>
-                  <th className="p-3 text-left font-normal">Foydalanuvchi</th>
-                  <th className="p-3 text-left font-normal">Tarif</th>
-                  <th className="p-3 text-right font-normal">Miqdor</th>
-                  <th className="p-3 text-right font-normal">Holat</th>
+                  <th className="p-3 text-left font-normal">{t("p7cAdDate")}</th>
+                  <th className="p-3 text-left font-normal">{t("p7cAdUser")}</th>
+                  <th className="p-3 text-left font-normal">{t("p7cAdPlan")}</th>
+                  <th className="p-3 text-right font-normal">{t("p7cAdAmount")}</th>
+                  <th className="p-3 text-right font-normal">{t("p7cAdStatus")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
                 {recentOrders.length === 0 && (
                   <tr>
                     <td colSpan={5} className="p-8 text-center text-white/40">
-                      Hozircha to&apos;lovlar yo&apos;q
+                      {t("p7cAdNoPayments")}
                     </td>
                   </tr>
                 )}
                 {recentOrders.map((o) => (
                   <tr key={o.id} className="hover:bg-white/[0.02]">
                     <td className="p-3 text-white/70 tabular-nums">
-                      {new Date(o.created_at).toLocaleDateString("uz-UZ")}
+                      {new Date(o.created_at).toLocaleDateString(locale)}
                     </td>
                     <td className="p-3 text-white/70">{o.user_email ?? "—"}</td>
                     <td className="p-3">
@@ -582,7 +604,7 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
                           color: o.status === "paid" ? "#10D4A0" : o.status === "expired" ? "#EB5A64" : "#F5AA3C",
                         }}
                       >
-                        {o.status}
+                        {ORDER_STATUS[o.status] ? t(ORDER_STATUS[o.status]) : o.status}
                       </span>
                     </td>
                   </tr>

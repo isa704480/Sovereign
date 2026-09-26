@@ -628,6 +628,7 @@ ${connectorContext}`
                   verifyAnswer(lastText, verifyText, sources, {
                     attributionOnly,
                     numbered: Boolean(searchCtx.text),
+                    lang,
                     signal: req.signal,
                   })
               : null,

@@ -6,7 +6,8 @@ import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markd
 import remarkGfm from "remark-gfm";
 import { parseWriteBlock } from "@/lib/cowork/folder";
 import { fmt } from "@/lib/i18n";
-import { useT } from "@/store/chat";
+import { plural, type PluralKeys } from "@/lib/plural";
+import { useLang, useT } from "@/store/chat";
 import { isRenderable, useArtifact } from "./artifact-context";
 import { useCowork } from "./cowork-context";
 import { GenerativeUI, parseGenUi } from "./GenerativeUI";
@@ -52,8 +53,12 @@ function fileNameOf(code: string, lang: string, base = "kod"): string {
 }
 
 /** Cowork yozish kartasi — AI taklif qilgan faylni diff bilan ko'rsatib, bir tugmada saqlaydi. */
+/** "1 line / 5 lines", "1 строка / 3 строки / 5 строк". */
+const LINES: PluralKeys = { one: "p7cLinesOne", few: "p7cLinesFew", many: "p7cLinesMany" };
+
 function WriteFileCard({ path, content }: { path: string; content: string }) {
   const t = useT();
+  const uiLang = useLang();
   const { canWrite, applyWrite, readText, folder } = useCowork();
   const artifact = useArtifact();
   const [state, setState] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -102,7 +107,7 @@ function WriteFileCard({ path, content }: { path: string; content: string }) {
         <button type="button" onClick={() => artifact.open({ code: content, lang, title: path })} className="min-w-0 flex-1 text-left">
           <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>{path}</span>
           <span className="nums block text-xs" style={{ color: "var(--t-text-muted)" }}>
-            {exists ? t("chWriteModify") : t("chWriteNew")} · {fmt(t("chLinesCount"), { n: newLines })}
+            {exists ? t("chWriteModify") : t("chWriteNew")} · {plural(uiLang, newLines, LINES)}
             {oldLines !== null ? fmt(t("chLinesBefore"), { n: oldLines }) : ""}
           </span>
         </button>
@@ -144,6 +149,7 @@ function WriteFileCard({ path, content }: { path: string; content: string }) {
 
 function FileCard({ code, lang }: { code: string; lang: string }) {
   const t = useT();
+  const uiLang = useLang();
   const artifact = useArtifact();
   const [copied, setCopied] = useState(false);
   const lines = code.split("\n").length;
@@ -174,7 +180,7 @@ function FileCard({ code, lang }: { code: string; lang: string }) {
       <button type="button" onClick={() => artifact.open({ code, lang, title: name })} className="min-w-0 flex-1 text-left">
         <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>{name}</span>
         <span className="nums block text-xs" style={{ color: "var(--t-text-muted)" }}>
-          {fmt(t("chLinesCount"), { n: lines })} · {(code.length / 1024).toFixed(1)} KB
+          {plural(uiLang, lines, LINES)} · {(code.length / 1024).toFixed(1)} KB
         </span>
       </button>
       <button

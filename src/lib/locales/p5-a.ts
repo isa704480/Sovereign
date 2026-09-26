@@ -20,7 +20,7 @@ export const P5A = {
   // Sozlamalar — tip emaillari
   stEmailTipsTitle: {
     uz: "Maslahat va yangiliklarni emailga yuborish",
-    "uz-cyrl": "Маслаҳат ва янгиликларни emailга юбориш",
+    "uz-cyrl": "Маслаҳат ва янгиликларни электрон почтага юбориш",
     ru: "Присылать советы и новости на email",
     en: "Email me tips & updates",
   },
@@ -43,7 +43,7 @@ export const P5A = {
   updOpenApp: { uz: "Ilovani ochish", "uz-cyrl": "Иловани очиш", ru: "Открыть приложение", en: "Open the app" },
   p5aFooterUpdates: { uz: "Yangiliklar", "uz-cyrl": "Янгиликлар", ru: "Обновления", en: "Updates" },
   p5aPayNote: {
-    uz: "Karta — Dodo Payments orqali: Visa, Mastercard, American Express, Discover, JCB, UnionPay, Apple Pay va Google Pay; oylik/yillik obuna. Humo va Uzcard hozircha qabul qilinmaydi — xalqaro to'lovga yoqilgan Visa/Mastercard kerak. Kripto va СБП — RollyPay orqali, bir martalik to'lov.",
+    uz: "Karta — Dodo Payments orqali: Visa, Mastercard, American Express, Discover, JCB, UnionPay, Apple Pay va Google Pay; oylik/yillik obuna. Humo va Uzcard hozircha qabul qilinmaydi — xalqaro to'lovga yoqilgan Visa/Mastercard kerak. Kripto va SBP — RollyPay orqali, bir martalik to'lov.",
     "uz-cyrl": "Карта — Dodo Payments орқали: Visa, Mastercard, American Express, Discover, JCB, UnionPay, Apple Pay ва Google Pay; ойлик/йиллик обуна. Humo ва Uzcard ҳозирча қабул қилинмайди — халқаро тўловга ёқилган Visa/Mastercard керак. Крипто ва СБП — RollyPay орқали, бир марталик тўлов.",
     ru: "Карта — через Dodo Payments: Visa, Mastercard, American Express, Discover, JCB, UnionPay, Apple Pay и Google Pay; подписка на месяц/год. Humo и Uzcard пока не принимаются — нужна Visa/Mastercard с включёнными международными платежами. Крипта и СБП — через RollyPay, разовый платёж.",
     en: "Card — via Dodo Payments: Visa, Mastercard, American Express, Discover, JCB, UnionPay, Apple Pay and Google Pay; monthly/yearly subscription. Humo and Uzcard aren't supported yet — use a Visa/Mastercard enabled for international payments. Crypto and SBP — via RollyPay, one-time payment.",

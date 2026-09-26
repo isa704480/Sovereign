@@ -27,7 +27,7 @@ export function Footer() {
       <div className="mx-auto grid max-w-6xl grid-cols-1 gap-10 px-5 py-12 md:px-8 lg:grid-cols-[1.2fr_2fr]">
         <div className="max-w-xs">
           <Logo />
-          <p className="mt-4 text-sm text-text-muted">Your AI. Your Truth. Your Data. Forever.</p>
+          <p className="mt-4 text-sm text-text-muted">{t("p7cFooterTagline")}</p>
           <ul className="mt-5 space-y-2 text-sm text-text-secondary">
             <li className="flex items-center gap-2">
               <Mail className="size-3.5 shrink-0 text-text-muted" aria-hidden="true" />

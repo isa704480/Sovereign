@@ -5,6 +5,7 @@ import { PLAN_BY_ID, isPlanId, planAllowsTier, type PlanId } from "@/config/plan
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 import { getServerT } from "@/lib/i18n-server";
+import { fmt } from "@/lib/i18n";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -105,28 +106,29 @@ function bearer(req: Request): string | null {
  * executes tools locally and calls again. Plan picks the model.
  */
 export async function POST(req: Request) {
+  const t = await getServerT();
   const token = bearer(req);
-  if (!token) return Response.json({ error: "Token yo'q. `sovereign login` qiling." }, { status: 401 });
+  if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
 
   // Rate limit: har bir token uchun daqiqasiga 20 chaqiruv (tool-loop hisobga olib).
   const tokenHash = token.slice(0, 24); // token o'zi kalit sifatida — logga tushmasin
   const rl = await rateLimit(`cli:${tokenHash}`, 20, 60_000);
   if (!rl.ok) {
     return Response.json(
-      { error: "Juda ko'p so'rov. Bir oz kuting." },
+      { error: t("secTooManyRequests") },
       { status: 429, headers: { "Retry-After": Math.ceil(rl.retryAfterMs / 1000).toString() } },
     );
   }
   // Qo'shimcha IP-bazasidagi tekshiruv (agar bitta token ko'p mijozdan foydalanilsa).
   const ipRl = await rateLimit(`cli:ip:${clientIp(req)}`, 60, 60_000);
   if (!ipRl.ok) {
-    return Response.json({ error: "Juda ko'p so'rov (IP)." }, { status: 429 });
+    return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
   }
 
   const raw = await req.text().catch(() => "");
   // Cost-DoS cap on the whole payload (attachments are base64, so allow headroom).
   if (raw.length > 1_500_000) {
-    return Response.json({ error: "So'rov juda katta. Suhbatni /clear qilib qayta urinib ko'ring." }, { status: 413 });
+    return Response.json({ error: t("p7cCliTooLarge") }, { status: 413 });
   }
   let json: unknown = null;
   try {
@@ -138,12 +140,12 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const where = issue?.path.join(".") || "body";
-    return Response.json({ error: `Noto'g'ri so'rov (${where}: ${issue?.message ?? "format"})` }, { status: 400 });
+    return Response.json({ error: `${t("chBadRequest")} (${where})` }, { status: 400 });
   }
 
   // Kamida bitta provider kaliti kerak.
   if (!process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY && !process.env.MISTRAL_API_KEY && !process.env.OMNIROUTE_API_KEY) {
-    return Response.json({ error: "Serverda hech qanday AI provider kaliti sozlanmagan" }, { status: 503 });
+    return Response.json({ error: t("p7cCliNoProvider") }, { status: 503 });
   }
 
   // Resolve the token → user + plan. Tarif serverda hisoblanadi: muddati
@@ -157,7 +159,7 @@ export async function POST(req: Request) {
       | { user_id?: string | null; plan?: string | null; plan_expires_at?: string | null }
       | null;
     if (error || !row?.user_id) {
-      return Response.json({ error: "Token yaroqsiz. Qayta `sovereign login` qiling." }, { status: 401 });
+      return Response.json({ error: t("p7cCliBadToken") }, { status: 401 });
     }
     userId = row.user_id;
     const rawPlan: PlanId = isPlanId(row.plan) ? row.plan : "free";
@@ -165,7 +167,7 @@ export async function POST(req: Request) {
     planId = expired ? "free" : rawPlan;
   } catch (e) {
     console.error("[cli/chat] whoami:", e);
-    return Response.json({ error: (await getServerT())("secServerError") }, { status: 500 });
+    return Response.json({ error: t("secServerError") }, { status: 500 });
   }
 
   const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
@@ -183,7 +185,7 @@ export async function POST(req: Request) {
   // Bitta agent vazifasi odatda 3-5 model chaqiruvi (reja → fayl → fayl → xulosa),
   // shuning uchun CLI qadamlari uchun kunlik chegara veb xabarlardan 4 baravar katta.
   const cliLimit = plan.limits.messagesPerDay * CLI_STEP_MULTIPLIER;
-  const limitMsg = `Kunlik limit tugadi (${cliLimit} qadam, ${plan.name}). Ertaga davom eting yoki /upgrade.`;
+  const limitMsg = fmt(t("p7cCliDailyLimit"), { n: cliLimit, plan: plan.name });
   let counted = false;
   try {
     const admin = createServiceClient();
@@ -265,5 +267,5 @@ export async function POST(req: Request) {
 
   // Provayder/model zanjiri tafsiloti faqat server logida — mijozga umumiy xabar.
   console.error(`[cli/chat] barcha providerlar xato:\n  - ${failures.join("\n  - ")}`);
-  return Response.json({ error: (await getServerT())("secAllProvidersBusy") }, { status: 502 });
+  return Response.json({ error: t("secAllProvidersBusy") }, { status: 502 });
 }

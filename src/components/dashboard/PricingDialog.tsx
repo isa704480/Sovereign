@@ -30,7 +30,8 @@ interface PricingDialogProps {
 type Method = "card" | "crypto" | "sbp";
 
 // Karta — Dodo; kripto va СБП — RollyPay (ZenoBank endi ishlatilmaydi, /api/checkout zaxira).
-const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoint: string; Icon: typeof CreditCard }[] = [
+// `sub` — brend nomlari (tarjima qilinmaydi); oddiy so'z bo'lsa `subKey` (4 tilda).
+const METHODS: { id: Method; titleKey: TKey; sub?: string; subKey?: TKey; noteKey: TKey; endpoint: string; Icon: typeof CreditCard }[] = [
   {
     id: "card",
     titleKey: "payByCard",
@@ -51,7 +52,7 @@ const METHODS: { id: Method; titleKey: TKey; sub: string; noteKey: TKey; endpoin
   {
     id: "sbp",
     titleKey: "chPayBySbp",
-    sub: "СБП · QR · карты МИР",
+    subKey: "p7cPaySubSbp",
     noteKey: "chPayBySbpNote",
     endpoint: "/api/checkout/rollypay",
     Icon: QrCode,
@@ -349,7 +350,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                         ? [...METHODS.filter((m) => m.id === "sbp"), ...METHODS.filter((m) => m.id !== "sbp")]
                         : METHODS)
                       .filter((m) => m.id === "card" || planPriceRub(plan, period) > 0)
-                      .map(({ id, titleKey, sub, noteKey, Icon }, idx) => {
+                      .map(({ id, titleKey, sub, subKey, noteKey, Icon }, idx) => {
                       const busy = loading === id;
                       return (
                         <button
@@ -383,7 +384,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block font-semibold">{t(titleKey)}</span>
-                            <span className="block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{sub}</span>
+                            <span className="block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{subKey ? t(subKey) : sub}</span>
                             <span className="mt-1 block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t(noteKey)}</span>
                           </span>
                           <span className="nums shrink-0 text-sm font-semibold" style={{ color: plan.color }}>

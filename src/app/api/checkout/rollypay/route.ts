@@ -119,7 +119,7 @@ export async function POST(req: Request) {
       method,
       orderId,
       amountRub: Number(amount),
-      description: `SOVEREIGN ${plan.name} — ${period === "year" ? "12 мес." : "1 мес."}`,
+      description: `SOVEREIGN ${plan.name} — ${t(period === "year" ? "p7cPayPeriodYear" : "p7cPayPeriodMonth")}`,
       customerId: user.id,
       successUrl: `${origin}/app?paid=1`,
       failUrl: `${origin}/app?paid=0`,

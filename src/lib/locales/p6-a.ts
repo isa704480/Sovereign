@@ -42,7 +42,7 @@ export const P6A = {
   // Desktop variantlari
   dlWinMeta: {
     uz: "Windows 10 / 11 · 64-bit o'rnatuvchi",
-    "uz-cyrl": "Windows 10 / 11 · 64-bit ўрнатувчи",
+    "uz-cyrl": "Windows 10 / 11 · 64-бит ўрнатувчи",
     ru: "Windows 10 / 11 · 64-бит установщик",
     en: "Windows 10 / 11 · 64-bit installer",
   },

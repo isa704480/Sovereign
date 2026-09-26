@@ -15,7 +15,7 @@ export async function GET(req: Request) {
   if (!rl.ok) return Response.json({ error: (await getServerT())("secTooManyRequests") }, { status: 429 });
 
   const code = new URL(req.url).searchParams.get("code");
-  if (!code || code.length > 128) return Response.json({ error: "code kerak" }, { status: 400 });
+  if (!code || code.length > 128) return Response.json({ error: (await getServerT())("p7cCliCodeRequired") }, { status: 400 });
 
   try {
     const supabase = createAnonClient();

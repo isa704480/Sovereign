@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, BookOpen, Lock } from "lucide-react";
+import { ArrowRight, BookOpen } from "lucide-react";
 import { MagneticButton } from "@/components/motion/MagneticButton";
 import { OrbitField } from "./OrbitField";
 import { ProductPreview } from "./ProductPreview";
@@ -27,18 +27,12 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
         {/* aylanuvchi AI logolari */}
         <OrbitField />
 
+        {/* Kam so'z: sarlavha, bitta qisqa jumla va ikki tugma. Batafsil — pastdagi bo'limlarda. */}
         <div className="relative flex max-w-3xl flex-col items-center">
           <div className="hero-in" style={{ animationDelay: "0.10s" }}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-border bg-white/[0.03] px-3.5 py-1.5 text-xs font-medium tracking-wide text-text-secondary backdrop-blur-md">
-              <span className="size-1.5 rounded-full bg-primary shadow-glow" />
-              {t("ldHeroBadge")}
-            </span>
-          </div>
-
-          <div className="hero-in" style={{ animationDelay: "0.19s" }}>
             <h1
               id="hero-title"
-              className="font-display mt-7 text-[2.75rem] font-extrabold sm:text-5xl leading-[1.03] tracking-tight text-text-primary md:text-7xl"
+              className="font-display text-[2.75rem] font-extrabold sm:text-5xl leading-[1.03] tracking-tight text-text-primary md:text-7xl"
             >
               {t("ldHeroTitle1")}
               <br />
@@ -46,16 +40,13 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
             </h1>
           </div>
 
-          <div className="hero-in" style={{ animationDelay: "0.28s" }}>
-            <p className="mx-auto mt-7 max-w-2xl text-pretty text-lg leading-relaxed text-text-primary/90">
-              {t("p4dHeroValue")}
-            </p>
-            <p className="mx-auto mt-3 max-w-xl text-pretty text-base leading-relaxed text-text-secondary">
-              {t("p4dHeroAudience")}
+          <div className="hero-in" style={{ animationDelay: "0.20s" }}>
+            <p className="mx-auto mt-6 max-w-xl text-pretty text-lg leading-relaxed text-text-secondary">
+              {t("p7cHeroSub")}
             </p>
           </div>
 
-          <div className="hero-in" style={{ animationDelay: "0.37s" }}>
+          <div className="hero-in" style={{ animationDelay: "0.30s" }}>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
               <MagneticButton>
                 <Link
@@ -75,26 +66,11 @@ export function Hero({ signedIn = false }: { signedIn?: boolean }) {
               </a>
             </div>
           </div>
-
-          <div className="hero-in" style={{ animationDelay: "0.46s" }}>
-            <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm text-text-muted">
-              <span className="inline-flex items-center gap-2">
-                <Lock className="size-3.5 text-success" /> {t("ldHeroNoCard")}
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="relative flex size-2">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-50" />
-                  <span className="relative inline-flex size-2 rounded-full bg-success" />
-                </span>
-                {t("p4dHeroLive")}
-              </span>
-            </div>
-          </div>
         </div>
       </div>
 
       {/* Haqiqiy mahsulot ko'rinishi */}
-      <div className="hero-in relative px-4 pb-20 md:px-8 md:pb-28" style={{ animationDelay: "0.55s" }}>
+      <div className="hero-in relative px-4 pb-20 md:px-8 md:pb-28" style={{ animationDelay: "0.40s" }}>
         <ProductPreview />
       </div>
     </section>

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { effectivePlan, planStatus } from "@/lib/auth/profile";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
 
@@ -26,20 +27,21 @@ function bearer(req: Request): string | null {
  * Bu ikkalasi CLI va Web bir xil holatda qolishini ta'minlaydi.
  */
 export async function GET(req: Request) {
+  const t = await getServerT();
   const token = bearer(req);
-  if (!token) return Response.json({ error: "Token yo'q" }, { status: 401 });
+  if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
 
   const rl = await rateLimit(`cli-me-get:${token.slice(0, 24)}`, 30, 60_000);
-  if (!rl.ok) return Response.json({ error: "Juda ko'p so'rov" }, { status: 429 });
+  if (!rl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
   const ipRl = await rateLimit(`cli-me:ip:${clientIp(req)}`, 60, 60_000);
-  if (!ipRl.ok) return Response.json({ error: "Juda ko'p so'rov (IP)" }, { status: 429 });
+  if (!ipRl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
 
   try {
     const supabase = createAnonClient();
     const { data, error } = await supabase.rpc("cli_whoami", { p_token: token });
     const row = Array.isArray(data) ? data[0] : data;
     if (error || !row?.user_id) {
-      return Response.json({ error: "Token yaroqsiz" }, { status: 401 });
+      return Response.json({ error: t("p7cCliBadToken") }, { status: 401 });
     }
     // Plan holati shu yerda hisoblanadi. (Avval plan_status RPC anon mijoz bilan
     // chaqirilardi — 0016 dan beri u auth.uid() talab qiladi va anon'ga ruxsat yo'q,
@@ -59,20 +61,21 @@ export async function GET(req: Request) {
     });
   } catch (e) {
     console.error("[cli/me]", e);
-    return Response.json({ error: "Server xatosi" }, { status: 500 });
+    return Response.json({ error: t("secServerError") }, { status: 500 });
   }
 }
 
 export async function PATCH(req: Request) {
+  const t = await getServerT();
   const token = bearer(req);
-  if (!token) return Response.json({ error: "Token yo'q" }, { status: 401 });
+  if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
 
   const rl = await rateLimit(`cli-me-patch:${token.slice(0, 24)}`, 20, 60_000);
-  if (!rl.ok) return Response.json({ error: "Juda ko'p so'rov" }, { status: 429 });
+  if (!rl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
 
   const raw = await req.json().catch(() => null);
   const parsed = patchSchema.safeParse(raw);
-  if (!parsed.success) return Response.json({ error: "Noto'g'ri so'rov" }, { status: 400 });
+  if (!parsed.success) return Response.json({ error: t("chBadRequest") }, { status: 400 });
 
   const body = parsed.data;
   // Skil ID'larini oq ro'yxatga cheklash — attacker o'zboshimchalik yozmasin
@@ -88,10 +91,14 @@ export async function PATCH(req: Request) {
       p_default_model: body.default_model ?? null,
       p_memory_enabled: body.memory_enabled ?? null,
     });
-    if (error) return Response.json({ error: "Serverda xato" }, { status: 500 });
-    if (!ok) return Response.json({ error: "Yozib bo'lmadi" }, { status: 403 });
+    if (error) {
+      console.error("[cli/me] update:", error.message);
+      return Response.json({ error: t("secServerError") }, { status: 500 });
+    }
+    if (!ok) return Response.json({ error: t("p7cCliSaveFailed") }, { status: 403 });
     return Response.json({ ok: true });
-  } catch {
-    return Response.json({ error: "Server xatosi" }, { status: 500 });
+  } catch (e) {
+    console.error("[cli/me] patch:", e);
+    return Response.json({ error: t("secServerError") }, { status: 500 });
   }
 }
