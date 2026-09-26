@@ -19,6 +19,8 @@ import { getMemories, memoryPrompt } from "@/lib/ai/memory";
 import { fetchMentionedDocs, knowledgePrompt, retrieveKnowledge } from "@/lib/ai/knowledge";
 import { extractUrls, readPages } from "@/lib/ai/web-read";
 import { captureSample } from "@/lib/ai/training";
+import { scriptDrift } from "@/lib/ai/script-check";
+import type { AnswerMeta } from "@/lib/chat/answer-meta";
 import { getEnabledConnectors, runConnectorTools } from "@/lib/ai/connector-tools";
 import { fmt, LANG_FOR_AI, pick, translate, type TKey } from "@/lib/i18n";
 import { getServerT } from "@/lib/i18n-server";
@@ -411,21 +413,61 @@ export async function POST(req: Request) {
       // Modelga haqiqatan yuborilgan qadam/nomzod chaqiruvlari soni (kirish har safar qayta yuboriladi).
       let modelCalls = 0;
 
+      // Shaffoflik: javob qadamini haqiqatda qaysi nomzod va qaysi upstream model bergani.
+      const answerStep = steps.find((s) => s.kind === "answer") ?? steps[steps.length - 1];
+      let servedId = answerStep?.modelId ?? modelId;
+      let servedUpstream: string | undefined;
+      let servedSubstituted = false;
+      let servedRescue = false;
+      let cachedFrom: string | null = null;
+
       /** Taxminiy token hisobi (~4 belgi = 1 token): butun tarix + kontekst har chaqiruvda. */
-      const recordUsage = async () => {
-        if (!authed || modelCalls === 0) return;
+      const usageEstimate = () => {
+        if (modelCalls === 0) return { input: 0, output: 0 };
         const historyChars = messages.reduce((n, m) => n + textOf(m.content).length, 0);
         const contextChars = [webContext, coworkContext, knowledgeText, memoryText, skillText, connectorContext].join("").length;
-        const inputEstimate = Math.round(((historyChars + contextChars) * modelCalls) / 4);
-        const outputEstimate = Math.round(billedOutChars / 4);
+        return {
+          input: Math.round(((historyChars + contextChars) * modelCalls) / 4),
+          output: Math.round(billedOutChars / 4),
+        };
+      };
+
+      const recordUsage = async (u: { input: number; output: number }) => {
+        if (!authed || modelCalls === 0) return;
         const supabase = await createClient();
         const { error } = await supabase.rpc("record_token_usage", {
-          p_input_tokens: inputEstimate,
-          p_output_tokens: outputEstimate,
-          p_model: steps[steps.length - 1]?.modelId ?? modelId,
+          p_input_tokens: u.input,
+          p_output_tokens: u.output,
+          // Haqiqatda javob bergan model (zaxiraga o'tilgan bo'lsa — o'sha).
+          p_model: servedId,
           p_provider: null,
         });
         if (error) console.error("[chat] record_token_usage:", error.message);
+      };
+
+      /**
+       * Javob ostidagi belgi uchun: so'ralgan ↔ haqiqiy model va shu javob uchun
+       * hisobga yozilgan token. Raqamlar faqat server hisoblagani (record_token_usage
+       * bitta chaqiruvda 100 000 dan ortig'ini yozmaydi — shu chegara bu yerda ham).
+       */
+      const answerMeta = (u: { input: number; output: number }): AnswerMeta => {
+        const tokens = Math.min(100_000, u.input + u.output);
+        const billed = authed && modelCalls > 0 && tokens > 0;
+        const requested = isAuto ? (answerStep?.modelId ?? modelId) : modelId;
+        return {
+          requested,
+          served: cachedFrom ?? servedId,
+          ...(servedUpstream && !cachedFrom ? { upstream: servedUpstream } : {}),
+          fallback: !cachedFrom && (servedId !== requested || servedSubstituted || servedRescue),
+          ...(servedRescue && !cachedFrom ? { rescue: true } : {}),
+          ...(isAuto ? { auto: true } : {}),
+          ...(cachedFrom ? { cached: true } : {}),
+          tokens,
+          billed,
+          ...(billed && plan.limits.tokensPerMonth > 0
+            ? { monthPct: Math.round((tokens / plan.limits.tokensPerMonth) * 10_000) / 100 }
+            : {}),
+        };
       };
 
       try {
@@ -438,6 +480,7 @@ export async function POST(req: Request) {
             const supabase = await createClient();
             const hit = await lookupSemanticCache(supabase, lastText, lang);
             if (hit) {
+              cachedFrom = hit.model;
               send({ type: "cache", model: hit.model, similarity: hit.similarity });
               // Javobni bo'laklab yuborish — foydalanuvchi streaming his qiladi.
               const parts = hit.answer.match(/\S+\s*|\s+/g) ?? [hit.answer];
@@ -488,7 +531,6 @@ export async function POST(req: Request) {
             if (cu) {
               const enabled = await getEnabledConnectors(sbc, cu.id);
               if (enabled.length) {
-                const answerStep = steps.find((s) => s.kind === "answer") ?? steps[steps.length - 1];
                 // Faqat katalog modeli (tarif tekshiruvidan o'tgan); OmniRoute/xom id → null (standart model).
                 const pm = MODEL_BY_ID[answerStep.modelId]?.providerModel ?? null;
                 const run = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: pm, messages, enabled, signal: req.signal });
@@ -544,6 +586,8 @@ ${connectorContext}`
             const candidate = candidates[ci];
             let failure = "";
             modelCalls++;
+            // Bu nomzod upstream'dan qaysi model bilan javob berdi ("served" — faqat server ichida).
+            let candServed: { model: string; substituted: boolean; rescue?: boolean } | null = null;
             for await (const ev of streamCompletion({
               modelId: candidate,
               research: step.kind === "research",
@@ -556,6 +600,10 @@ ${connectorContext}`
               freeRescue: ci === candidates.length - 1,
             })) {
               if (ev.type === "done") break;
+              if (ev.type === "served") {
+                candServed = { model: ev.model, substituted: ev.substituted, rescue: ev.rescue };
+                continue;
+              }
               if (ev.type === "error") {
                 failure = ev.message;
                 break;
@@ -573,6 +621,12 @@ ${connectorContext}`
               }
               // Separate visible sections when a second step begins.
               send(ev);
+            }
+            if (step === answerStep && (candServed || !failure)) {
+              servedId = candidate;
+              servedUpstream = candServed?.model;
+              servedSubstituted = candServed?.substituted ?? false;
+              servedRescue = candServed?.rescue ?? false;
             }
             if (!failure) break;
             const next = candidates[ci + 1];
@@ -593,11 +647,18 @@ ${connectorContext}`
           }
         }
 
-        // Muvaffaqiyatli tugagach — yangi javobni keshga yozamiz.
-        if (canCache && cacheableAnswer && steps.length === 1) {
+        // Yozuv izchilligi (lotin/kirill aralash, o'zbekcha kirill o'rniga ruscha) — faqat log.
+        if (cacheableAnswer) {
+          const drift = scriptDrift(lastText, cacheableAnswer);
+          if (drift) console.warn("[chat] yozuv siljishi:", JSON.stringify({ ...drift, model: servedId, lang }));
+        }
+
+        // Muvaffaqiyatli tugagach — yangi javobni keshga yozamiz. Zaxira (boshqa model)
+        // javobi keshlanmaydi: keyin u tanlangan model nomi bilan qaytmasin.
+        if (canCache && cacheableAnswer && steps.length === 1 && !servedSubstituted && !servedRescue) {
           try {
             const supabase = await createClient();
-            void saveSemanticCache(supabase, lastText, cacheableAnswer, steps[0].modelId, lang);
+            void saveSemanticCache(supabase, lastText, cacheableAnswer, servedId, lang);
           } catch {
             /* ignore */
           }
@@ -609,7 +670,7 @@ ${connectorContext}`
           void captureSample({
             question: lastText,
             answer: cacheableAnswer,
-            model: steps[steps.length - 1]?.modelId ?? modelId,
+            model: servedUpstream ?? servedId,
             // Xotira, ulangan servis (GitHub/Figma) va o'qilgan sahifalar ham
             // shaxsiy kontekst — bunday javob trening bazasiga tushmaydi.
             hasPrivateContext: Boolean(
@@ -662,7 +723,13 @@ ${connectorContext}`
         }
       } finally {
         // Bekor qilingan / uzilgan oqim ham hisobga olinadi (oylik token limiti).
-        await recordUsage().catch((e) => console.error("[chat] record_token_usage:", e));
+        const usage = usageEstimate();
+        try {
+          if (modelCalls > 0 || cachedFrom) send({ type: "meta", ...answerMeta(usage) });
+        } catch {
+          /* mijoz uzilgan */
+        }
+        await recordUsage(usage).catch((e) => console.error("[chat] record_token_usage:", e));
         try {
           controller.enqueue(done);
           controller.close();

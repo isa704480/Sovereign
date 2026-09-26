@@ -13,6 +13,7 @@ import { plural } from "@/lib/plural";
 import { skillText } from "@/lib/locales/panels-data";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { AnswerMetaBadge } from "./AnswerMetaBadge";
 import { Markdown } from "./Markdown";
 import { ModelAvatar } from "./ModelAvatar";
 import { TypingIndicator } from "./TypingIndicator";
@@ -531,9 +532,10 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
             >
               <ThumbsDown className={cn("size-3.5", feedback === "down" && "fill-current")} />
             </button>
-            <span className="ml-2 hidden sm:inline">{model.name}</span>
+            {!message.meta && <span className="ml-2 hidden sm:inline">{model.name}</span>}
           </div>
         )}
+        {!streaming && !failed && message.content && message.meta && <AnswerMetaBadge meta={message.meta} />}
       </div>
     </motion.div>
   );

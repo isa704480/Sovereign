@@ -2,6 +2,8 @@ import "server-only";
 import { MODELS, MODEL_BY_ID, type SovereignModel } from "@/config/models";
 import { DEFAULT_LANG, fmt, translate, type Lang, type TKey } from "@/lib/i18n";
 import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
+import type { AnswerMeta } from "@/lib/chat/answer-meta";
+import { isSubstitution } from "./served";
 
 /**
  * O'z serverimizdagi modellar (providerModel). Ular faqat o'z serverimizda
@@ -49,6 +51,14 @@ export type StreamEvent =
   /** A model/provider failed and the answer continues on another model. */
   | { type: "switch"; from: string; to: string; reason: string }
   | { type: "verifier"; issues: { fact: string; verdict: "correct" | "suspicious" | "unverifiable"; note?: string }[] }
+  /**
+   * Faqat server ichida (chat route mijozga uzatmaydi): upstream haqiqatda qaysi
+   * model bilan javob bera boshladi. `substituted` — foydalanuvchi tanlagan
+   * modeldan boshqa model; `rescue` — tekin zaxira shlyuz.
+   */
+  | { type: "served"; model: string; substituted: boolean; rescue?: boolean }
+  /** Javob yakunidagi shaffoflik: haqiqiy model + server hisoblagan token (chat route yuboradi). */
+  | ({ type: "meta" } & AnswerMeta)
   | { type: "error"; message: string }
   | { type: "done" };
 
@@ -282,7 +292,7 @@ export function fallbackModelIds(
 export function buildSystemPrompt(model: SovereignModel, research: boolean, extra?: string): string {
   const base = [
     `Sen SOVEREIGN AI platformasidagi "${model.name}" modelisan.`,
-    "Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (asosan o'zbek tili).",
+    LANGUAGE_SCRIPT_RULE,
     "Javoblarni Markdown'da formatla: sarlavhalar, ro'yxatlar, kod bloklari (til ko'rsatilgan).",
     "Aniq, qisqa va foydali bo'l.",
     GENERATIVE_UI,
@@ -294,6 +304,20 @@ export function buildSystemPrompt(model: SovereignModel, research: boolean, extr
   if (extra) base.push(extra);
   return base.join(" ");
 }
+
+/**
+ * Til va yozuv izchilligi: javob lotin/kirill o'zbekcha orasida "sakramasin" va
+ * so'ralmagan holda rus/ingliz tiliga o'tib ketmasin. Server script-check.ts
+ * bilan buzilishlarni logga yozadi (to'smaydi).
+ */
+export const LANGUAGE_SCRIPT_RULE = [
+  "TIL VA YOZUV (QAT'IY):",
+  "1. Javobni foydalanuvchining OXIRGI xabari qaysi tilda VA qaysi yozuvda bo'lsa, aynan shu til va yozuvda yoz.",
+  "2. O'zbekcha lotinda yozsa — butun javob faqat lotinda; oʻ va gʻ harflarini ʻ (U+02BB) bilan, tutuq belgisini ʼ (U+02BC) bilan yoz (masalan: oʻzbek, gʻoya, maʼlumot).",
+  "3. O'zbekcha kirillda yozsa — butun javob faqat kirillda, o'zbek harflari bilan (ў, қ, ғ, ҳ); bu rus tili EMAS, ruscha so'z va grammatika ishlatma.",
+  "4. Bitta javobda lotin va kirill yozuvini HECH QACHON aralashtirma (kod, fayl/model nomlari, atamalar va iqtiboslar bundan mustasno).",
+  "5. Foydalanuvchi aniq so'ramasa, rus yoki ingliz tiliga o'tma. Oxirgi xabar tilini aniqlab bo'lmasa (faqat kod, havola, rasm) — quyidagi JAVOB TILI ko'rsatmasiga amal qil.",
+].join(" ");
 
 /**
  * "Generative UI" — model javob ichida jonli komponent chiza oladi. Kod emas,
@@ -493,9 +517,16 @@ async function errorMessage(
 /* ------------------------------------------------------------------ */
 
 type OrChunk = {
+  /** Upstream haqiqatda javob berayotgan model (OpenAI formatidagi ko'p provayderlar qaytaradi). */
+  model?: unknown;
   choices?: { delta?: { content?: string; reasoning?: string; reasoning_content?: string }; finish_reason?: string | null }[];
   error?: { message?: string; code?: number | string };
 };
+
+/** Chunk'dagi `model` maydoni (bo'lsa, qisqa va toza satr). */
+function reportedModel(c: OrChunk): string | null {
+  return typeof c.model === "string" && c.model.trim() ? c.model.trim().slice(0, 120) : null;
+}
 
 /** How many times a truncated answer may be continued automatically. */
 const MAX_CONTINUATIONS = 4;
@@ -615,6 +646,8 @@ async function* streamFreeFallback(
         if (c.error?.message) break;
         const text = c.choices?.[0]?.delta?.content;
         if (text) {
+          // Zaxira shlyuz — har doim so'ralgan modeldan boshqa model (shaffoflik uchun belgilanadi).
+          if (!produced) yield { type: "served", model: reportedModel(c) ?? target.model, substituted: true, rescue: true };
           produced = true;
           yield { type: "text", text };
         }
@@ -766,9 +799,18 @@ async function* streamOpenRouter(
       }
     }
   }
+  // Birinchi mazmunli bo'lakda: upstream haqiqatda qaysi model bilan javob beryapti.
+  // Model maydoni bo'lmasa — biz so'ragan id (to'g'ridan-to'g'ri yo'nalishda u
+  // tanlangan modeldan farq qilishi mumkin: masalan Groq'dagi o'rinbosar).
+  let servedSent = false;
   try {
     for await (const chunk of readSse(res.body)) {
       const c = chunk as OrChunk;
+      if (!servedSent && !c.error?.message && c.choices?.length) {
+        servedSent = true;
+        const served = reportedModel(c) ?? modelId;
+        yield { type: "served", model: served, substituted: isSubstitution(model.providerModel, served) };
+      }
       if (c.error?.message) {
         // Oqim ichidagi xato: xom matn faqat logga, foydalanuvchiga tarjima.
         console.error(`[ai] ${direct?.provider ?? "openrouter"} oqim xatosi:`, c.error.message.slice(0, 500));
@@ -912,6 +954,9 @@ async function* streamPerplexity(
     yield { type: "error", message: (await errorMessage(res, lang)).message };
     return;
   }
+
+  // Perplexity o'z presetida javob beradi — boshqa modelga almashtirmaydi.
+  yield { type: "served", model: `perplexity/${PERPLEXITY_PRESET[model.providerModel] ?? "fast"}`, substituted: false };
 
   const citations: string[] = [];
   const meta = new Map<string, SearchSource>();
@@ -1133,6 +1178,7 @@ function mockAnswer(model: SovereignModel, last: string): string {
 async function* mockStream(model: SovereignModel, messages: ChatMessageInput[]): AsyncGenerator<StreamEvent> {
   const last = textOf([...messages].reverse().find((m) => m.role === "user")?.content ?? "");
   const text = mockAnswer(model, last);
+  yield { type: "served", model: `mock/${model.id}`, substituted: false };
   if (isResearchModel(model)) {
     yield {
       type: "citations",

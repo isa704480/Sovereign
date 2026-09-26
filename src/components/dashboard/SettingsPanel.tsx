@@ -344,6 +344,18 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                   <ShieldAlert className="size-3.5" /> {t("dataPrivacy")}
                 </div>
+                <p className="pt-1.5 text-xs leading-relaxed" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                  {t("p9wPrivacyWhere")}{" "}
+                  <a
+                    href="/privacy#chat-data"
+                    target="_blank"
+                    rel="noopener"
+                    className="font-medium underline underline-offset-2"
+                    style={{ color: "var(--t-accent, #A5B4FC)" }}
+                  >
+                    {t("p9wPrivacyLink")}
+                  </a>
+                </p>
                 <Row
                   title={t("trainingTitle")}
                   desc={t("trainingDesc")}

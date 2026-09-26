@@ -41,6 +41,44 @@ function stripInlineImages(text: string): string {
 }
 
 /**
+ * Server sinxroni uchun: yaratilgan rasm/video (data: URL, yuzlab KB–MB) server action
+ * tana limitidan oshib, butun suhbat hech qachon sinxronlanmasdi. Serverga faqat
+ * tarjima qilingan belgi ketadi; asl media shu qurilmada qoladi (mergeFromServer uni saqlaydi).
+ * https:// havolali media o'zgarishsiz qoladi (kichik).
+ */
+function forSync(text: string, lang: Lang): string {
+  if (!text.includes("](data:")) return text;
+  return text
+    .replace(/!\[[^\]]*\]\(data:image\/[^)]+\)/g, `*[${translate(lang, "p9wImageLocalOnly")}]*`)
+    .replace(/!\[[^\]]*\]\(data:video\/[^)]+\)/g, `*[${translate(lang, "p9wVideoLocalOnly")}]*`);
+}
+
+/** Suhbatni Supabase'ga nusxalaydi (sessiya bo'lmasa server no-op). */
+function mirrorToServer(conversationId: string) {
+  const s = useChat.getState();
+  const conv = s.conversations[conversationId];
+  if (!conv) return;
+  void syncConversation({
+    id: conv.id,
+    title: conv.title,
+    modelId: conv.modelId,
+    research: conv.research,
+    createdAt: conv.createdAt,
+    updatedAt: conv.updatedAt,
+    messages: conv.messages
+      .filter((m) => m.status !== "error" && m.status !== "streaming" && m.content)
+      .map(({ id, role, content, modelId, citations: cit, createdAt }) => ({
+        id,
+        role,
+        content: forSync(content, s.lang),
+        modelId: modelId ?? null,
+        citations: cit ?? null,
+        createdAt,
+      })),
+  }).catch(() => {});
+}
+
+/**
  * "+" → "Video yaratish" rejimidagi so'rovlar (matnda "video" so'zi bo'lmasa ham).
  * ChatMessage.kind faqat "image" ni qabul qiladi — sessiya ichida id bo'yicha eslaymiz,
  * shunda "qayta yaratish"/tahrirlash ham video yo'lidan boradi.
@@ -195,6 +233,11 @@ export function useSendMessage() {
             });
           } else if (ev.type === "verifier") {
             s.updateMessage(conversationId, assistant.id, { verifier: ev.issues });
+          } else if (ev.type === "meta") {
+            // Haqiqatda javob bergan model (zaxira bo'lsa ham) va server hisoblagan token.
+            const { type: _t, ...meta } = ev;
+            void _t;
+            s.updateMessage(conversationId, assistant.id, { meta, modelId: meta.served });
           } else if (ev.type === "error") {
             // "[upgrade]" yoki "[upgrade:ultra]" — ikkinchisida server kerakli tarifni aytadi.
             const up = /^\[upgrade(?::([a-z]+))?\]/.exec(ev.message);
@@ -262,22 +305,7 @@ export function useSendMessage() {
     }
 
     // Mirror to Supabase when a session exists (no-op otherwise).
-    const final = useChat.getState().conversations[conversationId];
-    if (final) {
-      void syncConversation({
-        ...final,
-        messages: final.messages
-          .filter((m) => m.status !== "error" && m.content)
-          .map(({ id, role, content, modelId, citations: cit, createdAt }) => ({
-            id,
-            role,
-            content,
-            modelId: modelId ?? null,
-            citations: cit ?? null,
-            createdAt,
-          })),
-      }).catch(() => {});
-    }
+    mirrorToServer(conversationId);
   }, []);
 
   /**
@@ -357,6 +385,8 @@ export function useSendMessage() {
       const s = useChat.getState();
       const c = s.conversations[conversationId];
       if (c && c.title === "Yangi suhbat") s.setTitle(conversationId, prompt.slice(0, 48).replace(/\s+/g, " "));
+      // Faqat rasm/videodan iborat suhbat ham boshqa qurilmalarda ko'rinsin (media o'rnida belgi).
+      mirrorToServer(conversationId);
     }
   }, []);
 
