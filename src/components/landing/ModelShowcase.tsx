@@ -96,10 +96,14 @@ function ModelCard({ model }: { model: SovereignModel }) {
 export function ModelShowcase() {
   const t = useT();
   return (
-    <section id="models" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-32">
+    <section
+      id="models"
+      aria-labelledby="models-title"
+      className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 md:px-8 md:py-32"
+    >
       <FadeIn inView>
         <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-soft">{t("navModels")}</p>
-        <h2 className="font-display mt-3 max-w-2xl text-3xl font-extrabold text-text-primary md:text-4xl">
+        <h2 id="models-title" className="font-display mt-3 max-w-2xl text-balance text-[1.85rem] [overflow-wrap:anywhere] sm:text-3xl font-extrabold text-text-primary md:text-4xl">
           {t("ldShowcaseTitle")}
         </h2>
         <p className="mt-4 max-w-xl text-text-secondary">{t("ldShowcaseSub")}</p>

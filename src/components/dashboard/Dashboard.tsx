@@ -48,6 +48,10 @@ interface DashboardProps {
   memoryEnabled?: boolean;
   planState?: "free" | "active" | "expiring_soon" | "expired";
   daysLeft?: number | null;
+  /** Tarif banneri: tugash vaqti, (muddati o'tgan bo'lsa ham) pullik tarif, karta obunasi yangilanadimi. */
+  planExpiresAt?: string | null;
+  paidPlan?: PlanId;
+  planRenews?: boolean;
   /** /app?paid=1|0 — to'lov sahifasidan qaytish natijasi. */
   paymentReturn?: "success" | "failed" | null;
 }
@@ -56,7 +60,7 @@ interface DashboardProps {
 const PAID_POLL_TRIES = 15;
 const PAID_POLL_MS = 4000;
 
-export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null, paymentReturn = null }: DashboardProps) {
+export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null, planExpiresAt = null, paidPlan = "free", planRenews = false, paymentReturn = null }: DashboardProps) {
   const router = useRouter();
   const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
   // Barqaror t — useCallback bog'liqliklari har renderda yangilanmasin.
@@ -508,8 +512,10 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
           <PlanStatusBanner
             planState={planState}
             daysLeft={daysLeft}
-            planName={plan.name}
-            onUpgrade={() => openPricing()}
+            expiresAt={planExpiresAt}
+            paidPlan={paidPlan}
+            renews={planRenews}
+            onRenew={(id) => openPricing(null, id, "month")}
           />
 
           <div className="flex min-h-0 flex-1">

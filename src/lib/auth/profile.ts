@@ -39,12 +39,56 @@ export async function getProfile(supabase: SupabaseClient, userId: string): Prom
 }
 
 /** Effective plan: expired paid plans fall back to free. */
-export function effectivePlan(profile: Pick<Profile, "plan" | "plan_expires_at"> | null): Plan {
+export function effectivePlan(profile: Pick<Profile, "plan" | "plan_expires_at"> | null, now: number = Date.now()): Plan {
   if (!profile) return PLAN_BY_ID.free;
-  if (profile.plan !== "free" && profile.plan_expires_at && new Date(profile.plan_expires_at) < new Date()) {
+  if (profile.plan !== "free" && profile.plan_expires_at && new Date(profile.plan_expires_at).getTime() < now) {
     return PLAN_BY_ID.free;
   }
   return PLAN_BY_ID[profile.plan] ?? PLAN_BY_ID.free;
+}
+
+export type PlanState = "free" | "active" | "expiring_soon" | "expired";
+
+const DAY_MS = 24 * 3600 * 1000;
+/** Shu kundan kam qolganda "expiring_soon" (SQL plan_status bilan bir xil). */
+export const EXPIRING_SOON_DAYS = 7;
+
+/**
+ * Tarif holati — SQL `plan_status()` (0016) ning TS nusxasi, RPC'siz.
+ * `paidPlan` — muddati o'tgan bo'lsa ham profildagi pullik tarif (banner matni uchun).
+ */
+export function planStatus(
+  profile: Pick<Profile, "plan" | "plan_expires_at"> | null,
+  now: number = Date.now(),
+): { state: PlanState; daysLeft: number | null; expiresAt: string | null; paidPlan: PlanId } {
+  const plan: PlanId = profile && isPlanId(profile.plan) ? profile.plan : "free";
+  const expiresAt = plan === "free" ? null : (profile?.plan_expires_at ?? null);
+  if (plan === "free") return { state: "free", daysLeft: null, expiresAt: null, paidPlan: "free" };
+  if (!expiresAt) return { state: "active", daysLeft: null, expiresAt: null, paidPlan: plan };
+  const ms = new Date(expiresAt).getTime() - now;
+  const daysLeft = Math.max(0, Math.floor(ms / DAY_MS));
+  const state: PlanState = ms < 0 ? "expired" : ms < EXPIRING_SOON_DAYS * DAY_MS ? "expiring_soon" : "active";
+  return { state, daysLeft, expiresAt, paidPlan: plan };
+}
+
+/**
+ * Tarif avtomatik yangilanadimi: oxirgi to'langan buyurtma — joriy tarifdagi
+ * Dodo (karta) obunasi. RollyPay/kripto/SBP/promo — bir martalik, yangilanmaydi.
+ * Eslatma: Dodo'da obuna bekor qilingani bazada saqlanmaydi — bekor qilingan
+ * obuna ham muddati tugaguncha "yangilanadi" deb ko'rinadi.
+ */
+export async function planRenews(supabase: SupabaseClient, userId: string, plan: PlanId): Promise<boolean> {
+  if (plan === "free") return false;
+  const { data } = await supabase
+    .from("orders")
+    .select("provider, plan")
+    .eq("user_id", userId)
+    .eq("status", "paid")
+    .order("paid_at", { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle();
+  const row = data as { provider?: string; plan?: string } | null;
+  return row?.provider === "dodo" && row.plan === plan;
 }
 
 /**

@@ -118,9 +118,33 @@ async function refreshGoogleToken(refreshToken: string): Promise<string | null> 
   }
 }
 
+/* ------------------------------ Tool natijasi ------------------------------ */
+
+/**
+ * Har bir tool natijasi aniq holat bilan: javob modeli "yaratdim/yubordim"
+ * deyishi uchun faqat `ok: true` natija asos bo'ladi. `partial` — amal qisman
+ * bajarilgan (mas. jadval yaratildi, lekin qatorlar qo'shilmadi).
+ */
+interface ToolResult {
+  ok: boolean;
+  partial?: boolean;
+  text: string;
+}
+const ok = (text: string): ToolResult => ({ ok: true, text });
+const fail = (text: string): ToolResult => ({ ok: false, text });
+
+/** Tashqi dunyoda iz qoldiradigan (yaratish/qo'shish) toollar. MCP noma'lum — amal deb hisoblanadi. */
+const ACTION_TOOLS = new Set(["gsheets_create", "gsheets_append", "gslides_create"]);
+const isActionTool = (name: string) => ACTION_TOOLS.has(name) || name.startsWith(MCP_PREFIX);
+
 /* ------------------------------- MCP client ------------------------------- */
 
-async function mcpRpc(url: string, method: string, params: unknown, sessionId?: string): Promise<{ result?: unknown; sessionId?: string }> {
+async function mcpRpc(
+  url: string,
+  method: string,
+  params: unknown,
+  sessionId?: string,
+): Promise<{ result?: unknown; error?: string; sessionId?: string }> {
   const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json, text/event-stream" };
   if (sessionId) headers["Mcp-Session-Id"] = sessionId;
   // SSRF: foydalanuvchi bergan URL — faqat https/443, har so'rovda ommaviy IP
@@ -138,10 +162,11 @@ async function mcpRpc(url: string, method: string, params: unknown, sessionId?: 
   const line = text.split("\n").find((l) => l.trim().startsWith("{") || l.startsWith("data:"));
   const raw = line?.startsWith("data:") ? line.slice(5).trim() : (line ?? text).trim();
   try {
-    const j = JSON.parse(raw) as { result?: unknown };
-    return { result: j.result, sessionId: sid ?? undefined };
+    const j = JSON.parse(raw) as { result?: unknown; error?: { message?: string } };
+    const error = j.error ? String(j.error.message ?? "JSON-RPC xato").slice(0, 300) : !res.ok ? `HTTP ${res.status}` : undefined;
+    return { result: j.result, error, sessionId: sid ?? undefined };
   } catch {
-    return { sessionId: sid ?? undefined };
+    return { error: res.ok ? "javobni o'qib bo'lmadi" : `HTTP ${res.status}`, sessionId: sid ?? undefined };
   }
 }
 
@@ -170,14 +195,17 @@ async function mcpConnect(url: string): Promise<McpEndpoint | null> {
   }
 }
 
-async function mcpCall(ep: McpEndpoint, toolName: string, args: Record<string, unknown>): Promise<string> {
+async function mcpCall(ep: McpEndpoint, toolName: string, args: Record<string, unknown>): Promise<ToolResult> {
   try {
     const res = await mcpRpc(ep.url, "tools/call", { name: toolName.slice(MCP_PREFIX.length), arguments: args }, ep.sessionId);
-    const content = (res.result as { content?: { type: string; text?: string }[] })?.content ?? [];
-    const text = content.map((c) => c.text ?? "").join(NL).trim();
-    return text || "MCP: natija bo'sh.";
+    const result = res.result as { content?: { type: string; text?: string }[]; isError?: boolean } | undefined;
+    const text = (result?.content ?? []).map((c) => c.text ?? "").join(NL).trim();
+    // MCP: tool xatosi `isError: true` bilan keladi (protokol xatosi — JSON-RPC `error`).
+    if (res.error || !result) return fail(`MCP xatosi: ${res.error ?? "natija yo'q"}`);
+    if (result.isError) return fail(`MCP tool xatosi: ${text || "tafsilotsiz"}`);
+    return ok(text || "MCP: natija bo'sh.");
   } catch {
-    return "MCP chaqiruvida xato.";
+    return fail("MCP chaqiruvida xato.");
   }
 }
 
@@ -194,7 +222,7 @@ interface ExecCtx {
   mcp: McpEndpoint[];
 }
 
-async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCtx): Promise<string> {
+async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCtx): Promise<ToolResult> {
   const { creds, refresh } = ctx;
   const tokenOf = (id: string) => creds[id]?.token as string | undefined;
 
@@ -213,7 +241,7 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
   try {
     if (name.startsWith(MCP_PREFIX)) {
       const ep = ctx.mcp.find((e) => e.tools.some((t) => t.function.name === name));
-      return ep ? mcpCall(ep, name, args) : "MCP server topilmadi.";
+      return ep ? mcpCall(ep, name, args) : fail("MCP server topilmadi.");
     }
 
     // ---- Kalitsiz (loginsiz) ommaviy API'lar ----
@@ -221,118 +249,127 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
       const loc = String(args.location ?? "").trim();
       const g = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(loc)}&count=1`).then((r) => r.json()).catch(() => null);
       const p = g?.results?.[0];
-      if (!p) return `"${loc}" joyi topilmadi.`;
+      if (!p) return fail(`"${loc}" joyi topilmadi.`);
       const w = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${p.latitude}&longitude=${p.longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code`).then((r) => r.json()).catch(() => null);
       const c = w?.current;
-      if (!c) return "Ob-havo olinmadi.";
-      return `${p.name}, ${p.country ?? ""}: ${c.temperature_2m}°C (his ${c.apparent_temperature}°C), namlik ${c.relative_humidity_2m}%, shamol ${c.wind_speed_10m} km/soat.`;
+      if (!c) return fail("Ob-havo olinmadi.");
+      return ok(`${p.name}, ${p.country ?? ""}: ${c.temperature_2m}°C (his ${c.apparent_temperature}°C), namlik ${c.relative_humidity_2m}%, shamol ${c.wind_speed_10m} km/soat.`);
     }
     if (name === "public_currency") {
       const from = String(args.from ?? "").toUpperCase(), to = String(args.to ?? "").toUpperCase();
       const amount = Number(args.amount ?? 1) || 1;
       const j = await fetch(`https://open.er-api.com/v6/latest/${from}`).then((r) => r.json()).catch(() => null);
       const rate = j?.rates?.[to];
-      return rate == null ? `${from}→${to} kursi olinmadi.` : `${amount} ${from} = ${(rate * amount).toFixed(2)} ${to} (1 ${from} = ${rate} ${to}).`;
+      return rate == null ? fail(`${from}→${to} kursi olinmadi.`) : ok(`${amount} ${from} = ${(rate * amount).toFixed(2)} ${to} (1 ${from} = ${rate} ${to}).`);
     }
     if (name === "public_crypto") {
       const coin = String(args.coin ?? "").toLowerCase(), vs = String(args.vs ?? "usd").toLowerCase();
       const j = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${encodeURIComponent(coin)}&vs_currencies=${encodeURIComponent(vs)}&include_24hr_change=true`).then((r) => r.json()).catch(() => null);
       const p = j?.[coin];
-      if (!p) return `"${coin}" narxi topilmadi.`;
+      if (!p) return fail(`"${coin}" narxi topilmadi.`);
       const ch = p[`${vs}_24h_change`];
-      return `${coin}: ${p[vs]} ${vs.toUpperCase()}${ch != null ? ` (24s: ${ch.toFixed(2)}%)` : ""}.`;
+      return ok(`${coin}: ${p[vs]} ${vs.toUpperCase()}${ch != null ? ` (24s: ${ch.toFixed(2)}%)` : ""}.`);
     }
     if (name === "public_time") {
       const tz = String(args.timezone ?? "").trim();
       const j = await fetch(`https://worldtimeapi.org/api/timezone/${tz}`).then((r) => r.json()).catch(() => null);
-      return j?.datetime ? `${tz}: ${String(j.datetime).slice(0, 19).replace("T", " ")} (${j.abbreviation ?? ""}).` : `"${tz}" vaqt zonasi topilmadi.`;
+      return j?.datetime ? ok(`${tz}: ${String(j.datetime).slice(0, 19).replace("T", " ")} (${j.abbreviation ?? ""}).`) : fail(`"${tz}" vaqt zonasi topilmadi.`);
     }
     if (name === "public_dictionary") {
       const word = String(args.word ?? "").trim();
       const j = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`).then((r) => r.json()).catch(() => null);
       const e = Array.isArray(j) ? j[0] : null;
-      if (!e) return `"${word}" topilmadi.`;
+      if (!e) return fail(`"${word}" topilmadi.`);
       const defs = (e.meanings ?? []).slice(0, 3).map((m: { partOfSpeech: string; definitions: { definition: string }[] }) => `- (${m.partOfSpeech}) ${m.definitions?.[0]?.definition ?? ""}`);
-      return [`${word}${e.phonetic ? ` ${e.phonetic}` : ""}:`, ...defs].join(NL);
+      return ok([`${word}${e.phonetic ? ` ${e.phonetic}` : ""}:`, ...defs].join(NL));
     }
 
     if (name === "figma_get_file") {
       const token = tokenOf("figma");
-      if (!token) return "Figma ulanmagan.";
+      if (!token) return fail("Figma ulanmagan.");
       const key = figmaKey(String(args.file_key ?? ""));
       const r = await fetch(`https://api.figma.com/v1/files/${encodeURIComponent(key)}?depth=2`, { headers: { "X-Figma-Token": token } });
-      if (!r.ok) return `Figma xatosi: ${r.status}`;
+      if (!r.ok) return fail(`Figma xatosi: ${r.status}`);
       const j = (await r.json()) as { name?: string; document?: { children?: { name: string; type: string; children?: { name: string; type: string }[] }[] } };
       const pages = (j.document?.children ?? []).slice(0, 12).map((p) => `- ${p.name}: ${(p.children ?? []).slice(0, 20).map((f) => `${f.name} (${f.type})`).join(", ") || "—"}`);
-      return [`Figma fayl: "${j.name ?? key}"`, "Sahifalar/freymlar:", ...pages].join(NL).slice(0, 6000);
+      return ok([`Figma fayl: "${j.name ?? key}"`, "Sahifalar/freymlar:", ...pages].join(NL).slice(0, 6000));
     }
 
     if (name === "github_get_repo" || name === "github_read_file") {
       const token = tokenOf("github");
-      if (!token) return "GitHub ulanmagan.";
+      if (!token) return fail("GitHub ulanmagan.");
       const headers = { Authorization: `Bearer ${token}`, "User-Agent": "SOVEREIGN", Accept: "application/vnd.github+json" };
       const owner = String(args.owner ?? "");
       const repo = String(args.repo ?? "");
       if (name === "github_get_repo") {
         const r = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
-        if (!r.ok) return `GitHub xatosi: ${r.status}`;
+        if (!r.ok) return fail(`GitHub xatosi: ${r.status}`);
         const j = (await r.json()) as { description?: string; language?: string; stargazers_count?: number; default_branch?: string };
-        return `Repo ${owner}/${repo}: ${j.description ?? "—"} · til: ${j.language ?? "—"} · yulduz ${j.stargazers_count ?? 0} · branch: ${j.default_branch ?? "main"}`;
+        return ok(`Repo ${owner}/${repo}: ${j.description ?? "—"} · til: ${j.language ?? "—"} · yulduz ${j.stargazers_count ?? 0} · branch: ${j.default_branch ?? "main"}`);
       }
       const path = String(args.path ?? "");
       const r = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`, { headers });
-      if (!r.ok) return `GitHub xatosi: ${r.status}`;
+      if (!r.ok) return fail(`GitHub xatosi: ${r.status}`);
       const j = (await r.json()) as { content?: string; encoding?: string };
-      const content = j.content && j.encoding === "base64" ? Buffer.from(j.content, "base64").toString("utf8") : "";
-      return [`${owner}/${repo}/${path}:`, content.slice(0, 5000)].join(NL);
+      // Papka (massiv) yoki katta fayl — mazmun yo'q; buni bo'sh fayl deb ko'rsatmaymiz.
+      if (!(j.content && j.encoding === "base64")) return fail(`${owner}/${repo}/${path}: fayl mazmuni olinmadi (papka yoki juda katta fayl bo'lishi mumkin).`);
+      const content = Buffer.from(j.content, "base64").toString("utf8");
+      return ok([`${owner}/${repo}/${path}:`, content.slice(0, 5000)].join(NL));
     }
 
     if (name === "gsheets_read") {
-      if (!tokenOf("gsheets")) return "Google Sheets ulanmagan.";
+      if (!tokenOf("gsheets")) return fail("Google Sheets ulanmagan.");
       const id = encodeURIComponent(String(args.spreadsheet_id ?? ""));
       const range = encodeURIComponent(String(args.range ?? "A1:Z50"));
       const r = await gfetch("gsheets", `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${range}`);
-      if (!r.ok) return `Sheets xatosi: ${r.status}`;
+      if (!r.ok) return fail(`Sheets xatosi: ${r.status}`);
       const j = (await r.json()) as { values?: string[][] };
       const rows = (j.values ?? []).slice(0, 40).map((row) => row.join(" | "));
-      return [`Sheet ${String(args.range)}:`, ...rows].join(NL).slice(0, 6000);
+      return ok([`Sheet ${String(args.range)}:`, ...rows].join(NL).slice(0, 6000));
     }
 
     if (name === "gsheets_create") {
-      if (!tokenOf("gsheets")) return "Google Sheets ulanmagan.";
+      if (!tokenOf("gsheets")) return fail("Google Sheets ulanmagan.");
       const title = String(args.title ?? "Yangi jadval");
       const cr = await gfetch("gsheets", "https://sheets.googleapis.com/v4/spreadsheets", jsonInit({ properties: { title } }));
-      if (!cr.ok) return `Sheets xatosi: ${cr.status}`;
+      if (!cr.ok) return fail(`Sheets xatosi: ${cr.status}`);
       const cj = (await cr.json()) as { spreadsheetId?: string; spreadsheetUrl?: string };
+      if (!cj.spreadsheetId) return fail("Sheets: jadval ID qaytmadi — yaratilgani tasdiqlanmadi.");
+      const link = cj.spreadsheetUrl ?? cj.spreadsheetId;
       const rows = Array.isArray(args.rows) ? (args.rows as string[][]) : null;
-      if (rows && cj.spreadsheetId) {
-        await gfetch("gsheets", `https://sheets.googleapis.com/v4/spreadsheets/${cj.spreadsheetId}/values/A1:append?valueInputOption=USER_ENTERED`, jsonInit({ values: rows }));
+      if (rows?.length) {
+        // Oldin bu natija tekshirilmasdi — qatorlar qo'shilmasa ham "yaratildi" deyilardi.
+        const ar = await gfetch("gsheets", `https://sheets.googleapis.com/v4/spreadsheets/${cj.spreadsheetId}/values/A1:append?valueInputOption=USER_ENTERED`, jsonInit({ values: rows }));
+        if (!ar.ok) return { ok: true, partial: true, text: `Jadval yaratildi: ${link}. LEKIN qatorlar QO'SHILMADI (Sheets xatosi: ${ar.status}) — jadval bo'sh.` };
+        return ok(`Jadval yaratildi: ${link} (${rows.length} ta qator qo'shildi).`);
       }
-      return `Jadval yaratildi: ${cj.spreadsheetUrl ?? cj.spreadsheetId}`;
+      return ok(`Jadval yaratildi (bo'sh): ${link}`);
     }
 
     if (name === "gsheets_append") {
-      if (!tokenOf("gsheets")) return "Google Sheets ulanmagan.";
+      if (!tokenOf("gsheets")) return fail("Google Sheets ulanmagan.");
       const id = encodeURIComponent(String(args.spreadsheet_id ?? ""));
       const rows = Array.isArray(args.rows) ? (args.rows as string[][]) : [];
+      if (!rows.length) return fail("Qo'shiladigan qator berilmadi — hech narsa qo'shilmadi.");
       const r = await gfetch("gsheets", `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/A1:append?valueInputOption=USER_ENTERED`, jsonInit({ values: rows }));
-      return r.ok ? `Qatorlar qo'shildi (${rows.length} ta).` : `Sheets xatosi: ${r.status}`;
+      return r.ok ? ok(`Qatorlar qo'shildi (${rows.length} ta).`) : fail(`Sheets xatosi: ${r.status}`);
     }
 
     if (name === "gslides_create") {
-      if (!tokenOf("gslides")) return "Google Slides ulanmagan.";
+      if (!tokenOf("gslides")) return fail("Google Slides ulanmagan.");
       const title = String(args.title ?? "Yangi taqdimot");
       const cr = await gfetch("gslides", "https://slides.googleapis.com/v1/presentations", jsonInit({ title }));
-      if (!cr.ok) return `Slides xatosi: ${cr.status}`;
+      if (!cr.ok) return fail(`Slides xatosi: ${cr.status}`);
       const cj = (await cr.json()) as { presentationId?: string };
-      return `Taqdimot yaratildi: https://docs.google.com/presentation/d/${cj.presentationId}/edit`;
+      if (!cj.presentationId) return fail("Slides: taqdimot ID qaytmadi — yaratilgani tasdiqlanmadi.");
+      return ok(`Taqdimot yaratildi (bo'sh, faqat sarlavha): https://docs.google.com/presentation/d/${cj.presentationId}/edit`);
     }
 
     if (name === "gmail_list") {
-      if (!tokenOf("gmail")) return "Gmail ulanmagan.";
+      if (!tokenOf("gmail")) return fail("Gmail ulanmagan.");
       const q = encodeURIComponent(String(args.query ?? ""));
       const lr = await gfetch("gmail", `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=5&q=${q}`);
-      if (!lr.ok) return `Gmail xatosi: ${lr.status}`;
+      if (!lr.ok) return fail(`Gmail xatosi: ${lr.status}`);
       const lj = (await lr.json()) as { messages?: { id: string }[] };
       const subs: string[] = [];
       for (const m of (lj.messages ?? []).slice(0, 5)) {
@@ -342,14 +379,14 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
         const h = mj.payload?.headers ?? [];
         subs.push(`- ${h.find((x) => x.name === "Subject")?.value ?? "(mavzusiz)"} — ${h.find((x) => x.name === "From")?.value ?? ""}`);
       }
-      return subs.length ? ["So'nggi xatlar:", ...subs].join(NL) : "Xat topilmadi.";
+      return ok(subs.length ? ["So'nggi xatlar:", ...subs].join(NL) : "Xat topilmadi.");
     }
 
     if (name === "gmail_top_senders") {
-      if (!tokenOf("gmail")) return "Gmail ulanmagan.";
+      if (!tokenOf("gmail")) return fail("Gmail ulanmagan.");
       const q = encodeURIComponent(String(args.query ?? ""));
       const lr = await gfetch("gmail", `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=80&q=${q}`);
-      if (!lr.ok) return `Gmail xatosi: ${lr.status}`;
+      if (!lr.ok) return fail(`Gmail xatosi: ${lr.status}`);
       const lj = (await lr.json()) as { messages?: { id: string }[] };
       const ids = (lj.messages ?? []).slice(0, 60);
       const counts: Record<string, number> = {};
@@ -368,25 +405,31 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
         }),
       );
       const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 10);
-      if (!top.length) return "Xat topilmadi.";
+      if (!top.length) return ok("Xat topilmadi.");
       const lines = top.map(([e, c]) => `- ${e}: ${c} ta${sample[e] ? ` (masalan: "${sample[e].slice(0, 60)}")` : ""}`);
-      return [`Eng ko'p yuboruvchilar (oxirgi ${ids.length} xat ichida):`, ...lines].join(NL).slice(0, 6000);
+      return ok([`Eng ko'p yuboruvchilar (oxirgi ${ids.length} xat ichida):`, ...lines].join(NL).slice(0, 6000));
     }
 
     if (name === "gcalendar_list") {
-      if (!tokenOf("gcalendar")) return "Google Kalendar ulanmagan.";
+      if (!tokenOf("gcalendar")) return fail("Google Kalendar ulanmagan.");
       const now = new Date().toISOString();
       const r = await gfetch("gcalendar", `https://www.googleapis.com/calendar/v3/calendars/primary/events?maxResults=5&singleEvents=true&orderBy=startTime&timeMin=${encodeURIComponent(now)}`);
-      if (!r.ok) return `Kalendar xatosi: ${r.status}`;
+      if (!r.ok) return fail(`Kalendar xatosi: ${r.status}`);
       const j = (await r.json()) as { items?: { summary?: string; start?: { dateTime?: string; date?: string } }[] };
       const ev = (j.items ?? []).map((e) => `- ${e.start?.dateTime ?? e.start?.date ?? "?"} — ${e.summary ?? "(nomsiz)"}`);
-      return ev.length ? ["Yaqin voqealar:", ...ev].join(NL) : "Voqea yo'q.";
+      return ok(ev.length ? ["Yaqin voqealar:", ...ev].join(NL) : "Voqea yo'q.");
     }
 
-    return "Noma'lum tool.";
+    return fail("Noma'lum tool.");
   } catch {
-    return "Tool bajarilishida xato.";
+    return fail("Tool bajarilishida xato.");
   }
+}
+
+/** Modelga beriladigan tool natijasi — boshida aniq holat belgisi. */
+function statusLabel(r: ToolResult): string {
+  if (!r.ok) return "[HOLAT: BAJARILMADI / XATO]";
+  return r.partial ? "[HOLAT: QISMAN BAJARILDI]" : "[HOLAT: BAJARILDI]";
 }
 
 /* --------------------------------- Runner --------------------------------- */
@@ -445,11 +488,14 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
       role: "system",
       content:
         "Foydalanuvchi savoliga javob berish uchun KERAK BO'LSA ulangan connectorlardan (tool) foydalanib ma'lumot ol yoki yarat. " +
-        "Gmail'da 'eng ko'p yuborgan' so'ralsa gmail_top_senders ishlat. Ma'lumot kerak bo'lmasa tool chaqirma.",
+        "Gmail'da 'eng ko'p yuborgan' so'ralsa gmail_top_senders ishlat. Ma'lumot kerak bo'lmasa tool chaqirma. " +
+        "Har tool natijasi boshida [HOLAT: ...] bor: BAJARILMADI bo'lsa, o'sha amal bajarilmagan.",
     },
     ...messages.filter((m) => m.role === "user" || m.role === "assistant").slice(-6).map((m) => ({ role: m.role, content: toText(m.content) })),
   ];
   const collected: string[] = [];
+  const ledger: { name: string; result: ToolResult }[] = [];
+  let phaseError = "";
 
   for (let round = 0; round < 3; round++) {
     let res: Response;
@@ -466,11 +512,15 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
         signal,
       });
     } catch {
+      phaseError = "connector bosqichi modeliga ulanib bo'lmadi";
       break;
     }
-    if (!res.ok) break;
-    const j = (await res.json()) as { choices?: { message?: { role: string; content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] };
-    const msg = j.choices?.[0]?.message;
+    if (!res.ok) {
+      phaseError = `connector bosqichi modeli xato qaytardi (${res.status})`;
+      break;
+    }
+    const j = (await res.json().catch(() => null)) as { choices?: { message?: { role: string; content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] } | null;
+    const msg = j?.choices?.[0]?.message;
     if (!msg) break;
     const calls = msg.tool_calls ?? [];
     if (!calls.length) break;
@@ -483,10 +533,50 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
         /* ignore */
       }
       const result = await execTool(call.function.name, args, ctx);
-      collected.push(`[${call.function.name}] -> ${result}`);
-      convo.push({ role: "tool", tool_call_id: call.id, content: result.slice(0, 8000) });
+      const label = statusLabel(result);
+      ledger.push({ name: call.function.name, result });
+      collected.push(`[${call.function.name}] ${label} ${result.text}`);
+      convo.push({ role: "tool", tool_call_id: call.id, content: `${label}\n${result.text}`.slice(0, 8000) });
     }
   }
 
-  return collected.length ? collected.join(NL + NL).slice(0, 10_000) : null;
+  return buildConnectorContext(ledger, collected, phaseError);
+}
+
+/**
+ * Javob modeliga beriladigan kontekst: avval AMALLAR HOLATI (tizim hisobi —
+ * qaysi amal haqiqatda bajarildi/bajarilmadi), keyin tool natijalari. Model
+ * "yaratdim/yubordim" deyishi faqat shu jadvalga tayanishi kerak.
+ */
+function buildConnectorContext(
+  ledger: { name: string; result: ToolResult }[],
+  collected: string[],
+  phaseError = "",
+): string | null {
+  if (!ledger.length && !phaseError) return null;
+  const lines: string[] = [];
+  if (phaseError) {
+    lines.push(
+      ledger.length
+        ? `DIQQAT: ${phaseError} — quyidagi ro'yxatdagidan BOSHQA hech qanday amal bajarilmadi.`
+        : `DIQQAT: ${phaseError} — ulangan servislarda HECH QANDAY amal bajarilmadi va ma'lumot olinmadi.`,
+    );
+  }
+  if (ledger.length) {
+    lines.push("AMALLAR HOLATI (tizim hisobi — haqiqiy natija, model taxmini emas):");
+    for (const { name, result } of ledger) {
+      const kind = isActionTool(name) ? "amal" : "o'qish";
+      const mark = !result.ok ? "✕ BAJARILMADI" : result.partial ? "◐ QISMAN" : "✓ BAJARILDI";
+      lines.push(`- ${mark} (${kind}) ${name}${!result.ok || result.partial ? ` — ${result.text.slice(0, 200)}` : ""}`);
+    }
+    const failedActions = ledger.filter((l) => isActionTool(l.name) && (!l.result.ok || l.result.partial));
+    if (failedActions.length) {
+      lines.push(
+        `Foydalanuvchiga ${failedActions.map((l) => l.name).join(", ")} amali(lari) to'liq BAJARILMAGANINI ochiq ayt; ` +
+          "ularni 'yaratdim/qo'shdim/yubordim' deb ko'rsatma.",
+      );
+    }
+    lines.push("", "TOOL NATIJALARI:", collected.join(NL + NL));
+  }
+  return lines.join(NL).slice(0, 10_000);
 }

@@ -75,7 +75,7 @@ export interface ChatMessage {
   verifier?: VerifierIssue[];
   createdAt: string;
   /** User xabari rasm so'rovi bo'lgan ("+ → Rasm" rejimi) — qayta yaratish/tahrirlash ham rasm yo'lidan. */
-  kind?: "image";
+  kind?: "image" | "video";
   status?: MessageStatus;
   error?: string;
 }

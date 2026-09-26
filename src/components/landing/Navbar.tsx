@@ -10,12 +10,15 @@ import { LANGS, type Lang } from "@/lib/i18n";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useChat, useT } from "@/store/chat";
+import { DOCS_URL } from "./company";
 
 const NAV = [
+  { href: "#how", key: "p4dNavHow" },
   { href: "#features", key: "navFeatures" },
-  { href: "#models", key: "navModels" },
   { href: "#pricing", key: "navPricing" },
-  { href: "#privacy", key: "navPrivacy" },
+  { href: "#roadmap", key: "p4dNavRoadmap" },
+  { href: "#about", key: "p4dNavAbout" },
+  { href: DOCS_URL, key: "p4dNavDocs" },
 ] as const;
 
 export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
@@ -34,17 +37,27 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
       initial={false}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: EASE, delay: 0.1 }}
-      className="fixed inset-x-0 top-0 z-50"
+      className="fixed inset-x-0 top-0 z-50 px-3"
     >
+      {/* Klaviatura foydalanuvchilari uchun: menyuni o'tkazib yuborish. */}
+      <a
+        href="#main-content"
+        className="sr-only rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60]"
+      >
+        {t("p4dSkip")}
+      </a>
+
       <div
         className={cn(
-          "mx-auto mt-3 flex max-w-6xl items-center justify-between rounded-2xl px-4 py-2.5 transition-all duration-300 md:px-5",
-          scrolled ? "glass shadow-md" : "border border-transparent bg-transparent",
+          "mx-auto mt-3 flex max-w-6xl items-center justify-between rounded-2xl px-4 py-2.5 transition-all duration-300 lg:px-5",
+          scrolled || open
+            ? "glass shadow-[0_8px_32px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)]"
+            : "border border-transparent bg-transparent",
         )}
       >
         <Logo />
 
-        <nav className="hidden items-center gap-1 md:flex">
+        <nav aria-label={t("p4dNavMain")} className="hidden items-center gap-0.5 lg:flex">
           {NAV.map((n) => (
             <a
               key={n.href}
@@ -56,13 +69,13 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="hidden items-center gap-2 lg:flex">
           {/* Til tanlash — brauzerda saqlanadi, chat ham shu tilda javob beradi. */}
           <select
             value={lang}
             onChange={(e) => setLang(e.target.value as Lang)}
             aria-label={t("language")}
-            className="h-9 rounded-lg border border-border bg-transparent px-2 text-sm text-text-secondary outline-none"
+            className="h-9 rounded-lg border border-border bg-transparent px-2 text-sm text-text-secondary outline-none focus-visible:outline-2 focus-visible:outline-primary-soft"
           >
             {LANGS.map((l) => (
               <option key={l.id} value={l.id} className="bg-bg-base">
@@ -92,7 +105,9 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? t("ldMenuClose") : t("ldMenuOpen")}
-          className="rounded-lg p-2 text-text-secondary hover:bg-bg-hover md:hidden"
+          aria-expanded={open}
+          aria-controls="landing-mobile-menu"
+          className="rounded-lg p-2 text-text-secondary hover:bg-bg-hover lg:hidden"
         >
           {open ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
@@ -101,28 +116,33 @@ export function Navbar({ signedIn = false }: { signedIn?: boolean }) {
       <AnimatePresence>
         {open && (
           <motion.div
+            id="landing-mobile-menu"
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: EASE }}
-            className="glass mx-4 mt-2 rounded-2xl p-3 md:hidden"
+            className="glass mx-auto mt-2 max-w-6xl rounded-2xl p-3 lg:hidden"
           >
-            {NAV.map((n) => (
-              <a
-                key={n.href}
-                href={n.href}
-                onClick={() => setOpen(false)}
-                className="block rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-hover hover:text-text-primary"
-              >
-                {t(n.key)}
-              </a>
-            ))}
-            <div className="mt-2 flex gap-1.5 border-t border-border pt-3">
+            <nav aria-label={t("p4dNavMain")}>
+              {NAV.map((n) => (
+                <a
+                  key={n.href}
+                  href={n.href}
+                  onClick={() => setOpen(false)}
+                  className="block rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                >
+                  {t(n.key)}
+                </a>
+              ))}
+            </nav>
+            <div role="group" aria-label={t("language")} className="mt-2 flex gap-1.5 border-t border-border pt-3">
               {LANGS.map((l) => (
                 <button
                   key={l.id}
                   type="button"
                   onClick={() => setLang(l.id)}
+                  aria-pressed={lang === l.id}
+                  aria-label={l.label}
                   className={cn(
                     "rounded-full border px-3 py-1 text-xs",
                     lang === l.id ? "border-primary text-primary-soft" : "border-border text-text-muted",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { effectivePlan, planStatus } from "@/lib/auth/profile";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -40,16 +41,18 @@ export async function GET(req: Request) {
     if (error || !row?.user_id) {
       return Response.json({ error: "Token yaroqsiz" }, { status: 401 });
     }
-    // Plan holati alohida so'roqda — expired/expiring_soon/active
-    const { data: statusData } = await supabase.rpc("plan_status", { p_user_id: row.user_id });
-    const status = Array.isArray(statusData) ? statusData[0] : statusData;
+    // Plan holati shu yerda hisoblanadi. (Avval plan_status RPC anon mijoz bilan
+    // chaqirilardi — 0016 dan beri u auth.uid() talab qiladi va anon'ga ruxsat yo'q,
+    // shuning uchun CLI har doim "free" holatini olardi va ogohlantirish chiqmasdi.)
+    // `plan` — amaldagi tarif: muddati o'tgan bo'lsa "free" (cli/chat bilan bir xil).
+    const status = planStatus({ plan: row.plan, plan_expires_at: row.plan_expires_at ?? null });
     return Response.json({
       user_id: row.user_id,
       email: row.email,
-      plan: row.plan,
+      plan: effectivePlan({ plan: status.paidPlan, plan_expires_at: status.expiresAt }).id,
       plan_expires_at: row.plan_expires_at,
-      plan_state: status?.state ?? "free",
-      days_left: status?.days_left ?? null,
+      plan_state: status.state,
+      days_left: status.daysLeft,
       default_model: row.default_model,
       enabled_skills: row.enabled_skills ?? [],
       memory_enabled: row.memory_enabled,

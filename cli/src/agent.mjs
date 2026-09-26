@@ -1,4 +1,14 @@
-import { TOOL_SCHEMA, runTool, contextSummary, visible } from "./tools.mjs";
+import {
+  TOOL_SCHEMA,
+  runTool,
+  contextSummary,
+  visible,
+  createTurnTracker,
+  ledgerLines,
+  ledgerWorthShowing,
+  unsupportedClaim,
+  HONESTY_RULE,
+} from "./tools.mjs";
 import { c, spinner, renderMarkdown } from "./ui.mjs";
 import { memorySystemMessage } from "./memory.mjs";
 
@@ -16,7 +26,8 @@ const SYSTEM = [
   "Masalan: 'Avval package.json yarataman, keyin src papkasini ochaman.' — keyin write_file/make_dir chaqir.",
   "Kod toza, ishlaydigan va xavfsiz bo'lsin. Fayl uchun write_file, papka uchun make_dir vositasidan foydalan.",
   "Foydalanuvchi rasm biriktirsa — uni ko'rib, tavsifla; PDF/matn biriktirsa — mazmunini o'qib xulosa qil.",
-  "Ish tugagach, nima qilganingni 1-2 gapda xulosala.",
+  HONESTY_RULE,
+  "Ish tugagach, vosita natijalari TASDIQLAGAN ishni 1-2 gapda xulosala.",
 ].join(" ");
 
 /** Human, Uzbek description of a tool call — printed as a step line. */
@@ -170,8 +181,25 @@ async function runRound(messages, config, onText) {
   return { message, toolCalls };
 }
 
+/**
+ * "Aslida nima bo'ldi" — modelning so'zlariga emas, vosita natijalariga
+ * asoslangan xulosa. Faqat iz qoldiruvchi amal yoki muammo bo'lsa chiqadi.
+ */
+function printLedger(entries, { finalText = "", note = "" } = {}) {
+  const warn = unsupportedClaim(finalText, entries);
+  if (!ledgerWorthShowing(entries) && !warn && !note) return;
+  const icon = { ok: c.green("✓"), failed: c.red("✕"), declined: c.amber("⊘") };
+  if (ledgerWorthShowing(entries)) {
+    console.log("   " + c.dim("Aslida nima bo'ldi (tizim jurnali):"));
+    for (const l of ledgerLines(entries)) console.log(`     ${icon[l.status] ?? "•"} ${c.dim(l.text)}`);
+  }
+  if (note) console.log("   " + c.amber("⚠ " + note));
+  if (warn) console.log("   " + c.amber("⚠ Diqqat: " + warn + " Jurnalga ishoning."));
+  process.stdout.write("\n");
+}
+
 export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
-  const seen = new Set();
+  const tracker = createTurnTracker((name, args) => runTool(name, args, confirm));
 
   for (let step = 0; step < maxSteps; step++) {
     const spin = spinner(step === 0 ? "o'ylayapti..." : "davom etyapti...");
@@ -180,7 +208,9 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
       round = await runRound(messages, config, () => {});
     } catch (err) {
       spin.stop();
-      return { error: err.message };
+      // Xatodan oldin bajarilgan amallar ham ko'rinsin.
+      printLedger(tracker.entries, { note: "Navbat xato bilan to'xtadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin." });
+      return { error: err.message, ledger: tracker.entries };
     }
     spin.stop();
 
@@ -194,10 +224,12 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
 
     if (!round.toolCalls.length) {
       process.stdout.write("\n");
-      return { done: true };
+      printLedger(tracker.entries, { finalText: round.message.content ?? "" });
+      return { done: true, ledger: tracker.entries };
     }
 
     // Model asked for tools — narrate & run each, then loop.
+    let lastTool = null;
     for (const call of round.toolCalls) {
       let args = {};
       try {
@@ -205,23 +237,21 @@ export async function agentTurn({ messages, config, confirm, maxSteps = 14 }) {
       } catch {
         /* ignore */
       }
-      const fp = `${call.function.name}:${JSON.stringify(args)}`;
       console.log("  " + describe(call.function.name, args));
-      let result;
-      if (seen.has(fp)) {
-        result = "Bu amal allaqachon bajarilgan. Boshqa qadamga o't yoki ishni yakunla.";
-      } else {
-        seen.add(fp);
-        try {
-          result = await runTool(call.function.name, args, confirm);
-        } catch (err) {
-          result = `XATO: ${err.message}`;
-        }
-      }
-      messages.push({ role: "tool", tool_call_id: call.id, content: String(result).slice(0, TOOL_RESULT_MAX) });
+      const r = await tracker.run(call.function.name, args);
+      if (r.status === "declined") console.log("  " + c.amber("⊘ rad etildi — bajarilmadi"));
+      else if (r.status === "failed") console.log("  " + c.red("✕ bajarilmadi / xato") + (r.entry?.exit != null ? c.dim(` (exit ${r.entry.exit})`) : ""));
+      lastTool = { role: "tool", tool_call_id: call.id, content: r.content.slice(0, TOOL_RESULT_MAX) };
+      messages.push(lastTool);
     }
+    // Faktlar jurnali — model keyingi qadamda (va yakuniy xulosada) shunga tayansin.
+    const ledgerText = tracker.forModel();
+    if (lastTool && ledgerText) lastTool.content += `\n\n${ledgerText}`;
   }
-  return { done: true };
+  printLedger(tracker.entries, {
+    note: `Qadamlar chegarasi (${maxSteps}) tugadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin. "davom et" deb yozing.`,
+  });
+  return { done: true, ledger: tracker.entries, truncated: true };
 }
 
 /** Bitta javob — vositalarsiz, oqimsiz. Parallel rejim uchun. */

@@ -66,7 +66,7 @@ export default function App() {
         curAsst.current = null;
         setLog((L) => [...L, { id: nid(), kind: "tool", name: ev.name, args: ev.args, done: false }]);
       } else if (ev.type === "tool-done") {
-        setLog((L) => { const i = [...L].reverse().findIndex((it) => it.kind === "tool" && it.name === ev.name && !it.done); if (i === -1) return L; const r = L.length - 1 - i; return L.map((it, k) => k === r ? { ...it, done: true } : it); });
+        setLog((L) => { const i = [...L].reverse().findIndex((it) => it.kind === "tool" && it.name === ev.name && !it.done); if (i === -1) return L; const r = L.length - 1 - i; return L.map((it, k) => k === r ? { ...it, done: true, status: ev.status } : it); });
         if (ev.name === "write_file" || ev.name === "make_dir") refreshTree();
       } else if (ev.type === "terminal") {
         setTerm((T) => [...T, { command: ev.command, output: ev.output }]); setTermOpen(true);
@@ -278,7 +278,10 @@ export default function App() {
                     <ToolIcon name={it.name} />
                     <span style={{ fontSize: 12, color: C.muted }}>{toolVerb(it.name)}</span>
                     <span className="mono" style={{ fontSize: 11.5, color: C.text }}>{it.args?.path || it.args?.command || ""}</span>
-                    {it.done && <Ico s={14} w={1.7} stroke={C.ok} style={{ marginLeft: "auto" }}><path d="M5 12.5l4.5 4.5L19 7" /></Ico>}
+                    {/* Rad etilgan / xato amal ✓ bilan ko'rsatilmaydi (tizim jurnali bilan mos). */}
+                    {it.done && (it.status === "declined" || it.status === "failed")
+                      ? <span title={it.status === "declined" ? "Rad etildi — bajarilmadi" : "Xato — bajarilmadi"} style={{ marginLeft: "auto", display: "inline-flex" }}><Ico s={14} w={1.7} stroke="#F08A94"><path d="M6 6l12 12M18 6L6 18" /></Ico></span>
+                      : it.done && <Ico s={14} w={1.7} stroke={C.ok} style={{ marginLeft: "auto" }}><path d="M5 12.5l4.5 4.5L19 7" /></Ico>}
                   </div>
                 ))}
 

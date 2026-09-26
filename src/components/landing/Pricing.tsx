@@ -18,10 +18,14 @@ export function Pricing() {
   const [period, setPeriod] = useState<BillingPeriod>("month");
   const hint = usePriceHint();
   return (
-    <section id="pricing" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-28">
+    <section
+      id="pricing"
+      aria-labelledby="pricing-title"
+      className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 md:px-8 md:py-28"
+    >
       <FadeIn inView>
         <p className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("navPricing")}</p>
-        <h2 className="font-display mx-auto mt-3 max-w-2xl text-center text-3xl font-extrabold tracking-tight text-text-primary md:text-5xl">
+        <h2 id="pricing-title" className="font-display mx-auto mt-3 max-w-2xl text-balance text-center text-[1.85rem] font-extrabold [overflow-wrap:anywhere] sm:text-3xl tracking-tight text-text-primary md:text-5xl">
           {t("ldPricingTitle1")} <span className="text-gradient-brand">{t("ldPricingTitle2")}</span>
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-center text-base text-text-secondary">{t("ldPricingSub")}</p>

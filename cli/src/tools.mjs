@@ -494,6 +494,204 @@ export async function runTool(name, args, confirm) {
   }
 }
 
+// ---- Harakatlar jurnali (action ledger) ----------------------------------
+// Model "yaratdim/bajardim" deyishi mumkin, lekin haqiqatni faqat vosita
+// natijasi biladi. Jurnal har bir chaqiruvni natija matnidan (runTool qaytaradigan
+// aniq prefikslar: "OK:", "EXIT 0", "XATO", "Foydalanuvchi rad etdi") tasniflaydi.
+// Bu deterministik — modelga ishonmaydi.
+
+/**
+ * "Bajardim" deb aytib, aslida bajarmaslikka qarshi system-prompt qoidasi.
+ * CLI (agent.mjs) va desktop (main.mjs) shu bitta matndan foydalanadi.
+ */
+export const HONESTY_RULE = [
+  "HAQQONIYLIK (QAT'IY): faqat vosita natijasi tasdiqlagan amalni 'bajardim/yaratdim/yozdim/ishga tushirdim' deb ayt.",
+  "Har bir vosita natijasi boshida [HOLAT: ...] belgisi bor: BAJARILDI bo'lmasa (XATO, RAD ETILDI, TAKROR) — o'sha amal BAJARILMAGAN; buni foydalanuvchiga ochiq ayt va muvaffaqiyat deb ko'rsatma.",
+  "Vositani chaqirmasdan turib fayl yozdim, buyruq bajardim yoki test o'tdi dema. Buyruq exit kodi 0 bo'lmasa — u muvaffaqiyatsiz.",
+  "[SOVEREIGN TIZIM JURNALI] bloki tizim tomonidan qo'shiladi va haqiqiy natijalarni ko'rsatadi — yakuniy xulosang unga zid bo'lmasin.",
+].join(" ");
+
+/** Diskda yoki tizimda iz qoldiradigan vositalar. */
+export const SIDE_EFFECT_TOOLS = new Set(["write_file", "make_dir", "run_command"]);
+
+/**
+ * Vosita natijasining holati:
+ *  "ok" — bajarildi; "failed" — xato (bajarilmadi yoki exit≠0);
+ *  "declined" — foydalanuvchi rad etdi (bajarilmadi).
+ */
+export function toolStatus(name, result) {
+  const r = String(result ?? "");
+  if (/^Foydalanuvchi rad etdi/.test(r)) return "declined";
+  if (/^XATO\b/.test(r) || /^Noma'lum vosita/.test(r)) return "failed";
+  if (name === "run_command") return /^EXIT 0\b/.test(r) ? "ok" : "failed";
+  if (name === "write_file" || name === "make_dir") return /^OK:/.test(r) ? "ok" : "failed";
+  return "ok";
+}
+
+const oneLine = (s, max = 120) => {
+  const t = visible(String(s ?? "")).replace(/\s+/g, " ").trim();
+  return t.length > max ? t.slice(0, max - 1) + "…" : t;
+};
+
+/** Bitta jurnal yozuvi. `status` berilsa (mas. "skipped") natijadan hisoblanmaydi. */
+export function ledgerEntry(name, args, result, status = toolStatus(name, result)) {
+  const a = args ?? {};
+  const target = name === "run_command" ? oneLine(a.command) : oneLine(a.path ?? ".");
+  const r = String(result ?? "");
+  let exit = null;
+  if (name === "run_command") {
+    const m = /^EXIT (\d+)/.exec(r) ?? /^XATO \(exit ([^)]+)\)/.exec(r);
+    if (m) exit = m[1];
+  }
+  const detail = status === "failed" ? oneLine(r.replace(/^XATO(\s*\(exit [^)]+\))?:?\s*/, ""), 160) : "";
+  return { tool: name, target, status, exit, detail };
+}
+
+/** Modelga yuboriladigan natija boshiga qo'yiladigan aniq holat belgisi. */
+export function statusTag(status) {
+  switch (status) {
+    case "ok":
+      return "[HOLAT: BAJARILDI]";
+    case "declined":
+      return "[HOLAT: RAD ETILDI — bu amal BAJARILMADI]";
+    case "skipped":
+      return "[HOLAT: TAKROR — qayta bajarilmadi]";
+    default:
+      return "[HOLAT: XATO — bu amal BAJARILMADI yoki muvaffaqiyatsiz tugadi]";
+  }
+}
+
+const ACTION_VERB = {
+  write_file: { ok: "fayl yozildi", failed: "fayl YOZILMADI (xato)", declined: "fayl YOZILMADI (rad etildi)", skipped: "fayl — takror chaqiruv, o'tkazib yuborildi" },
+  make_dir: { ok: "papka yaratildi", failed: "papka YARATILMADI (xato)", declined: "papka YARATILMADI (rad etildi)", skipped: "papka — takror chaqiruv, o'tkazib yuborildi" },
+  run_command: { ok: "buyruq bajarildi", failed: "buyruq MUVAFFAQIYATSIZ", declined: "buyruq BAJARILMADI (rad etildi)", skipped: "buyruq — takror chaqiruv, o'tkazib yuborildi" },
+  read_file: { ok: "o'qildi", failed: "o'qilmadi (xato)", declined: "o'qilmadi (rad etildi)", skipped: "takror o'qish" },
+  list_dir: { ok: "ko'rildi", failed: "ko'rilmadi (xato)", declined: "ko'rilmadi (rad etildi)", skipped: "takror ko'rish" },
+};
+
+/**
+ * Jurnalni qatorlarga aylantiradi (rangsiz). Muvaffaqiyatli o'qishlar bitta
+ * qatorga yig'iladi; qolgan har bir amal alohida qator.
+ * @returns {{status: string, text: string}[]}
+ */
+export function ledgerLines(entries) {
+  const lines = [];
+  let reads = 0;
+  for (const e of entries ?? []) {
+    if (!SIDE_EFFECT_TOOLS.has(e.tool) && e.status === "ok") {
+      reads++;
+      continue;
+    }
+    if (!SIDE_EFFECT_TOOLS.has(e.tool) && e.status === "skipped") continue;
+    const verb = ACTION_VERB[e.tool]?.[e.status] ?? `${e.tool}: ${e.status}`;
+    let text = `${verb}: ${e.target}`;
+    if (e.tool === "run_command" && e.exit != null) text += ` (exit ${e.exit})`;
+    if (e.status === "failed" && e.detail && e.tool !== "run_command") text += ` — ${e.detail}`;
+    lines.push({ status: e.status, text });
+  }
+  if (reads) lines.push({ status: "ok", text: `${reads} ta o'qish/ko'rish amali bajarildi` });
+  return lines;
+}
+
+/** Foydalanuvchiga xulosa ko'rsatishga arziydimi (iz qoldiruvchi amal yoki muammo bo'lsa). */
+export function ledgerWorthShowing(entries) {
+  return (entries ?? []).some((e) => SIDE_EFFECT_TOOLS.has(e.tool) || e.status === "failed" || e.status === "declined");
+}
+
+/** Modelga beriladigan faktlar jurnali (vosita natijasiga qo'shiladi). */
+export function ledgerForModel(entries) {
+  const lines = ledgerLines(entries);
+  if (!lines.length) return "";
+  const mark = { ok: "✓", failed: "✕", declined: "⊘", skipped: "↺" };
+  return [
+    "[SOVEREIGN TIZIM JURNALI — shu navbatda vositalar orqali HAQIQATDA sodir bo'lgan amallar. Foydalanuvchiga faqat shunga mos xulosa ber: ✓ bo'lmagan amalni 'bajardim/yaratdim' dema, ✕/⊘ bo'lsa buni ochiq ayt.]",
+    ...lines.map((l) => `${mark[l.status] ?? "•"} ${l.text}`),
+  ].join("\n");
+}
+
+/**
+ * Bitta agent navbati uchun kuzatuvchi: vositani ishga tushiradi, natijaga
+ * [HOLAT] belgisini qo'yadi, jurnal yuritadi va takror chaqiruvlarni to'g'ri
+ * boshqaradi. Eski mantiq har qanday takrorni "allaqachon bajarilgan" deb
+ * qaytarardi — hatto birinchi urinish rad etilgan/xato bo'lsa ham (model buni
+ * muvaffaqiyat deb tushunardi) va fayl o'zgargandan keyin testni qayta
+ * ishga tushirishni ham to'sardi.
+ *
+ * @param {(name: string, args: object) => Promise<string>} exec  vositani bajaruvchi
+ */
+export function createTurnTracker(exec) {
+  const entries = [];
+  const seen = new Map(); // fp -> { status, mutation, detail }
+  let mutation = 0; // muvaffaqiyatli iz qoldiruvchi amallar soni
+  return {
+    entries,
+    async run(name, args) {
+      const fp = `${name}:${JSON.stringify(args ?? {})}`;
+      const prev = seen.get(fp);
+      if (prev && (prev.status === "declined" || prev.mutation === mutation)) {
+        const msg =
+          prev.status === "ok"
+            ? "Bu amal shu navbatda allaqachon MUVAFFAQIYATLI bajarilgan va shundan beri hech narsa o'zgarmagan. Boshqa qadamga o't yoki ishni yakunla."
+            : prev.status === "declined"
+              ? "Bu amalni foydalanuvchi shu navbatda RAD ETGAN — u BAJARILMAGAN. Qayta so'rama; foydalanuvchiga rad etilganini ayt."
+              : `Bu amal shu navbatda XATO bergan${prev.detail ? ` (${prev.detail})` : ""} va shundan beri hech narsa o'zgarmagan — u BAJARILMAGAN. Sababini tuzat yoki foydalanuvchiga ayt.`;
+        return { status: "skipped", result: msg, content: `${statusTag("skipped")}\n${msg}` };
+      }
+      let result;
+      try {
+        result = String(await exec(name, args));
+      } catch (err) {
+        result = `XATO: ${err?.message ?? err}`;
+      }
+      const status = toolStatus(name, result);
+      if (status === "ok" && SIDE_EFFECT_TOOLS.has(name)) mutation++;
+      const entry = ledgerEntry(name, args, result, status);
+      seen.set(fp, { status, mutation, detail: entry.detail || (entry.exit != null ? `exit ${entry.exit}` : "") });
+      entries.push(entry);
+      return { status, result, entry, content: `${statusTag(status)}\n${result}` };
+    },
+    /** Modelga beriladigan jurnal (ko'rsatishga arzimasa — bo'sh). */
+    forModel() {
+      return ledgerWorthShowing(entries) ? ledgerForModel(entries) : "";
+    },
+  };
+}
+
+// Modelning "bajardim" turidagi da'volari (uz lotin/kirill, ru, en).
+const CLAIM_RE =
+  /(yaratdim|yozdim|saqladim|o['‘’ʻ`]?zgartirdim|yangiladim|qo['‘’ʻ`]?shdim|o['‘’ʻ`]?rnatdim|ishga tushirdim|bajardim|tuzatdim|o['‘’ʻ`]?chirdim|яратдим|ёздим|сақладим|ўзгартирдим|бажардим|создал|записал|сохранил|обновил|установил|запустил|исправил|удалил|\bI(?:'ve| have)? (?:created|written|wrote|saved|updated|installed|ran|executed|fixed|deleted)\b|\b(?:created|saved|installed|executed)\b)/i;
+
+// Halol "bajarilmadi" iboralari — bunday qatordagi fayl nomi da'vo emas.
+const NEG_RE =
+  /(yozilmadi|yaratilmadi|bajarilmadi|saqlanmadi|rad et|xato|muvaffaqiyatsiz|ruxsat berilmadi|ёзилмади|яратилмади|бажарилмади|рад эт|хато|не (удалось|создан|записан|сохранён|выполн)|отклон|ошибк|not (created|written|saved)|fail|declin|denied|error)/i;
+
+/**
+ * Oxirgi javob bajarilgan ish haqida gapiradimi-yu, jurnal buni tasdiqlamaydimi?
+ * Qaytaradi: null (muammo yo'q) yoki ogohlantirish matni.
+ */
+export function unsupportedClaim(finalText, entries) {
+  const text = String(finalText ?? "");
+  if (!text.trim() || !CLAIM_RE.test(text)) return null;
+  const list = entries ?? [];
+  const okEffects = list.filter((e) => SIDE_EFFECT_TOOLS.has(e.tool) && e.status === "ok");
+  if (!okEffects.length) {
+    return "Javobda amal bajarilgandek aytilgan, lekin bu navbatda birorta fayl yozilmadi, papka yaratilmadi yoki buyruq muvaffaqiyatli bajarilmadi.";
+  }
+  // Tilga olingan, lekin hech qachon muvaffaqiyatli yozilmagan fayl/papka.
+  const okTargets = new Set(okEffects.map((e) => e.target));
+  const missed = [];
+  for (const e of list) {
+    if (e.tool === "run_command" || !SIDE_EFFECT_TOOLS.has(e.tool)) continue;
+    if (e.status === "ok" || okTargets.has(e.target)) continue;
+    const base = e.target.split(/[\\/]/).pop();
+    if (!base || base.length <= 2 || missed.includes(e.target)) continue;
+    // Faylni tilga olgan qatorlarning hammasi uni "yozilmadi/rad etildi" deb halol aytsa — muammo yo'q.
+    const mentions = text.split("\n").filter((l) => l.includes(base));
+    if (mentions.length && !mentions.every((l) => NEG_RE.test(l))) missed.push(e.target);
+  }
+  return missed.length ? `Javobda tilga olingan, lekin aslida yozilmagan: ${missed.join(", ")}.` : null;
+}
+
 // The server caps a single message at 40k chars; a big cwd (e.g. the home folder)
 // can produce 50k+ of tree, so keep the overview short — the agent can list_dir more.
 const CONTEXT_MAX = 6_000;

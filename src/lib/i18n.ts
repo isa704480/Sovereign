@@ -12,6 +12,10 @@ import { UX } from "@/lib/locales/ux";
 import { P3B } from "@/lib/locales/p3-b";
 import { P3C } from "@/lib/locales/p3-c";
 import { P3D } from "@/lib/locales/p3-d";
+import { P4B } from "@/lib/locales/p4-b";
+import { P4C } from "@/lib/locales/p4-c";
+import { P4D } from "@/lib/locales/p4-d";
+import { P4E } from "@/lib/locales/p4-e";
 
 export type Lang = "uz" | "uz-cyrl" | "ru" | "en";
 
@@ -505,7 +509,7 @@ const CORE = {
   onbEnter: { uz: "SOVEREIGN'ga kirish", "uz-cyrl": "SOVEREIGN'га кириш", ru: "Войти в SOVEREIGN", en: "Enter SOVEREIGN" },
 } as const;
 
-const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D };
+const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E };
 
 export type TKey = keyof typeof DICT;
 

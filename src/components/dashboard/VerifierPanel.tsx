@@ -6,8 +6,11 @@ import { useT, type VerifierIssue } from "@/store/chat";
 import type { TKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
+/** Server `basis` qo'shadi (verifier.ts); eski saqlangan xabarlarda bo'lmasligi mumkin. */
+type Issue = VerifierIssue & { basis?: "sources" | "model" };
+
 interface VerifierPanelProps {
-  issues: VerifierIssue[];
+  issues: Issue[];
 }
 
 const VERDICT_META = {
@@ -36,13 +39,19 @@ const VERDICT_META = {
 export function VerifierPanel({ issues }: VerifierPanelProps) {
   const t = useT();
   const suspicious = issues.filter((i) => i.verdict === "suspicious");
+  const unconfirmed = issues.filter((i) => i.verdict === "unverifiable");
   const [open, setOpen] = useState(suspicious.length > 0);
+  // Manbasiz baho — boshqa LLM fikri; "yashil = tasdiqlandi" deb ko'rsatmaymiz.
+  const grounded = issues.length > 0 && issues.every((i) => i.basis === "sources");
+  const allConfirmed = !suspicious.length && !unconfirmed.length;
 
   const summary = suspicious.length
     ? `${suspicious.length} ${t("suspiciousFacts")}`
-    : `${issues.length} ${t("claimsChecked")}`;
+    : `${issues.length} ${t("claimsChecked")}${unconfirmed.length ? ` · ${unconfirmed.length} ${t("vfUnconfirmed")}` : ""}`;
 
-  const badgeColor = suspicious.length ? "#f59e0b" : "#22c55e";
+  // Yashil faqat hamma da'vo MANBAGA nisbatan tasdiqlanganda.
+  const badgeColor = suspicious.length ? "#f59e0b" : allConfirmed && grounded ? "#22c55e" : "#94a3b8";
+  const HeaderIcon = suspicious.length ? ShieldAlert : allConfirmed && grounded ? ShieldCheck : ShieldQuestion;
 
   return (
     <div
@@ -56,13 +65,16 @@ export function VerifierPanel({ issues }: VerifierPanelProps) {
         className="flex w-full items-center justify-between gap-2 px-3 py-2"
       >
         <span className="flex items-center gap-1.5 font-medium" style={{ color: badgeColor }}>
-          {suspicious.length ? <ShieldAlert className="size-3.5" /> : <ShieldCheck className="size-3.5" />}
+          <HeaderIcon className="size-3.5" />
           {t("factCheck")} · {summary}
         </span>
         <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} style={{ color: "var(--t-text-muted)" }} />
       </button>
       {open && (
         <ul className="border-t px-3 py-2" style={{ borderColor: `${badgeColor}22` }}>
+          <li className="pb-1.5" style={{ color: "var(--t-text-muted)" }}>
+            {t(grounded ? "vfBasisSources" : "vfBasisModel")}
+          </li>
           {issues.map((issue, i) => {
             const meta = VERDICT_META[issue.verdict];
             const Icon = meta.Icon;

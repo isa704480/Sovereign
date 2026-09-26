@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { displayName, getProfile } from "@/lib/auth/profile";
+import { displayName, effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { CliConnect } from "@/components/cli/CliConnect";
 import { getServerT } from "@/lib/i18n-server";
@@ -29,7 +29,7 @@ export default async function CliConnectPage(props: PageProps<"/cli/connect">) {
       code={code}
       name={displayName(user, profile)}
       email={user.email ?? ""}
-      plan={profile?.plan ?? "free"}
+      plan={effectivePlan(profile).id}
     />
   );
 }

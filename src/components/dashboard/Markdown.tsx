@@ -263,7 +263,35 @@ function CodeBlock({ className, children }: { className?: string; children: stri
  */
 function urlTransform(url: string, key: string): string {
   if (key === "src" && /^data:image\/(png|jpe?g|webp|gif);base64,/i.test(url)) return url;
+  if (key === "src" && VIDEO_DATA.test(url)) return url;
   return defaultUrlTransform(url);
+}
+
+/**
+ * Yaratilgan video: faqat Pollinations xotirasidagi fayl (so'rov parametrisiz — URL
+ * orqali ma'lumot olib chiqib bo'lmaydi) yoki data:video/mp4. Boshqa hech narsa
+ * <video> bo'lmaydi (CSP media-src ham shu hostga cheklangan).
+ */
+const VIDEO_URL = /^https:\/\/media\.pollinations\.ai\/[A-Za-z0-9_-]{8,128}$/;
+const VIDEO_DATA = /^data:video\/mp4;base64,[A-Za-z0-9+/=]+$/;
+function isChatVideo(src: string): boolean {
+  return VIDEO_URL.test(src) || VIDEO_DATA.test(src);
+}
+
+function ChatVideo({ src }: { src: string }) {
+  const t = useT();
+  return (
+    <video
+      src={src}
+      controls
+      playsInline
+      loop
+      preload="metadata"
+      aria-label={t("p4eVideoLabel")}
+      className="my-3 max-h-[560px] w-auto max-w-full rounded-xl"
+      style={{ border: "1px solid var(--t-border)" }}
+    />
+  );
 }
 
 /** data:/blob: yoki shu sayt rasmi — tashqi so'rov yo'q, darhol ko'rsatsa bo'ladi. */
@@ -399,6 +427,7 @@ export const Markdown = memo(function Markdown({ content, citations }: MarkdownP
       },
       img({ src, alt }: ComponentProps<"img">) {
         if (typeof src !== "string" || !src) return null;
+        if (alt === "video" && isChatVideo(src)) return <ChatVideo key={src} src={src} />;
         return <ChatImage key={src} src={src} alt={alt ?? ""} />;
       },
     }),

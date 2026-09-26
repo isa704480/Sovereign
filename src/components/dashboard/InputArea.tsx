@@ -16,6 +16,7 @@ import { EASE } from "@/lib/motion";
 import { listKnowledge, type KbDoc } from "@/app/actions/knowledge";
 import { attachmentGlyph, processFile, type Attachment } from "@/lib/chat/attachments";
 import { matchFiles, type CoworkFile } from "@/lib/cowork/folder";
+import { videoAvailable } from "@/lib/chat/video-intent";
 import { useChat, useLang, useT } from "@/store/chat";
 import { fmt, type Lang } from "@/lib/i18n";
 import { agentModeDescription, agentModeName } from "@/lib/locales/chat-data";
@@ -33,7 +34,7 @@ export interface InputAreaHandle {
 }
 
 interface InputAreaProps {
-  onSend: (text: string, attachments?: Attachment[], docIds?: string[], opts?: { image?: boolean }) => void;
+  onSend: (text: string, attachments?: Attachment[], docIds?: string[], opts?: { image?: boolean; video?: boolean }) => void;
   onStop?: () => void;
   isStreaming: boolean;
   research: boolean;
@@ -143,7 +144,28 @@ export function InputArea({
   const modeRef = useRef<HTMLDivElement>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   // "+" → "Rasm yaratish": keyingi xabar(lar) rasm sifatida yaratiladi (o'chirilguncha).
-  const [imageMode, setImageMode] = useState(false);
+  const [imageMode, setImageModeRaw] = useState(false);
+  // "+" → "Video yaratish": faqat server qo'llasa (POLLINATIONS_API_KEY) yoqiladi.
+  const [videoMode, setVideoModeRaw] = useState(false);
+  const [videoEnabled, setVideoEnabled] = useState(false);
+  // Rasm va video rejimi bir vaqtda yoqilmaydi.
+  const setImageMode = useCallback((on: boolean) => {
+    setImageModeRaw(on);
+    if (on) setVideoModeRaw(false);
+  }, []);
+  const setVideoMode = useCallback((on: boolean) => {
+    setVideoModeRaw(on);
+    if (on) setImageModeRaw(false);
+  }, []);
+  useEffect(() => {
+    let alive = true;
+    void videoAvailable().then((ok) => {
+      if (alive) setVideoEnabled(ok);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const plusRef = useRef<HTMLDivElement>(null);
   // Event handler sifatida (useCallback) — render paytida ref o'qilmaydi.
   const attachFromMenu = useCallback(() => fileRef.current?.click(), []);
@@ -224,18 +246,18 @@ export function InputArea({
     if (speech.listening) speech.stop();
     // Only send mentions the user did not delete again.
     const docIds = mentioned.filter((m) => text.includes(`@${m.label}`)).map((m) => m.id);
-    if (imageMode && !text) return;
+    if ((imageMode || videoMode) && !text) return;
     onSend(
       text,
       attachments.length ? attachments : undefined,
       docIds.length ? docIds : undefined,
-      imageMode ? { image: true } : undefined,
+      imageMode ? { image: true } : videoMode && videoEnabled ? { video: true } : undefined,
     );
     setValue("");
     setAttachments([]);
     setMentioned([]);
     setMention(null);
-  }, [value, attachments, isStreaming, busy, onSend, speech, mentioned, imageMode]);
+  }, [value, attachments, isStreaming, busy, onSend, speech, mentioned, imageMode, videoMode, videoEnabled]);
 
   /** Loads the document list once, the first time "@" is typed. */
   function onChangeText(e: ChangeEvent<HTMLTextAreaElement>) {
@@ -375,6 +397,22 @@ export function InputArea({
       ) : (
         <Mic className="size-4" />
       )}
+    </button>
+  );
+
+  // Rasm/video rejimi chipi (bosilsa o'chadi).
+  const mediaMode = imageMode ? "image" : videoMode && videoEnabled ? "video" : null;
+  const mediaChip = mediaMode && (
+    <button
+      type="button"
+      onClick={() => (mediaMode === "image" ? setImageMode(false) : setVideoMode(false))}
+      aria-label={t(mediaMode === "image" ? "uxImageModeOff" : "p4eVideoModeOff")}
+      title={t(mediaMode === "image" ? "uxImageModeOff" : "p4eVideoModeOff")}
+      className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium"
+      style={{ background: "color-mix(in srgb, var(--t-accent) 18%, transparent)", color: "var(--t-accent)" }}
+    >
+      {mediaMode === "image" ? <ImageIcon className="size-3.5" /> : <Clapperboard className="size-3.5" />}{" "}
+      {t(mediaMode === "image" ? "uxImageMode" : "p4eVideoMode")} <X className="size-3" />
     </button>
   );
 
@@ -583,7 +621,15 @@ export function InputArea({
             value={value}
             onChange={onChangeText}
             onKeyDown={onKeyDown}
-            placeholder={speech.listening ? "..." : imageMode ? t("uxImagePlaceholder") : t("typeMessage")}
+            placeholder={
+              speech.listening
+                ? "..."
+                : imageMode
+                  ? t("uxImagePlaceholder")
+                  : videoMode
+                    ? t("p4eVideoPlaceholder")
+                    : t("typeMessage")
+            }
             aria-label={t("typeMessage")}
             rows={1}
             autoFocus={autoFocus}
@@ -598,18 +644,7 @@ export function InputArea({
 
           {isPill && (
             <div className="flex shrink-0 items-center gap-1 self-center">
-              {imageMode && (
-                <button
-                  type="button"
-                  onClick={() => setImageMode(false)}
-                  aria-label={t("uxImageModeOff")}
-                  title={t("uxImageModeOff")}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium"
-                  style={{ background: "color-mix(in srgb, var(--t-accent) 18%, transparent)", color: "var(--t-accent)" }}
-                >
-                  <ImageIcon className="size-3.5" /> {t("uxImageMode")} <X className="size-3" />
-                </button>
-              )}
+              {mediaChip}
               {modeChip}
               {modeToggle}
               {modelChip}
@@ -696,7 +731,13 @@ export function InputArea({
                         { id: "memory", label: t("memory"), hint: t("chMemoryHint"), Icon: Brain, enabled: !!onOpenMemory },
                         { id: "image", label: t("uxCreateImage"), hint: t("uxCreateImageHint"), Icon: ImageIcon, enabled: true },
                         { id: "music", label: t("uxCreateMusic"), hint: t("uxComingSoon"), Icon: Music, enabled: false },
-                        { id: "video", label: t("uxCreateVideo"), hint: t("uxComingSoon"), Icon: Clapperboard, enabled: false },
+                        {
+                          id: "video",
+                          label: t("uxCreateVideo"),
+                          hint: videoEnabled ? t("p4eCreateVideoHint") : t("uxComingSoon"),
+                          Icon: Clapperboard,
+                          enabled: videoEnabled,
+                        },
                       ] as const
                     ).map(({ id, label, hint, Icon, enabled }, i) => (
                       <button
@@ -712,6 +753,9 @@ export function InputArea({
                           else if (id === "memory") onOpenMemory?.();
                           else if (id === "image") {
                             setImageMode(true);
+                            taRef.current?.focus();
+                          } else if (id === "video") {
+                            setVideoMode(true);
                             taRef.current?.focus();
                           }
                         }}
@@ -729,19 +773,8 @@ export function InputArea({
                 )}
               </AnimatePresence>
             </div>
-            {imageMode && (
-                <button
-                  type="button"
-                  onClick={() => setImageMode(false)}
-                  aria-label={t("uxImageModeOff")}
-                  title={t("uxImageModeOff")}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium"
-                  style={{ background: "color-mix(in srgb, var(--t-accent) 18%, transparent)", color: "var(--t-accent)" }}
-                >
-                  <ImageIcon className="size-3.5" /> {t("uxImageMode")} <X className="size-3" />
-                </button>
-              )}
-              {modeChip}
+            {mediaChip}
+            {modeChip}
             {modeToggle}
             <SkillPicker enabled={enabledSkills} onToggle={onToggleSkill} />
             <Chip

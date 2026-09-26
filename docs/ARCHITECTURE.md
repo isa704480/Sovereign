@@ -14,7 +14,7 @@ maxfiylik-birinchi AI platforma.
 1. **Zero-Trust Privacy** — hech bir tashqi servis foydalanuvchining haqiqiy ma'lumotini ko'rmaydi
 2. **Persistent Sovereignty** — xotira va identifikatsiya foydalanuvchiga tegishli
 3. **Model Agnosticism** — bitta interfeys orqali barcha modellar
-4. **Verified Truth** — barcha AI javoblari faktik tekshiruvdan o'tadi
+4. **Verified Truth** — *(maqsad)* hozir: qidiruv javoblarida haqiqiy manba havolalari, ikkinchi AI da'volarni mavjud manbalarga solishtiradi (`src/lib/ai/verifier.ts`), CLI/desktop amallari tizim jurnali bilan tekshiriladi. To'liq faktik tekshiruv — 9-bo'limdagi REJA
 5. **Research-First** — Perplexity bilan real internet ma'lumotlari
 
 ---
@@ -557,6 +557,12 @@ export async function retrieveRelevantMemory(
 ---
 
 ## 9. NEURAL-SYMBOLIC VERIFICATION ENGINE
+
+> ⚠️ **REJA — hali amalga oshirilmagan.** Quyidagi `src/lib/verification.ts`, `/api/verify`,
+> bilim grafi va mantiqiy tekshiruv kodda YO'Q. Hozirgi holat: `src/lib/ai/verifier.ts`
+> (manbalar bo'lsa — da'volar shu manbalarga solishtiriladi, aks holda boshqa modelning
+> fikri deb belgilanadi), `ANTI_HALLUCINATION`/`GROUNDED_GENERATION` promptlari, CLI/desktop
+> amallar jurnali (`cli/src/tools.mjs` — "Aslida nima bo'ldi").
 
 ```typescript
 // src/lib/verification.ts

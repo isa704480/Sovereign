@@ -120,7 +120,37 @@ export async function omniImage(
  */
 const PROMPT_MODELS = ["groq/qwen/qwen3.8-27b", "groq/openai/gpt-oss-20b"];
 
-export async function omniImagePrompt(request: string): Promise<string | null> {
+/**
+ * Sifat uchun "prompt muhandisi" ko'rsatmasi: niyat va so'ralgan matn aynan
+ * saqlanadi, qolgani (kompozitsiya, yorug'lik, uslub, kamera) boyitiladi.
+ */
+const IMAGE_SYSTEM = [
+  "You are an expert prompt engineer for text-to-image models (FLUX, Z-Image, SANA).",
+  "Rewrite the user's request (any language: Uzbek Latin/Cyrillic, Russian, English...) into ONE English prompt that yields a stunning, high-quality image.",
+  "Rules:",
+  "1. Preserve the user's intent exactly: every subject, count, color, style, mood, setting and detail they asked for. Never add unrelated subjects or change the subject.",
+  '2. Text in the image: if the user asks for any words, name, slogan or lettering, copy it VERBATIM (original language and spelling) inside double quotes, e.g. with the text "SOVEREIGN" in bold clean sans-serif letters. If no text was requested, end with: no text, no letters, no watermark.',
+  "3. Order: main subject with concrete details, action or pose, setting/background, composition and framing (close-up, wide shot, rule of thirds, centered...), lighting (golden hour, soft studio light, dramatic rim light...), color palette and mood, style or medium.",
+  "4. Style: follow any style the user names (anime, watercolor, 3D render, pixel art, oil painting, flat vector...). If none is named, pick the best fit; for real people, animals, food, products, places and nature default to photorealistic photography and add camera details (e.g. shot on a full-frame camera, 85mm lens, f/1.8, shallow depth of field).",
+  "5. Logos and icons: flat vector design, clean simple geometric shapes, centered on a plain background, balanced negative space, professional, no mockup.",
+  "6. Finish with quality cues: highly detailed, sharp focus, professional composition; for people add natural skin texture, realistic proportions, well-formed hands and faces.",
+  "Write 40-90 words as comma-separated descriptive phrases. No explanations, no lists, no quotes around the whole prompt. Output only the prompt.",
+].join("\n");
+
+/** Video (Wan va h.k.): bitta uzluksiz ~5 soniyalik kadr — harakat va kamera muhim. */
+const VIDEO_SYSTEM = [
+  "You are an expert prompt engineer for text-to-video models (Wan, Seedance).",
+  "Rewrite the user's request (any language) into ONE English prompt for a single continuous ~5-second shot.",
+  "Keep every subject, count, color, style and detail the user asked for; never add unrelated subjects. If the user requests on-screen text, copy it verbatim in double quotes.",
+  "Describe: the subject and its appearance, the specific motion or action (clear, smooth, physically plausible), the camera movement (slow dolly-in, tracking shot, orbit, aerial drone, static tripod...), the setting, lighting, color palette and mood, and the style (cinematic photorealistic unless the user names another style, e.g. anime or 3D animation).",
+  "No scene cuts, no multiple shots. Write 40-80 words. Output only the prompt.",
+].join("\n");
+
+/**
+ * Foydalanuvchi so'rovini (istalgan tilda) sifatli inglizcha rasm/video
+ * promptiga aylantiradi. Xato yoki OmniRoute yo'q bo'lsa — null (asl matn).
+ */
+export async function omniImagePrompt(request: string, kind: "image" | "video" = "image"): Promise<string | null> {
   const o = omni();
   if (!o) return null;
   for (const model of PROMPT_MODELS) {
@@ -130,14 +160,10 @@ export async function omniImagePrompt(request: string): Promise<string | null> {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${o.key}` },
         body: JSON.stringify({
           model,
-          max_tokens: 300,
-          temperature: 0.3,
+          max_tokens: 400,
+          temperature: 0.4,
           messages: [
-            {
-              role: "system",
-              content:
-                "You turn a user's image request (any language) into one concise, vivid English prompt for an image generator. Keep all subjects, text, colors and style the user asked for. Output only the prompt.",
-            },
+            { role: "system", content: kind === "video" ? VIDEO_SYSTEM : IMAGE_SYSTEM },
             { role: "user", content: request },
           ],
         }),
@@ -148,7 +174,9 @@ export async function omniImagePrompt(request: string): Promise<string | null> {
       const out = data.choices?.[0]?.message?.content
         ?.replace(/<think>[\s\S]*?<\/think>/g, "")
         .trim()
-        .replace(/^["']|["']$/g, "");
+        .replace(/^(?:\*\*)?(?:image |video )?prompt(?:\*\*)?\s*:\s*/i, "")
+        .replace(/^["']|["']$/g, "")
+        .trim();
       if (out && out.length >= 3) return out.slice(0, 1000);
     } catch {
       /* keyingi model */

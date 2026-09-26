@@ -28,10 +28,10 @@ export function ModelCompare() {
   const [modelsPre, modelsPost = ""] = t("ldCompareModels").split("{n}");
 
   return (
-    <section className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-28">
+    <section aria-labelledby="compare-title" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-28">
       <div className="mx-auto max-w-2xl text-center">
         <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("ldCompareEyebrow")}</span>
-        <h2 className="font-display mt-3 text-3xl font-extrabold tracking-tight text-text-primary md:text-5xl">
+        <h2 id="compare-title" className="font-display mt-3 text-[1.85rem] font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl text-text-primary md:text-5xl">
           {modelsPre}
           <span className="tabular-nums text-gradient-brand">{total ? total.toLocaleString() : "1700+"}</span>
           {modelsPost}

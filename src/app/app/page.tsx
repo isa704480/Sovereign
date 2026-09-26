@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { listConversations } from "@/app/actions/chat";
 import { Dashboard } from "@/components/dashboard/Dashboard";
-import { displayName, effectivePlan, getProfile } from "@/lib/auth/profile";
+import { displayName, effectivePlan, getProfile, planRenews, planStatus } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { getServerT } from "@/lib/i18n-server";
@@ -43,9 +43,10 @@ export default async function AppPage({ searchParams }: PageProps<"/app">) {
 
   const initial = (await listConversations()) as Conversation[];
 
-  // Tarif holati — expired/expiring_soon banneri uchun
-  const { data: statusData } = await supabase.rpc("plan_status", { p_user_id: user.id });
-  const status = Array.isArray(statusData) ? statusData[0] : statusData;
+  // Tarif holati (plan_status bilan bir xil hisob) — expired/expiring_soon banneri uchun.
+  // Karta (Dodo) obunasi o'zi yangilanadi — unga "tugayapti" o'rniga "yangilanadi" ko'rsatiladi.
+  const status = planStatus(profile);
+  const renews = status.state === "free" ? false : await planRenews(supabase, user.id, status.paidPlan);
 
   return (
     <Dashboard
@@ -58,8 +59,11 @@ export default async function AppPage({ searchParams }: PageProps<"/app">) {
       initialConversations={initial}
       plan={effectivePlan(profile).id}
       memoryEnabled={profile.memory_enabled}
-      planState={(status?.state as "free" | "active" | "expiring_soon" | "expired") ?? "free"}
-      daysLeft={status?.days_left ?? null}
+      planState={status.state}
+      daysLeft={status.daysLeft}
+      planExpiresAt={status.expiresAt}
+      paidPlan={status.paidPlan}
+      planRenews={renews}
       paymentReturn={paymentReturn}
     />
   );

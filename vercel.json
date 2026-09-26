@@ -13,6 +13,9 @@
     "src/app/api/image/route.ts": {
       "maxDuration": 180
     },
+    "src/app/api/video/route.ts": {
+      "maxDuration": 300
+    },
     "src/app/api/transcribe/route.ts": {
       "maxDuration": 60
     },

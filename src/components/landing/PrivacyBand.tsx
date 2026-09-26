@@ -11,14 +11,18 @@ export function PrivacyBand() {
   const t = useT();
   const STEPS = [{ from: t("ldPrivacyExampleFrom"), to: t("ldPrivacyExampleTo") }];
   return (
-    <section id="privacy" className="relative mx-auto max-w-6xl px-5 pb-28 md:px-8">
+    <section
+      id="privacy"
+      aria-labelledby="privacy-title"
+      className="relative mx-auto max-w-6xl scroll-mt-24 px-5 pb-28 md:px-8"
+    >
       <FadeIn inView>
         <div className="border-gradient-brand relative overflow-hidden rounded-3xl bg-bg-elevated/80 p-8 md:p-12">
           <div className="noise absolute inset-0" />
           <div className="relative grid grid-cols-1 gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-soft">Blind Prompting</p>
-              <h2 className="font-display mt-3 text-3xl font-extrabold text-text-primary md:text-4xl">
+              <h2 id="privacy-title" className="font-display mt-3 text-[1.6rem] font-extrabold text-text-primary [overflow-wrap:anywhere] sm:text-3xl md:text-4xl">
                 {t("ldPrivacyTitle1")}
                 <br />
                 {t("ldPrivacyTitle2")}

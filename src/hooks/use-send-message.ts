@@ -5,10 +5,11 @@ import { syncConversation } from "@/app/actions/chat";
 import { rememberExchange } from "@/app/actions/memory";
 import { createMaskSession, mask } from "@/lib/ai/blind-prompting";
 import { detectImageIntent } from "@/lib/chat/image-intent";
+import { detectVideoIntent, videoAvailable } from "@/lib/chat/video-intent";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
 import { CUSTOM_SKILL_PREFIX, useChat, uuid, type ChatMessage, type Project } from "@/store/chat";
-import { fmt, translate, type Lang } from "@/lib/i18n";
+import { fmt, translate, type Lang, type TKey } from "@/lib/i18n";
 
 /** Cowork papka ro'yxati + loyiha ko'rsatmasi — bitta kontekst matni (server 6000 belgi qabul qiladi). */
 function buildContext(cowork: string | null, project?: Project): string | undefined {
@@ -34,7 +35,23 @@ function clampText(text: string): string {
  * har xabar limitdan oshib 400 olardi — modelga faqat belgisi yuboriladi.
  */
 function stripInlineImages(text: string): string {
-  return text.replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, (_m, alt: string) => `[image${alt ? `: ${alt}` : ""}]`);
+  return text
+    .replace(/!\[([^\]]*)\]\(data:image\/[^)]+\)/g, (_m, alt: string) => `[image${alt ? `: ${alt}` : ""}]`)
+    .replace(/!\[[^\]]*\]\(data:video\/[^)]+\)/g, "[video]");
+}
+
+/**
+ * "+" → "Video yaratish" rejimidagi so'rovlar (matnda "video" so'zi bo'lmasa ham).
+ * ChatMessage.kind faqat "image" ni qabul qiladi — sessiya ichida id bo'yicha eslaymiz,
+ * shunda "qayta yaratish"/tahrirlash ham video yo'lidan boradi.
+ */
+const videoRequestIds = new Set<string>();
+
+/** Matndan aniqlangan video so'rovi — faqat server video'ni qo'llasa (kalit sozlangan). */
+async function isVideoRequest(m: ChatMessage): Promise<boolean> {
+  if (m.kind === "video" || videoRequestIds.has(m.id)) return true;
+  if (m.kind === "image" || m.attachments?.length || typeof m.content !== "string") return false;
+  return detectVideoIntent(m.content) && (await videoAvailable());
 }
 
 /**
@@ -258,13 +275,18 @@ export function useSendMessage() {
   }, []);
 
   /**
-   * Rasm yaratish: LLM'siz to'g'ridan-to'g'ri /api/image. "To'xtatish" (stop) bekor qiladi;
-   * kutish paytida o'tgan soniyalar ko'rsatiladi; server HTML/xato qaytarsa — tarjima qilingan xabar.
+   * Rasm/video yaratish: LLM'siz to'g'ridan-to'g'ri /api/image yoki /api/video. "To'xtatish"
+   * (stop) bekor qiladi; kutish paytida o'tgan soniyalar ko'rsatiladi; server HTML/xato
+   * qaytarsa — tarjima qilingan xabar.
    */
-  const generateImage = useCallback(async (conversationId: string, prompt: string) => {
+  const generateMedia = useCallback(async (conversationId: string, prompt: string, kind: "image" | "video") => {
     const lang = useChat.getState().lang;
-    const drawing = translate(lang, "chImageDrawing");
-    const placeholder = (sec: number) => `${drawing}\n\n_${fmt(translate(lang, "uxImageElapsed"), { s: sec })}_`;
+    const isVideo = kind === "video";
+    const keys: Record<"busy" | "elapsed" | "failed" | "stopped" | "here", TKey> = isVideo
+      ? { busy: "p4eVideoRendering", elapsed: "p4eVideoElapsed", failed: "p4eVideoFailed", stopped: "p4eVideoStopped", here: "p4eVideoHere" }
+      : { busy: "chImageDrawing", elapsed: "uxImageElapsed", failed: "chImageFailed", stopped: "uxImageStopped", here: "chImageHere" };
+    const drawing = translate(lang, keys.busy);
+    const placeholder = (sec: number) => `${drawing}\n\n_${fmt(translate(lang, keys.elapsed), { s: sec })}_`;
     const assistant: ChatMessage = {
       id: uuid(),
       role: "assistant",
@@ -288,42 +310,44 @@ export function useSendMessage() {
       useChat.getState().updateMessage(conversationId, assistant.id, { status: "error", content: "", error });
 
     try {
-      const res = await fetch("/api/image", {
+      const res = await fetch(isVideo ? "/api/video" : "/api/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // Maxfiy rejim: PII rasm provayderiga (tashqi xizmat) ochiq ketmasin.
+        // Maxfiy rejim: PII rasm/video provayderiga (tashqi xizmat) ochiq ketmasin.
         body: JSON.stringify({ prompt: useChat.getState().blindPrompting ? mask(prompt).masked : prompt }),
         signal: controller.signal,
       });
-      let data: { urls?: string[]; error?: string; upgrade?: string } = {};
+      let data: { urls?: string[]; url?: string; error?: string; upgrade?: string } = {};
       try {
         data = (await res.json()) as typeof data;
       } catch {
         // HTML xato sahifasi / bo'sh javob — xom "Unexpected token <" ko'rsatmaymiz.
         data = {};
       }
-      if (!res.ok || !data.urls?.length) {
-        const reason = typeof data.error === "string" && data.error ? data.error : translate(lang, "chImageFailed");
+      const urls = isVideo ? (typeof data.url === "string" && data.url ? [data.url] : []) : (data.urls ?? []);
+      if (!res.ok || !urls.length) {
+        const reason = typeof data.error === "string" && data.error ? data.error : translate(lang, keys.failed);
         fail(reason);
         // Kunlik limit: server `upgrade` qaytaradi — tarif oynasini ochamiz (chat yo'li kabi).
         if (data.upgrade) window.dispatchEvent(new CustomEvent("sovereign:upgrade", { detail: { reason } }));
       } else {
-        const md = data.urls.map((u) => `![](${u})`).join("\n\n");
+        // Video ham rasm sintaksisida: Markdown faqat provayder URL / data:video/mp4 ni <video> qiladi.
+        const md = urls.map((u) => `![${isVideo ? "video" : ""}](${u})`).join("\n\n");
         useChat.getState().updateMessage(conversationId, assistant.id, {
           status: "done",
-          content: `${translate(lang, "chImageHere")}\n\n${md}`,
+          content: `${translate(lang, keys.here)}\n\n${md}`,
         });
       }
     } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") fail(translate(lang, "uxImageStopped"));
-      else fail(translate(lang, "chImageFailed"));
+      if (err instanceof Error && err.name === "AbortError") fail(translate(lang, keys.stopped));
+      else fail(translate(lang, keys.failed));
     } finally {
       clearInterval(tick);
       if (abortRef.current === controller) {
         abortRef.current = null;
         setStreaming(false);
       }
-      // Faqat rasmdan iborat yangi suhbat ham nom oladi (run() dagi kabi).
+      // Faqat rasm/videodan iborat yangi suhbat ham nom oladi (run() dagi kabi).
       const s = useChat.getState();
       const c = s.conversations[conversationId];
       if (c && c.title === "Yangi suhbat") s.setTitle(conversationId, prompt.slice(0, 48).replace(/\s+/g, " "));
@@ -331,14 +355,19 @@ export function useSendMessage() {
   }, []);
 
   const send = useCallback(
-    async (text: string, attachments?: Attachment[], docIds?: string[], opts?: { image?: boolean }) => {
+    async (text: string, attachments?: Attachment[], docIds?: string[], opts?: { image?: boolean; video?: boolean }) => {
       const state = useChat.getState();
       let conversationId = state.activeId;
       if (!conversationId || !state.conversations[conversationId]) {
         conversationId = state.createConversation(state.modelId, state.research).id;
       }
+      // Video: "+" → "Video yaratish" (majburiy) yoki matndan aniqlangan so'rov (server qo'llasa).
+      // Rasmdan oldin tekshiriladi: "make a video of a cat drawing" rasm emas.
+      const isVideo =
+        !opts?.image &&
+        (!!opts?.video || (!attachments?.length && detectVideoIntent(text) && (await videoAvailable())));
       // Rasm: "+" → "Rasm yaratish" (majburiy) yoki matndan aniqlangan so'rov.
-      const isImage = !!opts?.image || (detectImageIntent(text) && !attachments?.length);
+      const isImage = !isVideo && (!!opts?.image || (detectImageIntent(text) && !attachments?.length));
       const user: ChatMessage = {
         id: uuid(),
         role: "user",
@@ -346,19 +375,21 @@ export function useSendMessage() {
         attachments: attachments?.length ? attachments : undefined,
         createdAt: new Date().toISOString(),
         status: "done",
-        ...(isImage ? { kind: "image" as const } : {}),
+        // Reload'dan keyin ham qayta urinish/tahrir shu yo'ldan borsin (store'da saqlanadi).
+        ...(isImage ? { kind: "image" as const } : isVideo ? { kind: "video" as const } : {}),
       };
+      if (isVideo) videoRequestIds.add(user.id);
       state.appendMessage(conversationId, user);
 
-      if (isImage) {
-        await generateImage(conversationId, text);
+      if (isVideo || isImage) {
+        await generateMedia(conversationId, text, isVideo ? "video" : "image");
         return;
       }
 
       const history = useChat.getState().conversations[conversationId]?.messages ?? [user];
       await run(conversationId, history, docIds);
     },
-    [run, generateImage],
+    [run, generateMedia],
   );
 
   const regenerate = useCallback(async () => {
@@ -375,19 +406,23 @@ export function useSendMessage() {
         conversations: { ...s.conversations, [id]: { ...conv, messages: history } },
       }));
     }
-    // Rasm so'rovi bo'lsa — qayta urinish ham rasm yo'lidan boradi.
+    // Rasm/video so'rovi bo'lsa — qayta urinish ham shu yo'ldan boradi.
     const lastUser = [...history].reverse().find((m) => m.role === "user");
+    if (lastUser && typeof lastUser.content === "string" && (await isVideoRequest(lastUser))) {
+      await generateMedia(id, lastUser.content, "video");
+      return;
+    }
     // kind: "image" — "+ → Rasm" rejimidagi so'rov (matnda fe'l bo'lmasa ham rasm).
     if (
       lastUser &&
       typeof lastUser.content === "string" &&
       (lastUser.kind === "image" || (!lastUser.attachments?.length && detectImageIntent(lastUser.content)))
     ) {
-      await generateImage(id, lastUser.content);
+      await generateMedia(id, lastUser.content, "image");
       return;
     }
     await run(id, history);
-  }, [run, generateImage]);
+  }, [run, generateMedia]);
 
   /**
    * Foydalanuvchi o'z xabarini tahrirladi: o'sha xabardan keyingi hamma narsa
@@ -408,15 +443,19 @@ export function useSendMessage() {
       useChat.setState((s) => ({
         conversations: { ...s.conversations, [id]: { ...conv, messages: history, updatedAt: new Date().toISOString() } },
       }));
-      // Rasm so'rovi tahrirlansa — javob ham rasm bo'ladi (matnli LLM'ga ketmaydi).
+      // Rasm/video so'rovi tahrirlansa — javob ham rasm/video bo'ladi (matnli LLM'ga ketmaydi).
       const edited = history[history.length - 1];
+      if (await isVideoRequest(edited)) {
+        await generateMedia(id, clean, "video");
+        return;
+      }
       if (edited.kind === "image" || (!edited.attachments?.length && detectImageIntent(clean))) {
-        await generateImage(id, clean);
+        await generateMedia(id, clean, "image");
         return;
       }
       await run(id, history);
     },
-    [run, generateImage],
+    [run, generateMedia],
   );
 
   const stop = useCallback(() => abortRef.current?.abort(), []);

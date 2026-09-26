@@ -19,10 +19,14 @@ const FEATURES: { icon: typeof ShieldCheck; tag: string; tagKey?: TKey; title: T
 export function Features() {
   const t = useT();
   return (
-    <section id="features" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-28">
+    <section
+      id="features"
+      aria-labelledby="features-title"
+      className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 md:px-8 md:py-28"
+    >
       <FadeIn inView>
         <p className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("ldFeatEyebrow")}</p>
-        <h2 className="font-display mx-auto mt-3 max-w-2xl text-center text-3xl font-extrabold tracking-tight text-text-primary md:text-5xl">
+        <h2 id="features-title" className="font-display mx-auto mt-3 max-w-2xl text-balance text-center text-[1.85rem] font-extrabold [overflow-wrap:anywhere] sm:text-3xl tracking-tight text-text-primary md:text-5xl">
           {t("ldFeatTitle1")} <span className="text-gradient-brand">{t("ldFeatTitle2")}</span>
         </h2>
       </FadeIn>

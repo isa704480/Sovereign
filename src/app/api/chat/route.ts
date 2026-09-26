@@ -77,6 +77,21 @@ const bodySchema = z.object({
 
 const UPGRADE = "[upgrade]";
 
+/**
+ * "Qildim" deb aytib, aslida qilmaslikka qarshi qoida. Javob modeli vositasiz
+ * ishlaydi: tashqi amallarni faqat connector bosqichi bajaradi va ularning
+ * haqiqiy holati "AMALLAR HOLATI" ro'yxatida beriladi.
+ */
+const ACTION_HONESTY = [
+  "HARAKATLAR HAQIDA HAQQONIYLIK (QAT'IY): bu javobni yozayotib sen hech qanday tashqi amal bajarmaysan —",
+  "xat yubormaysan, fayl/jadval/taqdimot yaratmaysan, kalendarga yozmaysan, kod ishga tushirmaysan, saytni tekshirmaysan.",
+  "Faqat kontekstdagi 'AMALLAR HOLATI' ro'yxatida '✓ BAJARILDI' deb ko'rsatilgan amal haqiqatda bajarilgan;",
+  "'✕ BAJARILMADI' yoki '◐ QISMAN' bo'lsa — buni foydalanuvchiga ochiq ayt.",
+  "Boshqa hollarda 'yaratdim/yubordim/saqladim/ishga tushirdim/tekshirdim/sinab ko'rdim' dema — nima qilish kerakligini ayt.",
+  "Cowork faylini sen saqlamaysan: sovereign-write blokini taklif qilasan, uni foydalanuvchi o'zi saqlaydi.",
+  "Manba (URL, hujjat nomi, iqtibos) keltirsang — faqat kontekstda haqiqatan berilganini keltir, o'ylab topma.",
+].join(" ");
+
 async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
   authed: boolean;
   plan: Plan;
@@ -390,9 +405,10 @@ export async function POST(req: Request) {
             skillText,
             plan.limits.fullCode ? "" : SIMPLE_CHAT_GUARDRAIL,
             step.kind === "answer" && connectorContext
-              ? `ULANGAN SERVICE MA'LUMOTLARI (connector natijalari — javobda ishlat):
+              ? `ULANGAN SERVICE MA'LUMOTLARI (connector natijalari — javobda ishlat; "AMALLAR HOLATI"ga zid gapirma):
 ${connectorContext}`
               : "",
+            step.kind === "answer" ? ACTION_HONESTY : "",
             step.kind === "answer" && mode?.prompt ? mode.prompt : "",
           ]
             .filter(Boolean)
@@ -495,11 +511,17 @@ ${connectorContext}`
           });
         }
 
-        // Verifier: uzun faktual javoblarni haiku bilan tekshirish.
+        // Verifier: uzun faktual javoblarni arzon model (verifier.ts) bilan tekshirish.
+        // Javob modeli ko'rgan manbalar (o'qilgan sahifa, bilim bazasi, connector
+        // natijalari) bo'lsa — da'volar SHU manbalarga solishtiriladi; aks holda
+        // baho faqat modelning o'z bilimiga asoslanadi (UI buni alohida belgilaydi).
         // Streaming tugagandan keyin qo'shimcha "verifier" eventi keladi.
         if (cacheableAnswer.length >= 300 && !research && isFactualProse(cacheableAnswer)) {
           try {
-            const issues = await verifyAnswer(lastText, cacheableAnswer);
+            // connectorContext (Gmail/Sheets/GitHub ma'lumotlari) atayin YO'Q: maxfiylik —
+            // shaxsiy servis ma'lumotlari tekshiruvchi uchun qo'shimcha modelga yuborilmaydi.
+            const sources = [webContext, knowledgeText].filter(Boolean).join("\n\n");
+            const issues = await verifyAnswer(lastText, cacheableAnswer, sources);
             if (issues.length > 0) send({ type: "verifier", issues });
           } catch {
             /* verifier ixtiyoriy — xato bo'lsa jim */
