@@ -30,6 +30,51 @@ function ChangeRow({ c, open, onToggle, onUndo }) {
   );
 }
 
+const KIND_TAG = { deleted: "tag-del", modified: "tag-edit", created: "tag-new", lost: "tag-lost" };
+const KIND_LABEL = { deleted: "changes.deleted", modified: "changes.modified", created: "changes.new", lost: "changes.lost" };
+
+/** Shell Undo: fayllarni o'zgartirgan buyruq — "Buyruq: rm -rf x — 3 ta o'chirilgan, 2 ta o'zgargan". */
+function CommandRow({ c, open, onToggle, onUndo }) {
+  const t = useT();
+  const n = c.counts ?? {};
+  const summary = [
+    n.deleted ? t("changes.cmdDeleted", { n: n.deleted }) : null,
+    n.modified ? t("changes.cmdModified", { n: n.modified }) : null,
+    n.created ? t("changes.cmdCreated", { n: n.created }) : null,
+    n.lost ? t("changes.cmdLost", { n: n.lost }) : null,
+  ].filter(Boolean).join(", ");
+  const restorable = (n.deleted ?? 0) + (n.modified ?? 0) + (n.created ?? 0) > 0;
+  return (
+    <div className={`change ${open ? "open" : ""}`}>
+      <div className="change-row">
+        <button type="button" className="change-main" onClick={onToggle} aria-expanded={open}>
+          <Icon name="chevron" size={12} className={`caret ${open ? "open" : ""}`} />
+          <Icon name="terminal" size={14} className="faint" />
+          <span className="cmd-change-text grow">
+            <span className="trunc mono small" title={c.command}>{t("changes.cmdTitle", { cmd: c.command })}</span>
+            <span className="trunc faint small">{summary}</span>
+          </span>
+        </button>
+        <button type="button" className="icon-btn" onClick={onUndo} aria-label={`${t("changes.undo")}: ${c.command}`} title={restorable ? t("changes.undo") : t("changes.noBackup")} disabled={!restorable}>
+          <Icon name="undo" size={14} />
+        </button>
+      </div>
+      {open && (
+        <ul className="cmd-files">
+          {c.partial && <li className="faint small">{t("changes.cmdPartial")}</li>}
+          {c.files.map((f) => (
+            <li key={`${f.kind}:${f.path}`}>
+              <span className={`tag ${KIND_TAG[f.kind] ?? "tag-lost"}`}>{t(KIND_LABEL[f.kind] ?? "changes.lost")}</span>
+              <span className="trunc mono small" title={f.path}>{f.path}</span>
+            </li>
+          ))}
+          {c.moreFiles > 0 && <li className="faint small">{t("changes.cmdMore", { n: c.moreFiles })}</li>}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Terminal({ term, onClear }) {
   const t = useT();
   const [copied, setCopied] = useState(null);
@@ -94,9 +139,11 @@ export default function RightPanel({ tab, setTab, changes, term, onUndo, onUndoA
                 <span className="faint small">{t("changes.count", { n: changes.length })}</span>
                 <button type="button" className="btn btn-sm" onClick={onUndoAll}><Icon name="undo" size={13} /> {t("changes.undoAll")}</button>
               </div>
-              {changes.map((c) => (
-                <ChangeRow key={c.path} c={c} open={openPath === c.path} onToggle={() => setOpenPath((p) => (p === c.path ? null : c.path))} onUndo={() => onUndo(c)} />
-              ))}
+              {changes.map((c) => {
+                const key = c.kind === "command" ? `cmd:${c.snapId}` : c.path;
+                const Row = c.kind === "command" ? CommandRow : ChangeRow;
+                return <Row key={key} c={c} open={openPath === key} onToggle={() => setOpenPath((p) => (p === key ? null : key))} onUndo={() => onUndo(c)} />;
+              })}
               <p className="faint small pad-sm">{t("changes.note")}</p>
             </>
           )

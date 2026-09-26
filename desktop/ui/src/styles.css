@@ -175,6 +175,8 @@ code.inline { font: 12px var(--mono); color: var(--accent-soft); background: var
 .tag { font-size: 10.5px; padding: 1px 6px; border-radius: 5px; font-weight: 600; flex: none; }
 .tag-new { color: var(--ok); background: var(--ok-bg); }
 .tag-edit { color: var(--warn); background: var(--warn-bg); }
+.tag-del { color: var(--err); background: var(--err-bg); }
+.tag-lost { color: var(--faint); background: var(--surface-2); }
 .count { margin-left: 6px; font-size: 10.5px; padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-variant-numeric: tabular-nums; }
 .banner { display: flex; gap: 9px; align-items: flex-start; padding: 9px 12px; border-radius: 9px; font-size: 12.5px; line-height: 1.5; border: 1px solid transparent; }
 .banner > svg { margin-top: 2px; }
@@ -389,6 +391,9 @@ button.update-card:hover { border-color: var(--accent-soft); filter: brightness(
 .change-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; padding: 5px 6px; border-radius: 7px; text-align: left; }
 .change-main:hover { background: var(--surface-2); }
 .change .diff-box { margin: 0 10px 10px; }
+.cmd-change-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.cmd-files { list-style: none; margin: 0 10px 10px; padding: 6px 8px; border-radius: 7px; background: var(--surface-2); display: flex; flex-direction: column; gap: 3px; }
+.cmd-files li { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .term { font-family: var(--mono); }
 .term-entry { border-bottom: 1px solid var(--border); padding: 8px 12px; }
 .term-cmd { display: flex; align-items: center; gap: 8px; font-size: 12px; }

@@ -12,7 +12,8 @@ import { selectMenu } from "../src/menu.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, configureUi, gutter, hintBar, logo, skillsList, slashMenu, spinner, stopSpinner, stripAnsi } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
-import { fullAutoDenyReason, isTrustableDir, resolvePath as resolveWs } from "../src/tools.mjs";
+import { fullAutoDenyReason, isTrustableDir, resolvePath as resolveWs, visible } from "../src/tools.mjs";
+import { cliSnapshotStore, describeCounts } from "../src/snapshot.mjs";
 import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
 import { countTurns, listSessions, loadSession, rewind, saveSession } from "../src/sessions.mjs";
 import { EXIT, SUBCOMMANDS, parseArgs } from "../src/args.mjs";
@@ -363,6 +364,55 @@ function renderSlashMenu() {
   return slashMenu(items);
 }
 
+/**
+ * /undo [n | list] — shu sessiyada fayllarni o'zgartirgan buyruqlar ro'yxati;
+ * argumentsiz oxirgisini, `/undo <n>` — n-chisini (1 = eng yangi) qaytaradi.
+ */
+async function undoCommand(arg, say) {
+  const store = cliSnapshotStore();
+  const list = store.list();
+  if (!list.length) {
+    say(c.dim("Qaytariladigan buyruq yo'q — bu sessiyada fayllarni o'zgartirgan buyruq bajarilmagan."));
+    return;
+  }
+  const listOnly = arg === "list" || arg === "ro'yxat";
+  const n = !arg || listOnly ? 1 : Number(arg);
+  if (!Number.isInteger(n) || n < 1 || n > list.length) {
+    say(c.red(`Noto'g'ri raqam: ${arg} — 1 dan ${list.length} gacha bo'lishi kerak (/undo list).`));
+    return;
+  }
+  say(c.dim("Fayllarni o'zgartirgan buyruqlar (1 — eng oxirgisi):"));
+  for (const [i, s] of list.slice(0, 10).entries()) {
+    const cmd = visible(s.command).replace(/\s+/g, " ");
+    const short = cmd.length > 60 ? `${cmd.slice(0, 59)}…` : cmd;
+    const when = new Date(s.createdAt).toTimeString().slice(0, 5);
+    const mark = !listOnly && i === n - 1 ? c.amber("›") : " ";
+    say(`${mark} ${c.white(String(i + 1))}. ${c.amber(short)}  ${c.dim(`— ${describeCounts(s.counts)}  ${when}`)}${s.partial ? c.dim(" (qisman nusxa)") : ""}`);
+  }
+  if (list.length > 10) say(c.dim(`  … yana ${list.length - 10} ta`));
+  if (listOnly) {
+    say(c.dim("Qaytarish: /undo (oxirgisi) yoki /undo <n>"));
+    return;
+  }
+  const target = list[n - 1];
+  const res = await store.restore(target.id);
+  if (res.error === "no-backup" || res.error === "not-found") {
+    say(c.red(res.error === "not-found" ? "Ish papkasi topilmadi — qaytarib bo'lmaydi." : "Nusxa topilmadi — qaytarib bo'lmaydi."));
+    return;
+  }
+  const parts = [];
+  if (res.restored) parts.push(`${res.restored} ta fayl tiklandi`);
+  if (res.removed) parts.push(`${res.removed} ta yangi fayl o'chirildi`);
+  say(`${res.ok ? c.emerald("↩") : c.amber("↩")} ${res.ok ? "Qaytarildi" : "Qisman qaytarildi"}: ${parts.join(", ") || "o'zgarish yo'q"}.`);
+  if (res.kept.length) say(c.dim(`  ${res.kept.length} ta yangi fayl keyin o'zgargani uchun qoldirildi: ${res.kept.slice(0, 5).join(", ")}${res.kept.length > 5 ? " …" : ""}`));
+  if (res.lost) say(c.dim(`  ${res.lost} ta faylni tiklab bo'lmaydi (juda katta yoki nusxa chegarasidan tashqarida edi).`));
+  if (res.failed.length) {
+    say(c.red(`  ${res.failed.length} ta faylni tiklab bo'lmadi:`));
+    for (const f of res.failed.slice(0, 8)) say(c.dim(`    ${f.path} (${f.reason})`));
+    say(c.dim("  Sababini bartaraf etib, /undo ni qayta ishga tushirish mumkin."));
+  }
+}
+
 // ---- interactive REPL -------------------------------------------------
 async function repl() {
   // Tab autocomplete for slash commands. Boshi `/` bo'lsa mos keladiganlarni
@@ -519,6 +569,7 @@ async function repl() {
         verify: flags.verify,
         fullAuto: fullAuto.on,
         budget: flags.budget ?? 0,
+        snapshots: true, // shell Undo — /undo
       });
       if (res.error) console.log(G + c.red(`Xato: ${res.error}\n`));
       return res;
@@ -686,6 +737,13 @@ async function repl() {
       const after = countTurns(messages);
       say(c.dim(`↶ ${before - after} ta savol olib tashlandi (${after} qoldi).`));
       if (sessionId) sessionId = saveSession({ id: sessionId, messages, model: config.model });
+      rewritePrompt();
+      continue;
+    }
+
+    // ── Shell Undo: buyruq o'zgartirgan/o'chirgan fayllarni qaytarish ──
+    if (input === "/undo" || input.startsWith("/undo ")) {
+      await undoCommand(input.slice(5).trim(), say);
       rewritePrompt();
       continue;
     }

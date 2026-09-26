@@ -23,6 +23,7 @@ import {
 import { c, spinner, renderMarkdown, markdownStream } from "./ui.mjs";
 import { memorySystemMessage } from "./memory.mjs";
 import { shouldVerify, verifyClaims } from "./verify.mjs";
+import { withCommandSnapshots, cliSnapshotStore } from "./snapshot.mjs";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -320,12 +321,16 @@ function isAbort(err, signal) {
  *   loop?: object, budgetExceeded?: boolean, usage: object,
  *   ledger: object[], final: string, honesty: {regex: string|null, judge: string[]|null, tests: object|null, source: string}}>}
  */
-export async function agentTurn({ messages, config, confirm, maxSteps, signal, print = true, stream = false, verify = true, fullAuto = false, budget = 0 }) {
+export async function agentTurn({ messages, config, confirm, maxSteps, signal, print = true, stream = false, verify = true, fullAuto = false, budget = 0, snapshots = false }) {
   // Full auto: yoz → testla → tuzat sikli uchun ko'proq qadam.
   maxSteps ??= fullAuto ? 40 : 14;
   let toolSpin = null;
+  // Shell Undo (faqat interaktiv REPL'da — /undo shu sessiyada mavjud): "risky" buyruqdan
+  // oldin ish papkasi nusxasi olinadi, o'zgarish bo'lsa buyruqdan keyin eslatma chiqadi.
+  let snapNote = null;
+  const run = snapshots ? withCommandSnapshots(runTool, cliSnapshotStore, { onChange: (s) => (snapNote = s) }) : runTool;
   const exec = (name, args) =>
-    runTool(
+    run(
       name,
       args,
       async (...q) => {
@@ -444,6 +449,12 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
       const r = await tracker.run(call.function.name, args);
       toolSpin?.stop();
       toolSpin = null;
+      if (snapNote) {
+        const n = snapNote.total + snapNote.counts.lost;
+        const lost = snapNote.counts.lost ? ` (${snapNote.counts.lost} tasini tiklab bo'lmaydi)` : "";
+        console.log("  " + c.dim(`↩ ${n} ta fayl o'zgardi${lost} — /undo bilan qaytarish mumkin`));
+        snapNote = null;
+      }
       if (r.status === "declined") console.log("  " + c.amber("⊘ rad etildi — bajarilmadi"));
       else if (r.status === "failed") console.log("  " + c.red("✕ bajarilmadi / xato") + (r.entry?.exit != null ? c.dim(` (exit ${r.entry.exit})`) : ""));
       lastTool = { role: "tool", tool_call_id: call.id, content: r.content.slice(0, TOOL_RESULT_MAX) };

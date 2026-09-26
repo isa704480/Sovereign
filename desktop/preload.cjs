@@ -1,5 +1,5 @@
 // SOVEREIGN Cowork — preload. Renderer'ga xavfsiz (contextIsolation) API beradi.
-// Diskka yozadigan yagona chaqiruv — fsRestore (faqat main'dagi zaxira id'si bo'yicha).
+// Diskka yozadigan chaqiruvlar — fsRestore / fsRestoreSnapshot (faqat main'dagi zaxira/nusxa id'si bo'yicha).
 const { contextBridge, ipcRenderer } = require("electron");
 
 const invoke = (ch, ...a) => ipcRenderer.invoke(ch, ...a);
@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld("sovereign", {
   fsRead: (path) => invoke("fs:read", path),
   // Undo — ixtiyoriy yo'lga yozish yo'q; faqat main'dagi zaxira id'si bo'yicha tiklash.
   fsRestore: (backupId) => invoke("fs:restore", backupId),
+  // Shell Undo — buyruq o'zgartirgan fayllar main'dagi nusxa id'si bo'yicha tiklanadi.
+  fsRestoreSnapshot: (snapId) => invoke("fs:restore-snapshot", snapId),
   setModel: (id, label) => invoke("app:set-model", id, label),
   models: (qs) => invoke("app:models", qs),
   send: (text, mode) => ipcRenderer.send("agent:send", { text, mode }),
