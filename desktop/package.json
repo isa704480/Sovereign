@@ -1,7 +1,7 @@
 {
   "name": "sovereign-cowork",
   "productName": "SOVEREIGN Cowork",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "SOVEREIGN Cowork — ish stolidagi AI koding hamkori.",
   "type": "module",
   "main": "main.mjs",
@@ -57,10 +57,22 @@
       "package.json"
     ],
     "extraResources": [
-      { "from": "../cli/src", "to": "cli/src", "filter": ["**/*.mjs"] },
-      { "from": "../cli/package.json", "to": "cli/package.json" }
+      {
+        "from": "../cli/src",
+        "to": "cli/src",
+        "filter": [
+          "**/*.mjs"
+        ]
+      },
+      {
+        "from": "../cli/package.json",
+        "to": "cli/package.json"
+      }
     ],
-    "electronLanguages": ["en-US", "ru"],
+    "electronLanguages": [
+      "en-US",
+      "ru"
+    ],
     "publish": [
       {
         "provider": "github",
@@ -71,7 +83,14 @@
       }
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "build/icon.ico",
       "verifyUpdateCodeSignature": false
     },
@@ -93,7 +112,15 @@
       "artifactName": "SOVEREIGN-Cowork-Setup-${version}.${ext}"
     },
     "mac": {
-      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
       "category": "public.app-category.developer-tools",
       "icon": "build/icon.icns",
       "identity": "-",
@@ -106,7 +133,14 @@
       "artifactName": "SOVEREIGN-Cowork-${version}-${arch}.${ext}"
     },
     "linux": {
-      "target": [{ "target": "AppImage", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "category": "Development",
       "icon": "build/icon.png",
       "synopsis": "AI coding coworker for your desktop",
