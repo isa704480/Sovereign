@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { SUPABASE_ANON_KEY, SUPABASE_MISSING_MESSAGE, SUPABASE_URL, isSupabaseConfigured } from "./env";
+import { SUPABASE_ANON_KEY, SUPABASE_MISSING_MESSAGE, SUPABASE_URL, cookieDomainFor, isSupabaseConfigured } from "./env";
 
 const PROTECTED_PREFIXES = ["/onboarding", "/app"];
 const AUTH_PAGES = ["/login", "/register"];
@@ -31,10 +31,12 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  const domain = cookieDomainFor(request.headers.get("host"));
   const supabase = createServerClient(
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
     {
+      ...(domain ? { cookieOptions: { domain } } : {}),
       cookies: {
         getAll() {
           return request.cookies.getAll();

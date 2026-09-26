@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
-import { SUPABASE_ANON_KEY, SUPABASE_MISSING_MESSAGE, SUPABASE_URL, isSupabaseConfigured } from "./env";
+import { cookies, headers } from "next/headers";
+import { SUPABASE_ANON_KEY, SUPABASE_MISSING_MESSAGE, SUPABASE_URL, cookieDomainFor, isSupabaseConfigured } from "./env";
 
 /**
  * Server-side Supabase client (Server Components, Server Actions, Route Handlers).
@@ -10,11 +10,14 @@ import { SUPABASE_ANON_KEY, SUPABASE_MISSING_MESSAGE, SUPABASE_URL, isSupabaseCo
 export async function createClient() {
   if (!isSupabaseConfigured()) throw new Error(SUPABASE_MISSING_MESSAGE);
   const cookieStore = await cookies();
+  // Umumiy sessiya: app./api./landing bitta cookie (NEXT_PUBLIC_COOKIE_DOMAIN).
+  const domain = cookieDomainFor((await headers()).get("host"));
 
   return createServerClient(
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
     {
+      ...(domain ? { cookieOptions: { domain } } : {}),
       cookies: {
         getAll() {
           return cookieStore.getAll();

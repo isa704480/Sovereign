@@ -7,7 +7,8 @@ const FILE = join(DIR, "config.json");
 
 const DEFAULTS = {
   // Account mode: SOVEREIGN server base URL + issued token.
-  baseUrl: "https://soveregn.xyz",
+  // API subdomeni (faqat /api/*). Login sahifasi (/cli/connect) serverdan app.'ga yo'naltiriladi.
+  baseUrl: "https://api.soveregn.xyz",
   token: "",
   email: "",
   // Direct mode: user's own OpenRouter key + model. Kod-agent uchun tekin va tez
