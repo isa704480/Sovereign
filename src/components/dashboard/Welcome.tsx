@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageSquareHeart, Terminal } from "lucide-react";
+import { MessageSquareHeart, Monitor, Terminal } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useState, type ReactNode } from "react";
 import { EASE_OUT_EXPO } from "@/lib/motion";
@@ -10,6 +10,7 @@ import { useTheme } from "./theme-context";
 import { useLang, useT } from "@/store/chat";
 import { themeSuggestions } from "@/lib/locales/chat-data";
 import { CliInstall } from "./CliInstall";
+import { DesktopPanel, useVisitorOs } from "@/components/landing/Download";
 import { FeedbackDialog } from "./FeedbackDialog";
 
 interface WelcomeProps {
@@ -83,7 +84,11 @@ function Suggestions({
 /** Bo'sh ekran pastida: fikr bildirish va CLI o'rnatish (barcha mavzularda bir xil). */
 function WelcomeExtras() {
   const tr = useT();
-  const [cli, setCli] = useState(false);
+  // Bir vaqtda bitta panel: CLI o'rnatish yoki Cowork desktop yuklab olish.
+  const [panel, setPanel] = useState<"cli" | "desktop" | null>(null);
+  const cli = panel === "cli";
+  const desktop = panel === "desktop";
+  const os = useVisitorOs();
   const [feedback, setFeedback] = useState(false);
   // Barqaror onClose — dialog effekti har renderda qayta ishga tushib, fokusni tortmasin.
   const closeFeedback = useCallback(() => setFeedback(false), []);
@@ -94,7 +99,17 @@ function WelcomeExtras() {
       <div className="flex flex-wrap justify-center gap-2">
         <button
           type="button"
-          onClick={() => setCli((o) => !o)}
+          onClick={() => setPanel((p) => (p === "desktop" ? null : "desktop"))}
+          aria-expanded={desktop}
+          className={pill}
+          style={{ borderColor: "var(--t-border)", color: desktop ? "var(--t-text)" : "var(--t-text-muted)" }}
+        >
+          <Monitor className="size-3.5" />
+          {tr("dlChatButton")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPanel((p) => (p === "cli" ? null : "cli"))}
           aria-expanded={cli}
           className={pill}
           style={{ borderColor: "var(--t-border)", color: cli ? "var(--t-text)" : "var(--t-text-muted)" }}
@@ -122,6 +137,18 @@ function WelcomeExtras() {
             className="flex w-full justify-center"
           >
             <CliInstall />
+          </motion.div>
+        )}
+        {desktop && (
+          <motion.div
+            key="desktop"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.2, ease: EASE_OUT_EXPO }}
+            className="w-full max-w-3xl text-left"
+          >
+            <DesktopPanel os={os} />
           </motion.div>
         )}
       </AnimatePresence>

@@ -122,4 +122,5 @@ export const P6A = {
     ru: "Все релизы на GitHub",
     en: "All releases on GitHub",
   },
+  dlChatButton: { uz: "Cowork desktop", "uz-cyrl": "Cowork десктоп", ru: "Cowork для компьютера", en: "Cowork desktop" },
 } satisfies Dict;

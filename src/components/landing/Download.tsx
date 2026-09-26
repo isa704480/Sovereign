@@ -36,7 +36,7 @@ function detectOs(): Os | null {
   return null;
 }
 const noopSubscribe = () => () => {};
-const useVisitorOs = () => useSyncExternalStore(noopSubscribe, detectOs, () => null);
+export const useVisitorOs = () => useSyncExternalStore(noopSubscribe, detectOs, () => null);
 
 // ---- Kichik bo'laklar ----------------------------------------------------
 function CopyLine({ text, label }: { text: string; label: string }) {
@@ -151,7 +151,8 @@ function SmallLink({ href, label, children }: { href: string; label?: string; ch
 }
 
 // ---- Panellar ------------------------------------------------------------
-function DesktopPanel({ os }: { os: Os | null }) {
+/** Cowork desktop: Windows / macOS / Linux — landing va chat bosh ekranida (Welcome) ishlatiladi. */
+export function DesktopPanel({ os }: { os: Os | null }) {
   const t = useT();
   const what = "SOVEREIGN Cowork";
   return (
