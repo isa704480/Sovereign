@@ -38,7 +38,8 @@ describe("renderInline — xom HTML o'tmaydi", () => {
 
   it("https havola ochiladi va data-ext oladi", () => {
     const html = renderInline("[docs](https://soveregn.xyz/docs)");
-    assert.equal(html, '<a href="https://soveregn.xyz/docs" data-ext="1">docs</a>');
+    // title — hover'da haqiqiy manzil (yorliq undan farq qilishi mumkin).
+    assert.equal(html, '<a href="https://soveregn.xyz/docs" title="https://soveregn.xyz/docs" data-ext="1">docs</a>');
   });
 
   it("yalang'och https havola aniqlanadi", () => {
@@ -54,7 +55,7 @@ describe("renderInline — xom HTML o'tmaydi", () => {
 
   it("havola matnidagi satr ichi kodi saqlanadi", () => {
     const html = renderInline("[`sov login`](https://soveregn.xyz/docs)");
-    assert.equal(html, '<a href="https://soveregn.xyz/docs" data-ext="1"><code>sov login</code></a>');
+    assert.equal(html, '<a href="https://soveregn.xyz/docs" title="https://soveregn.xyz/docs" data-ext="1"><code>sov login</code></a>');
   });
 
   it("qalin va kursiv", () => {
