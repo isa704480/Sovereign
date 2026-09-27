@@ -43,6 +43,8 @@
     "@codemirror/view": "^6.34.0",
     "@lezer/highlight": "^1.2.1",
     "@vitejs/plugin-react": "^4.3.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "concurrently": "^9.0.0",
     "cross-env": "^7.0.3",
     "electron": "^44.4.5",
@@ -53,6 +55,7 @@
     "wait-on": "^8.0.0"
   },
   "dependencies": {
+    "@lydell/node-pty": "1.1.0",
     "electron-updater": "^6.8.9",
     "pdf-parse": "^2.4.5"
   },
@@ -76,7 +79,12 @@
       "!**/node_modules/pdfjs-dist/legacy/{web,image_decoders}/**",
       "!**/node_modules/pdf-parse/dist/{worker,node}/**",
       "!**/node_modules/pdf-parse/dist/pdf-parse/{web,cjs}/**",
-      "!**/node_modules/pdf-parse/bin/**"
+      "!**/node_modules/pdf-parse/bin/**",
+      "!**/node_modules/@lydell/**/*.pdb"
+    ],
+    "asarUnpack": [
+      "**/node_modules/@lydell/node-pty/**",
+      "**/node_modules/@lydell/node-pty-*/**"
     ],
     "extraResources": [
       {

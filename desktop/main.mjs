@@ -2,7 +2,7 @@
 // Mavjud CLI agentini (tools/xavfsizlik/xotira) qayta ishlatadi; GUI orqali
 // chat, fayl yozish (tasdiq bilan) va buyruq ishga tushirishni boshqaradi.
 
-import { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, Notification, Menu, screen, session as electronSession } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeTheme, Notification, Menu, screen, session as electronSession } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, sep } from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync } from "node:fs";
@@ -46,6 +46,7 @@ import * as projectMemory from "../cli/src/project-memory.mjs";
 import { projectCheckStatus, projectClaimIssue, projectJudgeLines } from "../cli/src/project-rules.mjs";
 import { registerProjectIpc } from "./electron/project.mjs";
 import { registerFilesIpc, buildTree } from "./electron/files-ipc.mjs";
+import { registerTerminalIpc, disposeAllTerminals } from "./electron/terminal.mjs";
 import { runAudit, auditPrompt, AUDIT_LANGS } from "../cli/src/audit.mjs";
 import { detectSandbox, planSandbox, sandboxRule } from "../cli/src/sandbox.mjs";
 
@@ -1066,6 +1067,7 @@ function resetSession() {
 // ---- IPC ---------------------------------------------------------------
 handle("app:init", async () => {
   resetSession(); // sahifa qayta yuklandi — eski navbat/tasdiqlar egasiz qolmasin
+  disposeAllTerminals(); // eski terminal yorliqlari UI'da yo'q — jarayonlari ham qolmasin
   const config = applyModelOverride(loadConfig());
   session.config = config;
   if (config.token && netAllowed(config.baseUrl)) await syncMemory(config).catch(() => {});
@@ -1105,6 +1107,19 @@ registerProjectIpc({
   openPath: (p) => shell.openPath(p),
   pm: projectMemory,
   onChange: () => workspace && projectMemory.refreshProjectMessage(session.messages, workspace),
+});
+
+// Foydalanuvchi terminali (pastki panel). Agent uchun yozish yo'li YO'Q: terminal.mjs
+// pty'ga yozadigan funksiya eksport qilmaydi, faqat `term:write` IPC (validSender + preload).
+registerTerminalIpc({
+  handle,
+  on,
+  getWindow: () => win,
+  getCwd: () => workspace,
+  getShell: () => loadSettings().terminalShell,
+  // Ctrl+V terminalda: matn shu yerdan olinadi (shell o'zi qo'yib yubormasin —
+  // aks holda ko'p satrli qo'yish tasdig'i chetlab o'tilardi).
+  readClipboard: () => clipboard.readText(),
 });
 
 handle("app:reveal-workspace", async () => {
@@ -1904,6 +1919,7 @@ function createWindow() {
   win.on("close", () => {
     saveBounds();
     persistCurrentTask();
+    disposeAllTerminals(); // ochiq terminallar (va ularning bolalari) qolib ketmasin
   });
   win.on("focus", () => win.flashFrame(false));
   // Renderer qulasa (mas. juda katta diff) — kutilayotgan tasdiqlar rad bilan yopiladi,
@@ -2043,7 +2059,10 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
+app.on("before-quit", disposeAllTerminals);
+app.on("will-quit", disposeAllTerminals);
 app.on("window-all-closed", () => {
+  disposeAllTerminals();
   if (process.platform !== "darwin") app.quit();
 });
 app.on("activate", () => {

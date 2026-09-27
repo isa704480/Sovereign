@@ -4,6 +4,8 @@ import { useT } from "../lib/i18n.js";
 import { kbd } from "../lib/keys.js";
 import { useLocalMode } from "../lib/localMode.js";
 
+const TICK = String.fromCharCode(96);
+
 /**
  * "Mahalliy model" belgisi: javobni kompyuterdagi Ollama modeli yozayotganini ochiq ko'rsatadi
  * (server tokeni yo'q; xotira, bilim bazasi, mustaqil tekshiruv o'chiq). Bosilsa — model tanlash.
@@ -28,9 +30,10 @@ export function LocalBadge({ local, onClick, compact = false }) {
 }
 
 /** Sarlavha paneli: oyna sudraladi; OS tugmalari (min/max/close) titleBarOverlay orqali. */
-export function TitleBar({ info, onToggleSidebar, onTogglePanel, onPalette, sidebar, panel, minimal = false, onLocal }) {
+export function TitleBar({ info, onToggleSidebar, onTogglePanel, onPalette, sidebar, panel, minimal = false, onLocal, onToggleTerminal, terminal = false }) {
   const t = useT();
   const local = useLocalMode();
+  const modKey = info?.platform === "darwin" ? "Cmd" : "Ctrl";
   const crumbs = (info?.cwd || "").split(/[\\/]/).filter(Boolean).slice(-2);
   return (
     <header className={`titlebar ${info?.platform === "darwin" ? "mac" : ""}`}>
@@ -60,6 +63,11 @@ export function TitleBar({ info, onToggleSidebar, onTogglePanel, onPalette, side
       )}
       <div className="tb-right">
         {!minimal && <LocalBadge local={local} onClick={onLocal} />}
+        {!minimal && onToggleTerminal && (
+          <button type="button" className={`icon-btn nodrag ${terminal ? "on" : ""}`} aria-label={t("sh.toggle")} aria-pressed={terminal} title={`${t("sh.toggle")} (${modKey}+${TICK})`} onClick={onToggleTerminal}>
+            <Icon name="terminal" size={15} />
+          </button>
+        )}
         {!minimal && (
           <button type="button" className={`icon-btn nodrag ${panel ? "on" : ""}`} aria-label={t("tb.panel")} aria-pressed={panel} title={`${t("tb.panel")} (${kbd("Ctrl+J")})`} onClick={onTogglePanel}>
             <Icon name="panel" size={15} />

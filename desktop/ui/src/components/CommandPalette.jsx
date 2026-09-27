@@ -83,6 +83,7 @@ export const SHORTCUTS = [
   ["Ctrl ,", "sc.settings"],
   ["Ctrl B", "sc.sidebar"],
   ["Ctrl J", "sc.panel"],
+  ["Ctrl `", "sh.toggle"],
   ["Ctrl L", "sc.focus"],
   ["Ctrl E", "sc.mode"],
   ["Ctrl Shift E", "sc.editor"],
