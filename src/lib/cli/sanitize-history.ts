@@ -87,3 +87,35 @@ export function sanitizeHistory<T extends Msg>(messages: readonly T[]): T[] {
   flush();
   return out;
 }
+
+const TRIMMED = "\n…[qisqartirildi: model konteksti sig'ishi uchun]";
+
+/**
+ * Model konteksti to'lganda (provayder context_length / 413) tarixni qisqartiradi: barcha system
+ * xabarlari va birinchi foydalanuvchi xabari (asl vazifa) saqlanadi, o'rtadagi eski qadamlar
+ * olib tashlanadi, qolgan tool natijalari `toolMax` belgigacha kesiladi. Juftliklar sanitizeHistory
+ * bilan qayta tekshiriladi (egasiz tool xabari qolmaydi).
+ */
+export function compactHistory<T extends Msg>(messages: readonly T[], keepRatio: number, toolMax: number): T[] {
+  const sys = messages.filter((m) => m.role === "system");
+  const rest = messages.filter((m) => m.role !== "system");
+  const firstUser = rest.find((m) => m.role === "user");
+  const keepN = Math.max(4, Math.ceil(rest.length * keepRatio));
+  let tail = rest.slice(-keepN);
+  while (tail.length && tail[0].role === "tool") tail = tail.slice(1);
+  const dropped = rest.length - tail.length - (firstUser && !tail.includes(firstUser) ? 1 : 0);
+  const cut = (m: T): T =>
+    m.role === "tool" && typeof m.content === "string" && m.content.length > toolMax
+      ? { ...m, content: m.content.slice(0, toolMax) + TRIMMED }
+      : m;
+  const out: T[] = [...sys];
+  if (firstUser && !tail.includes(firstUser)) out.push(firstUser);
+  if (dropped > 0) {
+    out.push({
+      role: "system",
+      content: `[${dropped} ta oldingi xabar model konteksti sig'ishi uchun olib tashlandi. Asl vazifa — birinchi foydalanuvchi xabari; oxirgi qadamlardan davom et.]`,
+    } as T);
+  }
+  out.push(...tail.map(cut));
+  return sanitizeHistory(out);
+}

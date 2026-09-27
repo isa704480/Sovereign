@@ -103,3 +103,24 @@ test("nomsiz chaqiruv tashlanadi; takror id'lar ajratiladi", () => {
 
 console.log(`sanitize-history: ${ok} o'tdi, ${fail} yiqildi`);
 if (fail) process.exit(1);
+
+import { compactHistory } from "./sanitize-history";
+{
+  let ok2 = 0;
+  const long = "x".repeat(10_000);
+  const h: M[] = [{ role: "system", content: "rules" }, { role: "user", content: "TASK" }];
+  for (let i = 0; i < 20; i++) {
+    h.push({ role: "assistant", content: null, tool_calls: [call(`c${i}`)] });
+    h.push({ role: "tool", tool_call_id: `c${i}`, content: long });
+  }
+  const r = compactHistory(h, 0.25, 2000);
+  assert.equal(r[0].content, "rules"); ok2++;
+  assert.equal(r[1].content, "TASK"); ok2++;
+  assert.ok(String(r[2].content).includes("olib tashlandi")); ok2++;
+  assert.ok(r.length < h.length); ok2++;
+  assert.ok(r.filter((m) => m.role === "tool").every((m) => String(m.content).length < 2100)); ok2++;
+  assert.notEqual(r[3].role, "tool"); ok2++;
+  const ids = new Set(r.filter((m) => m.role === "assistant").flatMap((m) => (m.tool_calls as { id: string }[]).map((c) => c.id)));
+  assert.ok(r.filter((m) => m.role === "tool").every((m) => ids.has(m.tool_call_id!))); ok2++;
+  console.log(`compactHistory: ${ok2} o'tdi`);
+}

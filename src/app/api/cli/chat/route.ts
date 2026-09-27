@@ -14,7 +14,7 @@ import { meshComplete } from "@/lib/ai/mesh/execute";
 import { enabledAdapters } from "@/lib/ai/mesh/registry";
 import { plan as meshPlan } from "@/lib/ai/mesh/scheduler";
 import { cliRouteRequest, isGeneralAdapter, meshMode, requiredPlanTier } from "@/lib/ai/mesh/request";
-import { sanitizeHistory } from "@/lib/cli/sanitize-history";
+import { compactHistory, sanitizeHistory } from "@/lib/cli/sanitize-history";
 import { limitErrorResponse } from "@/lib/ai/inquiry/limit-codes";
 import { lastUserText, skillSystemMessage, withSkillMessage } from "@/config/skills";
 
@@ -402,9 +402,18 @@ export async function POST(req: Request) {
   }
 
   const maxTokens = Math.min(plan.limits.maxTokens, 4096);
-  const outcome = mesh
-    ? await meshCliComplete(routeReq, messages, parsed.data.tools, maxTokens, req.signal)
-    : await legacyComplete(cands, messages, parsed.data.tools, maxTokens);
+  const complete = (h: typeof messages, rr: typeof routeReq) =>
+    mesh ? meshCliComplete(rr, h, parsed.data.tools, maxTokens, req.signal) : legacyComplete(cands, h, parsed.data.tools, maxTokens);
+  let outcome = await complete(messages, routeReq);
+  // Model konteksti to'ldi (kichik kontekstli model + uzun Full auto sessiyasi): eski qadamlarni
+  // qisqartirib qayta urinamiz — foydalanuvchi "juda katta so'rov" bilan qotib qolmasin.
+  let compacted = false;
+  for (const [ratio, toolMax] of [[0.5, 4000], [0.25, 1500]] as const) {
+    if (outcome.ok || outcome.status !== 413 || req.signal.aborted) break;
+    const h = compactHistory(messages, ratio, toolMax);
+    outcome = await complete(h, cliRouteRequest({ chosen, planTier: planId, country, tools: needsTools, messages: h }));
+    compacted = true;
+  }
 
   if (!outcome.ok) {
     if (outcome.status === 400) return Response.json({ error: t("chBadRequest") }, { status: 400 });
@@ -428,6 +437,7 @@ export async function POST(req: Request) {
     plan: planId,
     model: outcome.model,
     provider: outcome.provider,
+    ...(compacted ? { compacted: true } : {}),
     ...(usage ? { usage } : {}),
     // Shu qadamda qo'llangan skillar (mijoz chip ko'rsatadi). Doim massiv — maydon borligi = yangi server.
     skills: skill?.ids ?? [],
