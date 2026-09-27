@@ -6,7 +6,9 @@
  */
 import assert from "node:assert/strict";
 import {
+  approxIp,
   bearerToken,
+  describeDevice,
   countryOf,
   freeJudgePool,
   ipFromHeaders,
@@ -135,6 +137,23 @@ test("estimateTokens", () => {
   assert.equal(estimateTokens(400), 100);
   assert.equal(estimateTokens(-5), 0);
   assert.equal(estimateTokens(Number.NaN), 0);
+});
+
+test("describeDevice: host / OS / ilova", () => {
+  assert.deepEqual(describeDevice("DESKTOP-1 (win32)"), { host: "DESKTOP-1", os: "Windows", app: "CLI" });
+  assert.deepEqual(describeDevice("mac.local (darwin) · Cowork"), { host: "mac.local", os: "macOS", app: "Cowork" });
+  assert.deepEqual(describeDevice("box (linux)"), { host: "box", os: "Linux", app: "CLI" });
+  assert.deepEqual(describeDevice("weird-name"), { host: "weird-name", os: null, app: "CLI" });
+  assert.deepEqual(describeDevice(""), { host: "", os: null, app: null });
+  assert.equal(describeDevice("a\u0007b (linux)").host, "a b");
+});
+
+test("approxIp: IPv4 /24, IPv6 /48, to'liq manzil ko'rsatilmaydi", () => {
+  assert.equal(approxIp("203.0.113.77"), "203.0.113.x");
+  assert.equal(approxIp("2001:db8:1:2::1"), "2001:db8:1::/48");
+  assert.equal(approxIp("unknown"), null);
+  assert.equal(approxIp(null), null);
+  assert.equal(approxIp("1.2.3"), null);
 });
 
 console.log(`\ncli/device: ${passed} o'tdi, ${failed} xato`);

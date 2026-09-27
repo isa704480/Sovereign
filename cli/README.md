@@ -37,7 +37,7 @@ npm install -g @islombekrrr/sov-cli
 ## Ulanish
 
 ```bash
-sov login                 # brauzerda "Ruxsat berish" — akkaunt, tarifingiz amal qiladi
+sov login                 # terminaldagi kodni brauzerga kiritib "Ruxsat berish" — akkaunt, tarifingiz amal qiladi
 sov key sk-or-v1-...      # yoki o'z OpenRouter kalitingiz
 sov doctor                # hammasi to'g'rimi?
 ```

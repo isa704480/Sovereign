@@ -32,6 +32,7 @@ import { P12J } from "@/lib/locales/p12-judge";
 import { P13E } from "@/lib/locales/p13-econ";
 import { P14I } from "@/lib/locales/p14-inquiry";
 import { P15A } from "@/lib/locales/p15-audit";
+import { P17D } from "@/lib/locales/p17-device";
 
 export type Lang = "uz" | "uz-cyrl" | "ru" | "en";
 
@@ -524,7 +525,7 @@ const CORE = {
   onbEnter: { uz: "SOVEREIGN'ga kirish", "uz-cyrl": "SOVEREIGN'га кириш", ru: "Войти в SOVEREIGN", en: "Enter SOVEREIGN" },
 } as const;
 
-const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D, ...P9W, ...P10R, ...P11C, ...P12J, ...P13E, ...P14I, ...P15A };
+const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D, ...P9W, ...P10R, ...P11C, ...P12J, ...P13E, ...P14I, ...P15A, ...P17D };
 
 export type TKey = keyof typeof DICT;
 

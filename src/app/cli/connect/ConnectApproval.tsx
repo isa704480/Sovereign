@@ -1,20 +1,31 @@
 "use client";
 
-import { AlertTriangle, Check, MapPin, Monitor, ShieldCheck, TerminalSquare, X } from "lucide-react";
+import { AlertTriangle, Check, Clock, KeyRound, MapPin, Monitor, ShieldAlert, ShieldCheck, TerminalSquare, X } from "lucide-react";
 import { motion } from "motion/react";
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import { approveCliDevice, denyCliDevice } from "@/app/actions/cli";
 import { LogoMark } from "@/components/brand/Logo";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { countryFlag, countryName } from "@/config/countries";
 import type { PendingInfo } from "@/lib/cli/device";
+import type { CliLoginRef } from "@/lib/cli/user-code";
+import { normalizeLegacyCode, normalizeUserCode, prettifyTyping } from "@/lib/cli/user-code-format";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { LANGS, fmt } from "@/lib/i18n";
 import { useLang, useT } from "@/store/chat";
 
+/**
+ * code            — yangi mijoz (`?h=`): user code ("ABCD-1234") teriladi;
+ * legacy          — eski mijoz (`?code=`): ekrandagi kodning birinchi 8 belgisi teriladi;
+ * legacy_disabled — eski havola, CLI_LEGACY_LOGIN=off: "ilovani yangilang";
+ * invalid         — havola yo'q / buzilgan / muddati o'tgan.
+ */
+export type ConnectMode = "code" | "legacy" | "legacy_disabled" | "invalid";
+
 interface ConnectApprovalProps {
-  code: string;
+  loginRef: CliLoginRef | null;
+  mode: ConnectMode;
   name: string;
   email: string;
   plan: string;
@@ -23,45 +34,54 @@ interface ConnectApprovalProps {
 }
 
 /**
- * CLI / Cowork device-login tasdiqlash kartasi (src/components/cli/CliConnect.tsx ning
- * phishing'ga chidamli davomi, audit cli-api-1):
- *  - kim so'rayapti: qurilma nomi, so'rov vaqti, boshlovchi tarmoq/mamlakat;
- *  - boshqa mamlakatdan kelgan so'rov → qat'iy ogohlantirish + aniq tasdiq (checkbox);
+ * CLI / Cowork device-login tasdiqlash kartasi (RFC 8628 uslubi, phishing'ga chidamli):
+ *  - URL'ning o'zi hech narsani tasdiqlamaydi — foydalanuvchi O'Z ekranidagi kodni teradi;
+ *  - kim so'rayapti: qurilma nomi / OS, so'rov vaqti, taxminiy IP va mamlakat;
+ *  - "faqat o'z ekraningizdagi kodni kiriting" ogohlantirishi; boshqa mamlakat → aniq tasdiq;
  *  - "Bekor qilish" kodni serverda ham bekor qiladi (cli_deny).
  */
-export function ConnectApproval({ code, name, email, plan, info }: ConnectApprovalProps) {
+export function ConnectApproval({ loginRef, mode, name, email, plan, info }: ConnectApprovalProps) {
   const t = useT();
   const lang = useLang();
   const [pending, startTransition] = useTransition();
-  const [state, setState] = useState<"idle" | "done" | "denied" | "error">("idle");
-  const [error, setError] = useState<string | null>(info && !info.pending ? t("auCliErrExpired") : null);
+  const [state, setState] = useState<"idle" | "done" | "denied">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [final, setFinal] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [typed, setTyped] = useState("");
   const planName = (isPlanId(plan) ? PLAN_BY_ID[plan] : PLAN_BY_ID.free).name;
 
-  const gone = !!info && !info.pending;
+  const legacy = mode === "legacy";
+  const gone = mode === "invalid" || (!!info && !info.pending);
   const strict = info?.match === "other-country";
-  const canApprove = !gone && !pending && (!strict || confirmed);
+  const typedOk = legacy ? !!(normalizeLegacyCode(typed) || normalizeUserCode(typed)) : !!normalizeUserCode(typed);
+  const canApprove = !gone && !final && !pending && typedOk && (!strict || confirmed) && !!loginRef;
   const locale = LANGS.find((l) => l.id === lang)?.htmlLang ?? "en";
   const place = info?.startCountry ? `${countryFlag(info.startCountry)} ${countryName(info.startCountry, lang)}` : null;
-  const requestedAt = info?.requestedAt ? new Date(info.requestedAt) : null;
+  const time = (iso: string | null | undefined) =>
+    iso ? new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) : null;
+  const requestedAt = time(info?.requestedAt);
+  const expiresAt = time(info?.expiresAt);
+  const osLine = [info?.os, info?.app].filter(Boolean).join(" · ");
 
-  function approve() {
-    if (!canApprove) return;
+  function approve(e?: FormEvent) {
+    e?.preventDefault();
+    if (!canApprove || !loginRef) return;
     setError(null);
     startTransition(async () => {
-      const res = await approveCliDevice(code);
+      const res = await approveCliDevice(loginRef, typed);
       if (res.ok) setState("done");
       else {
         setError(res.error);
-        setState("error");
+        if (res.final) setFinal(true);
       }
     });
   }
 
   function deny() {
     startTransition(async () => {
-      // Server xatosi bo'lsa ham foydalanuvchi uchun rad etilgan (kod baribir 5 daqiqada eskiradi).
-      await denyCliDevice(code).catch(() => undefined);
+      // Server xatosi bo'lsa ham foydalanuvchi uchun rad etilgan (kod baribir 5–10 daqiqada eskiradi).
+      if (loginRef) await denyCliDevice(loginRef).catch(() => undefined);
       setState("denied");
     });
   }
@@ -104,8 +124,28 @@ export function ConnectApproval({ code, name, email, plan, info }: ConnectApprov
             <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary">{t("auCliDenied")}</h1>
             <p className="mt-2 text-sm text-text-secondary">{t("auCliDeniedDesc")}</p>
           </>
-        ) : (
+        ) : gone ? (
           <>
+            <h1 className="font-display text-2xl font-extrabold text-text-primary">{t("auCliTitle")}</h1>
+            <p className="mt-4 text-sm text-error">{t("auCliErrExpired")}</p>
+            <p className="mt-2 text-xs text-text-muted">{t("p17dStartAgain")}</p>
+          </>
+        ) : mode === "legacy_disabled" ? (
+          <>
+            <h1 className="font-display text-2xl font-extrabold text-text-primary">{t("auCliTitle")}</h1>
+            <p className="mt-4 text-sm text-text-secondary">{t("p17dLegacyDisabled")}</p>
+            <p className="mt-2 font-mono text-xs text-text-muted">{t("p17dUpdateHint")}</p>
+            <button
+              type="button"
+              onClick={deny}
+              disabled={pending}
+              className="mt-6 h-11 w-full rounded-xl border border-border text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+            >
+              {t("auCliCancel")}
+            </button>
+          </>
+        ) : (
+          <form onSubmit={approve} noValidate>
             <h1 className="font-display text-2xl font-extrabold text-text-primary">{t("auCliTitle")}</h1>
             <p className="mt-2 text-sm text-text-secondary">{t("auCliRequest")}</p>
 
@@ -117,45 +157,50 @@ export function ConnectApproval({ code, name, email, plan, info }: ConnectApprov
               </div>
             </div>
 
-            {info && !gone && (
+            {info && (
               <dl className="mt-4 space-y-1.5 rounded-xl border border-border bg-bg-base/40 px-3 py-2.5 text-left text-xs">
                 <div className="flex items-start gap-2">
                   <Monitor className="mt-0.5 size-3.5 shrink-0 text-text-muted" aria-hidden />
                   <dt className="sr-only">{t("auCliDeviceLabel")}</dt>
-                  <dd className="min-w-0 break-words text-text-primary">{info.device || t("auCliDeviceUnknown")}</dd>
+                  <dd className="min-w-0 break-words text-text-primary">
+                    {info.device || t("auCliDeviceUnknown")}
+                    {osLine && <span className="text-text-muted"> · {osLine}</span>}
+                  </dd>
                 </div>
                 {requestedAt && (
                   <div className="flex items-start gap-2 text-text-muted">
+                    <Clock className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                     <dt className="shrink-0">{t("auCliRequestedLabel")}:</dt>
                     <dd suppressHydrationWarning>
-                      {requestedAt.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
+                      {requestedAt}
+                      {expiresAt && <> · {fmt(t("p17dValidUntil"), { time: expiresAt })}</>}
                     </dd>
                   </div>
                 )}
-                {(place || info.startIp) && (
+                {(place || info.ipApprox) && (
                   <div className="flex items-start gap-2 text-text-muted">
                     <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                     <dt className="sr-only">{t("auCliLocationLabel")}</dt>
                     <dd className="min-w-0 break-words">
-                      {[place, info.startIp].filter(Boolean).join(" · ")}
+                      {[place, info.ipApprox ? fmt(t("p17dIpApprox"), { ip: info.ipApprox }) : null].filter(Boolean).join(" · ")}
                     </dd>
                   </div>
                 )}
               </dl>
             )}
 
-            {info?.match === "same" && !gone && (
+            {info?.match === "same" && (
               <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-success">
                 <ShieldCheck className="size-3.5" aria-hidden />
                 {t("auCliNetSame")}
               </p>
             )}
-            {info?.match === "other-ip" && !gone && (
+            {info?.match === "other-ip" && (
               <p className="mt-3 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-left text-xs text-text-secondary">
-                {fmt(t("auCliNetOtherIp"), { ip: info.startIp ?? "?" })}
+                {fmt(t("auCliNetOtherIp"), { ip: info.ipApprox ?? "?" })}
               </p>
             )}
-            {strict && !gone && (
+            {strict && (
               <div role="alert" className="mt-3 rounded-xl border border-error/40 bg-error/10 px-3 py-2.5 text-left text-xs text-text-primary">
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0 text-error" aria-hidden />
@@ -173,11 +218,51 @@ export function ConnectApproval({ code, name, email, plan, info }: ConnectApprov
               </div>
             )}
 
-            <div className="mt-4 rounded-xl border border-border bg-bg-base/40 px-3 py-2 text-left font-mono text-[11px] text-text-muted">
-              {t("auCliCode")}: {code.slice(0, 8)}…{code.slice(-4)}
+            <div className="mt-4 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2.5 text-left text-xs text-text-primary">
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+                <div>
+                  <div className="font-semibold">{t("p17dWarnTitle")}</div>
+                  <div className="mt-1 text-text-secondary">{t("p17dWarnBody")}</div>
+                </div>
+              </div>
             </div>
 
-            {error && <p className="mt-3 text-sm text-error">{error}</p>}
+            <label htmlFor="cli-user-code" className="mt-5 flex items-center justify-center gap-1.5 text-sm font-medium text-text-primary">
+              <KeyRound className="size-4 text-primary-soft" aria-hidden />
+              {t("p17dTypeTitle")}
+            </label>
+            <p id="cli-user-code-desc" className="mt-1 text-xs text-text-muted">
+              {legacy ? t("p17dTypeDescLegacy") : t("p17dTypeDesc")}
+            </p>
+            {legacy && <p className="mt-1 font-mono text-[11px] text-text-muted">{t("p17dUpdateHint")}</p>}
+            <input
+              id="cli-user-code"
+              name="user-code"
+              value={typed}
+              onChange={(e) => {
+                setTyped(prettifyTyping(e.target.value, legacy ? "legacy" : "code"));
+                if (!final) setError(null);
+              }}
+              disabled={final || pending}
+              autoFocus
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              inputMode="text"
+              maxLength={16}
+              placeholder={legacy ? t("p17dPlaceholderLegacy") : t("p17dPlaceholder")}
+              aria-describedby="cli-user-code-desc"
+              aria-invalid={!!error}
+              className="mt-3 h-14 w-full rounded-xl border border-border bg-bg-base/70 text-center font-mono text-2xl font-bold tracking-[0.25em] text-text-primary uppercase placeholder:text-base placeholder:font-normal placeholder:tracking-normal placeholder:normal-case placeholder:text-text-muted focus:border-primary focus:outline-none disabled:opacity-60"
+            />
+
+            {error && (
+              <p role="alert" className="mt-3 text-sm text-error">
+                {error}
+              </p>
+            )}
 
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
@@ -189,8 +274,7 @@ export function ConnectApproval({ code, name, email, plan, info }: ConnectApprov
                 {t("auCliCancel")}
               </button>
               <button
-                type="button"
-                onClick={approve}
+                type="submit"
                 disabled={!canApprove}
                 className="h-11 rounded-xl bg-primary text-sm font-semibold text-white shadow-glow transition-colors hover:bg-primary-dark disabled:opacity-60"
               >
@@ -198,8 +282,7 @@ export function ConnectApproval({ code, name, email, plan, info }: ConnectApprov
               </button>
             </div>
             <p className="mt-4 text-xs text-text-muted">{t("auCliWarning")}</p>
-            <p className="mt-2 text-xs font-medium text-text-secondary">{t("auCliNotYou")}</p>
-          </>
+          </form>
         )}
       </motion.div>
     </main>

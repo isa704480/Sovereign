@@ -99,6 +99,76 @@ export async function rateLimit(key: string, limit: number, windowMs: number): P
   return localLimit(key, limit, windowMs);
 }
 
+// ---- Faqat MUVAFFAQIYATSIZ urinishlar hisoblagichi ------------------------
+// rateLimit() har chaqiruvni sanaydi; bu yerda esa faqat xatolar (masalan, noto'g'ri
+// terilgan device-login kodi) sanaladi, tekshirish (count) esa hisobni o'zgartirmaydi.
+// Oyna — birinchi xatodan boshlab qat'iy (fixed window). Redis bo'lmasa/xato bersa — mahalliy.
+type FailBucket = { n: number; resetAt: number };
+const failLocal = new Map<string, FailBucket>();
+const FAIL_PREFIX = "sov-fail:";
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("timeout")), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+function localFailures(key: string): FailBucket | null {
+  const b = failLocal.get(key);
+  if (!b) return null;
+  if (b.resetAt <= Date.now()) {
+    failLocal.delete(key);
+    return null;
+  }
+  return b;
+}
+
+/** Joriy oynadagi xatolar soni (hisobni o'zgartirmaydi). */
+export async function failureCount(key: string): Promise<number> {
+  warnIfNoRedis();
+  if (redis) {
+    try {
+      const v = await withTimeout(redis.get<number | string>(`${FAIL_PREFIX}${key}`), 1000);
+      return Math.max(Number(v) || 0, localFailures(key)?.n ?? 0);
+    } catch (e) {
+      console.error("[rate-limit] failureCount:", e instanceof Error ? e.message : e);
+    }
+  }
+  return localFailures(key)?.n ?? 0;
+}
+
+/** Bitta xatoni yozadi va oynadagi yangi sonni qaytaradi. */
+export async function recordFailure(key: string, windowMs: number): Promise<number> {
+  warnIfNoRedis();
+  // Mahalliy nusxa har doim yuritiladi — Redis keyin uzilsa ham shu instansiyada qulf saqlanadi.
+  const b = localFailures(key) ?? { n: 0, resetAt: Date.now() + windowMs };
+  b.n += 1;
+  failLocal.set(key, b);
+  if (redis) {
+    try {
+      // SET NX PX avval — kalit HAR DOIM muddatli yaratiladi (INCR muddatsiz kalit qoldirmaydi).
+      const p = redis.pipeline();
+      p.set(`${FAIL_PREFIX}${key}`, 0, { nx: true, px: windowMs });
+      p.incr(`${FAIL_PREFIX}${key}`);
+      const res = await withTimeout(p.exec(), 1000);
+      return Math.max(Number(res[1]) || 0, b.n);
+    } catch (e) {
+      console.error("[rate-limit] recordFailure:", e instanceof Error ? e.message : e);
+    }
+  }
+  return b.n;
+}
+
 /** Client IP ni Vercel / oldingi proxy sarlavhalaridan oladi. */
 export function clientIp(req: Request): string {
   return (
@@ -129,4 +199,5 @@ export function ipKey(ip: string): string {
 setInterval(() => {
   const now = Date.now();
   for (const [k, b] of buckets) if (b.last < now - b.windowMs) buckets.delete(k);
-}, 5 * 60 * 1000).unref?.();
+  for (const [k, b] of failLocal) if (b.resetAt <= now) failLocal.delete(k);
+},5 * 60 * 1000).unref?.();

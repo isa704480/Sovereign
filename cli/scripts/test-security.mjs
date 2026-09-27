@@ -186,6 +186,19 @@ await test("--help: full auto sandbox emasligini ochiq aytadi", () => {
   assert.ok(!r.stdout.includes("push/publish/deploy rad etiladi)"), "eski kafolat iborasi qolmasin");
 });
 
+// ---- device-login: user code / URL ko'rsatish (phishing'ga qarshi) -------
+await test("login: user code faqat XXXX-XXXX formatida ko'rsatiladi (ANSI/matn in'eksiyasi yo'q)", async () => {
+  const { displayUserCode, safeUrl } = await import("../src/login.mjs");
+  assert.equal(displayUserCode("ABCD-1234"), "ABCD-1234");
+  for (const bad of ["abcd-1234", "ABCD1234", "ABCD-1234\u001b[2J", "\u001b]0;x\u0007", "", null, 42, "ABCD-12345"]) {
+    assert.equal(displayUserCode(bad), null, JSON.stringify(bad));
+  }
+  assert.equal(safeUrl("https://app.soveregn.xyz/cli/connect?h=abc"), "https://app.soveregn.xyz/cli/connect?h=abc");
+  for (const bad of ["javascript:alert(1)", "file:///etc/passwd", "https://x.y/\u001b[2J", "https://x.y/ a", 7]) {
+    assert.equal(safeUrl(bad), null, JSON.stringify(bad));
+  }
+});
+
 process.chdir(origCwd);
 try {
   rmSync(tmp, { recursive: true, force: true });

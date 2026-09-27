@@ -4,6 +4,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { folderKey, sameFolder, persistentAutoRun, hasHiddenFormat, inlineEval, fullAutoMustAsk } from "../electron/full-auto.mjs";
 import { parseSig, verifyManifest, infoMatchesManifest, channelFile } from "../electron/update-sig.mjs";
 import { signingConfig } from "./signing-config.mjs";
+import { displayUserCode, startLogin } from "../electron/auth.mjs";
 
 let n = 0;
 const test = (name, fn) => {
@@ -147,5 +148,54 @@ test("imzo: macOS Developer ID + notarizatsiya", () => {
   assert.equal(r2.config.mac.notarize, false);
   assert.equal(quiet(() => signingConfig("--mac", { APPLE_ID: "a", APPLE_APP_SPECIFIC_PASSWORD: "p", APPLE_TEAM_ID: "T" })), null);
 });
+
+// ---- Device-login: user code (phishing'ga qarshi) ----
+test("displayUserCode: faqat XXXX-XXXX", () => {
+  assert.equal(displayUserCode("ABCD-1234"), "ABCD-1234");
+  for (const bad of ["abcd-1234", "ABCD1234", "<img src=x>", "ABCD-1234\n", null, 5]) assert.equal(displayUserCode(bad), null);
+});
+
+async function loginEvents(startResponse) {
+  const events = [];
+  const bodies = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).endsWith("/api/cli/start")) {
+      bodies.push(JSON.parse(init.body));
+      return new Response(JSON.stringify(startResponse), { status: 200 });
+    }
+    return new Response(JSON.stringify({ status: "expired" }), { status: 200 });
+  };
+  try {
+    const login = startLogin({ baseUrl: "https://api.soveregn.xyz", saveConfig: () => {}, openExternal: async () => {}, emit: (e) => events.push(e) });
+    await login.promise;
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  return { events, bodies };
+}
+
+{
+  const dev = "ab".repeat(24);
+  const modern = await loginEvents({ code: dev, url: "https://app.soveregn.xyz/cli/connect?h=xyz", userCode: "QX7P-4KDM" });
+  assert.equal(modern.bodies[0].userCode, true, "yangi mijoz o'zini bildiradi");
+  const waiting = modern.events.find((e) => e.state === "waiting");
+  assert.equal(waiting.userCode, "QX7P-4KDM");
+  assert.equal(waiting.code, undefined, "device kodi UI'ga chiqmaydi");
+  n++;
+  console.log("✓ startLogin: yangi server — user code ko'rsatiladi, device kodi yashirin");
+
+  const legacy = await loginEvents({ code: dev, url: `https://app.soveregn.xyz/cli/connect?code=${dev}` });
+  const w2 = legacy.events.find((e) => e.state === "waiting");
+  assert.equal(w2.userCode, undefined);
+  assert.equal(w2.code, dev.slice(0, 32), "eski server — avvalgi xatti-harakat");
+  n++;
+  console.log("✓ startLogin: eski server — device kodi boshi (orqaga moslik)");
+
+  const evil = await loginEvents({ code: dev, url: "https://app.soveregn.xyz/cli/connect?h=xyz", userCode: "\u001b[2JHACK-ED!!" });
+  assert.equal(evil.events.find((e) => e.state === "waiting").userCode, undefined);
+  n++;
+  console.log("✓ startLogin: noto'g'ri formatdagi user code ko'rsatilmaydi");
+}
 
 console.log(`\n${n} ta test o'tdi`);

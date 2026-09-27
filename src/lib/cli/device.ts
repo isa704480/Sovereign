@@ -86,10 +86,55 @@ export interface PendingInfo {
   /** Kod hali tasdiqlanishi mumkinmi (false — eskirgan / bekor qilingan / ishlatilgan). */
   pending: boolean;
   device: string;
+  /** device_name dan ajratilgan OS (Windows / macOS / Linux …) va ilova (CLI / Cowork). */
+  os: string | null;
+  app: "CLI" | "Cowork" | null;
   requestedAt: string | null;
+  /** Terilgan kod shu vaqtgacha amal qiladi (min(sessiya muddati, yaratilgan + 10 daqiqa)). */
+  expiresAt: string | null;
   startCountry: string | null;
-  startIp: string | null;
+  /** Boshlovchi IP — taxminiy (IPv4 /24, IPv6 /48); to'liq manzil brauzerga yuborilmaydi. */
+  ipApprox: string | null;
   match: NetworkMatch;
+}
+
+const OS_NAMES: Record<string, string> = {
+  win32: "Windows",
+  darwin: "macOS",
+  linux: "Linux",
+  freebsd: "FreeBSD",
+  openbsd: "OpenBSD",
+  android: "Android",
+  aix: "AIX",
+  sunos: "SunOS",
+};
+
+/**
+ * CLI/Cowork yuboradigan qurilma nomi: "HOST (win32)" yoki "HOST (darwin) · Cowork".
+ * Eslatma: bu matnni kirishni BOSHLAGAN tomon yuboradi — ma'lumot uchun, isbot emas.
+ */
+export function describeDevice(name: string | null | undefined): { host: string; os: string | null; app: "CLI" | "Cowork" | null } {
+  const raw = (name ?? "").replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").trim().slice(0, 80);
+  const m = /^(.*?)\s*\(([a-z0-9_]{2,16})\)\s*(?:·\s*(.*))?$/i.exec(raw);
+  if (!m) return { host: raw, os: null, app: raw ? "CLI" : null };
+  const plat = m[2].toLowerCase();
+  return {
+    host: m[1].trim(),
+    os: OS_NAMES[plat] ?? plat,
+    app: /cowork/i.test(m[3] ?? "") ? "Cowork" : "CLI",
+  };
+}
+
+/** Taxminiy IP: IPv4 → "203.0.113.x", IPv6 → "2001:db8:1::/48". Noma'lum → null. */
+export function approxIp(ip: string | null | undefined): string | null {
+  const raw = (ip ?? "").trim().toLowerCase();
+  if (!raw || raw === "unknown") return null;
+  if (!raw.includes(":")) {
+    const p = raw.split(".");
+    return p.length === 4 && p.every((x) => /^\d{1,3}$/.test(x)) ? `${p[0]}.${p[1]}.${p[2]}.x` : null;
+  }
+  const net = networkKey(raw);
+  return net ? `${net.split(":").slice(0, 3).join(":")}::/48` : null;
 }
 
 /** Boshqa tarmoqdan kelgan so'rovni tasdiqlashdan oldin aniq tasdiq (checkbox) kerakmi. */
