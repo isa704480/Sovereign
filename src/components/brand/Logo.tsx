@@ -95,7 +95,8 @@ export function Logo({ className, size = 28, withText = true, href = "/" }: Logo
   );
   if (!href) return content;
   return (
-    <Link href={href} aria-label={t("chLogoHomeAria")} className="inline-flex">
+    // after: — 44px bosish maydoni, joylashuv o'zgarmaydi.
+    <Link href={href} aria-label={t("chLogoHomeAria")} className="relative inline-flex after:absolute after:-inset-2 after:content-['']">
       {content}
     </Link>
   );
