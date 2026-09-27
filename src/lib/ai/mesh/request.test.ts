@@ -103,6 +103,16 @@ async function main() {
     assert.equal(proHaiku.substituteTier, "starter");
   });
 
+  await test("webRouteRequest: o'ylash afzalligi needs.thinking'ga o'tadi (berilmasa — maydon yo'q)", () => {
+    const none = webRouteRequest({ modelId: "claude-haiku-4-5", messages: [], country: null, planTier: "pro" });
+    assert.equal("thinking" in none.needs, false, "afzallik berilmasa maydon qo'shilmaydi");
+    const on = webRouteRequest({ modelId: "claude-haiku-4-5", messages: [], country: null, planTier: "pro", thinking: true });
+    assert.equal(on.needs.thinking, true);
+    // Free: ataylab tez (flash) modelga suriladi.
+    const fast = webRouteRequest({ modelId: "auto", messages: [], country: null, planTier: "free", thinking: false });
+    assert.equal(fast.needs.thinking, false);
+  });
+
   await test("tarif oqishi (regress #1b): upstream nomi bilan Ultra model — web va CLI so'rovida Pro'ga aynan-model yo'q", () => {
     const adapters = Object.values(ADAPTER_BY_ID).map((a) => ({ ...a, enabled: () => true, offers: a.offers }));
     const health = new Map();

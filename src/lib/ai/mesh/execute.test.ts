@@ -532,6 +532,53 @@ async function main() {
     assert.deepEqual(evs.map((e) => e.type), ["served", "reasoning", "text", "done"]);
   });
 
+  await test("needs.thinking: fikrlaydigan modelga reasoning_effort qo'shiladi", async () => {
+    const oss = adapter("groq", [offer("openai/gpt-oss-120b", [LLAMA])]);
+    replies = [() => sse("openai/gpt-oss-120b", ["ok"])];
+    await run([oss], req({ needs: { stream: true, thinking: true } }));
+    assert.equal(calls[0].body.reasoning_effort, "medium");
+  });
+
+  await test("needs.thinking: fikrlamaydigan modelga hech narsa qo'shilmaydi", async () => {
+    replies = [() => sse("llama-3.3-70b", ["ok"])];
+    await run([groq], req({ needs: { stream: true, thinking: true } }));
+    assert.equal("reasoning_effort" in calls[0].body, false);
+    assert.equal("reasoning" in calls[0].body, false);
+  });
+
+  await test("thinking so'ralmasa — reasoning maydoni yuborilmaydi", async () => {
+    const oss = adapter("groq", [offer("openai/gpt-oss-120b", [LLAMA])]);
+    replies = [() => sse("openai/gpt-oss-120b", ["ok"])];
+    await run([oss]);
+    assert.equal("reasoning_effort" in calls[0].body, false);
+  });
+
+  await test("upstream usage bermasa: fikr tokenlari ham chiqishga qo'shiladi", async () => {
+    const tok = adapter("groq", [offer("deepseek-r1-distill-llama-70b", [LLAMA])], {
+      limits: { unit: "tokens", tpd: 1_000_000, perModel: true, source: "test" },
+    });
+    const answer = () => sseLines([{ model: "m", choices: [{ delta: { content: "Javob" }, finish_reason: "stop" }] }]);
+    // 1) faqat javob
+    replies = [answer];
+    await run([tok]);
+    const withoutThinking = usages[0].units;
+
+    // 2) o'sha javob + 400 belgilik fikr (~100 token)
+    calls = [];
+    usages = [];
+    records = [];
+    store.clear();
+    replies = [
+      () =>
+        sseLines([
+          { model: "m", choices: [{ delta: { reasoning_content: "o".repeat(400) } }] },
+          { model: "m", choices: [{ delta: { content: "Javob" }, finish_reason: "stop" }] },
+        ]),
+    ];
+    await run([tok]);
+    assert.equal(usages[0].units, withoutThinking + 100, "fikr matni chiqish tokenlariga qo'shilishi kerak");
+  });
+
   await test("affordTokens: shu nomzod bir marta kamroq max_tokens bilan, sog'liq yozilmaydi", async () => {
     replies = [() => json(402, { error: { message: "You requested up to 8000 tokens, but can only afford 1000" } }), () => sse("m", ["ok"])];
     const evs = await run([groq, cerebras], req(), { max_tokens: 8000 });

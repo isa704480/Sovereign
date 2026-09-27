@@ -58,6 +58,7 @@ function buildDocsData(): DocsData {
       fullCode: Boolean(p.limits.fullCode),
       research: Boolean(p.limits.research),
       deepResearch: Boolean(p.limits.deepResearch),
+      thinking: Boolean(p.limits.thinking),
       priority: Boolean(p.limits.priority),
     })),
   };

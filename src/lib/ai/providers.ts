@@ -1361,6 +1361,13 @@ export interface StreamOptions {
    */
   planTier?: PlanTier;
   /**
+   * "O'ylab javob" (thinking) marshrut afzalligi — lib/chat/thinking.ts `resolveThinking`
+   * qaytaradi: true — fikrlaydigan modelga ustunlik (pullik tarif, chip yoqilgan);
+   * false — tez (flash) modelga ustunlik (Free tarifi); berilmasa — farqi yo'q.
+   * Qat'iy filtr emas: mos model bo'lmasa oddiy model javob beradi.
+   */
+  thinking?: boolean;
+  /**
    * Butun so'rovning umumiy muddati (epoch ms). Chat route bir nechta nomzodni ketma-ket
    * chaqirganda ham maxDuration (120 s) dan oshmasin — har urinish taymauti = min(taymaut, qolgan).
    */
@@ -1462,6 +1469,7 @@ async function* streamViaMesh(opts: StreamOptions): AsyncGenerator<StreamEvent> 
       freeRescue: opts.freeRescue,
       ownModel: isOwnModel(model.providerModel),
       planTier: opts.planTier,
+      ...(opts.thinking === undefined ? {} : { thinking: opts.thinking }),
       exclude: meshExclude(opts.exclude),
     }),
     body: { messages, temperature: opts.temperature ?? 0.7, max_tokens: opts.maxTokens ?? 2048 },
@@ -1486,6 +1494,7 @@ function logShadowPlan(opts: StreamOptions): void {
       freeRescue: opts.freeRescue,
       ownModel: catalog ? isOwnModel(catalog.providerModel) : false,
       planTier: opts.planTier,
+      ...(opts.thinking === undefined ? {} : { thinking: opts.thinking }),
     });
     const kept = formatExplain(explain(req, { adapters: enabledAdapters(), health: NO_HEALTH }))
       .filter((l) => l.startsWith("#"))

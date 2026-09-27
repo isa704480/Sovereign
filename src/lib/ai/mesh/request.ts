@@ -53,6 +53,12 @@ export function webRouteRequest(opts: {
   ownModel?: boolean;
   /** Foydalanuvchi tarifi (chat route: plan.id). */
   planTier?: PlanTier;
+  /**
+   * "O'ylab javob" afzalligi (chat route: lib/chat/thinking.ts `resolveThinking`):
+   * true — fikrlaydigan modelga ustunlik; false — tez (flash) modelga ustunlik (Free tarifi);
+   * berilmasa — farqi yo'q. Qat'iy filtr emas: mos model bo'lmasa javob baribir keladi.
+   */
+  thinking?: boolean;
   /** Shu so'rovda (oldingi nomzodlarda) yiqilgan provayderlar. */
   exclude?: RouteRequest["exclude"];
 }): RouteRequest {
@@ -65,7 +71,11 @@ export function webRouteRequest(opts: {
     planTier: plan,
     substituteTier: minTier(plan, tier ?? "free"),
     ...(opts.exclude?.length ? { exclude: [...opts.exclude] } : {}),
-    needs: { stream: true, vision: hasImageInput(opts.messages) },
+    needs: {
+      stream: true,
+      vision: hasImageInput(opts.messages),
+      ...(opts.thinking === undefined ? {} : { thinking: opts.thinking }),
+    },
     country: opts.country ?? null,
     ...(own ? { sameModelOnly: true } : {}),
     allowRescue: !own && opts.freeRescue !== false,

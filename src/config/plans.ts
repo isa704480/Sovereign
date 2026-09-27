@@ -53,6 +53,13 @@ export interface Plan {
     research: boolean;
     /** Perplexity Sonar Pro chuqur tadqiqot. */
     deepResearch: boolean;
+    /**
+     * "O'ylab javob" (thinking/reasoning) — model javobdan oldin fikr yuritadi va bu jarayon
+     * javob ustidagi yig'iladigan panelda ko'rsatiladi. Free'da yopiq: tekin tarif tez
+     * (flash) modellarga yo'naltiriladi va provayder o'zicha yuborgan reasoning ham
+     * serverda kesib tashlanadi (mijozga ham, hisobga ham yozilmaydi).
+     */
+    thinking: boolean;
     /** Ustuvor navbat (Groq → OpenAI premium marshrutga o'tadi). */
     priority: boolean;
   };
@@ -103,6 +110,7 @@ export const PLANS: Plan[] = [
       fullCode: false,
       research: false,
       deepResearch: false,
+      thinking: false,
       priority: false,
     },
     features: [
@@ -130,6 +138,7 @@ export const PLANS: Plan[] = [
       fullCode: false,
       research: false,
       deepResearch: false,
+      thinking: true,
       priority: false,
     },
     features: [
@@ -138,6 +147,7 @@ export const PLANS: Plan[] = [
       "3× ko'proq token / oy",
       "Uzunroq javoblar (4K token)",
       "Kod: to'liq o'rtacha misollar",
+      "O'ylab javob berish — model fikr yuritishini ko'rsatadi",
     ],
     color: "#10D4A0",
   },
@@ -157,6 +167,7 @@ export const PLANS: Plan[] = [
       fullCode: true,
       research: true,
       deepResearch: false,
+      thinking: true,
       priority: false,
     },
     features: [
@@ -166,6 +177,7 @@ export const PLANS: Plan[] = [
       "10× ko'proq token / oy",
       "To'liq kod generatsiyasi (4K token)",
       "CLI kod-agent to'liq",
+      "O'ylab javob berish — fikrlaydigan modellarga ustunlik",
     ],
     highlight: true,
     color: "#5B50F0",
@@ -186,6 +198,7 @@ export const PLANS: Plan[] = [
       fullCode: true,
       research: true,
       deepResearch: true,
+      thinking: true,
       priority: true,
     },
     features: [
@@ -196,6 +209,7 @@ export const PLANS: Plan[] = [
       "Eng uzun javoblar (8K token)",
       "Ustuvor navbat — hech qachon kutmayapsiz",
       "Erta-yangi modellar",
+      "O'ylab javob berish — eng kuchli fikrlaydigan modellar",
     ],
     color: "#FF7000",
   },

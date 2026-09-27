@@ -120,7 +120,6 @@ export const CHAT = {
   },
 
   // ---- MessageItem ----
-  chThinking: { uz: "O'ylash jarayoni", "uz-cyrl": "Ўйлаш жараёни", ru: "Ход рассуждений", en: "Thinking process" },
   chCacheTitle: {
     uz: "Semantik keshdan ({n}% o'xshash) — arzon va tez",
     "uz-cyrl": "Семантик кешдан ({n}% ўхшаш) — арзон ва тез",

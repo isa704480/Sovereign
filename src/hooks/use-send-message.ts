@@ -9,6 +9,7 @@ import { detectImageIntent } from "@/lib/chat/image-intent";
 import { detectVideoIntent, videoAvailable } from "@/lib/chat/video-intent";
 import { streamChat } from "@/lib/chat/sse-client";
 import { buildUserContent, type Attachment } from "@/lib/chat/attachments";
+import { emptyThinking, finishThinking, pushReasoning } from "@/lib/chat/thinking";
 import {
   CUSTOM_SKILL_PREFIX,
   INQUIRY_WIRE,
@@ -367,7 +368,8 @@ export function useSendMessage(opts?: { memoryEnabled?: boolean }) {
     setStreaming(true);
 
     let text = "";
-    let reasoning = "";
+    // "O'ylab javob": fikr matni + davomiylik (birinchi ↔ oxirgi fikr bo'lagi orasi).
+    let think = emptyThinking();
     let citations: string[] | undefined;
     let skills: string[] | undefined;
     let failed: string | null = null;
@@ -386,6 +388,7 @@ export function useSendMessage(opts?: { memoryEnabled?: boolean }) {
       await streamChat({
         modelId: conv.modelId,
         research: conv.research,
+        thinking: state0.thinking,
         skills: state0.enabledSkills,
         // Only the custom skills the user switched on travel with the request.
         customSkills: state0.customSkills
@@ -416,8 +419,11 @@ export function useSendMessage(opts?: { memoryEnabled?: boolean }) {
               s.updateMessage(conversationId, assistant.id, { content: shown });
             }
           } else if (ev.type === "reasoning") {
-            reasoning += ev.text;
-            s.updateMessage(conversationId, assistant.id, { reasoning });
+            think = pushReasoning(think, ev.text, Date.now());
+            s.updateMessage(conversationId, assistant.id, { reasoning: think.reasoning, thinkingMs: think.durationMs });
+          } else if (ev.type === "thinkingNote") {
+            // Server: fikrlaydigan model topilmadi — javobni oddiy model berdi.
+            s.updateMessage(conversationId, assistant.id, { thinkingNote: ev.text });
           } else if (ev.type === "citations") {
             citations = ev.citations;
             s.updateMessage(conversationId, assistant.id, { citations });
@@ -495,6 +501,7 @@ export function useSendMessage(opts?: { memoryEnabled?: boolean }) {
       }
     }
 
+    think = finishThinking(think);
     const s = useChat.getState();
     const card = askCard as InquiryEvent | null;
     if (card && !text.trim()) {
@@ -521,6 +528,7 @@ export function useSendMessage(opts?: { memoryEnabled?: boolean }) {
         content: finalContent,
         citations,
         skills,
+        ...(think.durationMs === undefined ? {} : { thinkingMs: think.durationMs }),
         ...(failed ? { error: failed } : {}),
       });
     }
