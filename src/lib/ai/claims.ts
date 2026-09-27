@@ -34,7 +34,8 @@ export interface ActionEffect {
 /** Connector jurnalidagi bitta chaqiruv: nimaga urinildi va nima haqiqatan bajarildi. */
 export interface ActionRecord {
   tool: string;
-  status: "ok" | "partial" | "failed";
+  /** pending — yozish amali foydalanuvchi tasdig'ini kutmoqda (hali bajarilmagan; connector-confirm). */
+  status: "ok" | "partial" | "failed" | "pending";
   /** Chaqiruv urinib ko'rgan ta'sirlar (o'qish toollarida bo'sh). */
   attempted: ActionEffect[];
   /** Haqiqatan bajarilgan ta'sirlar (xato bo'lsa bo'sh; qisman bo'lsa — faqat bajarilgan qismi). */

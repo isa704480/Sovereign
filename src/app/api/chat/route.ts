@@ -989,6 +989,9 @@ export async function POST(req: Request) {
                 if (run.context) connectorContext = run.context;
                 actionLedger = run.actions;
                 connectorUsage = run.usage;
+                // Yozish amallari bajarilmadi — foydalanuvchi kartada tasdiqlaydi (connector-confirm).
+                // Hodisada faqat server qurgan xulosa va shaffof ref bor (argumentlar serverda).
+                for (const p of run.proposals) send(p);
               }
             }
           }

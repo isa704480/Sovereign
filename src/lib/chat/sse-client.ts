@@ -2,6 +2,7 @@
 
 import type { StreamEvent } from "@/lib/ai/providers";
 import type { InquiryDomain, InquiryEvent, InquiryMode, InquiryReplyAnswer } from "@/lib/ai/inquiry/types";
+import type { ConnectorConfirmEvent } from "@/lib/ai/connector-confirm-types";
 import { DEFAULT_LANG, fmt, isLang, translate, type Lang } from "@/lib/i18n";
 
 /**
@@ -29,7 +30,7 @@ export interface InquiryRequest {
  * Mijoz qabul qiladigan hodisalar. T3 `InquiryEvent` ni `StreamEvent` union'iga qo'shgach bu
  * ortiqcha bo'ladi (union takrorni birlashtiradi), lekin shungacha ham tiplar to'g'ri.
  */
-export type ClientStreamEvent = StreamEvent | InquiryEvent;
+export type ClientStreamEvent = StreamEvent | InquiryEvent | ConnectorConfirmEvent;
 
 export interface StreamChatOptions {
   modelId: string;

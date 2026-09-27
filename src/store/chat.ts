@@ -19,6 +19,7 @@ import {
   type InquiryMode,
   type InquiryReplyAnswer,
 } from "@/lib/ai/inquiry/types";
+import type { ConnectorConfirmCard } from "@/lib/ai/connector-confirm-types";
 
 /** Komponentlarda: const t = useT(); t("newChat") */
 export function useT(): (key: TKey) => string {
@@ -137,6 +138,11 @@ export interface ChatMessage {
   inquiryMemory?: "saved" | "failed";
   /** User xabari: kartaga javob / o'tkazib yuborish (so'rovdagi `inquiry.reply`). */
   inquiryReply?: InquiryReplyMeta;
+  /**
+   * Connector yozish amallari — foydalanuvchi tasdig'ini kutayotgan kartalar (server `connector_confirm`
+   * hodisasi; faqat mijozda, serverga sinxronlanmaydi). Argumentlar serverda, bu yerda faqat xulosa + ref.
+   */
+  connectorConfirms?: ConnectorConfirmCard[];
   /** User xabari rasm so'rovi bo'lgan ("+ → Rasm" rejimi) — qayta yaratish/tahrirlash ham rasm yo'lidan. */
   kind?: "image" | "video";
   status?: MessageStatus;

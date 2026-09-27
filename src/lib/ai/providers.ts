@@ -79,6 +79,8 @@ export type StreamEvent =
   | { type: "error"; message: string }
   /** Chuqur so'rash: savol kartasi (ask) yoki javob ostidagi follow-up chip'lar (docs/INQUIRY.md §A.8). */
   | import("./inquiry/types").InquiryEvent
+  /** Connector yozish amali bajarilmadi — foydalanuvchi kartada tasdiqlashi kerak (connector-confirm-types.ts). */
+  | import("./connector-confirm-types").ConnectorConfirmEvent
   | { type: "done" };
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";
