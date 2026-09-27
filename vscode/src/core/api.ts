@@ -104,8 +104,11 @@ export function sameOrigin(candidate: string, base: string): boolean {
     const a = new URL(candidate);
     const b = new URL(apiUrl(base, "/"));
     if (a.protocol !== "https:" && !(a.protocol === "http:" && a.hostname === "localhost")) return false;
-    // `api.soveregn.xyz` → `soveregn.xyz` yo'naltirishiga ham ruxsat: registrable qism bir xil.
-    return a.hostname === b.hostname || a.hostname.endsWith(`.${b.hostname}`) || b.hostname.endsWith(`.${a.hostname}`);
+    if (a.hostname === b.hostname || a.hostname.endsWith(`.${b.hostname}`)) return true;
+    // `api.soveregn.xyz` → `soveregn.xyz` yo'naltirishiga ruxsat: BITTA ma'lum xizmat prefiksi
+    // olib tashlanadi. Umumiy "ota-domen" tekshiruvi emas — u `xyz` kabi TLD'ni ham o'tkazardi.
+    const apex = b.hostname.replace(/^(api|app|www|docs|status)\./, "");
+    return apex !== b.hostname && (a.hostname === apex || a.hostname.endsWith(`.${apex}`));
   } catch {
     return false;
   }

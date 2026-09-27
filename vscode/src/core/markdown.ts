@@ -68,7 +68,8 @@ export function renderInline(raw: string): string {
   text = text.replace(/\[([^\]\n]{1,300})\]\(([^\s)]{1,600})\)/g, (m, label: string, url: string) => {
     const href = url.replace(/&amp;/g, "&");
     if (!isSafeLink(href)) return m; // xavfsiz emas — oddiy matn bo'lib qoladi
-    return protect(`<a href="${escapeHtml(href)}" data-ext="1">${label}</a>`);
+    // title — hover'da HAQIQIY manzil (markdown'da yorliq manzildan farq qilishi mumkin).
+    return protect(`<a href="${escapeHtml(href)}" title="${escapeHtml(href)}" data-ext="1">${label}</a>`);
   });
 
   // 4) Yalang'och https havolalar.
