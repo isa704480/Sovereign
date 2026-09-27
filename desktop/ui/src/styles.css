@@ -700,6 +700,7 @@ button.local-badge:hover { border-color: var(--ok); }
 .ed-banner { margin: 6px 8px 0; align-items: center; background: var(--surface-2); border-color: var(--border); color: var(--text-2); }
 .ed-banner .btn { flex: none; }
 .ed-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.ed-body > .panel-empty { flex: 1; justify-content: center; }
 .cm-host { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .ed-image { flex: 1; overflow: auto; display: grid; place-items: center; padding: 20px; background: var(--surface-2); }
 .ed-image img { max-width: 100%; height: auto; border-radius: var(--r-sm); box-shadow: var(--shadow); background-color: var(--surface); }

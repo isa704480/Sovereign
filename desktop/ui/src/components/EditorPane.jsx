@@ -151,6 +151,8 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
         const i = l.findIndex((x) => x.path === path);
         const next = l.filter((x) => x.path !== path);
         setActive((a) => (a === path ? (next[Math.min(i, next.length - 1)]?.path ?? null) : a));
+        // Fokus yo'qolmasin: yorliq qolsa — muharrirga, qolmasa — yorliqlar qatoriga.
+        setTimeout(() => (next.length ? editorRef.current?.focus() : document.querySelector(".tree-row")?.focus()), 0);
         return next;
       });
     },
@@ -218,6 +220,8 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
     const onKey = (e) => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "s" || e.altKey) return;
       if (!active) return;
+      // Muharrir ichidan kelgan bo'lsa — uni CodeMirror keymap'i allaqachon bajardi.
+      if (e.target?.closest?.(".cm-editor")) return;
       e.preventDefault();
       doSave(active);
     };
