@@ -13,10 +13,12 @@ export const metadata: Metadata = {
 
 export default function RefundPage() {
   return (
-    <main className="flex-1">
+    <>
       <Navbar />
-      <LegalDoc doc="refund" />
+      <main id="main-content" className="flex-1">
+        <LegalDoc doc="refund" />
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

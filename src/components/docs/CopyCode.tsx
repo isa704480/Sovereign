@@ -32,7 +32,7 @@ export function CopyCode({ code, label, prompt = false }: CopyCodeProps) {
   return (
     <figure className="my-3 min-w-0">
       {label && <figcaption className="mb-1.5 text-xs font-medium text-text-secondary">{label}</figcaption>}
-      <div className="flex items-start gap-2 rounded-xl border border-border bg-[#0a0d24] py-2 pl-4 pr-1.5">
+      <div className="flex items-start gap-2 rounded-lg border border-border bg-bg-base py-2 pl-4 pr-1.5">
         <pre className="min-w-0 flex-1 overflow-x-auto py-1.5 font-mono text-[13px] leading-relaxed text-text-primary">
           <code>
             {prompt && (
@@ -48,7 +48,7 @@ export function CopyCode({ code, label, prompt = false }: CopyCodeProps) {
           onClick={copy}
           aria-label={copied ? t("p7bDCopied") : label ? fmt(t("p7bDCopyCmd"), { label }) : t("p7bDCopyClip")}
           title={copied ? t("p7bDCopied") : t("p7bDCopy")}
-          className="grid size-8 shrink-0 place-items-center rounded-lg text-text-secondary transition-colors hover:bg-white/10 hover:text-text-primary"
+          className="grid size-11 shrink-0 place-items-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary md:size-8"
         >
           {copied ? <Check className="size-4 text-success" aria-hidden /> : <Copy className="size-4" aria-hidden />}
         </button>

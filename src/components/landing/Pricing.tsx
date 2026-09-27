@@ -11,7 +11,12 @@ import { cn } from "@/lib/utils";
 import { fmt } from "@/lib/i18n";
 import { planText } from "@/lib/locales/plans";
 import { useLang, useT } from "@/store/chat";
+import { ctaPrimarySm, ctaSecondarySm } from "./cta";
+import { SectionHeading } from "./SectionHeading";
 import { useSignedIn } from "./use-signed-in";
+
+/** Free tarifning kunlik xabar chegarasi — matndagi {n}. */
+const FREE_DAILY = PLANS.find((p) => p.id === "free")?.limits.messagesPerDay ?? 0;
 
 /** Tanlangan tarif — Dashboard shu kalitni o'qib to'lov oynasini ochadi (RegisterForm ham yozadi). */
 const PENDING_PLAN_KEY = "sov-pending-plan";
@@ -38,12 +43,13 @@ export function Pricing() {
       aria-labelledby="pricing-title"
       className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 md:px-8 md:py-28"
     >
+      <SectionHeading
+        id="pricing-title"
+        eyebrow={t("navPricing")}
+        title={`${t("ldPricingTitle1")} ${t("ldPricingTitle2")}`}
+        sub={fmt(t("ldPricingSub"), { n: FREE_DAILY })}
+      />
       <FadeIn inView>
-        <p className="text-center text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("navPricing")}</p>
-        <h2 id="pricing-title" className="font-display mx-auto mt-3 max-w-2xl text-balance text-center text-[1.85rem] font-extrabold [overflow-wrap:anywhere] sm:text-3xl tracking-tight text-text-primary md:text-5xl">
-          {t("ldPricingTitle1")} <span className="text-gradient-brand">{t("ldPricingTitle2")}</span>
-        </h2>
-        <p className="mx-auto mt-4 max-w-xl text-center text-base text-text-secondary">{t("ldPricingSub")}</p>
         <div className="mt-8 flex justify-center">
           <BillingToggle value={period} onChange={setPeriod} />
         </div>
@@ -57,13 +63,13 @@ export function Pricing() {
             <StaggerItem key={p.id} className="h-full">
               <div
                 className={cn(
-                  "relative flex h-full min-w-0 flex-col rounded-2xl border bg-white/[0.015] p-6 transition-colors duration-300 [container-type:inline-size]",
-                  p.highlight ? "border-[color-mix(in_srgb,var(--color-primary)_55%,transparent)] bg-white/[0.03]" : "border-border hover:border-white/15",
+                  "relative flex h-full min-w-0 flex-col rounded-2xl border bg-bg-base p-6 [container-type:inline-size]",
+                  p.highlight ? "border-[color-mix(in_srgb,var(--color-primary)_55%,transparent)] bg-bg-elevated" : "border-border",
                 )}
                 style={p.highlight ? { borderWidth: 2 } : undefined}
               >
                 {p.highlight && (
-                  <span className="absolute -top-2.5 left-5 rounded-full bg-primary px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
+                  <span className="absolute -top-2.5 left-5 rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">
                     {t("planPopular")}
                   </span>
                 )}
@@ -84,7 +90,7 @@ export function Pricing() {
                 <ul className="mt-5 flex-1 space-y-2 text-sm text-text-secondary">
                   {tx.features.map((f) => (
                     <li key={f} className="flex items-start gap-2">
-                      <Check className="mt-0.5 size-4 shrink-0 text-primary-soft" strokeWidth={2} />
+                      <Check className="mt-0.5 size-4 shrink-0 text-text-muted" strokeWidth={2} aria-hidden="true" />
                       <span>{f}</span>
                     </li>
                   ))}
@@ -99,10 +105,7 @@ export function Pricing() {
                       : `${signedIn ? "/app" : "/register"}?plan=${p.id}&period=${period}`
                   }
                   onClick={p.price > 0 ? () => rememberPlan(p.id, period) : undefined}
-                  className={cn(
-                    "mt-6 inline-flex h-11 items-center justify-center rounded-full text-sm font-semibold transition-transform hover:-translate-y-0.5",
-                    p.highlight ? "bg-primary text-white" : "border border-border text-text-primary hover:border-white/20",
-                  )}
+                  className={cn("mt-6 w-full", p.highlight ? ctaPrimarySm : ctaSecondarySm)}
                 >
                   {p.price > 0
                     ? fmt(t("ldSelectPlan"), { plan: p.name })

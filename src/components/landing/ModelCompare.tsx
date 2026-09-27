@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
+import { TOTAL_MODELS_CLAIM } from "@/config/models";
 import type { TKey } from "@/lib/i18n";
 import { localeOf } from "@/lib/locales/chat-data";
 import { useLang, useT } from "@/store/chat";
+import { SectionHeading } from "./SectionHeading";
 
 type Family = { key: string; label: string; count: number; auto?: string };
 
@@ -37,43 +39,39 @@ export function ModelCompare() {
   const max = families?.[0]?.count ?? 1;
   const shown = (families ?? []).slice(0, 12);
   // "{n} model." — son alohida rangda, shuning uchun gapni {n} atrofida bo'lamiz.
-  // Son hali yo'q bo'lsa "1750+" — ko'plik shakli (many/other) bilan.
+  // Son hali yo'q bo'lsa TOTAL_MODELS_CLAIM+ ("1750+") — ko'plik shakli (many/other) bilan.
   const [modelsPre, modelsPost = ""] = t(total ? modelsKey(total, locale) : "ldCompareModels").split("{n}");
 
   return (
     <section aria-labelledby="compare-title" className="relative mx-auto max-w-6xl px-5 py-24 md:px-8 md:py-28">
-      <div className="mx-auto max-w-2xl text-center">
-        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("ldCompareEyebrow")}</span>
-        <h2 id="compare-title" className="font-display mt-3 text-[1.85rem] font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl text-text-primary md:text-5xl">
-          {modelsPre}
-          <span className="tabular-nums text-gradient-brand">{total ? total.toLocaleString(locale) : "1750+"}</span>
-          {modelsPost}
-          <br />
-          {t("ldCompareFamilies")}
-        </h2>
-        <p className="mt-4 text-base text-text-secondary">{t("ldCompareSub")}</p>
-      </div>
+      <SectionHeading
+        id="compare-title"
+        eyebrow={t("ldCompareEyebrow")}
+        title={
+          <>
+            {modelsPre}
+            <span className="nums text-accent-text">{total ? total.toLocaleString(locale) : `${TOTAL_MODELS_CLAIM}+`}</span>
+            {modelsPost} {t("ldCompareFamilies")}
+          </>
+        }
+        sub={t("ldCompareSub")}
+      />
 
       {/* solishtiruv paneli — bitta yuza, hairline qatorlar. Katalog bo'sh / API xato
           bo'lsa panel umuman chizilmaydi (bo'sh ramka qolmasin). */}
       {(!families || shown.length > 0) && (
-      <div className="mx-auto mt-12 max-w-3xl overflow-hidden rounded-2xl border border-border bg-white/[0.015]">
+      <div className="mx-auto mt-12 max-w-3xl overflow-hidden rounded-2xl border border-border bg-bg-base">
         {!families && <div className="px-5 py-8 text-center text-sm text-text-muted">{t("ldLoading")}</div>}
         {shown.map((f, i) => (
-          <motion.div
+          <div
             key={f.key}
-            initial={{ opacity: 0, x: -12 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4, delay: i * 0.04 }}
             className="flex items-center gap-4 px-5 py-3"
-            style={{ borderTop: i === 0 ? "none" : "1px solid var(--border)" }}
+            style={{ borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)" }}
           >
             <span className="w-28 shrink-0 truncate text-sm font-semibold text-text-primary">{f.label}</span>
             <span className="relative h-2 flex-1 overflow-hidden rounded-full bg-white/5">
               <motion.span
-                className="absolute inset-y-0 left-0 rounded-full"
-                style={{ background: "linear-gradient(90deg, #5B50F0, #8B7DFF)" }}
+                className="absolute inset-y-0 left-0 rounded-full bg-primary"
                 initial={{ width: 0 }}
                 whileInView={{ width: `${Math.max(6, (f.count / max) * 100)}%` }}
                 viewport={{ once: true }}
@@ -81,7 +79,7 @@ export function ModelCompare() {
               />
             </span>
             <span className="w-12 shrink-0 text-right text-sm font-semibold tabular-nums text-text-secondary">{f.count}</span>
-          </motion.div>
+          </div>
         ))}
       </div>
       )}

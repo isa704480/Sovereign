@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useMotionValue, useSpring, useReducedMotion } from "motion/react";
+import { motion, useMotionValue, useSpring, useReducedMotionConfig } from "motion/react";
 import { useRef, type ReactNode, type MouseEvent } from "react";
 
 interface MagneticButtonProps {
@@ -16,7 +16,8 @@ interface MagneticButtonProps {
  */
 export function MagneticButton({ children, className, strength = 0.35 }: MagneticButtonProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const reduced = useReducedMotion();
+  // Config variant: OS setting AND the in-app "Reduce motion" toggle (MotionProvider).
+  const reduced = useReducedMotionConfig();
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const sx = useSpring(x, { stiffness: 300, damping: 20, mass: 0.5 });

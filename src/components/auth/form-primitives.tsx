@@ -29,14 +29,20 @@ export function actionFailed(e: unknown, scope: string): "auErrNetwork" {
   return "auErrNetwork";
 }
 
+/** 16px below md: iOS Safari zooms the page when a focused input is smaller. */
 export const inputClass =
-  "h-11 rounded-xl border-border bg-bg-base/60 px-3.5 text-[15px] text-text-primary placeholder:text-text-muted focus-visible:border-primary focus-visible:ring-primary/30 aria-invalid:border-error aria-invalid:ring-error/20 md:text-[15px]";
+  "h-11 rounded-md border-border bg-bg-base/60 px-3.5 text-[16px] text-text-primary placeholder:text-text-muted focus-visible:border-primary focus-visible:ring-primary/30 aria-invalid:border-error aria-invalid:ring-error/20 md:text-[15px]";
 
-export function FieldError({ message }: { message?: string }) {
+/**
+ * Maydon ostidagi xato. `id` bering va inputga `aria-describedby={id}` +
+ * `aria-invalid` qo'ying: ekran o'quvchi xatoni maydon bilan birga o'qiydi.
+ */
+export function FieldError({ message, id }: { message?: string; id?: string }) {
   const msg = useAuthMsg();
   if (!message) return null;
   return (
     <motion.p
+      id={id}
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2, ease: EASE }}
@@ -60,14 +66,14 @@ export function FormAlert({ message, tone = "error" }: { message: string; tone?:
     >
       <div
         className={cn(
-          "flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm",
+          "flex items-start gap-2.5 rounded-lg border px-3.5 py-3 text-sm",
           tone === "error"
             ? "border-error/30 bg-error/10 text-error"
             : "border-success/30 bg-success/10 text-success",
         )}
         role="alert"
       >
-        <AlertCircle className="mt-0.5 size-4 shrink-0" />
+        <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
         <span>{msg(message)}</span>
       </div>
     </motion.div>
@@ -81,8 +87,8 @@ export function SubmitButton({ pending, children }: { pending: boolean; children
       disabled={pending}
       whileTap={{ scale: 0.985 }}
       className={cn(
-        "inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary text-[15px] font-semibold text-white shadow-glow transition-colors",
-        "hover:bg-primary-dark focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+        "inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary text-[15px] font-semibold text-white transition-colors",
+        "hover:bg-primary-dark",
         "disabled:cursor-not-allowed disabled:opacity-70",
       )}
     >

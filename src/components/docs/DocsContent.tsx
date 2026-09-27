@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ChevronRight } from "lucide-react";
 import { LogoMark } from "@/components/brand/Logo";
 import { CopyCode } from "@/components/docs/CopyCode";
 import { DocsMobileNav, DocsSidebar, type DocsNavItem } from "@/components/docs/DocsNav";
@@ -63,7 +63,7 @@ const LINK_VARS = {
 function Section({ id, title, eyebrow, children }: { id: string; title: string; eyebrow?: string; children: ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-h`} className="scroll-mt-28 border-t border-border pt-12 first:border-t-0 first:pt-0 lg:scroll-mt-20">
-      {eyebrow && <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-soft">{eyebrow}</p>}
+      {eyebrow && <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{eyebrow}</p>}
       <h2 id={`${id}-h`} className="font-display mt-2 text-2xl font-extrabold tracking-tight text-text-primary md:text-3xl">
         {title}
       </h2>
@@ -76,7 +76,7 @@ function Sub({ id, title, children }: { id: string; title: string; children: Rea
   return (
     <div id={id} className="scroll-mt-28 pt-4 lg:scroll-mt-20">
       <h3 className="font-display text-lg font-bold text-text-primary">
-        <a href={`#${id}`} className="hover:text-primary-soft">
+        <a href={`#${id}`} className="hover:text-accent-text">
           {title}
         </a>
       </h3>
@@ -87,7 +87,7 @@ function Sub({ id, title, children }: { id: string; title: string; children: Rea
 
 function Note({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-text-secondary">{children}</div>
+    <div className="rounded-lg border border-[var(--border-accent)] bg-accent-bg px-4 py-3 text-sm text-text-secondary">{children}</div>
   );
 }
 
@@ -239,33 +239,28 @@ export function DocsContent({ data }: { data: DocsData }) {
   return (
     <div id="top" className="flex min-h-full flex-1 flex-col bg-bg-base text-text-primary">
       <LocalizedTitle title={t("p7bDEyebrow")} />
-      <a
-        href="#content"
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
-      >
-        {t("p7bDSkip")}
-      </a>
+      {/* "Asosiy mazmunga o'tish" — root layout'dagi SkipLink (birinchi <main> ga, ya'ni #content). */}
 
       <header className="sticky top-0 z-40 border-b border-border bg-bg-base/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 md:px-8">
           <a href={SITE} className="flex min-w-0 items-center gap-2 rounded-lg sm:gap-2.5">
             <LogoMark size={26} />
             <span className="font-display truncate text-sm sm:text-[15px] font-extrabold tracking-tight text-text-primary">SOVEREIGN</span>
-            <span className="rounded-md border border-border shrink-0 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider sm:text-[11px] text-text-secondary">
+            <span className="shrink-0 rounded-sm border border-border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider text-text-secondary">
               {t("p4dNavDocs")}
             </span>
           </a>
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <a
               href={SITE}
-              className="hidden rounded-lg px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-white/5 hover:text-text-primary md:inline-flex"
+              className="hidden h-10 items-center rounded-md px-3 text-sm text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary md:inline-flex"
             >
               soveregn.xyz
             </a>
             <LangSwitcher className="h-8 shrink-0 cursor-pointer px-1.5" />
             <a
               href={APP}
-              className="inline-flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 sm:px-3 text-sm font-medium text-white shadow-glow transition-colors hover:bg-primary-dark"
+              className="inline-flex h-11 items-center gap-1 rounded-full bg-primary px-4 text-sm font-semibold text-white transition-colors hover:bg-primary-dark lg:h-10"
             >
               {t("p7bDOpenApp")} <ArrowUpRight className="hidden size-3.5 sm:inline" aria-hidden />
             </a>
@@ -325,7 +320,7 @@ export function DocsContent({ data }: { data: DocsData }) {
                 role="region"
                 aria-label={t("p7bDPlansTableAria")}
                 tabIndex={0}
-                className="overflow-x-auto rounded-xl border border-border"
+                className="overflow-x-auto rounded-lg border border-border"
               >
                 <table className="w-full min-w-[600px] border-collapse text-left text-sm">
                   <caption className="sr-only">{t("p7bDPlansCaption")}</caption>
@@ -335,7 +330,7 @@ export function DocsContent({ data }: { data: DocsData }) {
                         &nbsp;
                       </th>
                       {plans.map((p) => (
-                        <th key={p.id} scope="col" className="px-3 py-2.5 font-semibold" style={{ color: p.color }}>
+                        <th key={p.id} scope="col" className="px-3 py-2.5 font-semibold text-text-primary">
                           {p.name}
                         </th>
                       ))}
@@ -360,7 +355,7 @@ export function DocsContent({ data }: { data: DocsData }) {
 
               <p className="text-sm text-text-muted">{r("p7bDPlansNote")}</p>
               <p className="text-sm">
-                <a href={`${SITE}/compare`} className="font-medium text-primary-soft hover:underline">
+                <a href={`${SITE}/compare`} className="font-medium text-accent-text hover:underline">
                   {t("p11cDocsLink")}
                 </a>
               </p>
@@ -368,7 +363,7 @@ export function DocsContent({ data }: { data: DocsData }) {
               <h3 className="font-display pt-2 text-lg font-bold text-text-primary">{t("p7bDTierHeading")}</h3>
               <div className="space-y-3">
                 {tiers.map(({ tier, name, models }) => (
-                  <div key={tier} className="rounded-xl border border-border bg-bg-elevated/60 px-4 py-3">
+                  <div key={tier} className="rounded-lg border border-border bg-bg-elevated/60 px-4 py-3">
                     <p className="text-sm font-semibold text-text-primary">
                       {fmt(t("p7bDTierModels"), { plan: name })}{" "}
                       <span className="font-normal text-text-muted">· {models.length}</span>
@@ -460,7 +455,7 @@ export function DocsContent({ data }: { data: DocsData }) {
 
               <Sub id="cli-commands" title={t("p7bDCmdsTitle")}>
                 <p>{r("p7bDCmdsIntro")}</p>
-                <div role="region" aria-label={t("p7bDCmdsAria")} tabIndex={0} className="overflow-x-auto rounded-xl border border-border">
+                <div role="region" aria-label={t("p7bDCmdsAria")} tabIndex={0} className="overflow-x-auto rounded-lg border border-border">
                   <table className="w-full min-w-[480px] border-collapse text-left text-sm">
                     <caption className="sr-only">{t("p7bDCmdsCaption")}</caption>
                     <thead className="bg-bg-elevated text-xs uppercase tracking-wider text-text-secondary">
@@ -573,11 +568,12 @@ export function DocsContent({ data }: { data: DocsData }) {
             <Section id="faq" eyebrow="08" title={t("p7bDFaqTitle")}>
               <div className="space-y-2">
                 {FAQ.map(({ id, q, a }) => (
-                  <details key={id} className="group rounded-xl border border-border bg-bg-elevated/50 px-4 py-3 open:bg-bg-elevated">
+                  <details key={id} className="group rounded-lg border border-border bg-bg-elevated/50 px-4 py-3 open:bg-bg-elevated">
                     <summary className="cursor-pointer list-none font-medium text-text-primary [&::-webkit-details-marker]:hidden">
-                      <span className="mr-2 inline-block text-primary-soft transition-transform group-open:rotate-90" aria-hidden>
-                        ›
-                      </span>
+                      <ChevronRight
+                        className="mr-1.5 inline-block size-4 align-[-3px] text-text-muted transition-transform group-open:rotate-90"
+                        aria-hidden="true"
+                      />
                       {t(q)}
                     </summary>
                     <p className="mt-2 pl-4">

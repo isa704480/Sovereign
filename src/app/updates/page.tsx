@@ -23,10 +23,12 @@ export const metadata: Metadata = {
 
 export default function UpdatesPage() {
   return (
-    <main className="flex-1">
+    <>
       <Navbar />
-      <UpdatesList />
+      <main id="main-content" className="flex-1">
+        <UpdatesList />
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

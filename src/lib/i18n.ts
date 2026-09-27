@@ -36,6 +36,7 @@ import { P16C } from "@/lib/locales/p16-confirm";
 import { P17D } from "@/lib/locales/p17-device";
 import { P18S } from "@/lib/locales/p18-skills";
 import { P19R } from "@/lib/locales/p19-reality";
+import { P20W } from "@/lib/locales/p20-web-design";
 
 export type Lang = "uz" | "uz-cyrl" | "ru" | "en";
 
@@ -115,10 +116,10 @@ const CORE = {
   // Welcome
   greeting: { uz: "SOVEREIGN'ga xush kelibsiz.", "uz-cyrl": "SOVEREIGN'га хуш келибсиз.", ru: "Добро пожаловать в SOVEREIGN.", en: "Welcome to SOVEREIGN." },
   subGreeting: {
-    uz: "Barcha modellar. Bitta interfeys. Ma'lumotlar sizda.",
-    "uz-cyrl": "Барча моделлар. Битта интерфейс. Маълумотлар сизда.",
-    ru: "Все модели. Один интерфейс. Данные у вас.",
-    en: "Every model. One interface. Your data stays yours.",
+    uz: "Barcha modellar bitta oynada, ma'lumotlaringiz sizda qoladi.",
+    "uz-cyrl": "Барча моделлар битта ойнада, маълумотларингиз сизда қолади.",
+    ru: "Все модели в одном окне, ваши данные остаются у вас.",
+    en: "Every model in one window. Your data stays yours.",
   },
   // Sozlamalar
   language: { uz: "Til", "uz-cyrl": "Тил", ru: "Язык", en: "Language" },
@@ -528,7 +529,7 @@ const CORE = {
   onbEnter: { uz: "SOVEREIGN'ga kirish", "uz-cyrl": "SOVEREIGN'га кириш", ru: "Войти в SOVEREIGN", en: "Enter SOVEREIGN" },
 } as const;
 
-const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D, ...P9W, ...P10R, ...P11C, ...P12J, ...P13E, ...P14I, ...P15A, ...P16C, ...P17D, ...P18S, ...P19R };
+const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D, ...P9W, ...P10R, ...P11C, ...P12J, ...P13E, ...P14I, ...P15A, ...P16C, ...P17D, ...P18S, ...P19R, ...P20W };
 
 export type TKey = keyof typeof DICT;
 

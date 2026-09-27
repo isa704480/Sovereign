@@ -79,25 +79,27 @@ function jsonLd() {
  */
 export default function HomePage() {
   return (
-    <main className="flex-1 overflow-x-clip">
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd()).replace(/</g, "\\u003c") }}
       />
       <Navbar />
-      <Hero />
-      <ModelCompare />
-      <HowItWorks />
-      <Download />
-      <Features />
-      <Audience />
-      <ModelShowcase />
-      <PrivacyBand />
-      <Pricing />
-      <Roadmap />
-      <About />
-      <Contact />
+      <main id="main-content" className="flex-1 overflow-x-clip">
+        <Hero />
+        <ModelCompare />
+        <HowItWorks />
+        <Download />
+        <Features />
+        <Audience />
+        <ModelShowcase />
+        <PrivacyBand />
+        <Pricing />
+        <Roadmap />
+        <About />
+        <Contact />
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

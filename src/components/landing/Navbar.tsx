@@ -6,12 +6,12 @@ import { Menu, MessageSquare, X } from "lucide-react";
 import { useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { LangSwitcher } from "@/components/LangSwitcher";
-import { Button } from "@/components/ui/button";
 import { LANGS } from "@/lib/i18n";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useChat, useT } from "@/store/chat";
 import { DOCS_URL } from "./company";
+import { ctaPrimarySm, ctaSecondarySm } from "./cta";
 import { useSignedIn } from "./use-signed-in";
 
 // "/#…" — Navbar huquqiy/yangiliklar sahifalarida ham chiziladi: nisbiy "#pricing"
@@ -50,20 +50,12 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
       transition={{ duration: 0.5, ease: EASE, delay: 0.1 }}
       className="fixed inset-x-0 top-0 z-50 px-3"
     >
-      {/* Klaviatura foydalanuvchilari uchun: menyuni o'tkazib yuborish. */}
-      <a
-        href="#main-content"
-        className="sr-only rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60]"
-      >
-        {t("p4dSkip")}
-      </a>
-
+      {/* "Asosiy mazmunga o'tish" havolasi root layout'da (SkipLink) — har sahifada bir xil. */}
       <div
         className={cn(
-          "mx-auto mt-3 flex max-w-6xl items-center justify-between rounded-2xl px-4 py-2.5 transition-all duration-300 lg:px-5",
-          scrolled || open
-            ? "glass shadow-[0_8px_32px_rgba(0,0,0,0.35),inset_0_1px_0_rgba(255,255,255,0.06)]"
-            : "border border-transparent bg-transparent",
+          "mx-auto mt-3 flex max-w-6xl items-center justify-between rounded-2xl px-3 py-1.5 transition-[background-color,border-color,box-shadow] duration-300 lg:px-5 lg:py-2",
+          // Shisha + hairline faqat kontent ostidan o'tganda (scroll) — tepada shaffof.
+          scrolled || open ? "glass shadow-sm" : "border border-transparent bg-transparent",
         )}
       >
         <Logo />
@@ -73,7 +65,7 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
             <a
               key={n.href}
               href={n.href}
-              className="rounded-lg px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+              className="inline-flex h-10 items-center rounded-md px-3 text-sm text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
             >
               {t(n.key)}
             </a>
@@ -85,19 +77,20 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
               Umumiy komponent: fokus halqasi (focus-visible) bilan. */}
           <LangSwitcher />
           {signedIn ? (
-            <Button asChild className="h-9 rounded-xl bg-primary px-4 text-white shadow-glow hover:bg-primary-dark">
-              <Link href="/app">
-                <MessageSquare className="size-4" /> {t("backToChat")}
-              </Link>
-            </Button>
+            <Link href="/app" className={ctaPrimarySm}>
+              <MessageSquare className="size-4" aria-hidden="true" /> {t("backToChat")}
+            </Link>
           ) : (
             <>
-              <Button asChild variant="ghost" className="h-9 px-3 text-text-secondary hover:text-text-primary">
-                <Link href="/login">{t("login")}</Link>
-              </Button>
-              <Button asChild className="h-9 rounded-xl bg-primary px-4 text-white shadow-glow hover:bg-primary-dark">
-                <Link href="/register">{t("startFree")}</Link>
-              </Button>
+              <Link
+                href="/login"
+                className="inline-flex h-10 items-center rounded-full px-4 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+              >
+                {t("login")}
+              </Link>
+              <Link href="/register" className={ctaPrimarySm}>
+                {t("startFree")}
+              </Link>
             </>
           )}
         </div>
@@ -108,9 +101,9 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
           aria-label={open ? t("ldMenuClose") : t("ldMenuOpen")}
           aria-expanded={open}
           aria-controls="landing-mobile-menu"
-          className="rounded-lg p-2 text-text-secondary hover:bg-bg-hover lg:hidden"
+          className="grid size-11 place-items-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary lg:hidden"
         >
-          {open ? <X className="size-5" /> : <Menu className="size-5" />}
+          {open ? <X className="size-5" aria-hidden="true" /> : <Menu className="size-5" aria-hidden="true" />}
         </button>
       </div>
 
@@ -122,7 +115,9 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: EASE }}
-            className="glass mx-auto mt-2 max-w-6xl rounded-2xl p-3 lg:hidden"
+            className="glass mx-auto mt-2 max-w-6xl rounded-2xl p-3 shadow-md lg:hidden"
+            // Menyu matn ustiga ochiladi: deyarli to'liq qoplama, orqadagi sarlavha o'qilmaydi.
+            style={{ background: "rgba(6, 8, 18, 0.96)" }}
           >
             <nav aria-label={t("p4dNavMain")}>
               {NAV.map((n) => (
@@ -130,7 +125,7 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
                   key={n.href}
                   href={n.href}
                   onClick={() => setOpen(false)}
-                  className="block rounded-lg px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-hover hover:text-text-primary"
+                  className="flex min-h-11 items-center rounded-md px-3 text-[15px] text-text-secondary hover:bg-surface-hover hover:text-text-primary"
                 >
                   {t(n.key)}
                 </a>
@@ -146,8 +141,8 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
                   aria-label={l.label}
                   lang={l.htmlLang}
                   className={cn(
-                    "rounded-full border px-3 py-1 text-xs",
-                    lang === l.id ? "border-primary text-primary-soft" : "border-border text-text-muted",
+                    "min-h-11 rounded-full border px-4 text-sm",
+                    lang === l.id ? "border-primary text-accent-text" : "border-border text-text-secondary",
                   )}
                 >
                   {l.short}
@@ -156,20 +151,18 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
             </div>
             {signedIn ? (
               <div className="mt-2 border-t border-border pt-3">
-                <Button asChild className="h-10 w-full rounded-xl bg-primary text-white hover:bg-primary-dark">
-                  <Link href="/app">
-                    <MessageSquare className="size-4" /> {t("backToChat")}
-                  </Link>
-                </Button>
+                <Link href="/app" className={`${ctaPrimarySm} w-full`}>
+                  <MessageSquare className="size-4" aria-hidden="true" /> {t("backToChat")}
+                </Link>
               </div>
             ) : (
               <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-3">
-                <Button asChild variant="outline" className="h-10 rounded-xl">
-                  <Link href="/login">{t("login")}</Link>
-                </Button>
-                <Button asChild className="h-10 rounded-xl bg-primary text-white hover:bg-primary-dark">
-                  <Link href="/register">{t("startFree")}</Link>
-                </Button>
+                <Link href="/login" className={ctaSecondarySm}>
+                  {t("login")}
+                </Link>
+                <Link href="/register" className={ctaPrimarySm}>
+                  {t("startFree")}
+                </Link>
               </div>
             )}
           </motion.div>

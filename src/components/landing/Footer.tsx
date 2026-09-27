@@ -8,13 +8,14 @@ import { fmt, pick } from "@/lib/i18n";
 import { useLang, useT } from "@/store/chat";
 import { CONTACT_EMAIL, DOCS_URL, GITHUB_URL, LEGAL_ENTITY, LOCATION, STATUS_URL } from "./company";
 
-const linkCls = "rounded-sm transition-colors hover:text-text-primary";
+// Mobil'da 40px balandlik (barmoq bilan bosishga), desktop'da matn o'lchami.
+const linkCls = "inline-flex min-h-10 items-center rounded-sm transition-colors hover:text-text-primary md:min-h-0";
 
 function Col({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
       <h2 className="mb-3 text-xs font-medium uppercase tracking-wider text-text-muted">{title}</h2>
-      <ul className="space-y-2 text-text-secondary">{children}</ul>
+      <ul className="space-y-1 text-text-secondary md:space-y-2">{children}</ul>
     </div>
   );
 }
@@ -75,12 +76,11 @@ export function Footer() {
         </nav>
       </div>
       <div className="border-t border-border/60">
-        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-5 text-xs text-text-muted md:flex-row md:items-center md:justify-between md:px-8">
+        <div className="mx-auto max-w-6xl px-5 py-5 text-xs text-text-muted md:px-8">
           <p>
             © 2026 SOVEREIGN AI. {t("p4dRights")}
             {LEGAL_ENTITY && <> · {fmt(t("p4dOperatedBy"), { entity: LEGAL_ENTITY })}</>}
           </p>
-          <span className="font-mono">TLS · Blind Prompting · RLS</span>
         </div>
       </div>
     </footer>

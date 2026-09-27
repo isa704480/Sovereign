@@ -21,9 +21,24 @@ export const AUTH = {
   // ── Trust badges / vizual panel ──
   auBadgeEncryption: { uz: "Shifrlangan ulanish (TLS)", "uz-cyrl": "Шифрланган уланиш (TLS)", ru: "Шифрованное соединение (TLS)", en: "Encrypted connection (TLS)" },
   auBadgeNoAds: { uz: "Reklamasiz", "uz-cyrl": "Рекламасиз", ru: "Без рекламы", en: "No ads" },
-  auHeroA: { uz: "Birinchi marta AI ", "uz-cyrl": "Биринчи марта AI ", ru: "Впервые ИИ принадлежит ", en: "For the first time, AI belongs to " },
-  auHeroB: { uz: "sizga", "uz-cyrl": "сизга", ru: "вам", en: "you" },
-  auHeroC: { uz: " tegishli.", "uz-cyrl": " тегишли.", ru: ".", en: "." },
+  auHeroA: {
+    uz: "Barcha modellar uchun ",
+    "uz-cyrl": "Барча моделлар учун ",
+    ru: "Один аккаунт ",
+    en: "One account for ",
+  },
+  auHeroB: {
+    uz: "bitta hisob",
+    "uz-cyrl": "битта ҳисоб",
+    ru: "для всех моделей",
+    en: "every model",
+  },
+  auHeroC: {
+    uz: ".",
+    "uz-cyrl": ".",
+    ru: ".",
+    en: ".",
+  },
   auHeroDesc: {
     uz: "Bitta hisob. Barcha modellar. Xotira sizning nazoratingizda — istalgan payt ko'rasiz yoki o'chirasiz.",
     "uz-cyrl": "Битта ҳисоб. Барча моделлар. Хотира сизнинг назоратингизда — исталган пайт кўрасиз ёки ўчирасиз.",

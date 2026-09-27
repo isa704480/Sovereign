@@ -6,7 +6,7 @@ import { LocalizedTitle } from "@/components/LocalizedTitle";
 import { LEGAL, LEGAL_LABELS, LEGAL_UPDATED, type LegalDocId } from "@/lib/locales/legal";
 import { useLang } from "@/store/chat";
 
-const LINK = "text-primary-soft hover:text-text-primary";
+const LINK = "text-accent-text hover:text-text-primary";
 
 /** **qalin** va [matn](havola) belgilashini React elementlariga aylantiradi. */
 function rich(text: string): ReactNode[] {
