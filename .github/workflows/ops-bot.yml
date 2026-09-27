@@ -1,0 +1,58 @@
+# Ops bot (Telegram): founder'ga tezkor lenta va hisobotlar.
+#   har 5 daqiqa   — /api/cron/ops-events  (yangi foydalanuvchi, to'lov/refund, mesh breaker/failover,
+#                                           reliz/deploy, CLI/Cowork kirishlari; dedupe + rate limit)
+#   har soat (:02) — /api/cron/ops-digest?kind=hourly  (hodisa bo'lmasa jim)
+#   16:00 UTC      — /api/cron/ops-digest?kind=daily   (21:00 Toshkent)
+#   dushanba 04:00 — /api/cron/ops-digest?kind=weekly  (09:00 Toshkent)
+# Kerak: repo Settings -> Secrets -> CRON_SECRET (Vercel'dagi CRON_SECRET bilan bir xil).
+# Telegram kaliti faqat Vercel'da (TELEGRAM_ALERT_BOT_TOKEN / TELEGRAM_ALERT_CHAT_ID) — bu yerda yo'q.
+name: Ops bot
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+    - cron: "2 * * * *"
+    - cron: "0 16 * * *"
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "events | hourly | daily | weekly"
+        required: true
+        default: events
+        type: choice
+        options: [events, hourly, daily, weekly]
+# Faqat curl — GITHUB_TOKEN'ga hech qanday huquq kerak emas (action ishlatilmaydi).
+permissions: {}
+concurrency:
+  group: ops-bot-${{ github.event.schedule || inputs.kind }}
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      # Javob tanasi (raqamlar, niqoblangan email) Actions log'iga chiqarilmaydi — faqat HTTP status.
+      # Secret va kirishlar skript matniga qo'yilmaydi — env orqali (shell ularni kod sifatida o'qimaydi).
+      - name: Call ops endpoint
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_KIND: ${{ inputs.kind }}
+        run: |
+          case "$SCHEDULE" in
+            "*/5 * * * *") kind=events ;;
+            "2 * * * *")   kind=hourly ;;
+            "0 16 * * *")  kind=daily ;;
+            "0 4 * * 1")   kind=weekly ;;
+            *)             kind="$INPUT_KIND" ;;
+          esac
+          case "$kind" in
+            events)               path="/api/cron/ops-events" ;;
+            hourly|daily|weekly)  path="/api/cron/ops-digest?kind=$kind" ;;
+            *) echo "unknown kind"; exit 1 ;;
+          esac
+          code=$(curl -sS --max-time 90 -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://soveregn.xyz$path")
+          echo "ops-bot $kind HTTP $code"
+          test "$code" = "200"

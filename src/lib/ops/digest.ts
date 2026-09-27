@@ -192,7 +192,7 @@ export function detectAnomalies(d: DigestData, lang: Lang): string[] {
   }
   if (d.signupsLast3d === 0 && d.kind !== "hourly") out.push(tt(lang, "p22oAnomNoSignups"));
   for (const b of d.breakers) {
-    if (b.downMs >= 30 * 60_000) out.push(tt(lang, "p22oAnomBreaker", { provider: providerLabel(b.provider) + scopeSuffix(b.scope), dur: duration(b.downMs, lang) }));
+    if (b.downMs >= 30 * 60_000) out.push(tt(lang, "p22oAnomBreaker", { provider: providerLabel(b.provider) + scopeSuffix(b.scope, lang), dur: duration(b.downMs, lang) }));
   }
   if (d.budget?.restricted) out.push(tt(lang, "p22oAnomGuard"));
   if (d.openrouter && d.openrouter.balance != null && d.openrouter.balance < d.openrouter.min) {
@@ -201,7 +201,8 @@ export function detectAnomalies(d: DigestData, lang: Lang): string[] {
   return out;
 }
 
-const scopeSuffix = (scope: string) => (scope === "$paid" ? " $paid" : scope === "$free" ? " $free" : "");
+const scopeSuffix = (scope: string, lang: Lang) =>
+  scope === "$paid" ? translate(lang, "p22oScopePaid") : scope === "$free" ? translate(lang, "p22oScopeFree") : "";
 
 /* ------------------------------------------------------------------ */
 /* Bo'limlar                                                            */
@@ -239,7 +240,7 @@ function shareLines(rows: { key: string; answers: number }[], label: (k: string)
     .map((r) => tt(lang, "p22oShareLine", { name: label(r.key), share: pct(r.answers, sum), n: compact(r.answers) }));
 }
 
-export function providersSection(d: DigestData, lang: Lang): string[] {
+export function providersSection(d: DigestData, lang: Lang, opts: { exhausted?: boolean } = {}): string[] {
   const out: string[] = [];
   const prov = shareLines(d.providers, providerLabel, lang, 8);
   if (prov.length) out.push(bold(tt(lang, "p22oSecProviders")), ...prov);
@@ -260,7 +261,7 @@ export function providersSection(d: DigestData, lang: Lang): string[] {
     }
   }
   const ex = total(d.exhausted);
-  if (ex > 0) out.push(tt(lang, "p22oExhaustedLine", { n: ex }));
+  if (opts.exhausted && ex > 0) out.push(tt(lang, "p22oExhaustedLine", { n: ex }));
   if (d.breakers.length) {
     out.push(bold(tt(lang, "p22oSecBreaker")));
     for (const b of d.breakers.slice(0, 8)) {

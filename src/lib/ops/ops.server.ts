@@ -537,7 +537,7 @@ export async function runBotCommand(cmd: BotCommand): Promise<string | null> {
   const data = await gatherDigest("daily", now);
   if (cmd === "users") return [bold(tt(lang, "p22oBotUsersTitle")), ...usersSection(data, lang, 20).slice(1)].join("\n");
   const states = await breakerStates(lang).catch(() => [] as string[]);
-  return [bold(tt(lang, "p22oBotProvidersTitle")), bold(tt(lang, "p22oStatesTitle")), ...states, "", ...providersSection(data, lang)].join("\n");
+  return [bold(tt(lang, "p22oBotProvidersTitle")), bold(tt(lang, "p22oStatesTitle")), ...states, "", ...providersSection(data, lang, { exhausted: true })].join("\n");
 }
 
 export function opsBotDeps(): BotDeps {
