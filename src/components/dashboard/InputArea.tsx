@@ -785,23 +785,37 @@ export function InputArea({
                         </span>
                       </button>
                     ))}
-                    {/* Telefonda Research / Maxfiy chiplari shu menyuda (qator 1 qatorga sig'sin). */}
+                    {/* Telefonda rejim chiplari shu menyuda (qator 1 qatorga sig'sin). */}
                     {(
                       [
-                        { id: "research", label: t("researchMode"), hint: t("chResearchTitle"), Icon: Globe, on: research, toggle: () => onToggleResearch(!research) },
-                        { id: "private", label: t("privateMode"), hint: t("chPrivateTitle"), Icon: ShieldCheck, on: blindPrompting, toggle: () => onToggleBlindPrompting(!blindPrompting) },
+                        { id: "research", label: t("researchMode"), hint: t("chResearchTitle"), Icon: Globe, on: research, locked: false, toggle: () => onToggleResearch(!research) },
+                        {
+                          id: "thinking",
+                          label: t("p23ThinkChip"),
+                          hint: thinkingLocked ? t("p23ThinkLocked") : t("p23ThinkChipTitle"),
+                          Icon: Brain,
+                          on: thinking && !thinkingLocked,
+                          locked: thinkingLocked,
+                          toggle: () => onToggleThinking(!thinking),
+                        },
+                        { id: "private", label: t("privateMode"), hint: t("chPrivateTitle"), Icon: ShieldCheck, on: blindPrompting, locked: false, toggle: () => onToggleBlindPrompting(!blindPrompting) },
                       ] as const
-                    ).map(({ id, label, hint, Icon, on, toggle }) => (
+                    ).map(({ id, label, hint, Icon, on, locked, toggle }) => (
                       <button
                         key={id}
                         type="button"
                         role="menuitemcheckbox"
                         aria-checked={on}
+                        // Qulflangan (Free) — bosilsa tarif oynasi ochiladi, shuning uchun disabled emas.
+                        aria-disabled={locked || undefined}
                         onClick={() => {
                           setPlusOpen(false);
                           toggle();
                         }}
-                        className="flex min-h-11 w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--surface-hover)] sm:hidden"
+                        className={cn(
+                          "flex min-h-11 w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--surface-hover)] sm:hidden",
+                          locked && "opacity-50",
+                        )}
                         style={{ borderTop: "1px solid var(--border-subtle)" }}
                       >
                         <Icon className="size-4 shrink-0" style={{ color: on ? "var(--t-accent-text)" : "var(--t-text-muted)" }} aria-hidden />
@@ -836,6 +850,7 @@ export function InputArea({
               label={t("p23ThinkChip")}
               onClick={() => onToggleThinking(!thinking)}
               title={thinkingLocked ? t("p23ThinkLocked") : t("p23ThinkChipTitle")}
+              className={thinking && !thinkingLocked ? "" : "hidden sm:inline-flex"}
             />
             <Chip
               active={blindPrompting}
