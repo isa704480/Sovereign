@@ -50,6 +50,7 @@ const P = {
   lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>,
   bolt: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
+  wrench: <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z" />,
   // SOVEREIGN Skills belgilari (lucide uslubidagi chiziqli ikonlar)
   layout: <><rect x="3" y="3" width="18" height="7" rx="1.5" /><rect x="3" y="14" width="9" height="7" rx="1.5" /><rect x="16" y="14" width="5" height="7" rx="1.5" /></>,
   layers: <><path d="M12 2.5l9.5 5-9.5 5-9.5-5z" /><path d="M2.5 12l9.5 5 9.5-5" /><path d="M2.5 16.5l9.5 5 9.5-5" /></>,

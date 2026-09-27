@@ -665,6 +665,7 @@ button.local-badge:hover { border-color: var(--ok); }
 .local-badge .warn { color: var(--warn); }
 .chip-local { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--border)); background: var(--ok-bg); }
 .local-caps { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 1px; }
+.local-cap { display: inline-flex; align-items: center; gap: 3px; }
 .local-cap.ok { color: var(--ok); }
 .local-cap.warn { color: var(--warn); }
 .picker-model.active { background: var(--surface-2); }

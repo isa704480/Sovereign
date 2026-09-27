@@ -87,7 +87,7 @@ export function LocalRecommend({ recommend, ramGb, installed = [], tierNote = tr
   );
 }
 
-/** Model imkoniyatlari: 🔧 vositalar (Kod rejimi) / faqat Chat, 👁 rasm. Matn — sarlavhada (title). */
+/** Model imkoniyatlari: kalit ikonkasi — vositalar (Kod rejimi) / faqat Chat, ko'z — rasm. Batafsil — sarlavhada (title). */
 export function LocalCaps({ m }) {
   const t = useT();
   const parts = [];
@@ -95,9 +95,9 @@ export function LocalCaps({ m }) {
   if (m.size) parts.push(<span key="s" className="tnum">{t("local.sizeGb", { n: gbText(m.size) })}</span>);
   if (m.capsKnown) {
     parts.push(m.tools
-      ? <span key="t" className="local-cap ok" title={t("model.local.tools")}><span aria-hidden="true">🔧</span> {t("model.cap.tools")}</span>
+      ? <span key="t" className="local-cap ok" title={t("model.local.tools")}><Icon name="wrench" size={11} /> {t("model.cap.tools")}</span>
       : <span key="t" className="local-cap warn" title={t("model.local.chatOnly")}>{t("local.chatOnly")}</span>);
-    if (m.vision) parts.push(<span key="v" className="local-cap" title={t("model.local.vision")}><span aria-hidden="true">👁</span> {t("model.cap.vision")}</span>);
+    if (m.vision) parts.push(<span key="v" className="local-cap" title={t("model.local.vision")}><Icon name="eye" size={11} /> {t("model.cap.vision")}</span>);
   }
   return <span className="local-caps faint small">{parts.map((p, i) => <React.Fragment key={i}>{i > 0 && <span aria-hidden="true">·</span>}{p}</React.Fragment>)}</span>;
 }
