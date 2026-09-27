@@ -32,6 +32,23 @@
   --overlay: rgba(3, 4, 12, 0.62);
   --shadow: 0 24px 64px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.35);
   --glow: 0 0 24px rgba(91, 80, 240, 0.3);
+  /* Muharrir (CodeMirror) — sintaksis ranglari; kod faqat shu tokenlarni o'qiydi. */
+  --cm-comment: var(--faint);
+  --cm-keyword: var(--accent-soft);
+  --cm-string: var(--add-fg);
+  --cm-number: #f0b57a;
+  --cm-fn: #7aa2ff;
+  --cm-type: #5ad1c8;
+  --cm-prop: var(--text-2);
+  --cm-var: var(--text);
+  --cm-punct: var(--muted);
+  --cm-meta: var(--faint);
+  --cm-invalid: var(--err);
+  --cm-cursor: var(--accent-soft);
+  --cm-sel: rgba(91, 80, 240, 0.32);
+  --cm-match: rgba(124, 111, 247, 0.22);
+  --cm-active: rgba(255, 255, 255, 0.04);
+  --cm-gutter: var(--faint);
 }
 :root[data-theme="light"] {
   color-scheme: light;
@@ -65,6 +82,22 @@
   --overlay: rgba(20, 24, 60, 0.32);
   --shadow: 0 24px 64px rgba(20, 24, 60, 0.18), 0 2px 8px rgba(20, 24, 60, 0.08);
   --glow: 0 0 24px rgba(91, 80, 240, 0.18);
+  --cm-comment: var(--faint);
+  --cm-keyword: var(--accent-soft);
+  --cm-string: var(--add-fg);
+  --cm-number: #9a5b06;
+  --cm-fn: #2b57c9;
+  --cm-type: #0f766e;
+  --cm-prop: var(--text-2);
+  --cm-var: var(--text);
+  --cm-punct: var(--muted);
+  --cm-meta: var(--faint);
+  --cm-invalid: var(--err);
+  --cm-cursor: var(--accent);
+  --cm-sel: rgba(91, 80, 240, 0.2);
+  --cm-match: rgba(91, 80, 240, 0.16);
+  --cm-active: rgba(12, 16, 48, 0.04);
+  --cm-gutter: var(--faint);
 }
 :root {
   --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, "Inter", sans-serif;
@@ -640,3 +673,66 @@ button.local-badge:hover { border-color: var(--ok); }
 .local-rec-list .tnum { white-space: nowrap; }
 .local-pane .local-rec-list code { max-width: none; flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
 .local-pane .local-rec-list .grow { display: none; }
+
+/* ---------- Muharrir (CodeMirror 6) + daraxt amallari ---------- */
+/* Suhbat ↔ Muharrir ko'rinish yorliqlari (o'rta ustun tepasi). */
+.view-tabs { display: flex; align-items: center; gap: 4px; flex: none; padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.view-tab { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 11px; border-radius: 7px; font-size: 12.5px; color: var(--muted); border: 1px solid transparent; }
+.view-tab:hover { color: var(--text); background: var(--surface-2); }
+.view-tab.on { color: var(--text); background: var(--surface); border-color: var(--border-strong); font-weight: 600; }
+.view-tabs .kbd-inline { flex: none; margin-left: 0; }
+
+.editor-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--code-bg); }
+.ed-tabs { display: flex; align-items: center; gap: 6px; flex: none; padding: 5px 8px; border-bottom: 1px solid var(--border); background: var(--panel); }
+.ed-tab-strip { display: flex; align-items: center; gap: 3px; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
+.ed-tab-strip::-webkit-scrollbar { height: 5px; }
+.ed-tab { display: inline-flex; align-items: center; max-width: 190px; border-radius: 7px; border: 1px solid transparent; background: var(--surface-2); flex: none; }
+.ed-tab:hover { background: var(--hover); }
+.ed-tab.on { background: var(--code-bg); border-color: var(--border-strong); }
+.ed-tab-main { display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 0 4px 0 9px; height: 26px; font-size: 12px; color: var(--muted); }
+.ed-tab.on .ed-tab-main { color: var(--text); }
+.ed-tab-main .trunc { max-width: 128px; }
+.ed-dot { margin-left: 2px; }
+.ed-tab-x { display: grid; place-items: center; width: 20px; height: 26px; border-radius: 0 7px 7px 0; color: var(--faint); }
+.ed-tab-x:hover { color: var(--err); background: var(--err-bg); }
+.ed-tab-actions { display: flex; align-items: center; gap: 5px; margin-left: auto; flex: none; }
+.ed-tab-actions .icon-btn.on { color: var(--accent-soft); background: var(--accent-bg); }
+.ed-banner { margin: 6px 8px 0; align-items: center; background: var(--surface-2); border-color: var(--border); color: var(--text-2); }
+.ed-banner .btn { flex: none; }
+.ed-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+.cm-host { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
+.ed-image { flex: 1; overflow: auto; display: grid; place-items: center; padding: 20px; background: var(--surface-2); }
+.ed-image img { max-width: 100%; height: auto; border-radius: var(--r-sm); box-shadow: var(--shadow); background-color: var(--surface); }
+.ed-status { display: flex; align-items: center; gap: 10px; flex: none; height: 24px; padding: 0 12px; border-top: 1px solid var(--border); background: var(--panel); }
+.ed-status .warn { color: var(--warn); }
+
+/* Daraxt: tanlangan qator, nom kiritish, amal menyusi */
+.tree-row { position: relative; cursor: pointer; }
+.tree-row.sel { background: var(--surface-2); color: var(--text); }
+.tree-row.active { color: var(--accent-soft); }
+.tree-row:focus-visible { outline: 2px solid var(--accent-ring); outline-offset: -2px; }
+.tree-input { flex: 1; min-width: 0; height: 20px; padding: 0 5px; border-radius: 5px; border: 1px solid var(--accent-ring); background: var(--surface); color: var(--text); font: 12px var(--mono); outline: none; }
+.tree-more { display: none; place-items: center; width: 20px; height: 20px; border-radius: 5px; color: var(--faint); flex: none; }
+.tree-row:hover .tree-more, .tree-row.sel .tree-more, .tree-row:focus-within .tree-more { display: grid; }
+.tree-more:hover { color: var(--text); background: var(--hover); }
+
+.ctx-menu { position: fixed; z-index: 90; min-width: 210px; padding: 5px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--border-strong); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 1px; }
+.ctx-item { display: flex; align-items: center; gap: 9px; height: 28px; padding: 0 9px; border-radius: 6px; font-size: 12.5px; color: var(--text-2); text-align: left; }
+.ctx-item:hover:not(:disabled), .ctx-item:focus-visible { background: var(--hover); color: var(--text); outline: none; }
+.ctx-item:disabled { opacity: 0.4; }
+.ctx-item.danger { color: var(--err); }
+.ctx-item.danger:hover:not(:disabled), .ctx-item.danger:focus-visible { background: var(--err-bg); }
+.ctx-sep { height: 1px; margin: 3px 6px; background: var(--border); }
+
+/* 860px minimal kenglik: yorliqlar va holat qatori qisqaradi */
+@media (max-width: 1080px) {
+  .ed-tab-main .trunc { max-width: 90px; }
+  .ed-tab { max-width: 150px; }
+}
+@media (max-width: 940px) {
+  .view-tabs .kbd-inline { display: none; }
+  .ed-status .mono { max-width: 40%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cm-editor .cm-scroller { scroll-behavior: auto; }
+}

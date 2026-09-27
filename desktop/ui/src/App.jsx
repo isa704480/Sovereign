@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import Conversation from "./components/Conversation.jsx";
 import Composer from "./components/Composer.jsx";
 import RightPanel from "./components/RightPanel.jsx";
+import EditorPane from "./components/EditorPane.jsx";
 import ConfirmDialog from "./components/ConfirmDialog.jsx";
 import CommandPalette, { ShortcutsHelp } from "./components/CommandPalette.jsx";
 import Settings from "./components/Settings.jsx";
@@ -23,6 +24,8 @@ function reducer(s, a) {
     case "replay": return replayEvents(a.events);
     case "confirm-done": return { ...s, confirm: null, changes: a.change ? addChange(s.changes, a.change) : s.changes };
     case "set-changes": return { ...s, changes: a.changes };
+    // Muharrirda Ctrl+S bilan saqlangan fayl — agent yozuvlari bilan bir xil ro'yxatga (Undo ishlaydi).
+    case "file-saved": return { ...s, changes: addChange(s.changes, a.change) };
     case "clear-term": return { ...s, term: [] };
     default: return s;
   }
@@ -54,13 +57,13 @@ export default function App() {
   const [shortcuts, setShortcuts] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(null);
-  const [viewer, setViewer] = useState(null);
   const [auth, setAuth] = useState({ state: "idle" });
   const [update, setUpdate] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [input, setInput] = useState("");
   const [dark, setDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true);
   const composerRef = useRef(null);
+  const editorRef = useRef(null);
   // Sidebar kartasidan bosilgan yuklash: tayyor bo'lgach avtomatik o'rnatib qayta ishga tushiriladi
   // (agent ishlayotgan bo'lsa — yo'q; karta "qayta ishga tushirish" tugmasini ko'rsatadi).
   const installWhenReady = useRef(false);
@@ -121,6 +124,12 @@ export default function App() {
         }
         return;
       }
+      if (ev.type === "fs-changed") {
+        // Agent yoki tashqi muharrir fayl o'zgartirdi — daraxt va ochiq yorliqlar yangilanadi.
+        refreshTree();
+        editorRef.current?.externalChange(ev.paths ?? []);
+        return;
+      }
       dispatch({ type: "event", ev });
       if (ev.type === "tool-done" && (ev.name === "write_file" || ev.name === "make_dir" || ev.name === "run_command") && ev.status !== "declined" && ev.status !== "skipped") refreshTree();
       if (ev.type === "snapshot") refreshTree();
@@ -174,6 +183,7 @@ export default function App() {
     dispatch({ type: "reset" });
     setActiveTaskId(null);
     setTree(null);
+    editorRef.current?.closeAll(); // boshqa papka — eski yorliqlar yopiladi
     refreshTree();
     setSideTab("files");
     toast(t("folder.opened", { name: r.cwd.split(/[\\/]/).filter(Boolean).pop() }), "ok");
@@ -292,10 +302,17 @@ export default function App() {
     } else if (what === "open-download") S().openLink("download"); // macOS: sayt orqali
   };
 
-  const openFile = async (node) => {
-    const r = await S().fsRead(node.path);
-    setViewer({ path: node.path, name: node.name, content: r?.content ?? "", truncated: !!r?.truncated, error: r?.error ? r : null });
-  };
+  // Daraxtdan (yoki auditdan) fayl ochish — muharrir ko'rinishida yangi yorliq.
+  const openFile = useCallback(
+    (node) => {
+      const path = typeof node === "string" ? node : node?.path;
+      if (!path) return;
+      setSetting({ mainView: "editor" });
+      editorRef.current?.open(path);
+    },
+    [setSetting],
+  );
+  const setMainView = (v) => setSetting({ mainView: v });
 
   const onErrorAction = (a) => {
     if (a === "retry") retry();
@@ -304,7 +321,7 @@ export default function App() {
   };
 
   // ---- Commands + hotkeys ----
-  const anyModal = !!(palette || shortcuts || settingsOpen || viewer || auditOpen || autoConsent || agent.confirm);
+  const anyModal = !!(palette || shortcuts || settingsOpen || auditOpen || autoConsent || agent.confirm);
   // Audit → "AI bilan tuzatish": tayyor topshiriq Kod rejimidagi composer'ga qo'yiladi (yuborilmaydi).
   const fixWithAi = (prompt) => {
     setAuditOpen(false);
@@ -323,6 +340,7 @@ export default function App() {
       ...(info?.cwd ? [{ id: "audit", label: t("audit.title"), keywords: `${t("audit.keywords")} audit security rls env cors`, icon: "shield", group: g.task, run: () => setAuditOpen(true) }] : []),
       { id: "mode", label: mode === "code" ? t("palette.toChat") : t("palette.toCode"), icon: mode === "code" ? "chat" : "code", hint: "Ctrl E", group: g.task, run: () => setMode((m) => (m === "code" ? "chat" : "code")) },
       ...(agent.busy ? [{ id: "stop", label: t("sc.stop"), icon: "stop", hint: "Ctrl .", group: g.task, run: stop }] : []),
+      ...(info?.cwd ? [{ id: "editor", label: settings.mainView === "editor" ? t("editor.toChat") : t("editor.toEditor"), icon: settings.mainView === "editor" ? "chat" : "code", hint: "Ctrl Shift E", group: g.view, run: () => setSetting({ mainView: settings.mainView === "editor" ? "chat" : "editor" }) }] : []),
       { id: "sidebar", label: t("sc.sidebar"), icon: "sidebar", hint: "Ctrl B", group: g.view, run: toggleSidebar },
       { id: "changes", label: t("palette.showChanges"), icon: "diff", group: g.view, run: () => togglePanel("changes") },
       { id: "terminal", label: t("palette.showTerminal"), icon: "terminal", hint: "Ctrl J", group: g.view, run: () => togglePanel("terminal") },
@@ -354,6 +372,12 @@ export default function App() {
       }[k];
       if (act) { e.preventDefault(); act(); return; }
       if (anyModal) return;
+      // Ctrl+Shift+E — suhbat ↔ muharrir ko'rinishi (ish papkasi tanlangan bo'lsa).
+      if (e.shiftKey && k === "e" && info?.cwd) {
+        e.preventDefault();
+        setSetting({ mainView: settings.mainView === "editor" ? "chat" : "editor" });
+        return;
+      }
       const more = {
         n: newTask,
         o: pickFolder,
@@ -403,6 +427,8 @@ export default function App() {
     const abs = /^([a-zA-Z]:[\\/]|[\\/])/.test(p) ? p : `${info.cwd ?? ""}/${p}`;
     return abs.replace(/\\/g, "/").replace(/\/\.\//g, "/").toLowerCase();
   }));
+  // Muharrir ko'rinishi faqat ish papkasi tanlanganda (aks holda — suhbat).
+  const editorView = !!info.cwd && settings.mainView === "editor";
   const disabledReason = !info.authed ? "auth" : mode === "code" && !info.cwd ? "folder" : null;
   const settingsProps = {
     info, settings, setSetting, lang, setLang, model: info.model, onModel, auth, onLogin: login, onCancelLogin: cancelLogin, onLogout: logout,
@@ -433,11 +459,31 @@ export default function App() {
               tab={sideTab} setTab={setSideTab} info={info} history={history} activeTaskId={activeTaskId} tree={tree} treeError={treeError}
               onOpenTask={openTask} onRemoveTask={removeTask} onNewTask={newTask} onPick={pickFolder} onReveal={reveal} onRefresh={refreshTree}
               onOpenFile={openFile} changedSet={changedSet} onSettings={() => setSettingsOpen("general")} onAccount={() => setSettingsOpen("account")} busy={agent.busy}
-              update={update} onUpdateAction={updateAction}
+              update={update} onUpdateAction={updateAction} onToast={toast}
+              onFileRenamed={(from, to) => { editorRef.current?.renamed(from, to); }} onFileRemoved={(p) => editorRef.current?.removed(p)}
             />
           )}
-          <main className="main-col"aria-label={t("chat.label")}>
-            <Conversation agent={agent} mode={mode} info={info} fullAuto={!!settings.fullAuto} onAction={onErrorAction} onPick={pickFolder} onSignIn={() => setSettingsOpen("account")} onSuggest={(s) => { setInput(s); composerRef.current?.focus(); }} />
+          <main className="main-col" aria-label={editorView ? t("editor.title") : t("chat.label")}>
+            {/* Suhbat asosiy bo'lib qoladi; «Muharrir» — o'sha ustundagi ikkinchi ko'rinish (Ctrl+Shift+E). */}
+            {info.cwd && (
+              <div className="view-tabs" role="tablist" aria-label={t("editor.viewTabs")}>
+                {[["chat", t("chat.label"), "chat"], ["editor", t("editor.title"), "code"]].map(([k, l, ic]) => (
+                  <button key={k} type="button" role="tab" aria-selected={(settings.mainView === "editor") === (k === "editor")} className={`view-tab ${(settings.mainView === "editor") === (k === "editor") ? "on" : ""}`} onClick={() => setMainView(k)}>
+                    <Icon name={ic} size={13} /> {l}
+                  </button>
+                ))}
+                <span className="grow" />
+                <kbd className="kbd-inline">Ctrl Shift E</kbd>
+              </div>
+            )}
+            {editorView ? (
+              <EditorPane
+                ref={editorRef} dark={resolvedTheme === "dark"} wrap={settings.editorWrap !== false} onWrap={(w) => setSetting({ editorWrap: w })}
+                onSaved={(change) => dispatch({ type: "file-saved", change })} onToast={toast} onRefreshTree={refreshTree} platform={info.platform}
+              />
+            ) : (
+              <Conversation agent={agent} mode={mode} info={info} fullAuto={!!settings.fullAuto} onAction={onErrorAction} onPick={pickFolder} onSignIn={() => setSettingsOpen("account")} onSuggest={(s) => { setInput(s); composerRef.current?.focus(); }} />
+            )}
             {(agent.changes.length > 0 || agent.term.length > 0) && !settings.rightPanel && (
               <div className="peek">
                 {agent.changes.length > 0 && <button type="button" className="chip" onClick={() => togglePanel("changes")}><Icon name="diff" size={13} /> {t("changes.count", { n: agent.changes.length })}</button>}
@@ -463,18 +509,6 @@ export default function App() {
             onFix={fixWithAi}
             onOpenFile={(rel) => { setAuditOpen(false); openFile({ path: rel, name: rel.split("/").pop() }); }}
           />
-        )}
-        {viewer && (
-          <Modal title={<span className="mono">{viewer.name}</span>} onClose={() => setViewer(null)} width={920} className="viewer">
-            {viewer.error ? (
-              <div className="banner banner-warn"><Icon name="alert" size={14} /><span>{t("files.readError")}: {fsErrText(viewer.error, t)}</span></div>
-            ) : (
-              <>
-                <pre className="viewer-code"><code>{viewer.content.split("\n").map((l, i) => <span key={i} className="vl"><span className="ln">{i + 1}</span>{l || " "}{"\n"}</span>)}</code></pre>
-                {viewer.truncated && <p className="faint small pad-sm">{t("files.truncated")}</p>}
-              </>
-            )}
-          </Modal>
         )}
         {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
         {shortcuts && <ShortcutsHelp onClose={() => setShortcuts(false)} Modal={Modal} />}
