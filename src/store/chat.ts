@@ -51,6 +51,11 @@ export interface VerifierIssue {
   reason?: "no_calls" | "failed" | "partial" | "not_performed";
   /** "citation" uchun: manbasiz [n] raqamlari. */
   markers?: number[];
+  /**
+   * Fakt bahosini bergan mustaqil hakam: model, kompaniyasi va javob kompaniyasi
+   * (vendor.ts id'lari; har doim farqli). Eski xabarlarda yo'q.
+   */
+  judge?: { model: string; vendor: string; answerVendor?: string };
 }
 
 export interface CacheInfo {

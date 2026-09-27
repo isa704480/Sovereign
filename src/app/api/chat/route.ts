@@ -10,7 +10,7 @@ import {
   type StreamEvent,
 } from "@/lib/ai/providers";
 import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
-import { confirmActionClaims, formatSearchSources, verifyAnswer, type VerifierIssue } from "@/lib/ai/verifier";
+import { confirmActionClaims, formatSearchSources, verifyAnswer, type JudgeInfo, type VerifierIssue } from "@/lib/ai/verifier";
 import { checkClaims, detectActionClaims, unsourcedMarkers, type ActionRecord, type ClaimReason, type UnsupportedClaim } from "@/lib/ai/claims";
 import { isCodeRequest, planRouteLLM, type RouteStep } from "@/lib/ai/router";
 import { modelAllowedIn, regionDecision } from "@/lib/ai/region";
@@ -200,6 +200,8 @@ type WireIssue = {
   kind: "fact" | "action" | "citation";
   reason?: ClaimReason;
   markers?: number[];
+  /** Fakt bahosini bergan mustaqil hakam (javob kompaniyasidan boshqa kompaniya). */
+  judge?: JudgeInfo;
 };
 
 function actionIssues(claims: UnsupportedClaim[]): WireIssue[] {
@@ -443,6 +445,8 @@ export async function POST(req: Request) {
         ledger: ActionRecord[];
         unsourced: number[];
         verify: (() => Promise<VerifierIssue[]>) | null;
+        /** Javobni yaratgan model(lar) — mustaqil hakam boshqa kompaniyadan tanlanadi. */
+        answerModels: string[];
       }) => {
         const unsupported = checkClaims(detectActionClaims(p.text), p.ledger);
         const strong = unsupported.filter((c) => c.strength === "strong");
@@ -453,12 +457,14 @@ export async function POST(req: Request) {
         if (!borderline.length && !p.verify) return;
         const [facts, confirmed] = await Promise.all([
           p.verify ? p.verify().catch((): VerifierIssue[] => []) : Promise.resolve<VerifierIssue[]>([]),
-          // Tasdiqlovchi model — openai/gpt-4o-mini: cheklangan mintaqada chaqirilmaydi
-          // (null → ogohlantirish saqlanadi, xavfsiz tomonga).
+          // Tasdiqlovchi — mustaqil hakam (judge.ts): javob kompaniyasidan boshqa, mintaqada
+          // ruxsat etilgan model. Hakam topilmasa null → ogohlantirish saqlanadi (xavfsiz tomonga).
           borderline.length
-            ? region.restricted
-              ? Promise.resolve<boolean[] | null>(null)
-              : confirmActionClaims(borderline.map((c) => c.text), req.signal).catch(() => null)
+            ? confirmActionClaims(
+                borderline.map((c) => c.text),
+                req.signal,
+                { answerModel: p.answerModels, country },
+              ).catch(() => null)
             : Promise.resolve<boolean[] | null>([]),
         ]);
         // Tasdiqlab bo'lmasa (kalit yo'q / xato) — ogohlantirish saqlanadi (xavfsiz tomonga).
@@ -469,7 +475,9 @@ export async function POST(req: Request) {
           ...actionIssues([...strong, ...kept]),
           ...cites,
         ];
-        send({ type: "verifier", issues: all });
+        // Kim tekshirdi (har doim javob kompaniyasidan boshqa) — mijoz VerifierPanel'da ko'rsatadi.
+        const judge = facts.find((f) => f.judge)?.judge;
+        send({ type: "verifier", issues: all, ...(judge ? { judge } : {}) });
       };
 
       // Oylik token hisobi uchun (finally'da yoziladi — oqim uzilsa/bekor qilinsa ham).
@@ -560,7 +568,7 @@ export async function POST(req: Request) {
               }
               // Keshdagi javob ham "yubordim" deyishi mumkin — bu so'rovda hech qanday
               // connector chaqirilmagan (jurnal bo'sh).
-              await postChecks({ text: hit.answer, ledger: [], unsourced: [], verify: null }).catch(() => {});
+              await postChecks({ text: hit.answer, ledger: [], unsourced: [], verify: null, answerModels: [hit.model] }).catch(() => {});
               send({ type: "done" });
               return; // [DONE] va close — finally'da (ikki marta yopilmasin)
             }
@@ -790,12 +798,21 @@ ${connectorContext}`
           const attributionOnly = Boolean(searchCtx.text) && !searchCtx.withContent && !webContext && !knowledgeText;
           // Manbali tekshiruv qisqa javobga ham arziydi; manbasiz "ikkinchi fikr" — faqat uzun javobga.
           const minChars = sources ? 150 : 300;
-          // Fakt-verifier — openai/gpt-4o-mini: cheklangan mintaqada chaqirilmaydi.
-          const shouldVerify = !region.restricted && verifyText.length >= minChars && isFactualProse(verifyText);
+          // Fakt-verifier — mustaqil hakam (judge.ts): javobni yaratgan kompaniyadan BOSHQA
+          // kompaniyaning modeli; mintaqa siyosati hakamga ham qo'llanadi (cheklangan mintaqada
+          // faqat u yerda ruxsat etilgan kompaniyalar).
+          const shouldVerify = verifyText.length >= minChars && isFactualProse(verifyText);
+          // Javob muallifi: upstream qaytargan haqiqiy model + nomzod id + reja qadamlari
+          // (research — Perplexity). Hammasining kompaniyasi hakamlikdan chiqariladi.
+          const answerModels = [
+            ...(cacheableAnswer ? [servedUpstream, cachedFrom ?? servedId] : []),
+            ...steps.map((s) => s.modelId),
+          ].filter((m): m is string => !!m);
           await postChecks({
             text: modelText,
             ledger: actionLedger,
             unsourced: researchRan || clientCitations.length ? unsourcedMarkers(modelText, clientCitations.length) : [],
+            answerModels,
             verify: shouldVerify
               ? () =>
                   verifyAnswer(lastText, verifyText, sources, {
@@ -803,6 +820,8 @@ ${connectorContext}`
                     numbered: Boolean(searchCtx.text),
                     lang,
                     signal: req.signal,
+                    answerModel: answerModels,
+                    country,
                   })
               : null,
           });

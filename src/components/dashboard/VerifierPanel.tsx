@@ -6,6 +6,7 @@ import { useLang, useT, type VerifierIssue } from "@/store/chat";
 import { plural } from "@/lib/plural";
 import { fmt, type TKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { isVendor, VENDOR_LABEL } from "@/lib/ai/vendor";
 
 /** Server `basis` qo'shadi (verifier.ts); eski saqlangan xabarlarda bo'lmasligi mumkin. */
 type Issue = VerifierIssue;
@@ -114,6 +115,14 @@ export function VerifierPanel({ issues: all }: VerifierPanelProps) {
   // Research, lekin faqat sarlavha/URL — mazmun emas, atributsiya baholangan.
   const attribution = !grounded && issues.some((i) => i.basis === "attribution");
   const allConfirmed = !suspicious.length && !unconfirmed.length;
+  // Kim tekshirdi — har doim javobni yaratgan kompaniyadan boshqa kompaniya (judge.ts).
+  const judge = issues.find((i) => i.judge)?.judge;
+  const vendorName = (v: string | undefined) => (isVendor(v) && VENDOR_LABEL[v]) || t("p12VendorUnknown");
+  const judgeLine = judge
+    ? isVendor(judge.answerVendor) && judge.answerVendor !== "unknown"
+      ? fmt(t("p12JudgeLine"), { judge: vendorName(judge.vendor), answer: vendorName(judge.answerVendor) })
+      : fmt(t("p12JudgeLineNoAnswer"), { judge: vendorName(judge.vendor) })
+    : null;
 
   const summary = suspicious.length
     ? plural(lang, suspicious.length, { one: "p8bSuspiciousOne", few: "p8bSuspiciousFew", many: "p8bSuspiciousMany" })
@@ -145,6 +154,11 @@ export function VerifierPanel({ issues: all }: VerifierPanelProps) {
           <li className="pb-1.5" style={{ color: "var(--t-text-muted)" }}>
             {t(grounded ? "vfBasisSources" : attribution ? "vfBasisAttribution" : "vfBasisModel")}
           </li>
+          {judgeLine && judge && (
+            <li className="pb-1.5" style={{ color: "var(--t-text-muted)" }} title={fmt(t("p12JudgeTitle"), { model: judge.model })}>
+              {judgeLine}
+            </li>
+          )}
           {issues.map((issue, i) => {
             const meta = VERDICT_META[issue.verdict];
             const Icon = meta.Icon;

@@ -32,6 +32,7 @@ import {
   FAILURE_EXPLAIN_RULE,
 } from "../cli/src/tools.mjs";
 import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mjs";
+import { shouldVerify, verifyClaims } from "../cli/src/verify.mjs";
 import { SnapshotStore, withCommandSnapshots } from "../cli/src/snapshot.mjs";
 import * as projectMemory from "../cli/src/project-memory.mjs";
 import { registerProjectIpc } from "./electron/project.mjs";
@@ -342,8 +343,25 @@ async function runRound(messages, config, withTools = true, signal = undefined) 
     throw err;
   }
   // `usage` — server yangi versiyada qaytaradi (yo'q bo'lsa — taxmin).
-  const { message, usage } = await res.json();
-  return { message, toolCalls: message.tool_calls ?? [], usage };
+  // `model` — haqiqatda javob bergan model (mustaqil hakam boshqa kompaniyadan tanlanishi uchun).
+  const { message, usage, model } = await res.json();
+  return { message, toolCalls: message.tool_calls ?? [], usage, model: typeof model === "string" ? model : null };
+}
+
+/**
+ * Ixtiyoriy mustaqil hakam (server: /api/cli/verify → judge.ts): yakuniy javobdagi
+ * "bajardim" da'volarini jurnalga solishtiradi. Hakam har doim javob bergan modelning
+ * kompaniyasidan BOSHQA kompaniya. Faqat kerak bo'lganda (regex shubha / yozish amali);
+ * offline, xato yoki timeout — null (jurnal kartasi regex natijasi bilan qoladi).
+ */
+async function judgeTurn(entries, finalText, config, turn, answerModel) {
+  const text = String(finalText ?? "").trim();
+  if (!text || !config?.token || !config?.baseUrl || !netAllowed(config.baseUrl) || turn.aborted) return null;
+  const regexWarn = unsupportedClaim(text, entries) || testClaimIssue(text, entries);
+  if (!shouldVerify(entries, regexWarn)) return null;
+  const r = await verifyClaims(config, { answer: text, entries, signal: turn.controller.signal, answerModel: answerModel ?? undefined });
+  if (!r) return null;
+  return { unsupported: r.unsupported, vendor: r.judgeVendorLabel || r.judgeVendor || null, vendorId: r.judgeVendor ?? null };
 }
 
 /**
@@ -352,13 +370,14 @@ async function runRound(messages, config, withTools = true, signal = undefined) 
  * noteCode: "error" (navbat xato bilan to'xtadi) | "steps" (qadamlar chegarasi) |
  *   "loop" (takroriy sikl — `loop`: {kind, target, count}) | "budget" (token byudjeti — `budget`: {used, limit}).
  * testWarning: "testlar o'tdi" da'vosi tasdiqlanmagan — {code: noTest|testFailed|stale, command?, files?}.
+ * judge: mustaqil hakam natijasi — {unsupported: string[], vendor: "Alibaba (Qwen)" | null, vendorId} yoki null.
  */
-function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0, loop = null, budget = null } = {}) {
+function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0, loop = null, budget = null, judge = null } = {}) {
   const warn = unsupportedClaim(finalText, entries);
   const testWarning = testClaimIssue(finalText, entries);
   const show = ledgerWorthShowing(entries);
-  if (!show && !warn && !testWarning && !noteCode) return;
-  send("ledger", { entries: show ? entries : [], warning: warn ?? null, testWarning, noteCode, maxSteps, loop, budget });
+  if (!show && !warn && !testWarning && !noteCode && !judge?.unsupported?.length) return;
+  send("ledger", { entries: show ? entries : [], warning: warn ?? null, testWarning, noteCode, maxSteps, loop, budget, judge });
 }
 
 /** Vazifa narxi: token va qadamlar (UI jurnal ostida ko'rsatadi). */
@@ -429,7 +448,10 @@ async function agentTurn(messages, config, turn) {
         messages.push({ role: "user", content: nudge });
         continue;
       }
-      sendLedger(tracker.entries, { finalText: round.message.content ?? "" });
+      const finalText = round.message.content ?? "";
+      const judge = await judgeTurn(tracker.entries, finalText, config, turn, round.model);
+      if (turn.aborted) return "stopped";
+      sendLedger(tracker.entries, { finalText, judge });
       sendUsage(meter);
       send("done");
       return "done";

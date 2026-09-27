@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { createAnonClient } from "@/lib/supabase/anon";
+import { createServiceClient } from "@/lib/supabase/service";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
+import { callJudge, judgeCandidates, extractJson, vendorLabel } from "@/lib/ai/judge";
+import { resolveUserRegion } from "@/lib/ai/region-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 20;
@@ -18,19 +21,20 @@ export const maxDuration = 20;
  * CLI bu natijani faqat QO'SHIMCHA ogohlantirish sifatida ko'rsatadi (regex
  * tekshiruvi baribir ishlaydi); xato/timeout bo'lsa CLI regex'ga qaytadi.
  * Kunlik xabar limitiga hisoblanmaydi — o'rniga qat'iy rate-limit.
+ *
+ * Hakam — MUSTAQIL (judge.ts): `answerModel` (javobni bergan model, /api/cli/chat
+ * qaytargan `model`) kompaniyasidan BOSHQA kompaniyaning modeli, mintaqa siyosati bilan.
+ * Javobda: { unsupported, model, judgeModel, judgeVendor, judgeVendorLabel, answerVendor }.
  */
 
-const OMNIROUTE = (process.env.OMNIROUTE_BASE_URL ?? "").replace(/\/$/, "");
-const GROQ = "https://api.groq.com/openai/v1/chat/completions";
-/** OmniRoute orqali tez/arzon modellar (omniImagePrompt bilan bir xil to'plam). */
-const OMNI_MODELS = ["groq/openai/gpt-oss-20b", "groq/qwen/qwen3.8-27b"];
-const GROQ_MODEL = "openai/gpt-oss-20b";
 const MODEL_TIMEOUT_MS = 5_000;
 const TOTAL_BUDGET_MS = 7_000;
 
 const schema = z
   .object({
     answer: z.string().min(1).max(8_000),
+    /** Javobni yaratgan model id (ixtiyoriy — eski mijozlar yubormaydi). */
+    answerModel: z.string().max(200).regex(/^[\w./:@-]+$/).optional(),
     ledger: z
       .array(
         z
@@ -61,35 +65,14 @@ const SYSTEM = [
   "Reply with ONLY a JSON object, no prose, no code fences: {\"unsupported\": [\"<short description of each unsupported claim, max 25 words, same language as ANSWER>\"]}. Use an empty array when every completion claim is backed.",
 ].join("\n");
 
-type Provider = { url: string; key: string; model: string };
-
-function providers(): Provider[] {
-  const list: Provider[] = [];
-  const omniKey = process.env.OMNIROUTE_API_KEY;
-  if (OMNIROUTE && omniKey) {
-    for (const model of OMNI_MODELS) list.push({ url: `${OMNIROUTE}/chat/completions`, key: omniKey, model });
-  }
-  const groq = process.env.GROQ_API_KEY;
-  if (groq) list.push({ url: GROQ, key: groq, model: GROQ_MODEL });
-  return list;
-}
-
 /** Model javobidan {"unsupported": [...]} ni ajratadi; noto'g'ri bo'lsa null. */
 function parseVerdict(raw: string): string[] | null {
-  const text = raw.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end <= start) return null;
-  try {
-    const obj = JSON.parse(text.slice(start, end + 1)) as { unsupported?: unknown };
-    if (!Array.isArray(obj.unsupported)) return null;
-    return obj.unsupported
-      .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
-      .map((s) => s.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").trim().slice(0, 200))
-      .slice(0, 10);
-  } catch {
-    return null;
-  }
+  const obj = extractJson(raw);
+  if (!obj || !Array.isArray(obj.unsupported)) return null;
+  return obj.unsupported
+    .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
+    .map((s) => s.replace(/[\u0000-\u001f\u007f-\u009f]/g, " ").trim().slice(0, 200))
+    .slice(0, 10);
 }
 
 export async function POST(req: Request) {
@@ -123,6 +106,7 @@ export async function POST(req: Request) {
   }
 
   // Token → foydalanuvchi (boshqa /api/cli marshrutlari bilan bir xil).
+  let userId: string;
   try {
     const supabase = createAnonClient();
     const { data, error } = await supabase.rpc("cli_whoami", { p_token: token });
@@ -130,45 +114,52 @@ export async function POST(req: Request) {
     if (error || !row?.user_id) {
       return Response.json({ error: t("p7cCliBadToken") }, { status: 401 });
     }
+    userId = row.user_id;
   } catch (e) {
     console.error("[cli/verify] whoami:", e);
     return Response.json({ error: t("secServerError") }, { status: 500 });
   }
 
-  const list = providers();
-  if (!list.length) return Response.json({ error: t("p7cCliJudgeMissing") }, { status: 503 });
+  // Mintaqa — /api/cli/chat bilan bir xil: hakam ham mintaqa siyosatiga bo'ysunadi.
+  let country: string | null = null;
+  try {
+    const region = await resolveUserRegion({ headers: req.headers, supabase: createServiceClient(), userId });
+    country = region.restricted ? region.country : null;
+  } catch {
+    const region = await resolveUserRegion({ headers: req.headers });
+    country = region.restricted ? region.country : null;
+  }
 
-  const { answer, ledger } = parsed.data;
+  const { answer, ledger, answerModel } = parsed.data;
+  if (!judgeCandidates({ answerModel, country }).length) {
+    return Response.json({ error: t("p7cCliJudgeMissing") }, { status: 503 });
+  }
+
   const ledgerText = ledger.length ? ledger.map((l) => `[${l.status}] ${l.text}`).join("\n") : "(no tool actions this turn)";
   const user = `LEDGER:\n${ledgerText}\n\nANSWER:\n<<<\n${answer}\n>>>`;
 
   // CLI 8 s kutadi — jami vaqt shundan oshmasin.
-  const deadline = Date.now() + TOTAL_BUDGET_MS;
-  for (const p of list) {
-    const left = deadline - Date.now();
-    if (left < 1_000) break;
-    try {
-      const res = await fetch(p.url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${p.key}` },
-        body: JSON.stringify({
-          model: p.model,
-          temperature: 0,
-          max_tokens: 500,
-          messages: [
-            { role: "system", content: SYSTEM },
-            { role: "user", content: user },
-          ],
-        }),
-        signal: AbortSignal.timeout(Math.min(MODEL_TIMEOUT_MS, left)),
-      });
-      if (!res.ok) continue;
-      const data = (await res.json()) as { choices?: { message?: { content?: string | null } }[] };
-      const verdict = parseVerdict(data.choices?.[0]?.message?.content ?? "");
-      if (verdict) return Response.json({ unsupported: verdict, model: p.model });
-    } catch {
-      /* keyingi model */
-    }
-  }
-  return Response.json({ error: t("p7cCliJudgeNoAnswer") }, { status: 502 });
+  const r = await callJudge({
+    system: SYSTEM,
+    user,
+    answerModel,
+    country,
+    temperature: 0,
+    maxTokens: 500,
+    timeoutMs: MODEL_TIMEOUT_MS,
+    budgetMs: TOTAL_BUDGET_MS,
+    signal: req.signal,
+    accept: (text) => parseVerdict(text) !== null,
+  });
+  const verdict = r ? parseVerdict(r.text) : null;
+  if (!r || !verdict) return Response.json({ error: t("p7cCliJudgeNoAnswer") }, { status: 502 });
+  return Response.json({
+    unsupported: verdict,
+    // `model` — eski mijozlar uchun (hakam modeli).
+    model: r.judgeModel,
+    judgeModel: r.judgeModel,
+    judgeVendor: r.judgeVendor,
+    judgeVendorLabel: vendorLabel(r.judgeVendor),
+    answerVendor: r.answerVendor,
+  });
 }
