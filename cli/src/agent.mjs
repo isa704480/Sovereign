@@ -19,12 +19,14 @@ import {
   FULL_AUTO_RULE,
   FULL_AUTO_MAX_NUDGES,
   fullAutoNudge,
+  stallNudge,
 } from "./tools.mjs";
 import { c, spinner, renderMarkdown, markdownStream } from "./ui.mjs";
 import { memorySystemMessage } from "./memory.mjs";
 import { projectMemoryMessage } from "./project-memory.mjs";
 import { shouldVerify, verifyClaims } from "./verify.mjs";
 import { withCommandSnapshots, cliSnapshotStore } from "./snapshot.mjs";
+import { chat as ollamaChat, capabilities as ollamaCapabilities, classifyServerError, isValidModelName } from "./ollama.mjs";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -37,6 +39,7 @@ const SYSTEM = [
   "Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (asosan o'zbek tili).",
   "Vazifa tushunarli bo'lsa DARHOL bajar: aytilmagan tafsilotlarga (uslub, tuzilma, nom) oqilona standart tanla va oxirida qanday taxmin qilganingni 1 qatorda ayt. Faqat natija foydalanuvchiga xos ma'lumotga bog'liq bo'lsa (uning ismi, aniq raqamlari, kalit, qaysi fayl yoki yo'l) 1-3 ta qisqa savol ber — bir vazifaga bir marta; foydalanuvchi javob bergan yoki \"qil/davom et\" degan bo'lsa, qayta so'ramay bajar.",
   "MUHIM: har bir qadamda nima qilayotganingni QISQA gap bilan tushuntirib bor — avval rejangni ayt, keyin vositani chaqir.",
+  "Foydalanuvchidan 'davom et' deb yozishni SO'RAMA — vazifa berilgan bo'lsa, shu javobning o'zida vositani chaqir. Ism o'ylab topma: foydalanuvchiga faqat u o'zi aytgan ism bilan murojaat qil.",
   "Masalan: 'Avval package.json yarataman, keyin src papkasini ochaman.' — keyin write_file/make_dir chaqir.",
   "Kod toza, ishlaydigan va xavfsiz bo'lsin. Fayl uchun write_file, papka uchun make_dir vositasidan foydalan.",
   "Foydalanuvchi rasm biriktirsa — uni ko'rib, tavsifla; PDF/matn biriktirsa — mazmunini o'qib xulosa qil.",
@@ -123,6 +126,14 @@ function forServer(messages) {
   return [...system, ...tail];
 }
 
+/** Bitta javobda bajariladigan vosita chaqiruvlari (server 32 tagacha qabul qiladi). Qolganini model keyingi qadamda so'raydi. */
+const MAX_TOOL_CALLS = 16;
+function capToolCalls(round) {
+  if (round.toolCalls.length <= MAX_TOOL_CALLS) return;
+  round.toolCalls = round.toolCalls.slice(0, MAX_TOOL_CALLS);
+  round.message = { ...round.message, tool_calls: round.toolCalls };
+}
+
 const RETRY_429_MAX = 2;
 const RETRY_WAIT_MAX_MS = 30_000;
 
@@ -150,6 +161,8 @@ async function fetchRetry429(url, init, signal) {
   for (let attempt = 0; ; attempt++) {
     const res = await fetch(url, init);
     if (res.status !== 429 || attempt >= RETRY_429_MAX) return res;
+    // Tarif limiti (T14 `X-Sovereign-Code: user_limit`) — kutish befoyda: darhol qaytamiz (mahalliy zaxira taklifi).
+    if (res.headers.get("x-sovereign-code") === "user_limit") return res;
     const ra = Number(res.headers.get("retry-after"));
     const wait = Math.min(RETRY_WAIT_MAX_MS, Number.isFinite(ra) && ra > 0 ? ra * 1000 : 5000 * (attempt + 1));
     await res.body?.cancel().catch(() => {});
@@ -157,8 +170,67 @@ async function fetchRetry429(url, init, signal) {
   }
 }
 
+/**
+ * `config.local` → normallashtirilgan `{model, tools, vision, contextLength}` yoki null.
+ * Qabul qiladi: `true` (config.localModel), model nomi (string) yoki `{model, ...}` obyekt.
+ * Mahalliy rejim — faqat ish vaqtida (loadConfig uni fayldan hech qachon olmaydi).
+ */
+function localSpec(config) {
+  const l = config?.local;
+  if (!l) return null;
+  const raw = l === true ? config.localModel : typeof l === "string" ? l : l.model;
+  if (!isValidModelName(raw)) throw Object.assign(new Error("Mahalliy model tanlanmagan yoki nomi noto'g'ri (/model local:<nom>)"), { local: true });
+  return typeof l === "object" ? { ...l, model: raw } : { model: raw };
+}
+
+/** OLLAMA_CONTEXT_LENGTH (odatda Ollama shu kompyuterda) — tarixni shu oynaga sig'dirish uchun. */
+function envCtx() {
+  const n = Number(process.env.OLLAMA_CONTEXT_LENGTH);
+  return Number.isFinite(n) && n >= 1024 ? Math.floor(n) : 0;
+}
+
+/**
+ * Mahalliy model imkoniyatlarini bir marta aniqlaydi (`/api/show`) va `config.local` ga yozadi.
+ * tools === false bo'lsa navbat vositasiz (faqat suhbat) yuboriladi.
+ */
+async function ensureLocalCaps(config) {
+  const spec = localSpec(config);
+  if (!spec) return null;
+  if (typeof spec.tools !== "boolean" && !spec.capsTried) {
+    const caps = await ollamaCapabilities(spec.model);
+    spec.capsTried = true;
+    // Ma'lumot olinmasa (Ollama o'chiq) — tools taxmin qilinmaydi; xato keyingi chat() da aniq chiqadi.
+    if (caps.known) Object.assign(spec, { tools: caps.tools, vision: caps.vision, contextLength: spec.contextLength || caps.numCtx || envCtx(), maxContext: caps.contextLength });
+  }
+  config.local = spec;
+  return spec;
+}
+
+/** Server/OpenRouter javobidan xato — zaxira tasnifi (classifyServerError) uchun metama'lumot bilan. */
+function httpError(message, res, code) {
+  return Object.assign(new Error(message), {
+    status: res.status,
+    retryAfter: res.headers?.get?.("retry-after") ?? null,
+    ...(typeof code === "string" && code ? { code } : {}),
+  });
+}
+
 /** One model round. Returns the assistant message + parsed tool calls. Streams text via onText. */
 async function runRound(messages, config, onText, signal) {
+  // Mahalliy model (Ollama, faqat 127.0.0.1) — serverga HECH NARSA yuborilmaydi, Authorization yo'q.
+  const local = localSpec(config);
+  if (local) {
+    const r = await ollamaChat({
+      model: local.model,
+      messages,
+      tools: local.tools === false ? undefined : TOOL_SCHEMA,
+      stream: true,
+      signal,
+      onText,
+      contextLength: local.contextLength || 0,
+    });
+    return { message: r.message, toolCalls: r.toolCalls, usage: r.usage, model: `local/${local.model}` };
+  }
   if (config.token) {
     const res = await fetchRetry429(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
       method: "POST",
@@ -172,12 +244,15 @@ async function runRound(messages, config, onText, signal) {
     }, signal);
     if (!res.ok) {
       let m = `${res.status}`;
+      let code;
       try {
-        m = (await res.json()).error ?? m;
+        const j = await res.json();
+        m = j.error ?? m;
+        code = j.code; // T14: "user_limit" | "rate_limited" | "region"
       } catch {
         /* keep */
       }
-      throw new Error(m);
+      throw httpError(m, res, code);
     }
     // `usage` — server yangi versiyada qaytaradi (eski server: yo'q → taxmin).
     // `model` — haqiqatda javob bergan model (mustaqil hakam boshqa kompaniyadan tanlanishi uchun).
@@ -224,10 +299,10 @@ async function runRound(messages, config, onText, signal) {
       if (!res.ok || !res.body) {
         let m2 = `${res.status}`;
         try { m2 = JSON.parse(await res.text()).error?.message ?? m2; } catch { /* keep */ }
-        throw new Error(m2 + "  (OpenRouter balansingiz juda past — https://openrouter.ai/settings/credits)");
+        throw httpError(m2 + "  (OpenRouter balansingiz juda past — https://openrouter.ai/settings/credits)", res);
       }
     } else {
-      throw new Error(m);
+      throw httpError(m, res);
     }
   }
 
@@ -282,6 +357,7 @@ function printLedger(entries, { note = "", regexWarn = null, judge = null, usage
   // Hakam har doim javob bergan modelning kompaniyasidan boshqa kompaniya (server: judge.ts).
   const judgeName = judge?.judgeVendorLabel || judge?.judgeVendor;
   if (judgeName && (judgeHits.length || worth)) console.log("     " + c.dim(`tekshirdi: ${visible(judgeName)} (mustaqil)`));
+  if (usage?.local && worth) console.log("   " + c.dim("Mustaqil tekshiruv o'tkazilmadi (mahalliy model)."));
   if (usage) console.log(usageLine(usage));
   console.log("");
 }
@@ -289,7 +365,8 @@ function printLedger(entries, { note = "", regexWarn = null, judge = null, usage
 /** "≈ 12.3k token · 4 qadam" — vazifa qancha sarfladi (faqat token, pul emas). */
 function usageLine(u) {
   const budget = u.budget ? ` / byudjet ${formatTokens(u.budget)}` : "";
-  return "   " + c.dim(`≈ ${formatTokens(u.tokens)} token${budget} · ${u.rounds} qadam${u.estimated ? " (taxminiy)" : ""}`);
+  const local = u.local ? ` · mahalliy model: ${visible(u.local)} (server tokeni sarflanmadi)` : "";
+  return "   " + c.dim(`≈ ${formatTokens(u.tokens)} token${budget} · ${u.rounds} qadam${u.estimated ? " (taxminiy)" : ""}${local}`);
 }
 
 /**
@@ -303,7 +380,8 @@ async function checkHonesty(entries, finalText, { config, signal, verify, print,
   const tests = finalText ? testClaimIssue(finalText, entries) : null;
   const regexWarn = finalText ? [unsupportedClaim(finalText, entries), testClaimText(tests)].filter(Boolean).join(" ") || null : null;
   let judge = null;
-  if (verify && finalText && config?.token && !signal?.aborted && shouldVerify(entries, regexWarn)) {
+  // Mahalliy rejimda hakam (server) chaqirilmaydi — javob matni kompyuterdan chiqmasin.
+  if (verify && finalText && config?.token && !config?.local && !signal?.aborted && shouldVerify(entries, regexWarn)) {
     const spin = print ? spinner("javob jurnal bilan solishtirilyapti...") : null;
     judge = await verifyClaims(config, { answer: finalText, entries, signal, answerModel: answerModel ?? undefined });
     spin?.stop();
@@ -315,6 +393,46 @@ function isAbort(err, signal) {
   return Boolean(signal?.aborted) || err?.name === "AbortError";
 }
 
+/** Zaxira taklif qilinadigan xato turlari (§B.1). `auth` — hech qachon (qayta kirish kerak). */
+const FALLBACK_KINDS = new Set(["user_limit", "rate_limited", "offline", "server"]);
+
+/**
+ * Server limiti / offline xatosida mahalliy modelga o'tish (config.onLimit hook — T8/CLI UX).
+ * `onLimit({kind, message, status})` → falsy (yo'q) | true (config.localModel) | model nomi | {model, ...}.
+ * 5xx birinchi marta — serverni yana bir marta sinaymiz ("2 marta ketma-ket" qoidasi).
+ * @returns {Promise<"local"|"retry"|null>}
+ */
+async function localFallback(err, config, state) {
+  if (config.local || typeof config.onLimit !== "function" || config.localFallback === "off") return null;
+  const kind = classifyServerError(err);
+  if (!kind || !FALLBACK_KINDS.has(kind)) {
+    state.server = 0;
+    return null;
+  }
+  if (kind === "server" && ++state.server < 2) return "retry";
+  let choice;
+  try {
+    choice = await config.onLimit({ kind, message: String(err?.message ?? ""), status: Number(err?.status) || null });
+  } catch {
+    choice = null;
+  }
+  if (!choice) return null;
+  config.local = choice;
+  try {
+    await ensureLocalCaps(config);
+  } catch {
+    config.local = null; // noto'g'ri model nomi — zaxirasiz, asl xato ko'rsatiladi
+    return null;
+  }
+  return "local";
+}
+
+/** "◇ Mahalliy model · <nom>" belgisi — har navbatda, halollik uchun. */
+function printLocalBadge(spec) {
+  const tools = spec.tools === false ? c.amber(" · vositasiz (faqat suhbat — model tool-calling'ni qo'llamaydi)") : "";
+  console.log("  " + c.teal("◇") + " " + c.dim(`Mahalliy model · ${visible(spec.model)} — serverga hech narsa yuborilmaydi`) + tools);
+}
+
 /**
  * Bitta agent navbati.
  * @param {object} p
@@ -323,8 +441,11 @@ function isAbort(err, signal) {
  * @param {boolean} [p.stream=false] to'g'ridan-to'g'ri (OpenRouter) rejimda tokenlarni oqim bilan ko'rsatish
  * @param {boolean} [p.verify=true] LLM hakamni ishlatish (akkaunt rejimi)
  * @param {number} [p.budget=0]  shu vazifa uchun token byudjeti (0 — cheklovsiz); oshsa navbat to'xtaydi
- * @returns {Promise<{done?: boolean, error?: string, aborted?: boolean, truncated?: boolean,
- *   loop?: object, budgetExceeded?: boolean, usage: object,
+ * Mahalliy model: `config.local` (true | nom | {model, tools?, contextLength?}) bo'lsa navbat Ollama'da
+ * (127.0.0.1) bajariladi. `config.onLimit` hook berilsa, limit/offline/5xx xatosida chaqiriladi va
+ * mahalliy modelga o'tish mumkin (`config.local` o'rnatiladi, qadam qayta bajariladi).
+ * @returns {Promise<{done?: boolean, error?: string, errorKind?: string|null, aborted?: boolean, truncated?: boolean,
+ *   loop?: object, budgetExceeded?: boolean, usage: object, local?: string|null,
  *   ledger: object[], final: string, honesty: {regex: string|null, judge: string[]|null, judgeVendor?: string|null, tests: object|null, source: string}}>}
  */
 export async function agentTurn({ messages, config, confirm, maxSteps, signal, print = true, stream = false, verify = true, fullAuto = false, budget = 0, snapshots = false }) {
@@ -359,16 +480,32 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
   const noHonesty = { regex: null, judge: null, judgeVendor: null, tests: null, source: "regex" };
   // Vazifa narxi: token (server/provayder `usage`, bo'lmasa taxmin) va qadamlar soni.
   const meter = createUsageMeter(budget);
-  const usage = () => meter.snapshot();
+  const usage = () => {
+    const spec = config.local && typeof config.local === "object" ? config.local : null;
+    return spec ? { ...meter.snapshot(), local: spec.model } : meter.snapshot();
+  };
+  const fallbackState = { server: 0 };
+  const showBadge = () => {
+    if (print && config.local && typeof config.local === "object") printLocalBadge(config.local);
+  };
+  if (config.local) {
+    try {
+      await ensureLocalCaps(config);
+    } catch (err) {
+      return { error: err.message, errorKind: null, ledger: [], final: "", usage: meter.snapshot(), honesty: { regex: null, judge: null, judgeVendor: null, tests: null, source: "regex" }, local: null };
+    }
+    showBadge();
+  }
   let final = "";
   // Yakuniy javob matnini bergan model (server qaytargan) — hakam boshqa kompaniyadan bo'lsin.
   let finalModel = null;
   let nudges = 0; // full auto: "vazifa tugamagan" avtomatik davom ettirishlar
   const nudgeState = {};
 
+  const localName = () => (config.local && typeof config.local === "object" ? config.local.model : null);
   const finishAborted = () => {
     printLedger(tracker.entries, { note: "Bekor qilindi (Ctrl+C) — navbat to'xtatildi, qolgan amallar bajarilmadi.", usage: usage() });
-    return { aborted: true, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty };
+    return { aborted: true, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty, local: localName() };
   };
 
   for (let step = 0; step < maxSteps; step++) {
@@ -379,13 +516,14 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
         note: `Token byudjeti tugadi: ≈${formatTokens(meter.tokens)} / ${formatTokens(meter.budget)} token — navbat to'xtatildi, vazifa oxirigacha bajarilmagan bo'lishi mumkin. Davom etish uchun "davom et" deb yozing (yoki --budget ni oshiring).`,
         usage: usage(),
       });
-      return { done: true, budgetExceeded: true, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty };
+      return { done: true, budgetExceeded: true, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty, local: localName() };
     }
     const spin = spinner(step === 0 ? "o'ylayapti..." : "davom etyapti...");
     let round;
     let md = null;
     try {
-      const onText = stream && print
+      // Mahalliy model sekin (CPU) — tokenlar har doim oqim bilan ko'rsatiladi.
+      const onText = (stream || config.local) && print
         ? (t) => {
             if (!md) {
               spin.stop();
@@ -402,12 +540,21 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
       spin.stop();
       md?.end();
       if (isAbort(err, signal)) return finishAborted();
+      // Limit / offline / server yiqildi → mahalliy model zaxirasi (onLimit hook) yoki 5xx'da bitta qayta urinish.
+      const fb = await localFallback(err, config, fallbackState);
+      if (fb) {
+        if (fb === "local") showBadge();
+        step--; // shu qadam qayta bajariladi (vositalar allaqachon bajarilgan bo'lsa ham takrorlanmaydi)
+        continue;
+      }
       // Xatodan oldin bajarilgan amallar ham ko'rinsin.
       printLedger(tracker.entries, { note: "Navbat xato bilan to'xtadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin.", usage: meter.rounds ? usage() : null });
-      return { error: err.message, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty };
+      return { error: err.message, errorKind: classifyServerError(err), ledger: tracker.entries, final, usage: usage(), honesty: noHonesty, local: localName() };
     }
+    fallbackState.server = 0;
     spin.stop();
 
+    capToolCalls(round);
     messages.push(round.message);
     const text = round.message.content && String(round.message.content).trim() ? String(round.message.content) : "";
     if (text) {
@@ -434,7 +581,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
       if (print) process.stdout.write("\n");
       const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print, answerModel: finalModel });
       printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge, usage: usage() });
-      return { done: true, ledger: tracker.entries, final: text, usage: usage(), honesty: honestyOut(h) };
+      return { done: true, ledger: tracker.entries, final: text, usage: usage(), honesty: honestyOut(h), local: localName() };
     }
 
     // Model asked for tools — narrate & run each, then loop.
@@ -482,7 +629,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
     if (tracker.loop) {
       if (print) process.stdout.write("\n");
       printLedger(tracker.entries, { note: loopText(tracker.loop), usage: usage() });
-      return { done: true, loop: tracker.loop, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty };
+      return { done: true, loop: tracker.loop, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty, local: localName() };
     }
   }
   const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print, answerModel: finalModel });
@@ -492,11 +639,16 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
     judge: h.judge,
     usage: usage(),
   });
-  return { done: true, ledger: tracker.entries, truncated: true, final, usage: usage(), honesty: honestyOut(h) };
+  return { done: true, ledger: tracker.entries, truncated: true, final, usage: usage(), honesty: honestyOut(h), local: localName() };
 }
 
 /** Bitta javob — vositalarsiz, oqimsiz. Parallel rejim uchun. */
 async function askOnce(messages, config, maxTokens = 900) {
+  const local = localSpec(config);
+  if (local) {
+    const r = await ollamaChat({ model: local.model, messages, stream: false, maxTokens, temperature: 0.8, contextLength: local.contextLength || 0 });
+    return r.message?.content ?? "";
+  }
   if (config.token) {
     const res = await fetchRetry429(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
       method: "POST",

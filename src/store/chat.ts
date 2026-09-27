@@ -7,8 +7,18 @@ import { AUTO_MODEL_ID, DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
 import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
 import type { Attachment } from "@/lib/chat/attachments";
 import type { AnswerMeta } from "@/lib/chat/answer-meta";
+import type { InquiryRequest } from "@/lib/chat/sse-client";
 import { DEFAULT_AGENT_MODE } from "@/config/agent-modes";
 import { DEFAULT_LANG, isLang, translate, type Lang, type TKey } from "@/lib/i18n";
+import {
+  INQUIRY_DOMAINS,
+  INQUIRY_MODES,
+  INQUIRY_TUNING,
+  type InquiryDomain,
+  type InquiryEvent,
+  type InquiryMode,
+  type InquiryReplyAnswer,
+} from "@/lib/ai/inquiry/types";
 
 /** Komponentlarda: const t = useT(); t("newChat") */
 export function useT(): (key: TKey) => string {
@@ -63,6 +73,28 @@ export interface CacheInfo {
   similarity: number;
 }
 
+/**
+ * Savol kartasi / follow-up chip'lar holati (docs/INQUIRY.md §A.7):
+ * open — javob kutilmoqda; answered — javob berildi (follow-up: chip bosildi);
+ * skipped — "Taxmin bilan javob ber"; ignored — foydalanuvchi boshqa narsa yozdi (EC-1).
+ */
+export type InquiryState = "open" | "answered" | "skipped" | "ignored";
+
+/**
+ * User xabari kartaga javob bo'lsa (yoki "Taxmin bilan javob ber") — so'rovdagi `inquiry.reply`
+ * shu yerdan tuziladi. Qayta yaratish/tahrirda ham xuddi shu javob navbati sifatida ketadi.
+ */
+export interface InquiryReplyMeta {
+  inquiryId: string;
+  /** Javob berilgan kartaning raundi (InquiryEvent.round, 1..2). */
+  round: number;
+  domain: InquiryDomain;
+  /** true — "Taxmin bilan javob ber" (answers bo'sh). */
+  skip: boolean;
+  /** Faqat telemetriya/dedup uchun; model javobni xabar matnidan o'qiydi. */
+  answers: InquiryReplyAnswer[];
+}
+
 export type Role = "user" | "assistant" | "system";
 export type MessageStatus = "streaming" | "done" | "error";
 
@@ -93,6 +125,18 @@ export interface ChatMessage {
   /** Haqiqatda javob bergan model va shu javob uchun hisoblangan token (server "meta" hodisasi). */
   meta?: AnswerMeta;
   createdAt: string;
+  /**
+   * Chuqur so'rash: server `inquiry` hodisasi (faqat mijozda, render uchun; serverga sinxronlanmaydi).
+   * phase "ask" — xabar savol kartasi (`content` — savollarning oddiy matn ko'rinishi);
+   * phase "followup" — javob ostidagi follow-up chip'lar.
+   */
+  inquiry?: InquiryEvent;
+  /** `inquiry` kartasining holati. */
+  inquiryState?: InquiryState;
+  /** Kartadagi "eslab qol" natijasi (R2-8): saqlandi / saqlab bo'lmadi (PII filtri tashlagani — xato emas). */
+  inquiryMemory?: "saved" | "failed";
+  /** User xabari: kartaga javob / o'tkazib yuborish (so'rovdagi `inquiry.reply`). */
+  inquiryReply?: InquiryReplyMeta;
   /** User xabari rasm so'rovi bo'lgan ("+ → Rasm" rejimi) — qayta yaratish/tahrirlash ham rasm yo'lidan. */
   kind?: "image" | "video";
   status?: MessageStatus;
@@ -156,6 +200,9 @@ interface ChatState {
   setLang: (lang: Lang) => void;
   agentMode: string;
   setAgentMode: (id: string) => void;
+  /** Chuqur so'rash sozlamasi: auto (standart) / always / off (§A.7). */
+  inquiryMode: InquiryMode;
+  setInquiryMode: (mode: InquiryMode) => void;
 
   setModel: (id: string) => void;
   setResearch: (on: boolean) => void;
@@ -387,6 +434,10 @@ export const useChat = create<ChatState>()(
       setLang: (lang) => set({ lang }),
       agentMode: DEFAULT_AGENT_MODE,
       setAgentMode: (agentMode) => set({ agentMode }),
+      inquiryMode: "auto",
+      setInquiryMode: (inquiryMode) => {
+        if (isInquiryMode(inquiryMode)) set({ inquiryMode });
+      },
 
       setFontSize: (fontSize) => set({ fontSize }),
       setDensity: (density) => set({ density }),
@@ -589,6 +640,7 @@ export const useChat = create<ChatState>()(
         return {
           ...current,
           ...p,
+          inquiryMode: isInquiryMode(p.inquiryMode) ? p.inquiryMode : current.inquiryMode,
           ...(narrow ? { sidebarOpen: false } : {}),
           conversations: settleStreaming(p.conversations, lang) ?? current.conversations,
         };
@@ -637,6 +689,7 @@ export const useChat = create<ChatState>()(
         autoScroll: s.autoScroll,
         agentMode: s.agentMode,
         blindPrompting: s.blindPrompting,
+        inquiryMode: s.inquiryMode,
       }),
     },
   ),
@@ -653,6 +706,82 @@ export function useChatHydrated(): boolean {
     if (!useChat.persist.hasHydrated()) void useChat.persist.rehydrate();
   }, []);
   return useSyncExternalStore(subscribeHydration, getHydrated, getServerHydrated);
+}
+
+// ── Chuqur so'rash (docs/INQUIRY.md §A.7–A.8) — pure yordamchilar ─────────────
+
+export function isInquiryMode(v: unknown): v is InquiryMode {
+  return typeof v === "string" && (INQUIRY_MODES as readonly string[]).includes(v);
+}
+
+export function isInquiryDomain(v: unknown): v is InquiryDomain {
+  return typeof v === "string" && (INQUIRY_DOMAINS as readonly string[]).includes(v);
+}
+
+/** Server `z.uuid()` bilan tekshiradi — yaroqsiz id butun so'rovni 400 qilardi. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** bodySchema.inquiry chegaralari (route zod sxemasi bilan bir xil). */
+export const INQUIRY_WIRE = { slot: 40, value: 400, maxAnswers: 6, maxAskedSlots: 20, maxRecentSkips: 10 } as const;
+
+/**
+ * Suhbat tarixidan so'rovning `inquiry` obyektini tuzadi (§A.8):
+ * - `askedSlots` — shu suhbatdagi kartalar/follow-up'larda allaqachon so'ralgan slotlar (eng yangi 20 ta);
+ * - `recentSkips` — o'tkazib yuborilgan kartalar, ulardan keyin ≤ skipCooldownTurns + 1 user navbati
+ *   o'tgan bo'lsa (o'tkazish navbatining o'zi + keyingi 3 navbat — AC-3);
+ * - `reply` / `skip` — oxirgi user xabari kartaga javob bo'lsa (`inquiryReply`).
+ * Qiymatlar server sxemasi chegarasiga qirqiladi — noto'g'ri maydon butun chatni buzmasin.
+ */
+export function buildInquiryRequest(messages: ChatMessage[], mode: InquiryMode): InquiryRequest {
+  const cooldown = INQUIRY_TUNING.skipCooldownTurns + 1;
+  const asked: string[] = [];
+  let recentSkips = 0;
+  let usersAfter = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role === "user") {
+      usersAfter++;
+      continue;
+    }
+    const inq = m.inquiry;
+    if (!inq || m.role !== "assistant") continue;
+    if (inq.phase === "ask" && m.inquiryState === "skipped" && usersAfter > 0 && usersAfter <= cooldown) recentSkips++;
+    for (const q of inq.questions ?? []) {
+      const slot = typeof q?.slot === "string" ? q.slot.trim().slice(0, INQUIRY_WIRE.slot) : "";
+      if (slot && !asked.includes(slot)) asked.push(slot);
+    }
+  }
+
+  const out: InquiryRequest = {
+    mode: isInquiryMode(mode) ? mode : "auto",
+    skip: false,
+    recentSkips: Math.min(recentSkips, INQUIRY_WIRE.maxRecentSkips),
+    // `asked` eng yangidan eskiga yig'ilgan — eng yangi 20 tasi qoladi.
+    askedSlots: asked.slice(0, INQUIRY_WIRE.maxAskedSlots),
+  };
+
+  let lastUser: ChatMessage | undefined;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") {
+      lastUser = messages[i];
+      break;
+    }
+  }
+  const r = lastUser?.inquiryReply;
+  if (r && typeof r.inquiryId === "string" && UUID_RE.test(r.inquiryId)) {
+    const round = Math.min(3, Math.max(1, Math.trunc(Number(r.round) || 1)));
+    out.skip = r.skip === true;
+    out.reply = {
+      inquiryId: r.inquiryId,
+      round,
+      answers: (r.skip ? [] : (r.answers ?? []))
+        .filter((a) => a && typeof a.slot === "string" && typeof a.value === "string" && a.slot.trim() && a.value.trim())
+        .slice(0, INQUIRY_WIRE.maxAnswers)
+        .map((a) => ({ slot: a.slot.trim().slice(0, INQUIRY_WIRE.slot), value: a.value.trim().slice(0, INQUIRY_WIRE.value) })),
+      ...(isInquiryDomain(r.domain) ? { domain: r.domain } : {}),
+    };
+  }
+  return out;
 }
 
 /** Groups conversation ids by day buckets for the sidebar. */

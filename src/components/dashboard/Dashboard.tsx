@@ -29,6 +29,7 @@ import { CoworkPanel } from "./CoworkPanel";
 import { ConnectorsPanel } from "./ConnectorsPanel";
 import { CoworkProvider } from "./cowork-context";
 import { MessageList } from "./MessageList";
+import type { InquiryActions } from "./InquiryCard";
 import { PlanStatusBanner } from "./PlanStatusBanner";
 import { Sidebar } from "./Sidebar";
 import { SourcesPanel } from "./SourcesPanel";
@@ -141,7 +142,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       setBlindPrompting: s.setBlindPrompting,
     })),
   );
-  const { send, regenerate, editAndResend, stop, isStreaming } = useSendMessage();
+  const { send, regenerate, editAndResend, stop, isStreaming, answerInquiry, skipInquiry, answerFollowup } = useSendMessage();
   // Oqim tugagach "Javob tayyor" e'loni (render vaqtida, effektsiz).
   const [prevStreaming, setPrevStreaming] = useState(isStreaming);
   const [replyAnnouncement, setReplyAnnouncement] = useState("");
@@ -155,6 +156,11 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const [artifact, setArtifact] = useState<ArtifactPayload | null>(null);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [memoryEnabled, setMemoryEnabled] = useState(memoryInit);
+  // Chuqur so'rash kartasi amallari — barqaror obyekt (MessageItem memo'si har render'da buzilmasin).
+  const inquiryActions = useMemo<InquiryActions>(
+    () => ({ answer: answerInquiry, skip: skipInquiry, followup: answerFollowup, memoryEnabled, busy: isStreaming }),
+    [answerInquiry, skipInquiry, answerFollowup, memoryEnabled, isStreaming],
+  );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [kbOpen, setKbOpen] = useState(false);
   const [skillsOpen, setSkillsOpen] = useState(false);
@@ -592,7 +598,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
                 // Butun ro'yxat live region emas (suhbat almashtirilganda butun tarix o'qilardi);
                 // javob tugagani alohida yashirin region orqali qisqa e'lon qilinadi (quyida).
                 <div className="flex min-h-0 flex-1 flex-col" aria-busy={isStreaming}>
-                  <MessageList messages={messages} onRegenerate={regenerate} onEdit={editAndResend} />
+                  <MessageList messages={messages} onRegenerate={regenerate} onEdit={editAndResend} inquiry={inquiryActions} />
                 </div>
               )}
 

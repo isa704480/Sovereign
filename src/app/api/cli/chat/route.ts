@@ -13,6 +13,7 @@ import { meshComplete } from "@/lib/ai/mesh/execute";
 import { enabledAdapters } from "@/lib/ai/mesh/registry";
 import { plan as meshPlan } from "@/lib/ai/mesh/scheduler";
 import { cliRouteRequest, isGeneralAdapter, meshMode, requiredPlanTier } from "@/lib/ai/mesh/request";
+import { limitErrorResponse } from "@/lib/ai/inquiry/limit-codes";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -222,15 +223,12 @@ export async function POST(req: Request) {
   const tokenHash = token.slice(0, 24); // token o'zi kalit sifatida — logga tushmasin
   const rl = await rateLimit(`cli:${tokenHash}`, 20, 60_000);
   if (!rl.ok) {
-    return Response.json(
-      { error: t("secTooManyRequests") },
-      { status: 429, headers: { "Retry-After": Math.ceil(rl.retryAfterMs / 1000).toString() } },
-    );
+    return limitErrorResponse(t("secTooManyRequests"), "rate_limited", 429, rl.retryAfterMs / 1000);
   }
   // Qo'shimcha IP-bazasidagi tekshiruv (agar bitta token ko'p mijozdan foydalanilsa).
   const ipRl = await rateLimit(`cli:ip:${clientIp(req)}`, 60, 60_000);
   if (!ipRl.ok) {
-    return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
+    return limitErrorResponse(t("secTooManyRequests"), "rate_limited", 429, ipRl.retryAfterMs / 1000);
   }
 
   const raw = await req.text().catch(() => "");
@@ -304,7 +302,7 @@ export async function POST(req: Request) {
     monthStart.setUTCHours(0, 0, 0, 0);
     const used = u?.tokens_month_start && new Date(u.tokens_month_start) >= monthStart ? Number(u.tokens_used_month ?? 0) || 0 : 0;
     if (used >= plan.limits.tokensPerMonth) {
-      return Response.json({ error: fmt(t("secMonthlyTokenLimit"), { plan: plan.name }) }, { status: 429 });
+      return limitErrorResponse(fmt(t("secMonthlyTokenLimit"), { plan: plan.name }), "user_limit", 429);
     }
   } catch (e) {
     console.error("[cli/chat] token usage:", e instanceof Error ? e.message : e);
@@ -325,13 +323,13 @@ export async function POST(req: Request) {
   let country: string | null = null;
   try {
     const region = await resolveUserRegion({ headers: req.headers, supabase: createServiceClient(), userId });
-    if (region.sanctioned) return Response.json({ error: t("p10RegionNoModels") }, { status: 451 });
+    if (region.sanctioned) return limitErrorResponse(t("p10RegionNoModels"), "region", 451);
     country = region.restricted ? region.country : null;
   } catch (e) {
     // Servis kaliti yo'q — faqat IP sarlavhasi.
     console.error("[cli/chat] region:", e instanceof Error ? e.message : e);
     const region = await resolveUserRegion({ headers: req.headers });
-    if (region.sanctioned) return Response.json({ error: t("p10RegionNoModels") }, { status: 451 });
+    if (region.sanctioned) return limitErrorResponse(t("p10RegionNoModels"), "region", 451);
     country = region.restricted ? region.country : null;
   }
   const regionSwapped = Boolean(country && chosen && !modelAllowedIn(chosen, country));
@@ -343,7 +341,7 @@ export async function POST(req: Request) {
   const routable = mesh ? meshPlan(routeReq, { adapters: enabledAdapters(), health: new Map() }).length > 0 : cands.length > 0;
   if (!routable) {
     return country
-      ? Response.json({ error: t("p10RegionNoModels") }, { status: 451 })
+      ? limitErrorResponse(t("p10RegionNoModels"), "region", 451)
       : Response.json({ error: t("p7cCliNoProvider") }, { status: 503 });
   }
 
@@ -363,7 +361,7 @@ export async function POST(req: Request) {
       p_limit: cliLimit,
     });
     if (error) console.error("[cli/chat] consume_message_for:", error.message);
-    else if (allowed !== true) return Response.json({ error: limitMsg }, { status: 429 });
+    else if (allowed !== true) return limitErrorResponse(limitMsg, "user_limit", 429);
     else counted = true;
   } catch (e) {
     console.error("[cli/chat] consume_message_for:", e);
@@ -375,7 +373,7 @@ export async function POST(req: Request) {
       const { data: used } = await supabase.rpc("cli_messages_today", { p_token: token });
       const usedToday = typeof used === "number" ? used : 0;
       if (usedToday >= cliLimit) {
-        return Response.json({ error: limitMsg }, { status: 429 });
+        return limitErrorResponse(limitMsg, "user_limit", 429);
       }
     } catch {
       /* limit tekshiruvi xato bo'lsa fail-open — chunki rate-limit yuqorida allaqachon bor */

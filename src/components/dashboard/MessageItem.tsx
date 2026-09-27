@@ -14,6 +14,7 @@ import { skillText } from "@/lib/locales/panels-data";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { AnswerMetaBadge } from "./AnswerMetaBadge";
+import { InquiryCard, InquiryFollowups, type InquiryActions } from "./InquiryCard";
 import { Markdown } from "./Markdown";
 import { ModelAvatar } from "./ModelAvatar";
 import { TypingIndicator } from "./TypingIndicator";
@@ -28,6 +29,8 @@ interface MessageItemProps {
   /** Ovozli o'qish: barqaror callback (memo buzilmasin) va shu xabar o'qilyaptimi. */
   onTts?: (id: string, text: string) => void;
   ttsSpeaking?: boolean;
+  /** Chuqur so'rash: savol kartasi / follow-up chip amallari (barqaror obyekt — memo buzilmasin). */
+  inquiry?: InquiryActions;
 }
 
 /** 👍/👎 — shu qurilmada saqlanadi (serverga yuborilmaydi). */
@@ -81,7 +84,7 @@ function timeLabel(iso: string, lang: Lang) {
  * memo: oqimda faqat oxirgi xabar o'zgaradi — store o'zgarmagan xabarlarning obyektini
  * saqlaydi, shuning uchun qolganlari har token'da qayta render qilinmaydi.
  */
-export const MessageItem = memo(function MessageItem({ message, isLast, onRegenerate, onEdit, onTts, ttsSpeaking = false }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ message, isLast, onRegenerate, onEdit, onTts, ttsSpeaking = false, inquiry }: MessageItemProps) {
   const { theme, model: activeModel } = useTheme();
   const t = useT();
   const lang = useLang();
@@ -107,6 +110,11 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
   const failed = message.status === "error";
   // Oqim yarmida uzildi: qisman matn saqlangan, xato ham bor.
   const interrupted = !streaming && !failed && !!message.error && !!message.content;
+  // Savol kartasi (phase "ask"): content — savollarning oddiy matn nusxasi (tarix/sinxron uchun),
+  // ekranda esa interaktiv karta. Follow-up chip'lar — tayyor javob ostida.
+  const askCard = !failed && !!inquiry && message.inquiry?.phase === "ask" ? message.inquiry : null;
+  const followups =
+    !streaming && !failed && !!inquiry && message.inquiry?.phase === "followup" && !!message.content ? message.inquiry : null;
   const canRetry = isLast && !!onRegenerate;
   // Javobdan keyingi tekshiruvlar: fakt baholari (VerifierPanel) va ogohlantirishlar
   // (tasdiqlanmagan amal / manbasiz [n] — ClaimsWarning + matndagi belgi).
@@ -396,6 +404,14 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
                 </button>
               )}
             </div>
+          ) : askCard && inquiry ? (
+            <InquiryCard
+              messageId={message.id}
+              inquiry={askCard}
+              state={message.inquiryState ?? "open"}
+              actions={inquiry}
+              memory={message.inquiryMemory}
+            />
           ) : message.content ? (
             <>
               <Markdown content={message.content} citations={message.citations} unsourced={unsourced} />
@@ -435,6 +451,10 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
             </div>
           )}
         </div>
+
+        {followups && inquiry && (
+          <InquiryFollowups messageId={message.id} inquiry={followups} state={message.inquiryState ?? "open"} actions={inquiry} />
+        )}
 
         {message.verifier && message.verifier.length > 0 && <ClaimsWarning issues={message.verifier} />}
         {message.verifier && hasFacts && <VerifierPanel issues={message.verifier} />}

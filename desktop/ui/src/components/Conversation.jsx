@@ -1,9 +1,12 @@
-import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import Icon, { Logo } from "./Icon.jsx";
 import { md } from "../lib/md.js";
 import { ledgerStats, formatTokens } from "../lib/agent.js";
 import { useT } from "../lib/i18n.js";
 import { localizeResult, localizeBody, ledgerWarning } from "../lib/cliText.js";
+import InquiryCard, { InquiryFollowups } from "./InquiryCard.jsx";
+
+const S = () => window.sovereign;
 
 const TOOL_ICON = { write_file: "pencil", make_dir: "folder", read_file: "file", list_dir: "list", run_command: "play" };
 const STATUS_ICON = { ok: "check", failed: "x", declined: "ban", skipped: "repeat", stopped: "stop" };
@@ -61,10 +64,12 @@ function UsageLine({ it }) {
   const t = useT();
   const vars = { tokens: formatTokens(it.tokens), limit: formatTokens(it.budget), steps: it.rounds };
   const est = it.estimated ? ` · ${t("usage.estimated")}` : "";
+  // Mahalliy model: server tokeni sarflanmadi (halol belgi).
+  const local = it.local ? ` · ${t("usage.local")}` : "";
   return (
     <div className="usage-line faint small tnum" title={t("usage.title")} aria-label={t("usage.title")}>
       <Icon name="bolt" size={11} />
-      <span>{(it.budget ? t("usage.lineBudget", vars) : t("usage.line", vars)) + est}</span>
+      <span>{(it.budget ? t("usage.lineBudget", vars) : t("usage.line", vars)) + est + local}</span>
     </div>
   );
 }
@@ -120,29 +125,186 @@ export function LedgerCard({ it }) {
       )}
       {it.judge && !judgeHits.length && <div className="ledger-reads faint small"><Icon name="check" size={12} /> {t("ledger.judgeOk")}</div>}
       {judgeVendor && <div className="ledger-reads faint small"><Icon name="shield" size={12} /> {t("ledger.judgeBy", { vendor: judgeVendor })}</div>}
+      {it.local && !it.judge && <div className="ledger-reads faint small"><Icon name="info" size={12} /> {t("ledger.localNoJudge", { model: it.local })}</div>}
     </section>
   );
 }
 
 function ErrorCard({ it, onAction, last }) {
   const t = useT();
-  const code = ["auth", "network", "offline", "limit", "no-folder", "busy", "server"].includes(it.code) ? it.code : "server";
-  const detail = code === "server" || code === "limit" ? it.message : "";
+  const [cloud, setCloud] = useState(false);
+  const code = ["auth", "network", "offline", "limit", "no-folder", "busy", "server", "local"].includes(it.code) ? it.code : "server";
+  // Mahalliy model xatosi: localKind — unreachable | not-found | failed.
+  const key = code === "local" ? `local.${it.localKind ?? "failed"}` : code;
+  const detail = code === "server" || code === "limit" || (code === "local" && it.localKind !== "unreachable") ? it.message : "";
+  const backToCloud = async () => {
+    const r = await S()?.local?.use(null).catch(() => null);
+    if (r?.ok) setCloud(true);
+  };
   return (
     <div className="msg msg-error" role="alert">
-      <span className="avatar avatar-err"><Icon name={code === "offline" || code === "network" ? "wifiOff" : "alert"} size={14} /></span>
+      <span className="avatar avatar-err"><Icon name={code === "offline" || code === "network" ? "wifiOff" : code === "local" ? "monitor" : "alert"} size={14} /></span>
       <div className="grow">
-        <div className="strong">{t(`err.${code}.title`)}</div>
-        <div className="muted small">{t(`err.${code}.desc`)}{detail ? <> <span className="mono">({detail}{it.status ? ` · ${it.status}` : ""})</span></> : null}</div>
+        <div className="strong">{t(`err.${key}.title`)}</div>
+        <div className="muted small">{t(`err.${key}.desc`)}{detail ? <> <span className="mono">({detail}{it.status ? ` · ${it.status}` : ""})</span></> : null}</div>
         {last && (
-          <div className="row gap-sm mt-sm">
+          <div className="row gap-sm mt-sm local-actions">
             {code === "auth" && <button type="button" className="btn btn-sm btn-primary" onClick={() => onAction("signin")}>{t("account.signIn")}</button>}
             {code === "no-folder" && <button type="button" className="btn btn-sm btn-primary" onClick={() => onAction("folder")}>{t("folder.open")}</button>}
-            {(code === "network" || code === "server") && <button type="button" className="btn btn-sm" onClick={() => onAction("retry")}><Icon name="refresh" size={13} /> {t("common.retry")}</button>}
+            {(code === "network" || code === "server" || code === "local") && <button type="button" className="btn btn-sm" onClick={() => onAction("retry")}><Icon name="refresh" size={13} /> {t("common.retry")}</button>}
+            {code === "local" && it.localKind === "unreachable" && <button type="button" className="btn btn-sm" onClick={() => S()?.openLink("ollama")}><Icon name="external" size={13} /> {t("local.install")}</button>}
+            {code === "local" && it.localKind === "not-found" && <button type="button" className="btn btn-sm" onClick={() => S()?.openLink("ollamaLibrary")}><Icon name="external" size={13} /> {t("local.library")}</button>}
+            {code === "local" && !cloud && <button type="button" className="btn btn-sm" onClick={backToCloud}><Icon name="sparkle" size={13} /> {t("local.backToCloud")}</button>}
           </div>
         )}
+        {cloud && <div className="muted small mt-sm" role="status">{t("local.backedToCloud")}</div>}
       </div>
     </div>
+  );
+}
+
+/** Tavsiya etilgan mahalliy modellar: "ollama pull NOM" buyrug'ini nusxalash (ilova o'zi o'rnatmaydi). */
+function RecommendList({ recommend, ramGb }) {
+  const t = useT();
+  const [copied, setCopied] = useState("");
+  if (!recommend.length) return null;
+  const copy = (cmd) => {
+    navigator.clipboard?.writeText(cmd).then(() => {
+      setCopied(cmd);
+      setTimeout(() => setCopied((c) => (c === cmd ? "" : c)), 1400);
+    }).catch(() => {});
+  };
+  return (
+    <div className="local-rec">
+      <div className="small strong">{ramGb ? t("local.recommend", { ram: ramGb }) : t("local.recommendNoRam")}</div>
+      <ul className="local-rec-list">
+        {recommend.map((r) => {
+          const cmd = `ollama pull ${r.name}`;
+          return (
+            <li key={r.name} className="row gap-sm">
+              <code className="inline trunc">{cmd}</code>
+              {r.sizeGb && <span className="faint small tnum">{t("local.sizeApprox", { n: r.sizeGb })}</span>}
+              <span className="grow" />
+              <button type="button" className="btn btn-sm btn-ghost" onClick={() => copy(cmd)} aria-label={`${t("local.copyCmd")}: ${r.name}`} title={t("local.copyCmd")}>
+                <Icon name={copied === cmd ? "check" : "copy"} size={13} /> {copied === cmd ? t("common.copied") : t("common.copy")}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="faint small">{t(`local.tier.${recommend[0].tier}`)}</div>
+    </div>
+  );
+}
+
+const gb = (bytes) => (bytes > 0 ? (bytes / 1024 ** 3).toFixed(bytes >= 10 * 1024 ** 3 ? 0 : 1) : "");
+
+/**
+ * Limit / offline / server xatosida "mahalliy model bilan davom etasizmi?" kartasi (spec B.1).
+ * offerId null — tanlov yo'q (Ollama o'rnatilmagan yoki modeli yo'q): o'rnatish ko'rsatmasi.
+ * Javob: local.answerOffer(id, model|null, remember) — main modelni o'rnatilganlar ro'yxatiga solishtiradi.
+ */
+function LocalOfferCard({ it, mode }) {
+  const t = useT();
+  const uid = useId();
+  const [model, setModel] = useState(it.suggested);
+  const [remember, setRemember] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  if (!it.offerId) {
+    const missing = !it.available;
+    return (
+      <section className="inq local-offer" aria-labelledby={`${uid}-t`}>
+        <header className="inq-head">
+          <Icon name="download" size={15} />
+          <div className="grow">
+            <div className="inq-title" id={`${uid}-t`}>{missing ? t("local.missing.title") : t("local.noModels.title")}</div>
+            <div className="faint small">{missing ? t("local.missing.desc") : t("local.noModels.desc")}</div>
+          </div>
+        </header>
+        <RecommendList recommend={it.recommend} ramGb={it.ramGb} />
+        <div className="inq-foot">
+          {missing && <button type="button" className="btn btn-sm btn-primary" onClick={() => S()?.openLink("ollama")}><Icon name="external" size={13} /> {t("local.install")}</button>}
+          <button type="button" className="btn btn-sm" onClick={() => S()?.openLink("ollamaLibrary")}><Icon name="external" size={13} /> {t("local.library")}</button>
+        </div>
+      </section>
+    );
+  }
+
+  const open = it.state === "open";
+  const chosen = it.models.find((m) => m.name === model) ?? it.models[0];
+  const reply = async (accept) => {
+    if (!open || sending) return;
+    setSending(true);
+    setError("");
+    const r = await (S()?.local?.answerOffer(it.offerId, accept ? (chosen?.name ?? null) : null, remember) ?? Promise.resolve(null)).catch(() => null);
+    if (!r?.ok) {
+      setError(r?.error === "not-found" ? t("local.offer.expired") : t("local.offer.failed"));
+      setSending(false);
+    }
+    // ok — rozi bo'lsa "local" hodisasi kartani yopadi; rad etsa — navbat xato bilan tugaydi (error/done).
+  };
+
+  return (
+    <section className="inq local-offer" aria-labelledby={`${uid}-t`}>
+      <header className="inq-head">
+        <Icon name="monitor" size={15} />
+        <div className="grow">
+          <div className="inq-title" id={`${uid}-t`}>{t(`local.offer.title.${it.reason}`)}</div>
+          <div className="faint small">{t("local.offer.desc")}</div>
+        </div>
+      </header>
+      {open ? (
+        <>
+          <label className="local-field">
+            <span className="small strong">{t("local.offer.model")}</span>
+            <span className="inq-field">
+              <select value={chosen?.name ?? ""} onChange={(e) => setModel(e.target.value)} disabled={sending}>
+                {it.models.map((m) => (
+                  <option key={m.name} value={m.name}>
+                    {[m.name, m.paramSize, m.size ? t("local.sizeGb", { n: gb(m.size) }) : "", m.tools ? t("model.cap.tools") : t("local.chatOnly"), m.vision ? t("model.cap.vision") : ""].filter(Boolean).join(" · ")}
+                  </option>
+                ))}
+              </select>
+            </span>
+          </label>
+          {chosen && !chosen.tools && mode === "code" && <div className="banner banner-warn"><Icon name="alert" size={14} /><span>{t("local.offer.noTools")}</span></div>}
+          {it.fullAuto && <div className="banner banner-warn"><Icon name="bolt" size={14} /><span>{t("local.offer.fullAuto")}</span></div>}
+          <div className="faint small">{t("local.offer.quality")}</div>
+          <label className="local-check small">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} disabled={sending} />
+            <span>{t("local.offer.remember")}</span>
+          </label>
+          {remember && <div className="faint small">{t("local.offer.rememberHint")}</div>}
+          <div className="inq-foot">
+            <button type="button" className="btn btn-sm btn-primary" onClick={() => reply(true)} disabled={sending || !chosen}>
+              {sending ? <span className="spinner" aria-hidden="true" /> : <Icon name="play" size={13} />} {t("local.offer.continue")}
+            </button>
+            <button type="button" className="btn btn-sm" onClick={() => reply(false)} disabled={sending}>{t("local.offer.decline")}</button>
+          </div>
+          {error && <div className="banner banner-danger" role="alert"><Icon name="alert" size={14} /><span>{error}</span></div>}
+        </>
+      ) : (
+        <div className="inq-status" role="status">
+          <Icon name={it.state === "accepted" ? "check" : "stop"} size={12} /> {it.state === "accepted" ? t("local.offer.accepted") : t("local.offer.closed")}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** Har navbatdagi "Mahalliy model · NOM" belgisi (+ vositasiz / Full auto pauza izohlari). */
+function LocalMarker({ it }) {
+  const t = useT();
+  return (
+    <>
+      <div className="divider-note local-mark" title={t("local.markerTitle")}>
+        <Icon name="monitor" size={12} /> {it.reason === "fallback" ? t("local.markerFallback", { model: it.model }) : t("local.marker", { model: it.model })}
+      </div>
+      {it.toolsOff && <div className="banner banner-warn local-note"><Icon name="info" size={14} /><span>{t("local.toolsOff")}</span></div>}
+      {it.fullAutoPaused && <div className="banner banner-warn local-note"><Icon name="bolt" size={14} /><span>{t("local.fullAutoPaused")}</span></div>}
+    </>
   );
 }
 
@@ -157,7 +319,7 @@ const Assistant = memo(function Assistant({ text }) {
   );
 });
 
-function Thinking({ startedAt, mode, awaiting }) {
+function Thinking({ startedAt, mode, awaiting, inquiry, localChars }) {
   const t = useT();
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const h = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(h); }, []);
@@ -165,7 +327,7 @@ function Thinking({ startedAt, mode, awaiting }) {
   return (
     <div className="thinking" role="status" aria-live="polite">
       <span className="avatar"><Logo size={18} className="pulse" /></span>
-      <span className="shimmer">{awaiting ? t("status.awaitingLong") : mode === "chat" ? t("chat.writing") : t("chat.thinking")}</span>
+      <span className="shimmer">{inquiry ? t("inquiry.awaiting") : awaiting ? t("status.awaitingLong") : localChars > 0 ? t("local.progress", { n: localChars }) : mode === "chat" ? t("chat.writing") : t("chat.thinking")}</span>
       <span className="faint small tnum">{t("time.sec", { n: sec })}</span>
     </div>
   );
@@ -211,7 +373,7 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
   const t = useT();
   const ref = useRef(null);
   const stick = useRef(true);
-  const { items, busy, confirm } = agent;
+  const { items, busy, confirm, awaiting } = agent;
 
   // Pastga avtomatik aylantirish — foydalanuvchi yuqoriga chiqib o'qiyotgan bo'lsa, tegmaymiz.
   const onScroll = () => {
@@ -236,6 +398,15 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
 
   const lastErrorId = [...items].reverse().find((i) => i.kind === "error")?.id;
   const lastRunningTool = [...items].reverse().find((i) => i.kind === "tool" && i.status === "running")?.id;
+  // Follow-up chip'lar faqat oxirgi foydalanuvchi xabaridan keyin kelgan bo'lsa faol (keyingi xabar — eskirgan).
+  let lastUserIdx = -1;
+  items.forEach((i, n) => { if (i.kind === "user" && !i.inquiry) lastUserIdx = n; });
+
+  // Karta javoblari main'ga savol id'lari bilan (savol matni main'dagi nusxadan olinadi).
+  const answerInquiry = (it, answers) => S()?.inquiry?.answer(it.inquiryId, answers) ?? Promise.resolve(null);
+  const skipInquiry = (it) => S()?.inquiry?.skip(it.inquiryId) ?? Promise.resolve(null);
+  // Follow-up — oddiy yangi xabar (hech qanday vosita/amal chaqirmaydi).
+  const sendFollowup = (text) => { if (!busy) S()?.send(text, mode); };
 
   return (
     <div ref={ref} className="conv-scroll" onScroll={onScroll} onClick={onClick}>
@@ -243,14 +414,25 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
         <EmptyState mode={mode} info={info} onPick={onPick} onSignIn={onSignIn} onSuggest={onSuggest} fullAuto={fullAuto} />
       ) : (
         <div className="conv" aria-live="polite" aria-relevant="additions">
-          {items.map((it) => {
+          {items.map((it, idx) => {
             switch (it.kind) {
               case "user":
                 return (
                   <div key={it.id} className="msg msg-user">
-                    <div className="bubble">{it.text}</div>
+                    <div className={`bubble ${it.inquiry ? "bubble-inq" : ""}`}>
+                      {it.inquiry && <span className="bubble-tag"><Icon name="chat" size={11} /> {t("inquiry.clarification")}</span>}
+                      {it.text}
+                    </div>
                   </div>
                 );
+              case "inquiry":
+                return it.phase === "followup"
+                  ? <InquiryFollowups key={it.id} it={it} disabled={busy || idx < lastUserIdx} onSend={sendFollowup} />
+                  : <InquiryCard key={it.id} it={it} onAnswer={(a) => answerInquiry(it, a)} onSkip={() => skipInquiry(it)} />;
+              case "local-offer":
+                return <LocalOfferCard key={it.id} it={it} mode={mode} />;
+              case "local":
+                return <LocalMarker key={it.id} it={it} />;
               case "assistant":
                 return <Assistant key={it.id} text={it.text} />;
               case "tool":
@@ -267,7 +449,7 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
                 return null;
             }
           })}
-          {busy && <Thinking startedAt={agent.startedAt} mode={mode} awaiting={!!confirm} />}
+          {busy && <Thinking startedAt={agent.startedAt} mode={mode} awaiting={!!confirm || awaiting === "local-offer"} inquiry={awaiting === "inquiry"} localChars={agent.localProgress} />}
         </div>
       )}
     </div>

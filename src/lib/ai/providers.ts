@@ -77,6 +77,8 @@ export type StreamEvent =
   /** Javob yakunidagi shaffoflik: haqiqiy model + server hisoblagan token (chat route yuboradi). */
   | ({ type: "meta" } & AnswerMeta)
   | { type: "error"; message: string }
+  /** Chuqur so'rash: savol kartasi (ask) yoki javob ostidagi follow-up chip'lar (docs/INQUIRY.md §A.8). */
+  | import("./inquiry/types").InquiryEvent
   | { type: "done" };
 
 const OPENROUTER_BASE = "https://openrouter.ai/api/v1";

@@ -1,7 +1,35 @@
 "use client";
 
 import type { StreamEvent } from "@/lib/ai/providers";
+import type { InquiryDomain, InquiryEvent, InquiryMode, InquiryReplyAnswer } from "@/lib/ai/inquiry/types";
 import { DEFAULT_LANG, fmt, isLang, translate, type Lang } from "@/lib/i18n";
+
+/**
+ * Chuqur so'rash — so'rov tanasidagi `inquiry` obyekti (docs/INQUIRY.md §A.8, route `bodySchema.inquiry`).
+ * Server `inquiry` hodisasini faqat so'rovda shu obyekt bo'lsa yuboradi (eski mijozlar buzilmaydi).
+ */
+export interface InquiryRequest {
+  mode: InquiryMode;
+  /** "Taxmin bilan javob ber" — triage o'tkaziladi, javob taxminlar bilan. */
+  skip: boolean;
+  /** Oxirgi navbatlarda o'tkazib yuborilgan kartalar soni (0..10). */
+  recentSkips: number;
+  /** Shu suhbatda allaqachon so'ralgan slotlar (≤ 20, har biri ≤ 40 belgi). */
+  askedSlots: string[];
+  /** Kartaga javob navbati (javoblar ≤ 6, har biri ≤ 400 belgi). */
+  reply?: {
+    inquiryId: string;
+    round: number;
+    answers: InquiryReplyAnswer[];
+    domain?: InquiryDomain;
+  };
+}
+
+/**
+ * Mijoz qabul qiladigan hodisalar. T3 `InquiryEvent` ni `StreamEvent` union'iga qo'shgach bu
+ * ortiqcha bo'ladi (union takrorni birlashtiradi), lekin shungacha ham tiplar to'g'ri.
+ */
+export type ClientStreamEvent = StreamEvent | InquiryEvent;
 
 export interface StreamChatOptions {
   modelId: string;
@@ -17,10 +45,12 @@ export interface StreamChatOptions {
   lang?: string;
   /** Agent rejimi (dasturchi/tadqiqotchi/...) — maxsus ko'rsatma beradi. */
   agentMode?: string;
+  /** Chuqur so'rash sozlamasi va javob navbati (yo'q bo'lsa server inquiry'ni ishlatmaydi). */
+  inquiry?: InquiryRequest;
   /** content is a string, or a multimodal array (text + image parts). */
   messages: { role: "user" | "assistant" | "system"; content: unknown }[];
   signal?: AbortSignal;
-  onEvent: (ev: StreamEvent) => void;
+  onEvent: (ev: ClientStreamEvent) => void;
 }
 
 /** Calls POST /api/chat and forwards SSE events to `onEvent`. */
@@ -33,6 +63,7 @@ export async function streamChat({
   context,
   lang,
   agentMode,
+  inquiry,
   messages,
   signal,
   onEvent,
@@ -49,6 +80,7 @@ export async function streamChat({
       context: context ?? "",
       lang: lang ?? DEFAULT_LANG,
       agentMode: agentMode ?? "general",
+      ...(inquiry ? { inquiry } : {}),
       messages,
     }),
     signal,
@@ -93,7 +125,7 @@ export async function streamChat({
         return;
       }
       try {
-        onEvent(JSON.parse(data) as StreamEvent);
+        onEvent(JSON.parse(data) as ClientStreamEvent);
       } catch {
         /* ignore malformed */
       }

@@ -30,6 +30,20 @@ contextBridge.exposeInMainWorld("sovereign", {
   settings: {
     set: (patch) => invoke("settings:set", patch),
   },
+  // Chuqur so'rash kartasi: javob {q1: "…", q2: ["a","b"]} yoki "Taxmin bilan javob ber" (skip).
+  inquiry: {
+    answer: (id, answers) => invoke("inquiry:answer", { id, answers }),
+    skip: (id) => invoke("inquiry:answer", { id, skip: true }),
+  },
+  // Mahalliy model (Ollama, faqat 127.0.0.1 — so'rovlar main jarayondan).
+  local: {
+    status: () => invoke("local:status"),
+    models: () => invoke("local:models"),
+    // Qo'lda: use("qwen2.5-coder:7b") / use(null) — bulutga qaytish.
+    use: (model) => invoke("local:use", { model: model ?? null }),
+    // "local-offer" kartasiga javob: model null — rad; remember — "Keyingi safar so'rama".
+    answerOffer: (id, model, remember) => invoke("local:use", { id, model: model ?? null, remember: !!remember }),
+  },
   // Loyiha xotirasi (SOVEREIGN.md) — yo'l main'da hisoblanadi, renderer yo'l bermaydi.
   project: {
     info: () => invoke("project:info"),

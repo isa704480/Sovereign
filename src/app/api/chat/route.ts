@@ -37,6 +37,25 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { inferProvider } from "@/lib/econ/unit-economics";
+import { detectImageIntent } from "@/lib/ai/image";
+import { decide, preGateDetail } from "@/lib/ai/inquiry/policy";
+import { inquiryAnswerAddendum } from "@/lib/ai/inquiry/prompt";
+import { inquiryLang } from "@/lib/ai/inquiry/lang";
+import { triageDetailed, type TriageOutcome } from "@/lib/ai/inquiry/triage";
+import { recordInquiry } from "@/lib/ai/inquiry/telemetry";
+import { markLimit } from "@/lib/ai/inquiry/limit-codes";
+import {
+  INQUIRY_DOMAINS,
+  INQUIRY_MODES,
+  INQUIRY_TUNING,
+  PROFESSIONAL_FOR,
+  SENSITIVE_DOMAINS,
+  type FinalDecision,
+  type InquiryDomain,
+  type InquiryEvent,
+  type InquiryGate,
+} from "@/lib/ai/inquiry/types";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -59,8 +78,33 @@ const contentPart = z.discriminatedUnion("type", [
   }),
 ]);
 
+/**
+ * Chuqur so'rash (docs/INQUIRY.md §A.8). Mijoz har so'rovda yuboradi; eski mijoz yubormaydi — u holda
+ * server `inquiry` hodisasini HECH QACHON yubormaydi (eski mijoz uni tanimaydi).
+ * `reply.answers` faqat dedup/telemetriya uchun — model javobni user xabari matnidan o'qiydi.
+ */
+const inquirySchema = z.object({
+  mode: z.enum(INQUIRY_MODES).default("auto"),
+  skip: z.boolean().default(false),
+  recentSkips: z.number().int().min(0).max(10).default(0),
+  askedSlots: z.array(z.string().max(40)).max(20).default([]),
+  reply: z
+    .object({
+      inquiryId: z.uuid(),
+      round: z.number().int().min(1).max(3),
+      answers: z.array(z.object({ slot: z.string().max(40), value: z.string().max(400) })).max(6),
+      domain: z.enum(INQUIRY_DOMAINS).optional(),
+    })
+    .optional(),
+});
+
 const bodySchema = z.object({
   modelId: z.string().min(1).max(100),
+  /**
+   * Yaroqsiz `inquiry` butun chatni 400 qilmaydi — faqat chuqur so'rash o'chadi (undefined → eski mijoz
+   * kabi: hodisa yo'q). Bu maydon xavfsizlik chegarasi emas (reply kvotasi serverda tekshiriladi).
+   */
+  inquiry: inquirySchema.optional().catch(undefined),
   research: z.boolean().optional().default(false),
   skills: z.array(z.string().max(64)).max(12).optional().default([]),
   /** Knowledge-base documents the user referenced with "@name". */
@@ -223,6 +267,76 @@ function textOf(content: string | unknown[]): string {
     .join(" ");
 }
 
+// ── Chuqur so'rash yordamchilari (docs/INQUIRY.md §A.8) ─────────────────────
+
+/** Kartaga javob navbati shu muddat ichida bepul (keyin oddiy xabar sifatida hisoblanadi). */
+const INQUIRY_REPLY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function isSensitiveDomain(d: string | null | undefined): boolean {
+  return !!d && (SENSITIVE_DOMAINS as readonly string[]).includes(d);
+}
+
+/**
+ * Kartaga javob (yoki "Taxmin bilan javob ber") navbati kunlik xabar hisobiga kirmaydimi — "bitta savol =
+ * bitta xabar" (§A.8 4-band). Mijoz `reply` ni o'zi yozadi, shuning uchun HAR SHART serverda tekshiriladi:
+ *  1) suiiste'mol chegarasi `inquiry:reply:${userId}` 20 / 10 daq;
+ *  2) `inquiryId` — server yaqinda (24 soat) web'da `ask` qarori bilan bergan karta (telemetriya jadvali;
+ *     id — tasodifiy UUID, boshqa foydalanuvchinikini topib bo'lmaydi);
+ *  3) har karta faqat BIR marta bepul — bazada ATOMIK egallanadi (R1): `update … set reply_claimed_at = now()
+ *     where … and reply_claimed_at is null returning id` (0037 trigger ham qayta yozishni to'sadi). Upstash
+ *     yo'q/uzilgan bo'lsa ham har Vercel instansida takrorlab bo'lmaydi (oldingi xotiradagi rate-limit o'rniga).
+ * Istalgan shart bajarilmasa yoki tekshirib bo'lmasa (Supabase/migratsiya yo'q, telemetriya o'chiq) —
+ * `false`: navbat odatdagidek hisoblanadi (xavfsiz tomonga, hech narsa rad etilmaydi).
+ */
+async function freeInquiryReply(userId: string, inquiryId: string): Promise<boolean> {
+  const id = inquiryId.toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) return false;
+  const burst = await rateLimit(`inquiry:reply:${userId}`, 20, 10 * 60_000);
+  if (!burst.ok) return false;
+  try {
+    const sb = createServiceClient();
+    const { data, error } = await sb
+      .from("inquiry_events")
+      .update({ reply_claimed_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("surface", "web")
+      .eq("decision_final", "ask")
+      .is("reply_claimed_at", null)
+      .gte("created_at", new Date(Date.now() - INQUIRY_REPLY_WINDOW_MS).toISOString())
+      .select("id");
+    return !error && Array.isArray(data) && data.length === 1;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Triage'siz javob navbati (skip / round ≥ 2): kartaning sohasi mijozdan keladi — addendum mutaxassis
+ * va soha qoidasini qo'shishi uchun. Karta faqat yuqori xavfda chiqqani uchun sezgir sohada "medium".
+ */
+function withReplyDomain(d: FinalDecision, domain: InquiryDomain | undefined): FinalDecision {
+  if (!domain) return d;
+  const sensitive = isSensitiveDomain(domain);
+  const professional = sensitive ? PROFESSIONAL_FOR[domain] : undefined;
+  return { ...d, domain, stakes: sensitive ? "medium" : d.stakes, ...(professional ? { professional } : {}) };
+}
+
+/** `decide()` natijasidan SSE hodisasi (matnlar sanitize.ts/decide() da allaqachon tozalangan). */
+function inquiryEventOf(d: FinalDecision, phase: InquiryEvent["phase"], inquiryId: string): InquiryEvent {
+  return {
+    type: "inquiry",
+    inquiryId,
+    phase,
+    round: d.round,
+    domain: d.domain,
+    stakes: d.stakes,
+    goal: d.goal,
+    questions: phase === "followup" ? d.questions.slice(0, INQUIRY_TUNING.maxFollowups) : d.questions,
+    assumptions: d.assumptions,
+    ...(d.professional ? { professional: d.professional } : {}),
+  };
+}
+
 export async function POST(req: Request) {
   // Butun so'rovning umumiy muddati (maxDuration 120 s dan oldin): mesh har urinish taymautini
   // qolgan vaqtga moslaydi, route esa muddat tugagach keyingi nomzodga o'tmaydi.
@@ -253,6 +367,7 @@ export async function POST(req: Request) {
     context: coworkContext,
     lang,
     agentMode,
+    inquiry: inquiryReq,
   } = parsed.data;
   // Foydalanuvchiga ko'rinadigan xabarlar — interfeys tilida.
   const t = (key: TKey) => translate(lang, key);
@@ -335,13 +450,18 @@ export async function POST(req: Request) {
   const regionDroppedResearch = !!country && research && !modelAllowedIn(RESEARCH_MODEL_ID, country);
   if (regionDroppedResearch) research = false;
 
-  const dailyLimitMsg = `${UPGRADE} ${fmt(t("chDailyLimit"), { n: plan.limits.messagesPerDay, plan: plan.name })}`;
-  if (usedToday >= plan.limits.messagesPerDay) {
+  // "[limit]" — foydalanuvchi tarifi tugagan (T14 limit-codes): mijoz "Cowork'da mahalliy model" CTA'sini ko'rsatadi.
+  // Mintaqa va tarif darajasi rad etishlari belgilanmaydi (mahalliy model ularning yechimi emas).
+  const dailyLimitMsg = markLimit(`${UPGRADE} ${fmt(t("chDailyLimit"), { n: plan.limits.messagesPerDay, plan: plan.name })}`);
+  // Chuqur so'rash: kartaga javob navbati (server tasdiqlasa) kunlik xabar hisobiga kirmaydi (§A.8).
+  const inquiryReply = inquiryReq?.reply;
+  const freeReply = authed && userId && inquiryReply ? await freeInquiryReply(userId, inquiryReply.inquiryId) : false;
+  if (!freeReply && usedToday >= plan.limits.messagesPerDay) {
     return refuse(dailyLimitMsg);
   }
-  // Oylik token limiti (0015 tokens_used_month) — endi majburiy.
+  // Oylik token limiti (0015 tokens_used_month) — endi majburiy (javob navbatida ham).
   if (authed && tokensUsedMonth >= plan.limits.tokensPerMonth) {
-    return refuse(`${UPGRADE} ${fmt(t("secMonthlyTokenLimit"), { plan: plan.name })}`);
+    return refuse(markLimit(`${UPGRADE} ${fmt(t("secMonthlyTokenLimit"), { plan: plan.name })}`));
   }
 
   // OmniRoute/upstream katalog gating (CLI route bilan bir xil funksiya — requiredPlanTier): aniq
@@ -388,7 +508,8 @@ export async function POST(req: Request) {
   // to'g'ri POST bilan chetlab o'tilardi.)
   // Pullik planner LLM va embedding shu tekshiruvdan KEYIN — limiti tugagan
   // foydalanuvchi ularni har so'rovda ishga tushirmaydi.
-  if (authed) {
+  // Tasdiqlangan kartaga javob navbati (freeReply) hisoblanmaydi — karta chiqqan navbat allaqachon hisoblangan.
+  if (authed && !freeReply) {
     let counted = false;
     try {
       const supabase = await createClient();
@@ -409,12 +530,70 @@ export async function POST(req: Request) {
     }
   }
 
+  // ---- Chuqur so'rash (docs/INQUIRY.md §A.2–A.8): kvotadan KEYIN (limiti tugagan foydalanuvchi triage
+  // tokenini sarflamaydi). Pre-gate — sinxron, tarmoqsiz. ----
+  const emitInquiry = !!inquiryReq; // eski mijoz `inquiry` hodisasini tanimaydi
+  const inquiryMode = inquiryReq?.mode ?? "auto";
+  const replyAnswers = inquiryReply?.answers ?? [];
+  const inquiryRound = inquiryReply?.round ?? 0;
+  const lastUserIdx = messages.map((m) => m.role).lastIndexOf("user");
+  const pre = preGateDetail({
+    text: lastText,
+    mode: inquiryMode,
+    skip: inquiryReq?.skip,
+    recentSkips: inquiryReq?.recentSkips,
+    round: inquiryRound,
+    isFirstMessage: messages.filter((m) => m.role === "user").length === 1,
+    mediaIntent: detectImageIntent(lastText),
+    research,
+    mediaOnly: Array.isArray(lastUser) && !lastText.trim(),
+    surface: "web",
+  });
+  // Eski mijozda parallel triage foydasiz (follow-up chip'ni ko'rsata olmaydi) — faqat token sarfi.
+  const inquiryGate: InquiryGate = !emitInquiry && pre.gate === "parallel" ? "skip" : pre.gate;
+  // Deterministik dedup matni: suhbatdagi user xabarlari + xotira + karta javoblari + Cowork papka konteksti.
+  const knownText = [
+    ...messages.filter((m) => m.role === "user").map((m) => textOf(m.content)),
+    memoryText,
+    ...replyAnswers.map((a) => `${a.slot}: ${a.value}`),
+    coworkContext.slice(0, 4000),
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const decideCtx = (gate: InquiryGate) => ({
+    mode: inquiryMode,
+    gate,
+    round: inquiryRound,
+    knownText,
+    askedSlots: inquiryReq?.askedSlots ?? [],
+    emergency: pre.emergency,
+  });
+  // Triage hech qachon throw qilmaydi va o'z taymautiga ega (blocking 1200 ms, parallel 4000 ms) — fail-open.
+  const runTriage = (gate: "blocking" | "parallel"): Promise<TriageOutcome> =>
+    triageDetailed({
+      text: lastText,
+      history: messages.slice(0, Math.max(0, lastUserIdx)),
+      lang,
+      gate,
+      planTier: plan.id,
+      country,
+      memoryText,
+      answers: replyAnswers,
+      askedSlots: inquiryReq?.askedSlots ?? [],
+      surface: "web",
+      context: coworkContext || undefined,
+      signal: req.signal,
+    });
+  // Blocking: triage Auto planner va bilim bazasi bilan PARALLEL (qo'shimcha kechikish ≈ max(0, triage − planner)).
+  const blockingTriage = inquiryGate === "blocking" ? runTriage("blocking") : null;
+
   // Bilim bazasi (embedding) — kvota o'tgandan keyin.
   // Mintaqa cheklangan bo'lsa embedding (OpenAI) chaqirilmaydi — faqat "@hujjat".
   const knowledgeText = await loadKnowledge(!region.restricted);
 
   // ---- Build the execution plan (single model, or Auto orchestration) ----
   const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan, lang, req.signal, country) : null;
+
   const steps: RouteStep[] = routePlan
     ? routePlan.steps
     : regionCandidates
@@ -430,12 +609,37 @@ export async function POST(req: Request) {
   if (steps.some((s) => !s.modelId)) return refuse(t("p10RegionNoModels"));
   const routeReason = routePlan?.reason ?? "";
 
+  const blockingOutcome = blockingTriage ? await blockingTriage : null;
+  // Yakuniy qaror — deterministik siyosat. Eski mijozda "ask" ko'rsatib bo'lmaydi → parallel kabi
+  // (answer_then_ask: javob taxminlar bilan, chip'siz).
+  const blockingDecision: FinalDecision | null = blockingOutcome
+    ? decide(blockingOutcome.result, decideCtx(emitInquiry ? "blocking" : "parallel"))
+    : null;
+  const askNow = emitInquiry && blockingDecision?.decision === "ask";
+  // Triage'siz, lekin baribir kontekst kerak: favqulodda (EMERGENCY_FIRST) yoki kartaga javob / skip navbati.
+  const addendumDecision: FinalDecision | null =
+    blockingDecision ??
+    (pre.emergency || inquiryReply
+      ? withReplyDomain(decide(null, decideCtx("skip")), inquiryReply?.domain)
+      : null);
+  const inquiryAddendum = askNow
+    ? ""
+    : inquiryAnswerAddendum(blockingOutcome?.result ?? null, replyAnswers, addendumDecision, inquiryLang(lang, lastText), {
+        skipped: inquiryReq?.skip === true,
+      });
+
   // Semantic cache: faqat oddiy savol (RAG/xotira/attach yo'q, research emas)
   // — foydalanuvchi savoli o'xshash bo'lsa modelga bormay javob qaytariladi.
   // Havolali savol keshlanmaydi — sahifa mazmuni o'zgarib turadi.
   const urls = extractUrls(lastText);
   const canCache =
     isSupabaseConfigured() &&
+    // Chuqur so'rash: yuqori xavfli (blocking) navbatda generik keshlangan javob noto'g'ri bo'lishi mumkin;
+    // favqulodda, kartaga javob va addendum'li javoblar shaxsiy kontekstga bog'liq — keshga ham yozilmaydi.
+    inquiryGate !== "blocking" &&
+    !pre.emergency &&
+    !inquiryReply &&
+    !inquiryAddendum &&
     // Semantik kesh embedding'i — OpenAI (text-embedding-3-small): cheklangan mintaqada yo'q.
     !region.restricted &&
     !research &&
@@ -516,31 +720,76 @@ export async function POST(req: Request) {
       let servedRescue = false;
       let cachedFrom: string | null = null;
 
+      // Chuqur so'rash holati: triage natijalari (token hisobi/telemetriya), parallel triage, kutilayotgan yozuvlar.
+      const triageOutcomes: { outcome: TriageOutcome; gate: InquiryGate; decision: FinalDecision; id: string }[] = [];
+      let parallelTriage: Promise<TriageOutcome> | null = null;
+      let parallelNoted = false;
+      let blockingInquiryId = "";
+      let askSent = false;
+      const inquiryJobs: Promise<unknown>[] = [];
+      /** Triage natijasini qayd etadi: telemetriya (xom matnsiz) — triage ishlagan HAR navbat, `answer` ham. */
+      const noteTriage = (outcome: TriageOutcome, gate: InquiryGate, decision: FinalDecision): string => {
+        const id = crypto.randomUUID();
+        triageOutcomes.push({ outcome, gate, decision, id });
+        inquiryJobs.push(
+          recordInquiry({
+            id,
+            surface: "web",
+            mode: inquiryMode,
+            gate,
+            decision,
+            lang,
+            triageModel: outcome.model,
+            latencyMs: outcome.latencyMs,
+          }).catch(() => false),
+        );
+        return id;
+      };
+      /** Triage tokenlari (mesh qaytargan haqiqiy son) — meta va oylik hisob (halollik, §A.8). */
+      const triageUsage = () =>
+        triageOutcomes.reduce(
+          (acc, x) => ({
+            input: acc.input + (x.outcome.usage?.prompt_tokens ?? 0),
+            output: acc.output + (x.outcome.usage?.completion_tokens ?? 0),
+          }),
+          { input: 0, output: 0 },
+        );
+
       /** Taxminiy token hisobi (~4 belgi = 1 token): butun tarix + kontekst har chaqiruvda. */
       const usageEstimate = () => {
         if (modelCalls === 0) return { input: 0, output: 0 };
         const historyChars = messages.reduce((n, m) => n + textOf(m.content).length, 0);
-        const contextChars = [webContext, coworkContext, knowledgeText, memoryText, skillText, connectorContext].join("").length;
+        const contextChars = [webContext, coworkContext, knowledgeText, memoryText, skillText, connectorContext, inquiryAddendum].join("")
+          .length;
         return {
           input: Math.round(((historyChars + contextChars) * modelCalls) / 4),
           output: Math.round(billedOutChars / 4),
         };
       };
 
-      const recordUsage = async (u: { input: number; output: number }) => {
-        if (!authed || modelCalls === 0) return;
+      /** `who` — javob modelidan boshqa chaqiruv (triage): o'z modeli/provayderi bilan alohida yoziladi. */
+      const recordUsage = async (
+        u: { input: number; output: number },
+        who?: { model: string; provider: string | null },
+      ) => {
+        if (!authed) return;
+        if (who ? u.input + u.output <= 0 : modelCalls === 0) return;
         const supabase = await createClient();
         const base = {
           p_input_tokens: u.input,
           p_output_tokens: u.output,
           // Haqiqatda javob bergan model (zaxiraga o'tilgan bo'lsa — o'sha).
-          p_model: servedId,
+          p_model: who ? who.model : servedId,
           // Unit economics (0036): provayder faqat id'dan ishonchli aniqlansa, aks holda null.
-          p_provider: cachedFrom ? null : (servedProvider || inferProvider(servedUpstream ?? "") || inferProvider(servedId) || null),
+          p_provider: who
+            ? who.provider
+            : cachedFrom
+              ? null
+              : (servedProvider || inferProvider(servedUpstream ?? "") || inferProvider(servedId) || null),
         };
         let { error } = await supabase.rpc("record_token_usage", {
           ...base,
-          p_upstream_model: cachedFrom ? null : (servedUpstream ?? null),
+          p_upstream_model: who ? who.model : cachedFrom ? null : (servedUpstream ?? null),
         });
         // 0036 hali qo'llanmagan — eski imzo (p_upstream_model yo'q).
         if (error?.code === "PGRST202") ({ error } = await supabase.rpc("record_token_usage", base));
@@ -573,7 +822,44 @@ export async function POST(req: Request) {
         };
       };
 
+      /**
+       * Savol kartasi navbati (javob modeli chaqirilmagan): kartani triage modeli tuzdi — `served` shu model,
+       * token — triage'ning haqiqiy tokeni (halollik). Zaxira emas (boshqa bosqich), shuning uchun fallback yo'q.
+       */
+      const askMeta = (u: { input: number; output: number }): AnswerMeta => {
+        const tokens = Math.min(100_000, u.input + u.output);
+        const billed = authed && tokens > 0;
+        const requested = regionSwapFrom ?? (isAuto ? (answerStep?.modelId ?? modelId) : modelId);
+        const triageModel = triageOutcomes.find((x) => x.outcome.model)?.outcome.model;
+        return {
+          requested,
+          served: triageModel ?? requested,
+          fallback: false,
+          ...(isAuto ? { auto: true } : {}),
+          tokens,
+          billed,
+          ...(billed && plan.limits.tokensPerMonth > 0
+            ? { monthPct: Math.round((tokens / plan.limits.tokensPerMonth) * 10_000) / 100 }
+            : {}),
+          ...(regionSwapFrom && country ? { region: country } : {}),
+        };
+      };
+
       try {
+        // ---- Chuqur so'rash: blocking triage natijasi (route boshida, planner bilan parallel olingan) ----
+        if (blockingOutcome && blockingDecision) {
+          const inquiryId = noteTriage(blockingOutcome, "blocking", blockingDecision);
+          blockingInquiryId = inquiryId;
+          if (askNow) {
+            // "ask" qisqa tutashuvi: javob modeli, semantik kesh, connector, training capture va verifier YO'Q.
+            // Keyingi navbat (kartaga javob) kunlik hisobga kirmaydi — freeInquiryReply (telemetriya id = inquiryId).
+            send(inquiryEventOf(blockingDecision, "ask", inquiryId));
+            askSent = true;
+            send({ type: "done" });
+            return; // meta, token hisobi, telemetriya, [DONE] — finally'da
+          }
+        }
+
         if (activeSkills.length) send({ type: "skills", skills: activeSkills.map((s) => s.id) });
         if (isAuto) send({ type: "route", reason: routeReason, steps });
         // Mintaqa almashtiruvi darhol ko'rinsin (javob ostidagi belgi ham "so'ralgan → javob" deydi).
@@ -603,6 +889,9 @@ export async function POST(req: Request) {
             /* kesh xatosi indamay o'tadi */
           }
         }
+
+        // Parallel triage: javob darhol oqadi, triage fonda (TTFT o'zgarmaydi). Kesh urilsa — boshlanmaydi.
+        if (inquiryGate === "parallel") parallelTriage = runTriage("parallel");
 
         // Havola yuborilgan bo'lsa — sahifani o'qib, kontekstga qo'shamiz.
         // Mijozdagi citations ro'yxati (oxirgi yuborilgani) — [n] belgilari shunga solishtiriladi.
@@ -675,6 +964,8 @@ export async function POST(req: Request) {
 ${connectorContext}`
               : "",
             step.kind === "answer" ? ACTION_HONESTY : "",
+            // Chuqur so'rash: taxminlar / "javobni nima o'zgartiradi" / mutaxassis / EMERGENCY_FIRST.
+            step.kind === "answer" ? inquiryAddendum : "",
             step.kind === "answer" && mode?.prompt ? mode.prompt : "",
           ]
             .filter(Boolean)
@@ -797,9 +1088,100 @@ ${connectorContext}`
           }
         }
 
+        // ---- Chuqur so'rash: follow-up chip'lar (answer_then_ask) — javob tugagach (§A.8 5–6) ----
+        // Parallel triage o'z taymautiga ega (4 s, so'rov boshidan): tayyor bo'lmasa null → chip yo'q.
+        // Verifier bilan bir vaqtda — [DONE] qo'shimcha kutmaydi (odatda triage javobdan oldin tugaydi).
+        const followupDone = (async (): Promise<FinalDecision | null> => {
+          let fd: FinalDecision | null = null;
+          let fid = "";
+          if (blockingDecision) {
+            fd = blockingDecision;
+            fid = blockingInquiryId;
+          } else if (parallelTriage && !parallelNoted) {
+            parallelNoted = true;
+            const out = await parallelTriage;
+            fd = decide(out.result, decideCtx("parallel"));
+            fid = noteTriage(out, "parallel", fd);
+          }
+          if (
+            fd &&
+            fid &&
+            emitInquiry &&
+            cacheableAnswer &&
+            !req.signal.aborted &&
+            fd.decision === "answer_then_ask" &&
+            fd.questions.length
+          ) {
+            send(inquiryEventOf(fd, "followup", fid));
+          }
+          return fd;
+        })().catch((): FinalDecision | null => null);
+
+        // Javobdan keyingi tekshiruvlar (streaming tugagandan keyin "verifier" hodisasi):
+        //  1) Amal da'volari: javob "yubordim/yaratdim/saqladim" desa — connector jurnalida
+        //     shu amal ✓ bajarilganmi? (deterministik; faqat chegaradagi gap arzon modelga).
+        //  2) Research [n]: manbalar ro'yxatidan tashqaridagi belgilar — "manbasiz".
+        //  3) Fakt-verifier (arzon model): javob modeli ko'rgan manbalar (o'qilgan sahifa,
+        //     bilim bazasi, research qidiruv natijalari) bo'lsa — SHU manbalarga solishtiriladi;
+        //     aks holda faqat modelning o'z bilimi (UI buni alohida belgilaydi).
+        const checksDone = (async () => {
+          try {
+            const verifyText = cacheableAnswer || researchContext;
+            const searchCtx = formatSearchSources(searchSources);
+            // connectorContext (Gmail/Sheets/GitHub ma'lumotlari) atayin YO'Q: maxfiylik —
+            // shaxsiy servis ma'lumotlari tekshiruvchi uchun qo'shimcha modelga yuborilmaydi.
+            const sources = [searchCtx.text, webContext, knowledgeText].filter(Boolean).join("\n\n");
+            // Qidiruv faqat sarlavha/URL qaytargan va boshqa manba yo'q — faqat atributsiya.
+            const attributionOnly = Boolean(searchCtx.text) && !searchCtx.withContent && !webContext && !knowledgeText;
+            // Manbali tekshiruv qisqa javobga ham arziydi; manbasiz "ikkinchi fikr" — faqat uzun javobga.
+            const minChars = sources ? 150 : 300;
+            // Fakt-verifier — mustaqil hakam (judge.ts): javobni yaratgan kompaniyadan BOSHQA
+            // kompaniyaning modeli; mintaqa siyosati hakamga ham qo'llanadi (cheklangan mintaqada
+            // faqat u yerda ruxsat etilgan kompaniyalar).
+            const shouldVerify = verifyText.length >= minChars && isFactualProse(verifyText);
+            // Javob muallifi: upstream qaytargan haqiqiy model + nomzod id + reja qadamlari
+            // (research — Perplexity). Hammasining kompaniyasi hakamlikdan chiqariladi.
+            const answerModels = [
+              ...(cacheableAnswer ? [servedUpstream, cachedFrom ?? servedId] : []),
+              ...steps.map((s) => s.modelId),
+            ].filter((m): m is string => !!m);
+            await postChecks({
+              text: modelText,
+              ledger: actionLedger,
+              unsourced: researchRan || clientCitations.length ? unsourcedMarkers(modelText, clientCitations.length) : [],
+              answerModels,
+              verify: shouldVerify
+                ? () =>
+                    verifyAnswer(lastText, verifyText, sources, {
+                      attributionOnly,
+                      numbered: Boolean(searchCtx.text),
+                      lang,
+                      signal: req.signal,
+                      answerModel: answerModels,
+                      country,
+                    })
+                : null,
+            });
+          } catch {
+            /* tekshiruvlar ixtiyoriy — xato bo'lsa jim */
+          }
+        })();
+
+        const followDecision = await followupDone;
+
         // Tella 2 uchun trening namunasi (distillation). Maxfiy manbali
         // suhbatlar va rozilik bermaganlar training.ts ichida rad etiladi.
-        if (cacheableAnswer && typeof lastUser === "string") {
+        // Chuqur so'rash (§A.8 8-band): inquiry navbati (karta javobi/skip, taxminli javob, favqulodda) va
+        // legal/medical/financial sohadagi javoblar trening bazasiga YOZILMAYDI.
+        const inquiryPrivate =
+          !!inquiryReply ||
+          inquiryReq?.skip === true ||
+          pre.emergency ||
+          !!pre.highStakesDomain ||
+          [blockingDecision, followDecision].some(
+            (d) => !!d && (d.decision !== "answer" || d.emergency || isSensitiveDomain(d.domain)),
+          );
+        if (cacheableAnswer && typeof lastUser === "string" && !inquiryPrivate) {
           void captureSample({
             question: lastText,
             answer: cacheableAnswer,
@@ -813,53 +1195,7 @@ ${connectorContext}`
           });
         }
 
-        // Javobdan keyingi tekshiruvlar (streaming tugagandan keyin "verifier" hodisasi):
-        //  1) Amal da'volari: javob "yubordim/yaratdim/saqladim" desa — connector jurnalida
-        //     shu amal ✓ bajarilganmi? (deterministik; faqat chegaradagi gap arzon modelga).
-        //  2) Research [n]: manbalar ro'yxatidan tashqaridagi belgilar — "manbasiz".
-        //  3) Fakt-verifier (arzon model): javob modeli ko'rgan manbalar (o'qilgan sahifa,
-        //     bilim bazasi, research qidiruv natijalari) bo'lsa — SHU manbalarga solishtiriladi;
-        //     aks holda faqat modelning o'z bilimi (UI buni alohida belgilaydi).
-        try {
-          const verifyText = cacheableAnswer || researchContext;
-          const searchCtx = formatSearchSources(searchSources);
-          // connectorContext (Gmail/Sheets/GitHub ma'lumotlari) atayin YO'Q: maxfiylik —
-          // shaxsiy servis ma'lumotlari tekshiruvchi uchun qo'shimcha modelga yuborilmaydi.
-          const sources = [searchCtx.text, webContext, knowledgeText].filter(Boolean).join("\n\n");
-          // Qidiruv faqat sarlavha/URL qaytargan va boshqa manba yo'q — faqat atributsiya.
-          const attributionOnly = Boolean(searchCtx.text) && !searchCtx.withContent && !webContext && !knowledgeText;
-          // Manbali tekshiruv qisqa javobga ham arziydi; manbasiz "ikkinchi fikr" — faqat uzun javobga.
-          const minChars = sources ? 150 : 300;
-          // Fakt-verifier — mustaqil hakam (judge.ts): javobni yaratgan kompaniyadan BOSHQA
-          // kompaniyaning modeli; mintaqa siyosati hakamga ham qo'llanadi (cheklangan mintaqada
-          // faqat u yerda ruxsat etilgan kompaniyalar).
-          const shouldVerify = verifyText.length >= minChars && isFactualProse(verifyText);
-          // Javob muallifi: upstream qaytargan haqiqiy model + nomzod id + reja qadamlari
-          // (research — Perplexity). Hammasining kompaniyasi hakamlikdan chiqariladi.
-          const answerModels = [
-            ...(cacheableAnswer ? [servedUpstream, cachedFrom ?? servedId] : []),
-            ...steps.map((s) => s.modelId),
-          ].filter((m): m is string => !!m);
-          await postChecks({
-            text: modelText,
-            ledger: actionLedger,
-            unsourced: researchRan || clientCitations.length ? unsourcedMarkers(modelText, clientCitations.length) : [],
-            answerModels,
-            verify: shouldVerify
-              ? () =>
-                  verifyAnswer(lastText, verifyText, sources, {
-                    attributionOnly,
-                    numbered: Boolean(searchCtx.text),
-                    lang,
-                    signal: req.signal,
-                    answerModel: answerModels,
-                    country,
-                  })
-              : null,
-          });
-        } catch {
-          /* tekshiruvlar ixtiyoriy — xato bo'lsa jim */
-        }
+        await checksDone;
       } catch (err) {
         if (!(err instanceof Error && err.name === "AbortError")) {
           // Xom xato (provayder/infra tafsiloti) foydalanuvchiga emas — logga.
@@ -867,14 +1203,46 @@ ${connectorContext}`
           send({ type: "error", message: t("chUnknownError") });
         }
       } finally {
+        // Xato sabab follow-up bosqichiga yetmagan parallel triage ham hisobga olinadi (token + telemetriya).
+        if (parallelTriage && !parallelNoted) {
+          parallelNoted = true;
+          const out = await parallelTriage.catch(() => null);
+          if (out) noteTriage(out, "parallel", decide(out.result, decideCtx("parallel")));
+        }
         // Bekor qilingan / uzilgan oqim ham hisobga olinadi (oylik token limiti).
         const usage = usageEstimate();
+        const triU = triageUsage();
+        // R1-4: sezgir navbat (favqulodda, yuqori xavf regex'i, sezgir soha karta/triage) — mijoz avtomatik
+        // xotiraga yozmaydi (kartasiz "answer", mode "off" va triage taymauti holatlari ham).
+        const sensitive =
+          pre.emergency ||
+          !!pre.highStakesDomain ||
+          isSensitiveDomain(inquiryReply?.domain) ||
+          triageOutcomes.some((x) => x.decision.emergency || isSensitiveDomain(x.decision.domain));
+        const sens = sensitive ? { sensitive: true } : {};
         try {
-          if (modelCalls > 0 || cachedFrom) send({ type: "meta", ...answerMeta(usage) });
+          if (modelCalls > 0 || cachedFrom) {
+            // Belgidagi token — javob + triage (halollik: foydalanuvchi limitidan ikkalasi ham yechiladi).
+            send({ type: "meta", ...answerMeta({ input: usage.input + triU.input, output: usage.output + triU.output }), ...sens });
+          } else if (askSent) {
+            send({ type: "meta", ...askMeta(triU), ...sens });
+          }
         } catch {
           /* mijoz uzilgan */
         }
-        await recordUsage(usage).catch((e) => console.error("[chat] record_token_usage:", e));
+        // Telemetriya ask navbatida [DONE] dan OLDIN yozilishi shart: keyingi reply navbati shu qatorni tekshiradi.
+        await Promise.all([
+          recordUsage(usage).catch((e) => console.error("[chat] record_token_usage:", e)),
+          ...triageOutcomes.map(({ outcome }) =>
+            outcome.usage && outcome.model
+              ? recordUsage(
+                  { input: outcome.usage.prompt_tokens, output: outcome.usage.completion_tokens },
+                  { model: outcome.model, provider: outcome.provider },
+                ).catch((e) => console.error("[chat] record_token_usage (triage):", e))
+              : Promise.resolve(),
+          ),
+          ...inquiryJobs,
+        ]);
         try {
           controller.enqueue(done);
           controller.close();

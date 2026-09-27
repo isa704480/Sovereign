@@ -3,17 +3,17 @@ import readline from "node:readline";
 import { format } from "node:util";
 import { readFileSync, statSync } from "node:fs";
 import { dirname as pathDirname, resolve as pathResolve, sep as pathSep } from "node:path";
-import { loadConfig, saveConfig, clearAuth, isAccountMode, CONFIG_PATH } from "../src/config.mjs";
+import { loadConfig, saveConfig, clearAuth, isAccountMode, normalizeSetting, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
 import { loadMemory, addMemory, removeMemory, clearMemory, syncMemory } from "../src/memory.mjs";
-import { addProjectNote, createProjectFile, projectInfo, refreshProjectMessage, PROJECT_MAX_BYTES } from "../src/project-memory.mjs";
+import { addProjectNote, createProjectFile, projectInfo, readProjectMemory, refreshProjectMessage, PROJECT_MAX_BYTES } from "../src/project-memory.mjs";
 import { login } from "../src/login.mjs";
-import { printModels, resolveModelId, isOmniId, fetchCatalog, printCatalog, fetchFamilies, matchFamily, CLI_MODELS } from "../src/models.mjs";
+import { printModels, printLocalModels, resolveModelId, isOmniId, fetchCatalog, printCatalog, fetchFamilies, matchFamily, fetchLocalModels, parseLocalModelId, CLI_MODELS, LOCAL_PREFIX } from "../src/models.mjs";
 import { selectMenu } from "../src/menu.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, configureUi, gutter, hintBar, logo, skillsList, slashMenu, spinner, stopSpinner, stripAnsi } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
-import { fullAutoDenyReason, isTrustableDir, resolvePath as resolveWs, visible } from "../src/tools.mjs";
+import { contextSummary, fullAutoDenyReason, isTrustableDir, resolvePath as resolveWs, visible } from "../src/tools.mjs";
 import { cliSnapshotStore, describeCounts } from "../src/snapshot.mjs";
 import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
 import { countTurns, listSessions, loadSession, rewind, saveSession } from "../src/sessions.mjs";
@@ -23,6 +23,21 @@ import { runDoctor, printDoctor } from "../src/doctor.mjs";
 import { runAudit, formatAudit, auditPrompt } from "../src/audit.mjs";
 import { renderDiff } from "../src/diff.mjs";
 import { loadHistory, saveHistory, HISTORY_SIZE } from "../src/history.mjs";
+import {
+  buildContext,
+  confirmFullAutoLocal,
+  createInquiryState,
+  createLimitHandler,
+  inquiryPlan,
+  insertAddendum,
+  installHint,
+  localModels,
+  removeMessage,
+  renderFollowups,
+  resolveLocalModel,
+  runInquiry,
+  splitUserContent,
+} from "../src/inquiry.mjs";
 
 const parsed = parseArgs(process.argv.slice(2));
 const flags = parsed.flags;
@@ -69,8 +84,95 @@ const attachFiles = parsed.files;
 /** Faqat shu ishga model (saqlanmaydi): -m / --model. */
 function withModelOverride(config) {
   if (!flags.model) return config;
+  // -m local:<nom> — mahalliy model (applyLocalStartup hal qiladi), server modeli o'zgarmaydi.
+  if (parseLocalModelId(flags.model)) return config;
   if (config.token) return { ...config, omniModel: flags.model, model: flags.model };
   return { ...config, model: resolveModelId(flags.model), omniModel: "" };
+}
+
+/**
+ * Ishga tushishda mahalliy model so'ralganmi: `--ollama[=model]` yoki `-m local:<nom>`.
+ * @returns {string|null} null — so'ralmagan; "" — standart (localModel yoki birinchi o'rnatilgan); aks holda nom
+ */
+function requestedLocal() {
+  if (flags.ollama) return typeof flags.ollama === "string" ? flags.ollama : "";
+  const m = flags.model ? parseLocalModelId(flags.model) : null;
+  return m ?? null;
+}
+
+/**
+ * `--ollama` / `-m local:` → `config.local` (faqat 127.0.0.1 Ollama). Full auto bilan — alohida tasdiq.
+ * @returns {Promise<{ok: true} | {ok: false, error: string, hint: string[]}>}
+ */
+async function applyLocalStartup(config, { interactive, rl, log }) {
+  const want = requestedLocal();
+  if (want == null) return { ok: true };
+  const r = await resolveLocalModel(want, config, { c });
+  if (!r.ok) return { ok: false, error: r.error, hint: r.hint ?? [] };
+  config.local = r.model.name;
+  if (fullAuto.on && !(await confirmFullAutoLocal({ interactive, ask: (q) => ask(rl, q), log, c }))) fullAuto.on = false;
+  return { ok: true };
+}
+
+/** applyLocalStartup xatosi — terminalga (qizil xabar + ko'rsatma). */
+function printLocalError(r, log) {
+  log(c.red(r.error));
+  for (const h of r.hint) log("  " + h);
+}
+
+/** Limit / offline / server xatosida "mahalliy model bilan davom etasizmi?" — agentTurn `config.onLimit` hook'i (T9). */
+function limitHook(getConfig, { interactive, rl, log }) {
+  return createLimitHandler({
+    getConfig,
+    interactive,
+    log,
+    c,
+    fullAuto,
+    save: saveConfig,
+    beforePrompt: stopSpinner,
+    // Ctrl+C bilan bekor qilingan savol "yo'q" deb hisoblanadi (bo'sh Enter — "ha" emas).
+    ask: async (q) => {
+      const s = turnState.ac?.signal;
+      const a = await ask(rl, q, s);
+      return s?.aborted ? "n" : a;
+    },
+  });
+}
+
+/** Chuqur so'rash konteksti (§A.9): fayl NOMLARI + SOVEREIGN.md boshi + papka tuzilmasi. Fayl mazmuni ketmaydi. */
+function inquiryContext(userMsg) {
+  const { files } = splitUserContent(userMsg?.content);
+  let folder = "";
+  try {
+    const pm = readProjectMemory();
+    folder = (pm ? `SOVEREIGN.md (project notes, head):\n${pm.content.slice(0, 1200)}\n\n` : "") + contextSummary();
+  } catch {
+    folder = "";
+  }
+  return buildContext({ files, folder });
+}
+
+/**
+ * Yangi vazifaning birinchi xabarida chuqur so'rash (docs/INQUIRY.md §A.9). Skip qoidalari — inquiryPlan().
+ * @returns {Promise<{cancelled: boolean, addendum: string, followups: object[]}>}
+ */
+async function inquiryStep({ messages, userMsg, config, firstMessage, interactive, rl, state, log, signal }) {
+  const plan = inquiryPlan({ flags, config, interactive, firstMessage });
+  if (plan.mode === "none") return { cancelled: false, addendum: "", followups: [] };
+  return runInquiry({
+    messages,
+    userMsg,
+    config,
+    plan,
+    fullAuto: fullAuto.on,
+    context: plan.mode === "server" ? inquiryContext(userMsg) : "",
+    state,
+    ask: (q) => ask(rl, q, signal),
+    log,
+    c,
+    signal,
+    spin: () => spinner("vazifa tahlil qilinyapti..."),
+  });
 }
 
 /** Build a user message: string if no attachments, multimodal array otherwise. */
@@ -210,7 +312,8 @@ function nonInteractiveConfirmer() {
 
 async function ensureAuth(rl) {
   let config = loadConfig();
-  if (isAccountMode(config) || config.openrouterKey) return config;
+  // Mahalliy model (--ollama) — server kerak emas, login so'ralmaydi.
+  if (isAccountMode(config) || config.openrouterKey || requestedLocal() != null) return config;
 
   console.log(`\n  ${c.amber("Hali ulanmagansiz.")}`);
   console.log(`  ${c.dim("1)")} ${c.white("SOVEREIGN akkaunti")} ${c.dim("(tavsiya) — brauzerda login")}`);
@@ -245,10 +348,18 @@ const COMMAND_HELP = {
     "Deploy'dan oldingi xavfsizlik tekshiruvi (offline): oshkor kalitlar (AWS, Stripe, OpenAI, service_role...), .env va .gitignore, NEXT_PUBLIC_/VITE_ ichidagi sirlar, RLS'siz Supabase jadvallari va `using (true)` siyosatlari, Firebase qoidalari, CORS `*` + credentials, eval, dangerouslySetInnerHTML, http:// API. Sirlar faqat 4 belgi + *** ko'rinishida chiqadi. critical/high topilsa chiqish kodi 1. Interaktiv rejimda /audit — AI bilan tuzatish taklifi bilan.",
     ["sov audit", "sov audit ./my-app", "sov audit --json > audit.json"],
   ],
-  models: ["sov models", "Mahalliy model ro'yxati (interaktiv rejimda /model — to'liq katalog).", []],
+  models: [
+    "sov models",
+    "Modellar ro'yxati va kompyuterdagi mahalliy (Ollama) modellar (interaktiv rejimda /model — to'liq katalog, /local — mahalliy model).",
+    ["sov models", "sov --ollama=qwen2.5-coder:7b \"bu kodni tushuntir\""],
+  ],
   sessions: ["sov sessions [--json]", "Saqlangan suhbatlar. Davom ettirish: interaktiv rejimda /resume <id>.", []],
   key: ["sov key <sk-or-...>", "O'z OpenRouter kalitingizni saqlash (akkauntsiz rejim).", ["sov key sk-or-v1-..."]],
-  config: ["sov config", "Kalitlar va standart modelni interaktiv sozlash.", []],
+  config: [
+    "sov config [kalit=qiymat ...]",
+    "Argumentsiz — kalitlar va standart modelni interaktiv sozlash. Argument bilan: inquiry=auto|always|off (chuqur so'rash — vazifa boshida aniqlashtiruvchi savollar), localFallback=off|ask|auto (limit tugasa yoki internet bo'lmasa mahalliy modelga o'tish: o'chiq / so'rash / avtomatik), localModel=<nom> (Ollama modeli, bo'sh — tanlanmagan).",
+    ["sov config inquiry=off", "sov config localFallback=auto localModel=qwen2.5-coder:7b"],
+  ],
   version: ["sov version", "Versiyani chiqarish (yoki: sov --version).", []],
 };
 
@@ -296,6 +407,8 @@ function handleHelp(topic) {
       `        --full-auto, --auto  FULL AUTO: hech narsa so'ralmaydi (tashqi yo'l, push/publish/deploy rad etiladi)`,
       `        --no-verify          AI hakam (halollik tekshiruvi)ni o'chirish`,
       `        --budget <token>     bitta vazifa uchun token byudjeti (mas. 50k) — oshsa navbat to'xtaydi`,
+      `        --no-ask             vazifa boshida aniqlashtiruvchi savollar berilmasin (chuqur so'rash)`,
+      `        --ollama[=model]     mahalliy model (Ollama, 127.0.0.1) — serverga hech narsa yuborilmaydi`,
       `        --no-color           rangsiz chiqish (yoki NO_COLOR=1)`,
       `    -V, --version            versiya`,
       `    -h, --help               shu yordam`,
@@ -308,12 +421,19 @@ function handleHelp(topic) {
       `    sov -p --json "package.json'ni tekshir" > natija.json`,
     `    sov --full-auto "todo API yoz, test qil va xatolarni tuzat"`,
       `    sov "shu dizaynga HTML yoz" -f mockup.png`,
+      `    sov --ollama=qwen2.5-coder:7b "bu funksiyani tushuntir"   ${c.dim("# internetsiz, mahalliy model")}`,
       `    sov doctor`,
       `    sov init --ai`,
       `    sov audit                  ${c.dim("# deploy'dan oldin: oshkor kalit, RLS, .env tekshiruvi")}`,
       "",
       `  ${w("Interaktiv rejimda:")} / — buyruqlar menyusi, /help, @fayl — biriktirish, ↑/↓ — tarix,`,
       `    Ctrl+C — joriy ishni bekor qilish, ikki marta — chiqish.`,
+      "",
+      `  ${w("Chuqur so'rash:")} muhim/noaniq vazifada agent avval 1–3 ta savol beradi (Enter — taxmin bilan davom).`,
+      `    O'chirish: --no-ask yoki sov config inquiry=off. -p/--json/--yes va quvurda savol berilmaydi.`,
+      "",
+      `  ${w("Mahalliy model:")} limit tugasa yoki internet bo'lmasa Ollama modeliga o'tish taklif qilinadi;`,
+      `    /local — holat va modellar, sov config localFallback=off|ask|auto. O'rnatish: https://ollama.com/download`,
       "",
       `  ${w("Loyiha xotirasi:")} papkadagi SOVEREIGN.md (yoki .sovereign/PROJECT.md) har suhbatga qo'shiladi;`,
       `    /project — ko'rish, /project-remember <fakt> — jamoa qoidasini qo'shish. Git'ga commit qiling.`,
@@ -383,7 +503,34 @@ function syncSkillsMessage(messages, enabledSkills) {
 }
 
 // ---- subcommands ------------------------------------------------------
-async function handleConfig() {
+/** `sov config kalit=qiymat ...` — faqat tekshiriladigan sozlamalar (inquiry, localFallback, localModel). */
+function handleConfigArgs(args) {
+  const patch = {};
+  const errors = [];
+  for (const a of args) {
+    const eq = a.indexOf("=");
+    if (eq <= 0) {
+      errors.push(`"${a}" — kalit=qiymat ko'rinishida yozing`);
+      continue;
+    }
+    const key = a.slice(0, eq).trim();
+    const r = normalizeSetting(key, a.slice(eq + 1));
+    if (r.ok) patch[key] = r.value;
+    else errors.push(r.error);
+  }
+  if (errors.length) {
+    for (const e of errors) process.stderr.write(`sov: ${e}\n`);
+    process.stderr.write("Foydalanish: sov config inquiry=auto|always|off localFallback=off|ask|auto localModel=<nom>\n");
+    return EXIT.USAGE;
+  }
+  const path = saveConfig(patch);
+  for (const [k, v] of Object.entries(patch)) console.log(`  ${c.green("✓")} ${k} = ${c.white(v || "(bo'sh)")}`);
+  console.log(`  ${c.dim("Saqlandi:")} ${c.dim(path)}`);
+  return EXIT.OK;
+}
+
+async function handleConfig(args = []) {
+  if (args.length) return handleConfigArgs(args);
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log(`\n  ${logo()} ${c.dim("sozlash")}\n`);
   const key = (await ask(rl, `  OpenRouter kalit (bo'sh = o'zgarmasin): `)).trim();
@@ -395,8 +542,12 @@ async function handleConfig() {
   if (pkey) patch.perplexityKey = pkey;
   if (model) patch.model = model;
   const path = saveConfig(patch);
-  console.log(`\n  ${c.green("Saqlandi:")} ${c.dim(path)}\n`);
+  console.log(`\n  ${c.green("Saqlandi:")} ${c.dim(path)}`);
+  const cfg = loadConfig();
+  console.log(`  ${c.dim(`Chuqur so'rash: inquiry=${cfg.inquiry} · mahalliy zaxira: localFallback=${cfg.localFallback} · localModel=${cfg.localModel || "—"}`)}`);
+  console.log(`  ${c.dim("O'zgartirish: sov config inquiry=off  (batafsil: sov help config)")}\n`);
   rl.close();
+  return EXIT.OK;
 }
 
 /** Format menu rows with proper color per item. */
@@ -468,8 +619,9 @@ async function repl() {
     const token = line.split(/\s+/).pop() ?? "";
     if (token.startsWith("@")) return [completeMention(token), token];
     if (!line.startsWith("/")) return [[], line];
-    const hits = SLASH_NAMES.filter((n) => n.startsWith(line));
-    return [hits.length ? hits.map((h) => h + " ") : SLASH_NAMES.map((h) => h + " "), line];
+    const names = [...SLASH_NAMES, "/local"];
+    const hits = names.filter((n) => n.startsWith(line));
+    return [hits.length ? hits.map((h) => h + " ") : names.map((h) => h + " "), line];
   };
   const rl = readline.createInterface({
     input: process.stdin,
@@ -519,9 +671,18 @@ async function repl() {
   });
 
   let config = withModelOverride(await ensureAuth(rl));
+  // --ollama / -m local:<nom> — mahalliy model bilan boshlash (topilmasa — ko'rsatma va chiqish).
+  const localStart = await applyLocalStartup(config, { interactive: true, rl, log: (l) => console.log("  " + l) });
+  if (!localStart.ok) {
+    printLocalError(localStart, (l) => console.log("  " + l));
+    rl.close();
+    return EXIT.ERROR;
+  }
   // Umumiy xotira (web bilan bir xil) — birinchi xabardan oldin keshni yangilaymiz.
   if (config.token) await syncMemory(config).catch(() => {});
   let messages = initialMessages(config);
+  // Chuqur so'rash: shu suhbatda allaqachon so'ralgan slotlar (/clear bilan yangilanadi).
+  let inquiryState = createInquiryState();
   let sessionId = null; // birinchi javobdan keyin yaratiladi
   const pending = []; // paths queued via /attach for the next user message
   let pendingAudit = null; // /audit hisoboti — keyingi xabarga agent konteksti sifatida qo'shiladi
@@ -594,6 +755,7 @@ async function repl() {
     G +
     (pending.length ? `${c.warn("📎 " + pending.length)}  ` : "") +
     (fullAuto.on ? `${c.warn("⚡")} ` : "") +
+    (config.local ? `${c.teal("◇")} ` : "") +
     `${c.accent("❯")} `;
 
   const rewritePrompt = () => {
@@ -602,10 +764,15 @@ async function repl() {
   };
   const say = (line) => console.log(G + line);
 
+  // Limit / offline → "mahalliy model bilan davom etasizmi?" (config.localFallback: off | ask | auto).
+  const onLimit = limitHook(() => config, { interactive: true, rl, log: say });
+
   /** Agent navbati — Ctrl+C bilan bekor qilinadi. */
   const runTurn = async () => {
     const ac = new AbortController();
     turnState.ac = ac;
+    config.onLimit = onLimit; // /login, /logout dan keyin config qayta yaratiladi — har navbatda ulaymiz
+    const wasLocal = Boolean(config.local);
     try {
       const res = await agentTurn({
         messages,
@@ -619,19 +786,101 @@ async function repl() {
         snapshots: true, // shell Undo — /undo
       });
       if (res.error) console.log(G + c.red(`Xato: ${res.error}\n`));
+      if (!wasLocal && config.local) say(c.dim("◇ Keyingi xabarlar ham mahalliy modelda. Serverga qaytish: /local off"));
       return res;
     } finally {
       turnState.ac = null;
     }
   };
 
+  // ── Mahalliy model (Ollama) ──
+  const localLabel = () => (config.local && typeof config.local === "object" ? config.local.model : typeof config.local === "string" ? config.local : config.localModel);
+  const enableLocal = async (name) => {
+    config.local = name; // imkoniyatlar (tools/kontekst) keyingi navbatda /api/show dan aniqlanadi
+    if (config.localModel !== name) {
+      saveConfig({ localModel: name });
+      config.localModel = name;
+    }
+    say(`${c.teal("◇")} ${c.green("Mahalliy model:")} ${c.white(name)} ${c.dim("— serverga hech narsa yuborilmaydi. Qaytish: /local off")}`);
+    say(c.dim("  Mahalliy rejimda xotira sinxroni, bilim bazasi va AI hakam ishlamaydi; sifat bulut modellaridan past bo'lishi mumkin."));
+    if (fullAuto.on && !(await confirmFullAutoLocal({ interactive: true, ask: (q) => ask(rl, q), log: say, c }))) fullAuto.on = false;
+  };
+  const disableLocalFor = (what) => {
+    if (!config.local) return;
+    config.local = null;
+    say(c.dim(`◇ Mahalliy model o'chirildi — ${what}.`));
+  };
+  const localCommand = async (arg) => {
+    const [sub, ...rest] = arg.split(/\s+/).filter(Boolean);
+    if (sub === "off" || sub === "o'chir") {
+      if (config.local) disableLocalFor("javoblar yana SOVEREIGN serveridan");
+      else say(c.dim("Mahalliy model yoqilmagan."));
+      if (!config.token && !config.openrouterKey) say(c.amber("Serverga ulanmagansiz — /login bilan kiring."));
+      return;
+    }
+    if (sub === "fallback" || sub === "zaxira") {
+      const r = normalizeSetting("localFallback", rest[0] ?? "");
+      if (!r.ok) {
+        say(c.red(r.error) + c.dim("  — off: o'chiq · ask: so'rash · auto: darhol o'tish"));
+        return;
+      }
+      saveConfig({ localFallback: r.value });
+      config.localFallback = r.value;
+      say(`${c.green("✓")} ${c.dim("Limit/offline'da mahalliy zaxira:")} ${c.white(r.value)}`);
+      return;
+    }
+    if (sub) {
+      const want = sub === "on" || sub === "yoq" ? (rest[0] ?? "") : sub;
+      const spin = spinner("Ollama tekshirilyapti...");
+      const r = await resolveLocalModel(want, config, { c });
+      spin.stop();
+      if (!r.ok) {
+        say(c.red(r.error));
+        for (const h of r.hint ?? []) say("  " + h);
+        return;
+      }
+      await enableLocal(r.model.name);
+      return;
+    }
+    // Holat + o'rnatilgan modellar.
+    say(
+      `${c.dim("Mahalliy model:")} ${config.local ? c.teal("yoqiq · " + localLabel()) : c.white("o'chiq")}  ` +
+        c.dim(`· zaxira (localFallback): ${config.localFallback} · localModel: ${config.localModel || "—"}`),
+    );
+    const spin = spinner("Ollama tekshirilyapti...");
+    const local = await localModels();
+    spin.stop();
+    printLocalModels(local, localLabel() || "");
+    say(c.dim("/local on [model] — yoqish · /local off — serverga qaytish · /local fallback off|ask|auto — limit tugasa nima qilish"));
+  };
+  const pickLocal = async () => {
+    const spin = spinner("Ollama tekshirilyapti...");
+    const local = await localModels();
+    spin.stop();
+    if (!local.available || !local.models.length) {
+      for (const l of installHint(local, c)) say(l);
+      return;
+    }
+    const current = localLabel();
+    const items = local.models.map((m) => ({
+      label: m.name === current && config.local ? `${m.name}  ●` : m.name,
+      hint: [m.tools ? "🔧" : "", m.vision ? "👁" : "", m.paramSize, m.quant].filter(Boolean).join("  "),
+      search: m.family ?? "",
+      name: m.name,
+    }));
+    const chosen = await selectMenu({ title: "Mahalliy (Ollama) — server tokeni sarflanmaydi", items });
+    if (chosen) await enableLocal(chosen.name);
+  };
+
   // ── Model tanlash — strelka bilan (yozmasdan) ──
   const setAutoModel = () => {
+    disableLocalFor("server modeli tanlandi");
     saveConfig({ omniModel: "", model: "" });
     config = { ...config, omniModel: "", model: loadConfig().model };
     say(`${c.green("Model:")} ${c.indigo("SOVEREIGN Auto")} ${c.dim("(tarifingizga qarab server o'zi tanlaydi)")}`);
   };
   const setOmniModel = (id) => {
+    disableLocalFor("server modeli tanlandi");
     config = { ...config, omniModel: id, model: id };
     saveConfig({ omniModel: id, model: id });
     say(`${c.green("Model:")} ${c.indigo(id)} ${c.dim("(OmniRoute)")}`);
@@ -648,6 +897,7 @@ async function repl() {
     for (;;) {
       const top = [
         { label: "★ SOVEREIGN Auto", hint: "tarifga qarab eng mos modelni server tanlaydi", pick: { kind: "auto" } },
+        { label: "◇ Mahalliy (Ollama)", hint: "kompyuteringizdagi modellar — server tokeni sarflanmaydi", search: "local ollama", pick: { kind: "local" } },
       ];
       if (fams.configured) {
         if (fams.featured?.length) {
@@ -669,7 +919,9 @@ async function repl() {
       if (!fam) return;
       const v = fam.pick;
       if (v.kind === "auto") return setAutoModel();
+      if (v.kind === "local") return pickLocal();
       if (v.kind === "static") {
+        disableLocalFor("server modeli tanlandi");
         config = { ...config, model: v.id, omniModel: "" };
         saveConfig({ model: v.id, omniModel: "" });
         return say(`${c.green("Model:")} ${c.indigo(v.id)}`);
@@ -723,6 +975,7 @@ async function repl() {
       messages = initialMessages(config);
       sessionId = null; // yangi suhbat — yangi sessiya fayli
       pendingAudit = null;
+      inquiryState = createInquiryState(); // yangi vazifa — birinchi xabarda yana aniqlashtirish mumkin
       say(c.dim("Suhbat tozalandi."));
       rewritePrompt();
       continue;
@@ -871,6 +1124,12 @@ async function repl() {
     // ── Full auto ──
     if (input === "/auto" || input === "/full-auto") {
       fullAuto.on = !fullAuto.on;
+      // Full auto + mahalliy model — alohida tasdiq (§B.1).
+      if (fullAuto.on && config.local && !(await confirmFullAutoLocal({ interactive: true, ask: (q) => ask(rl, q), log: say, c }))) {
+        fullAuto.on = false;
+        rewritePrompt();
+        continue;
+      }
       say(
         fullAuto.on
           ? `${c.emerald("⚡ FULL AUTO")} ${c.dim("yoqildi — hech narsa so'ralmaydi: fayl yozish, paket o'rnatish, test va build darhol bajariladi.")}
@@ -970,6 +1229,8 @@ async function repl() {
     if (input === "/help" || input === "/?") {
       console.log(renderSlashMenu());
       say(c.dim("@fayl — biriktirish · Tab — to'ldirish · ↑/↓ — tarix · Ctrl+C — bekor qilish (2× — chiqish)"));
+      say(c.dim("/local — mahalliy model (Ollama): /local on [model] · /local off · /local fallback off|ask|auto"));
+      say(c.dim(`Chuqur so'rash: ${config.inquiry} — o'zgartirish: sov config inquiry=auto|always|off (yoki --no-ask)`));
       say(c.dim("Terminal buyruqlari: sov --help · sov doctor · sov -p \"savol\""));
       console.log("");
       rewritePrompt();
@@ -1029,12 +1290,25 @@ async function repl() {
       rewritePrompt();
       continue;
     }
+    // ── Mahalliy model (Ollama, faqat 127.0.0.1) ──
+    if (input === "/local" || input.startsWith("/local ")) {
+      await localCommand(input.slice(6).trim());
+      rewritePrompt();
+      continue;
+    }
+
     if (input === "/model" || input.startsWith("/model ")) {
       const arg = input.slice(6).trim();
-      if (arg && /^(auto|avto|sovereign)$/i.test(arg)) {
+      if (arg && parseLocalModelId(arg)) {
+        // /model local:<nom> — mahalliy model.
+        await localCommand(`on ${parseLocalModelId(arg)}`);
+      } else if (arg && /^(?:local|ollama):/i.test(arg)) {
+        say(c.red(`Noto'g'ri mahalliy model nomi: ${visible(arg)}`) + c.dim(`  Misol: /model ${LOCAL_PREFIX}qwen2.5-coder:7b`));
+      } else if (arg && /^(auto|avto|sovereign)$/i.test(arg)) {
         // SOVEREIGN Auto — server tarif va mavjud provayderlarga qarab o'zi tanlaydi.
         setAutoModel();
       } else if (arg) {
+        disableLocalFor("server modeli tanlandi");
         if (isOmniId(arg)) {
           // OmniRoute katalog modeli — har so'rovda serverga yuboriladi (OmniRoute orqali).
           config = { ...config, omniModel: arg, model: arg };
@@ -1050,7 +1324,7 @@ async function repl() {
       } else if (process.stdin.isTTY) {
         await pickModel();
       } else {
-        printModels(config.omniModel || (config.token ? "" : config.model));
+        printModels(config.omniModel || (config.token ? "" : config.model), await fetchLocalModels(), config.local ? localLabel() : "");
       }
       rewritePrompt();
       continue;
@@ -1063,6 +1337,7 @@ async function repl() {
         try {
           process.chdir(p);
           messages = initialMessages(config);
+          inquiryState = createInquiryState();
           say(`${c.green("Ish papkasi:")} ${c.white(process.cwd())} ${c.dim("(kontekst yangilandi)")}`);
           // Full auto faqat yoqilgan papkada — yangi papka ishonchsiz bo'lishi mumkin.
           if (fullAuto.on) {
@@ -1180,11 +1455,14 @@ async function repl() {
 
     // ── Ulanish sharti — token yoki OpenRouter kaliti bo'lmasa yozib bo'lmaydi.
     // (Mas. seans o'rtasida /logout qilingan bo'lsa.) Login talab qilamiz.
-    if (!config.token && !config.openrouterKey) {
+    if (!config.token && !config.openrouterKey && !config.local) {
       say(`${c.amber("Tizimga kirmagansiz.")} ${c.white("/login")} ${c.dim("bilan akkauntga kiring")} ${c.dim("yoki")} ${c.white("/register")}${c.dim(".")}`);
       rewritePrompt();
       continue;
     }
+
+    // Chuqur so'rash faqat yangi vazifaning birinchi xabarida (§A.9); /audit tuzatish so'rovi — aniq vazifa.
+    const firstMessage = countTurns(messages) === 0 && !pendingAudit;
 
     // ── /audit hisoboti — keyingi xabarga kontekst sifatida (bir marta) ──
     if (pendingAudit) {
@@ -1206,19 +1484,44 @@ async function repl() {
         say(`  ${c.red("✕")} ${p}: ${c.dim(err.message)}`);
       }
     }
+    let userMsg;
     if (pending.length) {
       const parts = pending.map((x) => x.part);
       parts.push({ type: "text", text: input });
-      messages.push({ role: "user", content: parts });
+      userMsg = { role: "user", content: parts };
       pending.length = 0;
     } else {
-      messages.push({ role: "user", content: input });
+      userMsg = { role: "user", content: input };
     }
+    messages.push(userMsg);
     // Yoqilgan skillar system-prompt sifatida agentga uzatiladi. Xabar belgisi (SKILLS_MARK)
     // orqali topiladi va har navbatda yangilanadi — system xabarlar soniga (xotira xabari
     // qo'shilganda 3 ta bo'ladi) tayanilmaydi; /skill bilan o'chirish/yoqish ham darhol ta'sir qiladi.
     syncSkillsMessage(messages, enabledSkills);
-    await runTurn();
+
+    // ── Chuqur so'rash (rejalashtirish bosqichi) — Ctrl+C savollarni va xabarni bekor qiladi ──
+    const inqAc = new AbortController();
+    turnState.ac = inqAc;
+    let inq;
+    try {
+      inq = await inquiryStep({ messages, userMsg, config, firstMessage, interactive: true, rl, state: inquiryState, log: say, signal: inqAc.signal });
+    } finally {
+      turnState.ac = null;
+    }
+    if (inq.cancelled) {
+      removeMessage(messages, userMsg);
+      say(c.dim("Xabar yuborilmadi."));
+      rewritePrompt();
+      continue;
+    }
+    // Addendum (taxminlar, javob tuzilmasi, favqulodda holat) — faqat shu navbat uchun system xabar.
+    const addendumMsg = insertAddendum(messages, inq.addendum);
+    try {
+      await runTurn();
+    } finally {
+      removeMessage(messages, addendumMsg);
+    }
+    for (const l of renderFollowups(inq.followups, c)) say(l);
     sessionId = saveSession({ id: sessionId, messages, model: config.model });
     rewritePrompt();
   }
@@ -1230,7 +1533,7 @@ async function repl() {
 }
 
 // ---- one-shot (interaktiv tasdiqlar bilan) -----------------------------
-async function oneShot(task) {
+async function oneShot(task, { inquiry = true } = {}) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   const ac = new AbortController();
   turnState.ac = ac;
@@ -1242,13 +1545,30 @@ async function oneShot(task) {
     process.stdout.write("\n  " + c.amber("⊘ bekor qilinmoqda…") + c.dim("  (chiqish uchun yana Ctrl+C)") + "\n");
   });
   const config = withModelOverride(await ensureAuth(rl));
+  const log = (l) => console.log("  " + l);
+  const localStart = await applyLocalStartup(config, { interactive: true, rl, log });
+  if (!localStart.ok) {
+    printLocalError(localStart, log);
+    rl.close();
+    return EXIT.ERROR;
+  }
   if (config.token) await syncMemory(config).catch(() => {});
+  config.onLimit = limitHook(() => config, { interactive: true, rl, log });
   const confirm = await confirmer(rl);
   const messages = initialMessages(config);
-  messages.push(await buildUserMessage(task, attachFiles));
+  const userMsg = await buildUserMessage(task, attachFiles);
+  messages.push(userMsg);
+  // Chuqur so'rash (§A.9): vazifa boshida aniqlashtiruvchi savollar (Ctrl+C — bekor qilish).
+  const inq = await inquiryStep({ messages, userMsg, config, firstMessage: inquiry, interactive: true, rl, log, signal: ac.signal });
+  if (inq.cancelled) {
+    rl.close();
+    return EXIT.INTERRUPTED;
+  }
+  insertAddendum(messages, inq.addendum);
   const res = await agentTurn({ messages, config, confirm, signal: ac.signal, stream: !config.token, verify: flags.verify, fullAuto: fullAuto.on, budget: flags.budget ?? 0 });
   turnState.ac = null;
   if (res.error) console.log(c.red(`  Xato: ${res.error}`));
+  for (const l of renderFollowups(inq.followups, c)) log(l);
   rl.close();
   if (res.aborted) return EXIT.INTERRUPTED;
   return res.error ? EXIT.ERROR : EXIT.OK;
@@ -1312,12 +1632,22 @@ async function printMode(promptArg) {
 
   if (!prompt.trim() && !attachFiles.length) return fail(EXIT.USAGE, "vazifa berilmagan. Foydalanish: sov -p \"savol\"  yoki  echo \"savol\" | sov -p");
   const config = withModelOverride(loadConfig());
-  if (!config.token && !config.openrouterKey) {
-    return fail(EXIT.AUTH, "tizimga kirilmagan. Avval: sov login  (yoki SOVEREIGN_TOKEN / OPENROUTER_API_KEY)");
+  const log = (l) => console.log("  " + l);
+  // --ollama / -m local: — mahalliy model (server va login kerak emas).
+  const localStart = await applyLocalStartup(config, { interactive: false, log });
+  if (!localStart.ok) return fail(EXIT.ERROR, [localStart.error, ...localStart.hint].map((l) => stripAnsi(l)).join(" · "));
+  if (!config.token && !config.openrouterKey && !config.local) {
+    return fail(EXIT.AUTH, "tizimga kirilmagan. Avval: sov login  (yoki SOVEREIGN_TOKEN / OPENROUTER_API_KEY, yoki --ollama)");
   }
   if (config.token) await syncMemory(config).catch(() => {});
+  // Interaktivsiz: limit/offline'da so'ralmaydi — localFallback=auto bo'lsa o'tadi, aks holda ko'rsatma (stderr).
+  config.onLimit = limitHook(() => config, { interactive: false, log });
   const messages = initialMessages(config);
-  messages.push(await buildUserMessage(prompt, attachFiles));
+  const userMsg = await buildUserMessage(prompt, attachFiles);
+  messages.push(userMsg);
+  // Chuqur so'rash: -p/--json/quvurda savol berilmaydi — faqat deterministik favqulodda tekshiruv (§A.9).
+  const inq = await inquiryStep({ messages, userMsg, config, firstMessage: true, interactive: false, log });
+  insertAddendum(messages, inq.addendum);
 
   const ac = new AbortController();
   turnState.ac = ac;
@@ -1482,7 +1812,7 @@ async function handleInit() {
     "kod uslubi va qoidalar, \"Tegma\" ro'yxati (generatsiya qilingan kod, lock fayllar va h.k.). Mavjud qoidalar va '## Eslatmalar' " +
     `bo'limini SAQLAB QOL. Qisqa yoz (${PROJECT_MAX_BYTES / 1024} KB dan oshmasin), kalit/parol/token yozma. Faqat SOVEREIGN.md ni o'zgartir, buyruq ishga tushirma.`;
   if (!process.stdin.isTTY) return printMode(task);
-  return oneShot(task);
+  return oneShot(task, { inquiry: false });
 }
 
 // ---- dispatch ---------------------------------------------------------
@@ -1509,9 +1839,11 @@ async function main() {
     case "version":
       console.log(versionLine());
       return EXIT.OK;
-    case "models":
-      printModels(loadConfig().model);
+    case "models": {
+      const cfg = loadConfig();
+      printModels(cfg.model, await fetchLocalModels(), cfg.localModel);
       return EXIT.OK;
+    }
     case "login":
       return handleLogin();
     case "logout":
@@ -1520,8 +1852,7 @@ async function main() {
     case "who":
       return handleWhoami();
     case "config":
-      await handleConfig();
-      return EXIT.OK;
+      return handleConfig(restArgs);
     case "key":
       return handleKey(restArgs[0]);
     case "doctor":

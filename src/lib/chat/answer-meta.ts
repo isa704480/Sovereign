@@ -29,6 +29,11 @@ export interface AnswerMeta {
    * provayderi shu mamlakatga (ISO-2) xizmat ko'rsatmaydi — ruxsat etilgan model javob berdi.
    */
   region?: string;
+  /**
+   * Chuqur so'rash (R1-4): navbat sezgir sohada (legal/medical/financial, favqulodda yoki yuqori xavf regex'i)
+   * — mijoz uni avtomatik xotiraga yozmaydi. Xabar meta'sida saqlanmaydi (faqat signal).
+   */
+  sensitive?: boolean;
 }
 
 /** 1234 → "1.2k", 950 → "950". */

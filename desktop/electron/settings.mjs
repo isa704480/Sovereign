@@ -4,6 +4,7 @@
 import { app } from "electron";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
+import { isValidModelName } from "./ollama.mjs";
 
 const DEFAULTS = {
   onboarded: false,
@@ -19,6 +20,12 @@ const DEFAULTS = {
   rightPanel: false,
   model: "", // OmniRoute katalog id ("" = Auto)
   modelLabel: "",
+  // Mahalliy model (Ollama) zaxirasi — docs/INQUIRY.md §B.1:
+  localFallback: "ask", // off | ask | auto — limit/offline/server xatosida mahalliy modelga o'tish
+  localModel: "", // oxirgi tanlangan mahalliy model ("" — avtomatik tanlanadi)
+  fullAutoLocal: false, // Full auto + mahalliy model — alohida tasdiq (aks holda mahalliy rejimda Full auto pauza)
+  // Chuqur so'rash (Deep Inquiry) — §A.7: auto | always | off
+  inquiryMode: "auto",
   lastFolder: "",
   recent: [], // oxirgi ish papkalari (main o'zi yozadi)
   window: null, // { x, y, width, height, maximized }
@@ -37,6 +44,10 @@ const VALID = {
   rightPanel: (v) => typeof v === "boolean",
   model: (v) => typeof v === "string" && v.length <= 200,
   modelLabel: (v) => typeof v === "string" && v.length <= 200,
+  localFallback: (v) => ["off", "ask", "auto"].includes(v),
+  localModel: (v) => v === "" || isValidModelName(v),
+  fullAutoLocal: (v) => typeof v === "boolean",
+  inquiryMode: (v) => ["auto", "always", "off"].includes(v),
 };
 /** Renderer o'zgartira oladigan kalitlar. lastFolder/recent/window — faqat main. */
 export const RENDERER_KEYS = Object.keys(VALID);

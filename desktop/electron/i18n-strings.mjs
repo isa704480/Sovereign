@@ -23,6 +23,8 @@ export const MAIN_STRINGS = {
     "menu.minimize": "Yig‘ish",
     "menu.zoom": "Kattalashtirish",
     "menu.close": "Oynani yopish",
+    "inquiry.clarify": "Aniqlashtirish:",
+    "inquiry.assumeRest": "Javob berilmagan savollar bo‘yicha oqilona taxmin qiling va taxminlaringizni ochiq ayting.",
   },
   "uz-cyrl": {
     "notify.done": "Вазифа тугади",
@@ -44,6 +46,8 @@ export const MAIN_STRINGS = {
     "menu.minimize": "Йиғиш",
     "menu.zoom": "Катталаштириш",
     "menu.close": "Ойнани ёпиш",
+    "inquiry.clarify": "Аниқлаштириш:",
+    "inquiry.assumeRest": "Жавоб берилмаган саволлар бўйича оқилона тахмин қилинг ва тахминларингизни очиқ айтинг.",
   },
   ru: {
     "notify.done": "Задача завершена",
@@ -65,6 +69,8 @@ export const MAIN_STRINGS = {
     "menu.minimize": "Свернуть",
     "menu.zoom": "Масштаб",
     "menu.close": "Закрыть окно",
+    "inquiry.clarify": "Уточнение:",
+    "inquiry.assumeRest": "По вопросам без ответа сделайте разумные допущения и прямо их назовите.",
   },
   en: {
     "notify.done": "Task finished",
@@ -86,5 +92,7 @@ export const MAIN_STRINGS = {
     "menu.minimize": "Minimize",
     "menu.zoom": "Zoom",
     "menu.close": "Close Window",
+    "inquiry.clarify": "Clarification:",
+    "inquiry.assumeRest": "For the unanswered questions, make reasonable assumptions and state them openly.",
   },
 };

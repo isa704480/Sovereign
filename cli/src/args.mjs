@@ -40,7 +40,12 @@ const BOOL_FLAGS = {
   "--local": "local",
   "--verbose": "verbose",
   "--ai": "ai", // sov init --ai — SOVEREIGN.md ni agent to'ldiradi
+  "--no-ask": "noAsk", // chuqur so'rash savollarisiz (docs/INQUIRY.md §A.9)
 };
+
+/** `--ollama` yoki `--ollama=<model>` — mahalliy model (Ollama) bilan ishlash (§B.1). */
+const OLLAMA_FLAG = "--ollama";
+const OLLAMA_MODEL_RE = /^[A-Za-z0-9._:/-]{1,100}$/;
 
 /**
  * @param {string[]} argv  process.argv.slice(2)
@@ -65,6 +70,13 @@ export function parseArgs(argv) {
     const eq = a.indexOf("=");
     const name = a.startsWith("--") && eq > 0 ? a.slice(0, eq) : a;
     const inline = a.startsWith("--") && eq > 0 ? a.slice(eq + 1) : null;
+    if (name === OLLAMA_FLAG) {
+      // Qiymat faqat "=" bilan (--ollama=qwen2.5-coder:7b) — keyingi argument vazifa matni bo'lishi mumkin.
+      if (inline == null) flags.ollama = true;
+      else if (OLLAMA_MODEL_RE.test(inline) && !inline.includes("..")) flags.ollama = inline;
+      else errors.push(`--ollama: noto'g'ri model nomi: ${inline.slice(0, 60)}`);
+      continue;
+    }
     if (VALUE_FLAGS[name]) {
       const val = inline ?? argv[++i];
       if (val == null || val === "") {

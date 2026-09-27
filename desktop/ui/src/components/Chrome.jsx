@@ -1,10 +1,35 @@
 import React from "react";
 import Icon, { Logo } from "./Icon.jsx";
 import { useT } from "../lib/i18n.js";
+import { useLocalMode } from "../lib/localMode.js";
+
+/**
+ * "Mahalliy model" belgisi: javobni kompyuterdagi Ollama modeli yozayotganini ochiq ko'rsatadi
+ * (server tokeni yo'q; xotira, bilim bazasi, mustaqil tekshiruv o'chiq). Bosilsa — model tanlash.
+ */
+export function LocalBadge({ local, onClick, compact = false }) {
+  const t = useT();
+  if (!local) return null;
+  const title = [t("local.badgeTitle", { model: local.model }), local.fullAutoPaused ? t("local.fullAutoPaused") : "", !local.tools ? t("model.local.chatOnly") : ""].filter(Boolean).join(" · ");
+  const body = (
+    <>
+      <Icon name="monitor" size={12} />
+      <span>{t("local.badge")}</span>
+      {!compact && <span className="local-badge-model mono trunc">{local.model}</span>}
+      {local.fullAutoPaused && <Icon name="bolt" size={11} className="warn" />}
+    </>
+  );
+  return onClick ? (
+    <button type="button" className="local-badge nodrag" title={title} aria-label={title} onClick={onClick}>{body}</button>
+  ) : (
+    <span className="local-badge nodrag" title={title} role="status" aria-label={title}>{body}</span>
+  );
+}
 
 /** Sarlavha paneli: oyna sudraladi; OS tugmalari (min/max/close) titleBarOverlay orqali. */
-export function TitleBar({ info, onToggleSidebar, onTogglePanel, onPalette, sidebar, panel, minimal = false }) {
+export function TitleBar({ info, onToggleSidebar, onTogglePanel, onPalette, sidebar, panel, minimal = false, onLocal }) {
   const t = useT();
+  const local = useLocalMode();
   const crumbs = (info?.cwd || "").split(/[\\/]/).filter(Boolean).slice(-2);
   return (
     <header className={`titlebar ${info?.platform === "darwin" ? "mac" : ""}`}>
@@ -33,6 +58,7 @@ export function TitleBar({ info, onToggleSidebar, onTogglePanel, onPalette, side
         </button>
       )}
       <div className="tb-right">
+        {!minimal && <LocalBadge local={local} onClick={onLocal} />}
         {!minimal && (
           <button type="button" className={`icon-btn nodrag ${panel ? "on" : ""}`} aria-label={t("tb.panel")} aria-pressed={panel} title={`${t("tb.panel")} (Ctrl+J)`} onClick={onTogglePanel}>
             <Icon name="panel" size={15} />
@@ -46,6 +72,7 @@ export function TitleBar({ info, onToggleSidebar, onTogglePanel, onPalette, side
 /** Pastki holat paneli: ulanish, papka, model, versiya. */
 export function StatusBar({ info, mode, model, busy, onShortcuts, update, onUpdate }) {
   const t = useT();
+  const local = useLocalMode();
   const conn = info.offline ? ["wifiOff", t("status.offlineMode"), "warn"] : info.authed ? ["check", t("status.connected"), "ok"] : ["user", t("account.notSignedIn"), "muted"];
   return (
     <footer className="statusbar">
@@ -55,7 +82,11 @@ export function StatusBar({ info, mode, model, busy, onShortcuts, update, onUpda
       {update?.state === "available" && <button type="button" className="sb-item sb-link" onClick={onUpdate}><Icon name="download" size={12} /> {t("update.available", { v: update.version })}</button>}
       {update?.state === "ready" && <button type="button" className="sb-item sb-link" onClick={onUpdate}><Icon name="refresh" size={12} /> {t("update.ready")}</button>}
       <span className="sb-item">{mode === "chat" ? t("mode.chat") : t("mode.code")}</span>
-      <span className="sb-item"><Icon name="sparkle" size={12} /> {model}</span>
+      {local ? (
+        <span className="sb-item sb-ok" title={t("local.badgeTitle", { model: local.model })}><Icon name="monitor" size={12} /> {t("local.marker", { model: local.model })}</span>
+      ) : (
+        <span className="sb-item"><Icon name="sparkle" size={12} /> {model}</span>
+      )}
       <button type="button" className="sb-item sb-link" onClick={onShortcuts} title={t("sc.title")} aria-label={`${t("sc.title")} (Ctrl /)`}><Icon name="keyboard" size={12} /> Ctrl /</button>
       <span className="sb-item faint">v{info.version}</span>
     </footer>

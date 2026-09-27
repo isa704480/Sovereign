@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Bitcoin, Check, CreditCard, Loader2, QrCode, X } from "lucide-react";
+import { ArrowLeft, Bitcoin, Check, CreditCard, HardDrive, Loader2, QrCode, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { formatRub, PLAN_BY_ID, PLANS, planPriceRub, type BillingPeriod, type PlanId } from "@/config/plans";
@@ -29,6 +29,12 @@ interface PricingDialogProps {
 }
 
 type Method = "card" | "crypto" | "sbp";
+
+/**
+ * Limit xatosida "Cowork'da mahalliy model bilan davom eting" CTA (docs/INQUIRY.md §B.2):
+ * web'da Ollama'ga ulanmaymiz (v1) — faqat Cowork yuklab olish bo'limiga havola.
+ */
+const COWORK_DOWNLOAD_URL = "/#download";
 
 /** Checkout so'rovi uchun kutish chegarasi (ms). */
 const PAY_TIMEOUT_MS = 25_000;
@@ -72,6 +78,17 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
   const [selected, setSelected] = useState<PlanId | null>(null);
   const [period, setPeriod] = useState<BillingPeriod>("month");
 
+  // Server "[limit]" belgisi bilan rad etgan (kunlik xabar / oylik token tugagan) — hook
+  // `sovereign:upgrade` hodisasiga `limit: true` qo'shadi va Dashboard dialogni shu hodisa bilan
+  // ochadi. Belgini shu yerda eslab qolamiz: boshqa sabab bilan ochilsa (qulflangan model) — false,
+  // dialog yopilganda — tozalanadi (keyingi oddiy ochilishda CTA chiqmasin).
+  const [limitHit, setLimitHit] = useState(false);
+  useEffect(() => {
+    const onUpgrade = (e: Event) => setLimitHit((e as CustomEvent<{ limit?: unknown }>).detail?.limit === true);
+    window.addEventListener("sovereign:upgrade", onUpgrade);
+    return () => window.removeEventListener("sovereign:upgrade", onUpgrade);
+  }, []);
+
   // Ochilish lahzasida boshlang'ich tarif/davrni qo'llaymiz (render vaqtida — effektsiz).
   const [prevOpen, setPrevOpen] = useState(open);
   if (open !== prevOpen) {
@@ -80,12 +97,15 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
       if (initialPeriod) setPeriod(initialPeriod);
       const ip = initialPlan ? PLAN_BY_ID[initialPlan] : null;
       if (ip && ip.price > 0) setSelected(ip.id);
+    } else {
+      setLimitHit(false);
     }
   }
   const hint = usePriceHint();
   const [loading, setLoading] = useState<Method | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [promo, setPromo] = useState("");
+
 
   function close() {
     if (loading) return;
@@ -230,6 +250,31 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                       <p className="mx-auto mt-3 max-w-xl rounded-xl px-4 py-2 text-sm" style={{ background: "rgba(245,158,11,0.12)", color: "#F59E0B" }}>
                         {reason}
                       </p>
+                    )}
+                    {limitHit && (
+                      <div
+                        className="mx-auto mt-3 flex max-w-xl flex-col items-center gap-2 rounded-xl border px-4 py-3 text-left sm:flex-row sm:text-left"
+                        style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))", background: "color-mix(in srgb, var(--t-primary, #5B50F0) 8%, transparent)" }}
+                        data-testid="local-model-cta"
+                      >
+                        <HardDrive className="size-5 shrink-0" style={{ color: "var(--t-accent, #7C6FF7)" }} aria-hidden />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold">{t("p14iLocalCtaTitle")}</p>
+                          <p className="mt-0.5 text-xs leading-relaxed" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                            {t("p14iLocalCtaDesc")}
+                          </p>
+                        </div>
+                        <a
+                          href={COWORK_DOWNLOAD_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-9 shrink-0 items-center rounded-lg border px-3 text-xs font-semibold transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary,#5B50F0)]"
+                          style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
+                        >
+                          {t("p14iLocalCtaBtn")}
+                          <span className="sr-only"> ({t("p14iLocalCtaNewTab")})</span>
+                        </a>
+                      </div>
                     )}
                     {region.restricted && (
                       <p className="mx-auto mt-3 max-w-xl text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }} data-testid="region-plan-note">

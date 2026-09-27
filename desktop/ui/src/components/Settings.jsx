@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Modal from "./Modal.jsx";
 import Icon, { Logo } from "./Icon.jsx";
 import SignIn from "./SignIn.jsx";
-import ModelPicker from "./ModelPicker.jsx";
+import ModelPicker, { LocalRecommend, LocalCaps, loadLocal } from "./ModelPicker.jsx";
 import { useT, LANGS } from "../lib/i18n.js";
 import { formatTokens } from "../lib/agent.js";
+import { useLocalMode, setLocalMode, refreshLocal } from "../lib/localMode.js";
 
 /** Vazifa uchun token byudjeti tanlovlari (0 — cheklovsiz). */
 const BUDGETS = [0, 50_000, 100_000, 250_000, 500_000, 1_000_000];
@@ -12,20 +13,21 @@ const BUDGETS = [0, 50_000, 100_000, 250_000, 500_000, 1_000_000];
 const SECTIONS = [
   ["general", "settings"],
   ["model", "sparkle"],
+  ["local", "monitor"],
   ["workspace", "folder"],
   ["account", "user"],
   ["privacy", "lock"],
   ["about", "info"],
 ];
 
-function Toggle({ checked, onChange, label, desc }) {
+function Toggle({ checked, onChange, label, desc, disabled = false }) {
   return (
-    <label className="toggle-row">
+    <label className={`toggle-row ${disabled ? "is-disabled" : ""}`}>
       <span className="grow">
         <span className="block strong small">{label}</span>
         {desc && <span className="block faint small">{desc}</span>}
       </span>
-      <input type="checkbox" role="switch" className="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" role="switch" className="switch" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
     </label>
   );
 }
@@ -39,6 +41,181 @@ function Seg({ value, options, onChange, label }) {
         </button>
       ))}
     </div>
+  );
+}
+
+const LOCAL_ERRORS = new Set(["busy", "bad-model", "unavailable", "not-installed"]);
+const CONTEXT_ENV_HINT = "OLLAMA_CONTEXT_LENGTH=16384";
+
+/**
+ * "Mahalliy model" bo'limi: Ollama holati, zaxira rejimi (localFallback), standart model, o'rnatilgan
+ * modellar (vositalar/rasm/o'lcham), RAM bo'yicha tavsiya va halol izohlar, Full auto + mahalliy tasdig'i.
+ * Ollama'ga faqat main ulanadi (127.0.0.1); renderer URL bermaydi.
+ */
+function LocalSection({ settings, setSetting, onLink }) {
+  const t = useT();
+  const local = useLocalMode();
+  const [st, setSt] = useState(null);
+  const [reload, setReload] = useState(0);
+  const [busy, setBusy] = useState("");
+  const [err, setErr] = useState("");
+  const [confirmFA, setConfirmFA] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setSt(null);
+    // Avval tez holat (imkoniyatlarsiz), keyin har model uchun imkoniyatlar (/api/show).
+    loadLocal(false).then((d) => {
+      if (!alive) return;
+      setSt(d);
+      // ModelPicker yoki taklif kartasi orqali tanlangan model main'da saqlangan — sozlamani tenglashtiramiz.
+      if (d.localModel && d.localModel !== settings.localModel) setSetting({ localModel: d.localModel });
+      if (d.available && d.models.length) loadLocal(true).then((c) => alive && c.available && setSt((p) => ({ ...(p ?? d), models: c.models })));
+    });
+    return () => { alive = false; };
+  }, [reload]);
+
+  const switchTo = async (name) => {
+    if (busy) return;
+    setBusy(name || "\u0000cloud");
+    setErr("");
+    const r = await (window.sovereign?.local?.use(name) ?? Promise.resolve(null)).catch(() => null);
+    setBusy("");
+    if (!r?.ok) { setErr(t(`model.local.err.${LOCAL_ERRORS.has(r?.error) ? r.error : "unavailable"}`)); return; }
+    setLocalMode(r.local ?? null);
+    // main tanlovni localModel sifatida saqlaydi — renderer holati ham shunga tenglashadi.
+    if (name && settings.localModel !== name) setSetting({ localModel: name });
+  };
+
+  const names = st?.models.map((m) => m.name) ?? [];
+  const saved = settings.localModel || "";
+  const modelOptions = saved && !names.includes(saved) ? [saved, ...names] : names;
+  const fullAutoOn = !!settings.fullAuto;
+  const setFullAutoLocal = (on) => {
+    if (!on) { setConfirmFA(false); Promise.resolve(setSetting({ fullAutoLocal: false })).then(refreshLocal); return; }
+    setConfirmFA(true); // yoqish — faqat alohida tasdiq bilan (quyidagi ogohlantirish)
+  };
+
+  return (
+    <>
+      <h3>{t("settings.local")}</h3>
+      <p className="muted small">{t("settings.localDesc")}</p>
+
+      {!st ? (
+        <div className="muted small mt" role="status"><span className="spinner sm" aria-hidden="true" /> {t("common.loading")}</div>
+      ) : st.available ? (
+        <div className="banner banner-info mt" role="status">
+          <Icon name="check" size={14} />
+          <span className="grow">{t("settings.localStatusOn", { v: st.version || "?" })}{st.ramGb ? ` · ${t("local.ram", { ram: st.ramGb })}` : ""}</span>
+          <button type="button" className="link-btn" onClick={() => setReload((n) => n + 1)}>{t("common.retry")}</button>
+        </div>
+      ) : (
+        <div className="banner banner-warn mt" role="status">
+          <Icon name="wifiOff" size={14} />
+          <span className="grow">{t("model.local.unavailable")}</span>
+          <button type="button" className="link-btn" onClick={() => setReload((n) => n + 1)}>{t("common.retry")}</button>
+        </div>
+      )}
+
+      {local && (
+        <div className="local-active mt">
+          <Icon name="monitor" size={15} className="local-mark" />
+          <span className="grow small strong trunc">{t("local.marker", { model: local.model })}</span>
+          <button type="button" className="btn btn-sm" onClick={() => switchTo(null)} disabled={!!busy}><Icon name="undo" size={13} /> {t("local.backToCloud")}</button>
+        </div>
+      )}
+      {local?.fullAutoPaused && <div className="banner banner-warn mt-sm"><Icon name="bolt" size={14} /><span>{t("local.fullAutoPaused")}</span></div>}
+
+      <div className="field mt">
+        <span className="label-sm">{t("settings.localFallback")}</span>
+        <Seg label={t("settings.localFallback")} value={settings.localFallback ?? "ask"} onChange={(v) => setSetting({ localFallback: v })} options={[["off", t("settings.localFallback.off")], ["ask", t("settings.localFallback.ask")], ["auto", t("settings.localFallback.auto")]]} />
+        <span className="block faint small mt-sm">{t("settings.localFallbackDesc")}</span>
+      </div>
+
+      <label className="field block">
+        <span className="label-sm">{t("settings.localModel")}</span>
+        <span className="inq-field">
+          <select className="local-select" value={saved} onChange={(e) => setSetting({ localModel: e.target.value })} disabled={!st}>
+            <option value="">{t("settings.localModelAuto")}</option>
+            {modelOptions.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </span>
+      </label>
+
+      {st?.available && (
+        <div className="field">
+          <span className="label-sm">{t("settings.localModels", { n: st.models.length })}</span>
+          {st.models.length === 0 ? (
+            <span className="faint small">{t("model.local.none")}</span>
+          ) : (
+            <ul className="local-list">
+              {st.models.map((m) => {
+                const active = local?.model === m.name;
+                return (
+                  <li key={m.name} className={`local-row ${active ? "on" : ""}`}>
+                    <Icon name="monitor" size={14} className={active ? "local-mark" : "faint"} />
+                    <span className="grow" style={{ minWidth: 0 }}>
+                      <span className="block mono small strong trunc">{m.name}</span>
+                      <LocalCaps m={m} />
+                    </span>
+                    {active ? (
+                      <span className="pill pill-ok">{t("model.local.active")}</span>
+                    ) : (
+                      <button type="button" className="btn btn-sm" onClick={() => switchTo(m.name)} disabled={!!busy} aria-label={t("model.local.use", { model: m.name })}>
+                        {busy === m.name ? <span className="spinner sm" aria-hidden="true" /> : <Icon name="play" size={12} />} {t("settings.localUse")}
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+      {err && <div className="banner banner-danger" role="alert"><Icon name="alert" size={14} /><span>{err}</span></div>}
+
+      {st && (
+        <>
+          <LocalRecommend recommend={st.recommend} ramGb={st.ramGb} installed={names} />
+          {st.ramGb > 0 && st.ramGb < 8 && <div className="banner banner-warn mt-sm"><Icon name="alert" size={14} /><span>{t("local.lowRam")}</span></div>}
+          <div className="row gap-sm mt-sm wrap">
+            {!st.available && <button type="button" className="btn btn-sm btn-primary" onClick={() => onLink("ollama")}><Icon name="external" size={13} /> {t("local.install")}</button>}
+            <button type="button" className="btn btn-sm btn-ghost" onClick={() => onLink("ollamaLibrary")}><Icon name="external" size={13} /> {t("local.library")}</button>
+          </div>
+        </>
+      )}
+
+      <div className="mt">
+        <Toggle
+          checked={!!settings.fullAutoLocal && fullAutoOn} disabled={!fullAutoOn || confirmFA} onChange={setFullAutoLocal}
+          label={t("settings.fullAutoLocal")} desc={fullAutoOn ? t("settings.fullAutoLocalDesc") : `${t("settings.fullAutoLocalDesc")} ${t("settings.fullAutoLocalNeedsFullAuto")}`}
+        />
+        {confirmFA && (
+          <div className="danger-zone" role="alertdialog" aria-labelledby="fal-title" aria-describedby="fal-desc">
+            <div className="grow">
+              <div className="strong small" id="fal-title">{t("settings.fullAutoLocalConfirmTitle")}</div>
+              <div className="faint small" id="fal-desc">{t("settings.fullAutoLocalConfirm")}</div>
+            </div>
+            <span className="row gap-sm">
+              <button type="button" className="btn btn-sm" onClick={() => setConfirmFA(false)} autoFocus>{t("common.cancel")}</button>
+              <button type="button" className="btn btn-sm btn-danger" onClick={() => { Promise.resolve(setSetting({ fullAutoLocal: true })).then(refreshLocal); setConfirmFA(false); }}>{t("settings.fullAutoLocalYes")}</button>
+            </span>
+          </div>
+        )}
+      </div>
+
+      <details className="local-about mt">
+        <summary className="small strong">{t("local.about.title")}</summary>
+        <ul className="plain-list muted small">
+          <li>{t("local.about.privacy")}</li>
+          <li>{t("local.about.noServer")}</li>
+          <li>{t("local.about.tools")}</li>
+          <li>{t("local.about.speed")}</li>
+          <li>{t("local.about.context", { env: CONTEXT_ENV_HINT })}</li>
+          {local?.contextLength || st?.contextEnv ? <li>{t("local.about.contextNow", { n: local?.contextLength || st.contextEnv })}</li> : null}
+        </ul>
+      </details>
+    </>
   );
 }
 
@@ -73,7 +250,12 @@ export default function Settings({ initial = "general", onClose, info, settings,
                 <span className="label-sm">{t("settings.defaultMode")}</span>
                 <Seg label={t("settings.defaultMode")} value={settings.defaultMode} onChange={(v) => setSetting({ defaultMode: v })} options={[["code", t("mode.code"), "code"], ["chat", t("mode.chat"), "chat"]]} />
               </div>
-              <Toggle checked={!!settings.fullAuto} onChange={(v) => setSetting({ fullAuto: v })} label={t("settings.fullAuto")} desc={t("settings.fullAutoDesc")} />
+              <div className="field">
+                <span className="label-sm">{t("settings.inquiry")}</span>
+                <Seg label={t("settings.inquiry")} value={settings.inquiryMode ?? "auto"} onChange={(v) => setSetting({ inquiryMode: v })} options={[["auto", t("settings.inquiry.auto")], ["always", t("settings.inquiry.always")], ["off", t("settings.inquiry.off")]]} />
+                <span className="block faint small mt-sm">{t("settings.inquiryDesc")}</span>
+              </div>
+              <Toggle checked={!!settings.fullAuto} onChange={(v) => Promise.resolve(setSetting({ fullAuto: v })).then(refreshLocal)} label={t("settings.fullAuto")} desc={t("settings.fullAutoDesc")} />
               <Toggle checked={settings.notifications} onChange={(v) => setSetting({ notifications: v })} label={t("settings.notifications")} desc={t("settings.notificationsDesc")} />
             </>
           )}
@@ -93,6 +275,8 @@ export default function Settings({ initial = "general", onClose, info, settings,
               </div>
             </>
           )}
+
+          {sec === "local" && <LocalSection settings={settings} setSetting={setSetting} onLink={onLink} />}
 
           {sec === "workspace" && (
             <>

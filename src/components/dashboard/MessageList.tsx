@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useChat, type ChatMessage } from "@/store/chat";
 import { useTTS } from "@/hooks/use-tts";
 import { cn } from "@/lib/utils";
+import type { InquiryActions } from "./InquiryCard";
 import { MessageItem } from "./MessageItem";
 
 interface MessageListProps {
@@ -11,12 +12,14 @@ interface MessageListProps {
   onRegenerate?: () => void;
   /** Foydalanuvchi o'z xabarini tahrirlab qayta yuborganda. */
   onEdit?: (messageId: string, text: string) => void;
+  /** Chuqur so'rash kartasi amallari (Dashboard'da useMemo bilan barqaror). */
+  inquiry?: InquiryActions;
 }
 
 /** Sozlamalar → "Matn o'lchami" (xabar matni uchun CSS o'zgaruvchisi). */
 const FONT_SIZE = { sm: "14px", md: "15px", lg: "17px" } as const;
 
-export function MessageList({ messages, onRegenerate, onEdit }: MessageListProps) {
+export function MessageList({ messages, onRegenerate, onEdit, inquiry }: MessageListProps) {
   const tts = useTTS();
   const autoScroll = useChat((s) => s.autoScroll);
   const fontSize = useChat((s) => s.fontSize);
@@ -77,6 +80,7 @@ export function MessageList({ messages, onRegenerate, onEdit }: MessageListProps
             onEdit={onEdit}
             onTts={tts.supported ? tts.toggle : undefined}
             ttsSpeaking={tts.speakingId === m.id}
+            inquiry={inquiry}
           />
         ))}
         <div ref={bottom} className="h-2" />

@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, chmodSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { isValidModelName } from "./ollama.mjs";
 
 const DIR = join(homedir(), ".sovereign");
 const FILE = join(DIR, "config.json");
@@ -19,7 +20,40 @@ const DEFAULTS = {
   omniModel: "",
   openrouterKey: "",
   perplexityKey: "",
+  // Mahalliy model (Ollama, docs/INQUIRY.md §B.1). localModel — tanlangan model nomi
+  // (bo'sh — hali tanlanmagan). localFallback: limit/offline'da nima qilish:
+  // "off" — hech narsa, "ask" — so'rash (standart), "auto" — ogohlantirish bilan darhol o'tish.
+  localModel: "",
+  localFallback: "ask",
+  // Chuqur so'rash (§A.7): "auto" | "always" | "off".
+  inquiry: "auto",
 };
+
+export const LOCAL_FALLBACK_MODES = ["off", "ask", "auto"];
+export const INQUIRY_MODES = ["auto", "always", "off"];
+
+/**
+ * Yangi sozlamalar qiymatini tekshiradi (`sov config key=value` va fayldan o'qishda).
+ * @returns {{ok: true, value: string} | {ok: false, error: string}}
+ */
+export function normalizeSetting(key, value) {
+  const v = typeof value === "string" ? value.trim() : "";
+  switch (key) {
+    case "localFallback":
+      return LOCAL_FALLBACK_MODES.includes(v) ? { ok: true, value: v } : { ok: false, error: `localFallback: ${LOCAL_FALLBACK_MODES.join(" | ")}` };
+    case "inquiry":
+      return INQUIRY_MODES.includes(v) ? { ok: true, value: v } : { ok: false, error: `inquiry: ${INQUIRY_MODES.join(" | ")}` };
+    case "localModel":
+      return v === "" || isValidModelName(v) ? { ok: true, value: v } : { ok: false, error: "localModel: noto'g'ri model nomi" };
+    default:
+      return { ok: false, error: `noma'lum sozlama: ${key}` };
+  }
+}
+
+function settingOr(key, value) {
+  const r = normalizeSetting(key, value);
+  return r.ok ? r.value : DEFAULTS[key];
+}
 
 /**
  * baseUrl'ni tekshiradi: faqat https (yoki localhost uchun http). Aks holda
@@ -48,9 +82,14 @@ export function loadConfig() {
       /* ignore corrupt config */
     }
   }
+  // `local` / `onLimit` — faqat ish vaqtidagi (runtime) maydonlar: fayldan hech qachon olinmaydi.
+  const { local: _local, onLimit: _onLimit, ...stored } = file && typeof file === "object" ? file : {};
   return {
     ...DEFAULTS,
-    ...file,
+    ...stored,
+    localModel: settingOr("localModel", stored.localModel ?? ""),
+    localFallback: settingOr("localFallback", stored.localFallback ?? DEFAULTS.localFallback),
+    inquiry: settingOr("inquiry", stored.inquiry ?? DEFAULTS.inquiry),
     baseUrl: sanitizeBaseUrl(process.env.SOVEREIGN_URL || file.baseUrl || DEFAULTS.baseUrl),
     token: process.env.SOVEREIGN_TOKEN || file.token || "",
     openrouterKey: process.env.OPENROUTER_API_KEY || file.openrouterKey || "",
@@ -70,6 +109,8 @@ export function saveConfig(patch) {
     }
   }
   const next = { ...current, ...patch };
+  delete next.local; // runtime-only
+  delete next.onLimit;
   // Token va API kalitlar shu faylda — faqat foydalanuvchi o'qishi kerak (0600).
   // Windows'da chmod tam qo'llanmaydi, lekin POSIX/WSL/macOS/Linux'da ta'sirli.
   writeFileSync(FILE, JSON.stringify(next, null, 2), { mode: 0o600 });

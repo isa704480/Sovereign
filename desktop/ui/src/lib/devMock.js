@@ -2,6 +2,9 @@
 // Hech qanday tarmoq yoki disk amali yo'q; agent navbati skript bilan simulyatsiya qilinadi.
 // URL parametrlari: ?fresh=1 (onboarding), ?anon=1 (kirilmagan), ?nofolder=1,
 // ?update=available|downloading|ready|failed (&mac=1, &fail=1) — yangilanish kartasi.
+// Chuqur so'rash / Ollama (T11): ?inquiry=1 — birinchi xabarda savol kartasi (+ javobdan keyin follow-up);
+// ?blocking=1 — Full auto'dagi bloklovchi savol (needs-input); ?limit=1 — limit → "mahalliy model" taklifi;
+// ?limit=noollama | ?limit=nomodels — Ollama yo'q / modeli yo'q kartasi; ?local=<model> — mahalliy rejimda boshlash.
 
 const qs = new URLSearchParams(location.search);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -13,13 +16,25 @@ export function install() {
   const settings = {
     onboarded: !qs.has("fresh"), theme: qs.get("theme") || "system", lang: qs.get("lang") || "", notifications: true, autoUpdate: true,
     defaultMode: "code", sidebar: true, rightPanel: qs.has("panel"), model: "", modelLabel: "",
+    localFallback: "ask", localModel: "", inquiryMode: "auto", fullAutoLocal: false, fullAuto: qs.has("blocking"),
   };
+  // Soxta Ollama: o'rnatilgan modellar (hajm — bayt), imkoniyatlar /api/show'dagidek.
+  const LOCAL_MODELS = [
+    { name: "qwen2.5-coder:7b", size: 4.68e9, paramSize: "7.6B", quant: "Q4_K_M", family: "qwen2", tools: true, vision: false, contextLength: 32768, known: true },
+    { name: "llama3.2:3b", size: 2.02e9, paramSize: "3.2B", quant: "Q4_K_M", family: "llama", tools: true, vision: false, contextLength: 131072, known: true },
+    { name: "gemma3:4b", size: 3.34e9, paramSize: "4.3B", quant: "Q4_K_M", family: "gemma3", tools: false, vision: true, contextLength: 131072, known: true },
+  ];
+  const RECOMMEND = [{ name: "qwen2.5-coder:7b", tier: 2, sizeGb: "4.5–5.5" }, { name: "qwen3:8b", tier: 2, sizeGb: "4.5–5.5" }, { name: "llama3.1:8b", tier: 2, sizeGb: "4.5–5.5" }];
+  const specOf = (name) => { const m = LOCAL_MODELS.find((x) => x.name === name); return m ? { model: m.name, tools: m.tools, vision: m.vision, contextLength: m.contextLength } : null; };
+  let localActive = qs.get("local") && specOf(qs.get("local")) ? { ...specOf(qs.get("local")), reason: "manual" } : null;
+  const choices = new Map(); // inquiry / local-offer kartalari: id -> {type, resolve}
   let cwd = qs.has("nofolder") ? null : "D:\\Projects\\demo-shop";
   let authed = !qs.has("anon");
   let model = "Auto";
   const history = [
     { id: uuid(), title: "Landing sahifaga hero bo‘limi qo‘sh", cwd: "D:\\Projects\\demo-shop", mode: "code", createdAt: Date.now() - 3600e3, updatedAt: Date.now() - 3500e3, status: "done" },
     { id: uuid(), title: "SQL indekslar haqida savol", cwd: null, mode: "chat", createdAt: Date.now() - 2 * 86400e3, updatedAt: Date.now() - 2 * 86400e3, status: "stopped" },
+    { id: uuid(), title: "Ijara shartnomasini bekor qilish", cwd: null, mode: "chat", createdAt: Date.now() - 3 * 86400e3, updatedAt: Date.now() - 3 * 86400e3, status: "done", demo: "inquiry" },
   ];
   const pending = new Map();
   let task = null;
@@ -27,7 +42,7 @@ export function install() {
 
   const state = () => ({
     authed, email: authed ? "islombek@example.com" : "", baseUrl: "https://api.example.invalid", cwd, model, modelId: "", version: "0.5.0-dev",
-    offline: false, platform: qs.has("mac") ? "darwin" : "win32", settings: { ...settings }, recent: ["D:\\Projects\\demo-shop", "D:\\Projects\\api-server"], history: [...history], task: null, busy: false, update: { ...update },
+    offline: false, platform: qs.has("mac") ? "darwin" : "win32", settings: { ...settings }, local: localActive ? { ...localActive, fullAutoPaused: !!settings.fullAuto && !settings.fullAutoLocal } : null, recent: ["D:\\Projects\\demo-shop", "D:\\Projects\\api-server"], history: [...history], task: null, busy: false, update: { ...update },
   });
   // ?update=available|downloading|ready|failed — sidebar yangilanish kartasi holatlari (?mac=1 — macOS).
   const UPDATE_PRESETS = {
@@ -49,16 +64,95 @@ export function install() {
     emit({ type: "confirm", id, question, meta });
   });
 
+  const waitChoice = (type, ev) => new Promise((resolve) => {
+    choices.set(ev.inquiryId ?? ev.id, { type, resolve, ev });
+    emit(ev);
+  });
+  const localEv = (spec, extra = {}) => ({ type: "local", active: true, model: spec.model, tools: spec.tools, vision: spec.vision, reason: spec.reason, fullAutoPaused: !!settings.fullAuto && !settings.fullAutoLocal, ...extra });
+
+  // Chuqur so'rash: savol kartasi → javob (yoki "Taxmin bilan") → "Aniqlashtirish:" bloki.
+  async function inquiryStep(mode) {
+    const blocking = qs.has("blocking") && mode === "code";
+    const ev = blocking
+      ? { type: "inquiry", inquiryId: uuid(), phase: "ask", round: 1, domain: "code", stakes: "high", goal: "Loyihani serverga joylash", blocking: true, assumptions: [],
+          questions: [{ id: "q1", slot: "deploy_target", text: "Qaysi serverga joylaymiz?", why: "Manzilsiz deploy qilib bo‘lmaydi — xato serverga yozish qaytarilmaydi.", kind: "single", options: ["Vercel", "VPS (SSH)", "Docker"], critical: true }] }
+      : { type: "inquiry", inquiryId: uuid(), phase: "ask", round: 1, domain: "legal", stakes: "high", goal: "Ijara shartnomasini bekor qilish", professional: "lawyer", blocking: false,
+          assumptions: ["Shartnoma O‘zbekiston qonunchiligi bo‘yicha tuzilgan", "Muddatli shartnoma (1 yil)"],
+          questions: [
+            { id: "q1", slot: "jurisdiction", text: "Qaysi davlatda?", why: "Qonun va muddatlar davlatga qarab farq qiladi.", kind: "single", options: ["O‘zbekiston", "Qozog‘iston", "Rossiya"], critical: true },
+            { id: "q2", slot: "role", text: "Siz kimsiz?", why: "Ijarachi va ijaraga beruvchining huquqlari turlicha.", kind: "single", options: ["Ijarachi", "Ijaraga beruvchi"], critical: true },
+            { id: "q3", slot: "documents", text: "Qaysi hujjatlar bor?", why: "Dalillar strategiyani belgilaydi.", kind: "multi", options: ["Yozma shartnoma", "To‘lov cheklari", "Yozishmalar"], critical: false },
+          ] };
+    const reply = await waitChoice("inquiry", ev);
+    if (aborted || !reply) return false;
+    if (reply.skip) { emit({ type: "inquiry-state", inquiryId: ev.inquiryId, state: "skipped" }); return true; }
+    const rows = ev.questions.filter((q) => reply.answers?.[q.id] != null).map((q) => `- ${q.text} — ${[].concat(reply.answers[q.id]).join(", ")}`);
+    emit({ type: "inquiry-state", inquiryId: ev.inquiryId, state: "answered" });
+    emit({ type: "user", inquiry: true, mode, text: ["Aniqlashtirish:", ...rows, ...(rows.length < ev.questions.length ? ["Qolganlari uchun taxmin qil."] : [])].join("\n") });
+    await sleep(500);
+    return !aborted;
+  }
+
+  // Limit → mahalliy model taklifi (main'dagi offerLocal kabi). true — mahalliyga o'tildi.
+  async function limitStep(mode) {
+    const kind = qs.get("limit");
+    const base = { type: "local-offer", kind: "user_limit", ramGb: 16, recommend: RECOMMEND };
+    if (kind === "noollama" || kind === "nomodels") {
+      emit({ ...base, id: null, available: kind === "nomodels", models: [], suggested: "" });
+      return false;
+    }
+    const reply = await waitChoice("local", { ...base, id: uuid(), available: true, models: LOCAL_MODELS, suggested: settings.localModel || "qwen2.5-coder:7b", fullAuto: !!settings.fullAuto });
+    if (aborted || !reply) return false;
+    if (reply.remember) settings.localFallback = reply.model ? "auto" : "off";
+    if (!reply.model) return false;
+    localActive = { ...specOf(reply.model), reason: "fallback" };
+    settings.localModel = reply.model;
+    emit(localEv(localActive, { kind: "user_limit", ...(mode === "code" && !localActive.tools ? { toolsOff: true } : {}) }));
+    return true;
+  }
+
+  async function localAnswer(text) {
+    for (let n = 180; n <= 900; n += 240) { await sleep(350); if (aborted) return; emit({ type: "local-progress", chars: n }); }
+    emit({ type: "text", text });
+  }
+
   async function runTurn(text, mode) {
     aborted = false;
+    const first = !task;
     if (!task) { task = { id: uuid(), title: text.slice(0, 80), cwd, mode, createdAt: Date.now(), updatedAt: Date.now(), status: "running" }; }
     emit({ type: "task", task: { ...task, status: "running" } });
     emit({ type: "user", text, mode });
+    if (localActive) emit(localEv(localActive, mode === "code" && !localActive.tools ? { toolsOff: true } : {}));
+    if (first && !localActive && settings.inquiryMode !== "off" && (qs.has("inquiry") || qs.has("blocking"))) {
+      if (!(await inquiryStep(mode))) return;
+    }
     await sleep(900);
     if (aborted) return;
+    if (qs.has("limit") && !localActive) {
+      const switched = await limitStep(mode);
+      if (aborted) return;
+      if (!switched) {
+        emit({ type: "error", code: "limit", message: "Oylik token limiti tugadi", status: 429, serverCode: "user_limit" });
+        return finish("error");
+      }
+    }
+    if (localActive && (mode === "chat" || !localActive.tools)) {
+      await localAnswer("Mahalliy model javobi: ijara shartnomasini bekor qilish uchun avval shartnomadagi muddat va ogohlantirish bandini tekshiring.");
+      if (aborted) return;
+      emit({ type: "usage", tokens: 1240, rounds: 1, estimated: true, budget: 0, local: localActive.model, localRounds: 1 });
+      emit({ type: "done" });
+      return finish("done");
+    }
     if (mode === "chat") {
       emit({ type: "text", text: "Albatta! Qisqa javob:\n\n- **useState** — holat\n- **useEffect** — yon ta’sirlar\n\n```js\nconst [n, setN] = useState(0);\n```" });
       emit({ type: "done" });
+      // answer_then_ask — javobdan keyin follow-up chip'lar.
+      if (qs.has("inquiry")) {
+        emit({ type: "inquiry", inquiryId: uuid(), phase: "followup", round: 1, domain: "legal", stakes: "medium", goal: "", blocking: false, assumptions: [], questions: [
+          { id: "q1", slot: "deadline", text: "Shartnoma qachon tugaydi?", why: "", kind: "single", options: ["3 oy ichida", "1 yildan keyin"], critical: false },
+          { id: "q2", slot: "notice", text: "Ogohlantirish xati yuborilganmi?", why: "", kind: "text", options: [], critical: false },
+        ] });
+      }
       return finish("done");
     }
     emit({ type: "text", text: "Reja: avval loyiha tuzilmasini ko‘raman, keyin `src/server.js` yarataman va testni ishga tushiraman." });
@@ -122,7 +216,7 @@ export function install() {
     revealWorkspace: async () => ({ ok: true }),
     openLink: async (key) => { window.__mockOpenedLink = key; return { ok: true }; },
     newTask: async () => { task = null; aborted = true; return { ok: true, history: [...history] }; },
-    stop: async () => { aborted = true; for (const r of pending.values()) r(false); pending.clear(); emit({ type: "stopped" }); if (task) finish("stopped"); return { ok: true }; },
+    stop: async () => { aborted = true; for (const r of pending.values()) r(false); pending.clear(); for (const c of choices.values()) c.resolve(null); choices.clear(); emit({ type: "stopped" }); if (task) finish("stopped"); return { ok: true }; },
     fsTree: async () => ({ cwd, nodes: cwd ? tree : [] }),
     fsRead: async (p) => ({ content: `// ${p}\nexport default function Demo() {\n  return null;\n}\n` }),
     fsRestore: async () => ({ ok: true }),
@@ -142,7 +236,7 @@ export function install() {
       const prompt = `Security audit (mock): ${findings.length} findings\n` + findings.map((f) => `- [${f.severity}] ${f.file}:${f.line}`).join("\n");
       return { findings, counts, ok: !counts.critical && !counts.high, scanned: 42, durationMs: 180, truncated: false, prompts: { uz: prompt, "uz-cyrl": prompt, ru: prompt, en: prompt } };
     },
-    setModel: async (id, label) => { model = id ? label || id : "Auto"; return { ok: true, model }; },
+    setModel: async (id, label) => { model = id ? label || id : "Auto"; localActive = null; return { ok: true, model, local: null }; }, // main kabi: bulut modeli — mahalliy rejimdan chiqish
     models: async (q) => {
       await sleep(300);
       if (q.includes("families")) return { families: [{ key: "claude", label: "Claude", count: 12 }, { key: "gemini", label: "Gemini", count: 9 }, { key: "deepseek", label: "DeepSeek", count: 5 }], featured: [{ id: "free/llama-3.3-70b", label: "Llama 3.3 70B" }, { id: "free/qwen3-coder", label: "Qwen3 Coder" }] };
@@ -153,6 +247,18 @@ export function install() {
     remember: () => {},
     confirmReply: (id, ok) => { const r = pending.get(id); if (r) { pending.delete(id); r(!!ok); } },
     settings: { set: async (p) => { Object.assign(settings, p); return { ...settings }; } },
+    // Chuqur so'rash kartasi javobi (main: inquiry:answer).
+    inquiry: {
+      answer: async (id, answers) => { const c = choices.get(id); if (!c || c.type !== "inquiry") return { ok: false, error: "not-found" }; choices.delete(id); const n = Object.keys(answers ?? {}).length; c.resolve(n ? { answers } : { skip: true }); return { ok: true, answered: n }; },
+      skip: async (id) => { const c = choices.get(id); if (!c || c.type !== "inquiry") return { ok: false, error: "not-found" }; choices.delete(id); c.resolve({ skip: true }); return { ok: true, answered: 0 }; },
+    },
+    // Soxta Ollama (main: local:status / local:models / local:use).
+    local: {
+      status: async () => ({ available: qs.get("limit") !== "noollama", version: "0.12.3", models: qs.get("limit") === "noollama" ? [] : LOCAL_MODELS.map(({ name, size, paramSize, quant, family }) => ({ name, size, paramSize, quant, family })), ramGb: 16, recommend: RECOMMEND, contextEnv: 0, active: localActive, localFallback: settings.localFallback, localModel: settings.localModel }),
+      models: async () => { await sleep(300); return { available: qs.get("limit") !== "noollama", version: "0.12.3", models: qs.get("limit") === "noollama" ? [] : LOCAL_MODELS, ramGb: 16, recommend: RECOMMEND, active: localActive }; },
+      use: async (model) => { if (!model) { localActive = null; return { ok: true, local: null }; } const spec = specOf(model); if (!spec) return { ok: false, error: "not-installed" }; localActive = { ...spec, reason: "manual" }; settings.localModel = model; return { ok: true, local: localActive }; },
+      answerOffer: async (id, model, remember) => { const c = choices.get(id); if (!c || c.type !== "local") return { ok: false, error: "not-found" }; if (model && !specOf(model)) return { ok: false, error: "not-installed" }; choices.delete(id); c.resolve({ model: model ?? null, remember: !!remember }); return { ok: true }; },
+    },
     project: (() => {
       let notes = 0;
       let exists = false;
@@ -174,6 +280,19 @@ export function install() {
       open: async (id) => {
         const h = history.find((x) => x.id === id);
         task = { ...h };
+        // Tarixdan tiklangan savol kartasi — faqat o'qish uchun (javob holati bilan) + mahalliy model belgisi.
+        if (h.demo === "inquiry") {
+          const iq = uuid();
+          return { task: h, cwd: h.cwd, recent: state().recent, events: [
+            { type: "user", text: h.title, mode: "chat" },
+            { type: "inquiry", inquiryId: iq, phase: "ask", round: 1, domain: "legal", stakes: "high", goal: "Ijara shartnomasini bekor qilish", blocking: false, assumptions: [], questions: [{ id: "q1", slot: "jurisdiction", text: "Qaysi davlatda?", why: "", kind: "single", options: ["O‘zbekiston", "Rossiya"], critical: true }] },
+            { type: "inquiry-state", inquiryId: iq, state: "answered" },
+            { type: "user", inquiry: true, mode: "chat", text: "Aniqlashtirish:\n- Qaysi davlatda? — O‘zbekiston" },
+            { type: "local", active: true, model: "llama3.2:3b", tools: true, vision: false, reason: "fallback", kind: "user_limit" },
+            { type: "text", text: "Bu tarixdan tiklangan suhbat (mahalliy model javobi)." },
+            { type: "usage", tokens: 900, rounds: 1, estimated: true, budget: 0, local: "llama3.2:3b", localRounds: 1 },
+          ] };
+        }
         return { task: h, cwd: h.cwd, recent: state().recent, events: [
           { type: "user", text: h.title, mode: h.mode },
           { type: "text", text: "Bu tarixdan tiklangan suhbat." },

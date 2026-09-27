@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "i18n:check": "node scripts/check-i18n.mjs",
+    "eval:inquiry": "tsx --conditions=react-server scripts/eval/inquiry-run.mjs",
     "db:migrate": "node --env-file=.env.local --import tsx db/migrate.ts",
     "cli:install": "npm --prefix cli install -g .",
     "cli": "node cli/bin/sovereign.mjs"

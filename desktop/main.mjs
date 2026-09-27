@@ -44,7 +44,8 @@ import { loadSettings, updateFromRenderer, updateInternal, rememberFolder, isDir
 import { listTasks, saveTask, loadTask, removeTask, clearTasks, metaOf, validId } from "./electron/history.mjs";
 import { startLogin } from "./electron/auth.mjs";
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, updateState } from "./electron/updater.mjs";
-import { mt } from "./electron/i18n.mjs";
+import { mt, mainLang } from "./electron/i18n.mjs";
+import * as ollama from "./electron/ollama.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ID = "app.sovereign.cowork";
@@ -134,10 +135,14 @@ const SYSTEM = [
 let win = null;
 let workspace = null; // tanlangan ish papkasi (null — hali tanlanmagan)
 const pending = new Map(); // confirm so'rovlari: id -> resolve
+// Foydalanuvchi tanlovini kutayotgan kartalar (confirm naqshi kabi): id -> {type: "inquiry"|"local", resolve, ...}.
+// Navbat to'xtatilsa hammasi `null` bilan yopiladi.
+const pendingChoices = new Map();
 
 // ---- Vazifa (task) va hodisalar --------------------------------------------
 // Joriy vazifaning UI hodisalari tarixga yoziladi — keyin ekranni qayta tiklash uchun.
-const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped"]);
+// inquiry / inquiry-state — savol kartasi va uning holati; local — "Mahalliy model · <nom>" belgisi (halollik).
+const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped", "inquiry", "inquiry-state", "local"]);
 let currentTask = null;
 
 function send(type, payload = {}) {
@@ -265,7 +270,14 @@ function abortTurn() {
   }
   for (const resolve of pending.values()) resolve(false);
   pending.clear();
+  for (const p of pendingChoices.values()) p.resolve(null);
+  pendingChoices.clear();
   return had;
+}
+
+/** Oyna fokusda bo'lmasa — foydalanuvchi javob kutilayotganini bilsin. */
+function attention() {
+  if (win && !win.isDestroyed() && !win.isFocused()) win.flashFrame(true);
 }
 
 /** Navbatga bog'langan tasdiq: navbat to'xtatilgan bo'lsa — darhol rad. */
@@ -321,41 +333,206 @@ function capToolCalls(round) {
   round.message = { ...round.message, tool_calls: round.toolCalls };
 }
 
-async function runRound(messages, config, withTools = true, signal = undefined) {
+/** Daqiqalik limit (429 + Retry-After) — shu navbat ichida qisqa kutib qayta urinish. */
+const RATE_RETRY_MAX = 2;
+const RATE_RETRY_WAIT_MAX_MS = 20_000;
+
+function sleep(ms, signal) {
+  return new Promise((resolve) => {
+    if (signal?.aborted) return resolve();
+    const done = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    signal?.addEventListener("abort", done, { once: true });
+  });
+}
+
+/**
+ * Bitta model qadami. `local` berilsa — mahalliy Ollama (127.0.0.1), serverga HECH NARSA ketmaydi.
+ * Server xatosida `err.code` (UI uchun: auth|limit|server|offline|network) bilan birga
+ * `status`, `retryAfter`, `serverCode` (T14: user_limit|rate_limited|region) — zaxira tasnifi uchun.
+ */
+async function runRound(messages, config, withTools = true, signal = undefined, local = null, onProgress = null) {
+  if (local) return runLocalRound(messages, local, withTools, signal, onProgress);
   const url = `${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`;
   if (!netAllowed(url)) {
     const err = new Error("offline");
     err.code = "offline";
     throw err;
   }
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      signal,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
-      body: JSON.stringify({
-        messages: forServer(messages),
-        ...(withTools ? { tools: TOOL_SCHEMA } : {}),
-        ...(config.omniModel ? { model: config.omniModel } : {}),
-      }),
+  for (let attempt = 0; ; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        signal,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+        body: JSON.stringify({
+          messages: forServer(messages),
+          ...(withTools ? { tools: TOOL_SCHEMA } : {}),
+          ...(config.omniModel ? { model: config.omniModel } : {}),
+        }),
+      });
+    } catch (e) {
+      const err = new Error(e?.message || "network");
+      err.code = e?.message === "offline" ? "offline" : "network";
+      throw err;
+    }
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      const retryAfter = res.headers.get("retry-after");
+      const serverCode = typeof e?.code === "string" ? e.code : res.headers.get("x-sovereign-code") || "";
+      // Daqiqalik limit — kutib qayta urinamiz; oylik/kunlik limit (user_limit) kutish bilan tugamaydi.
+      const ra = Number(retryAfter);
+      if (res.status === 429 && serverCode !== "user_limit" && ra > 0 && ra * 1000 <= RATE_RETRY_WAIT_MAX_MS && attempt < RATE_RETRY_MAX && !signal?.aborted) {
+        await sleep(ra * 1000, signal);
+        if (!signal?.aborted) continue;
+      }
+      const err = new Error(typeof e.error === "string" ? e.error : `HTTP ${res.status}`);
+      err.code = res.status === 401 || res.status === 403 ? "auth" : res.status === 402 || res.status === 429 ? "limit" : "server";
+      err.status = res.status;
+      err.retryAfter = retryAfter;
+      err.serverCode = serverCode;
+      throw err;
+    }
+    // `usage` — server yangi versiyada qaytaradi (yo'q bo'lsa — taxmin).
+    // `model` — haqiqatda javob bergan model (mustaqil hakam boshqa kompaniyadan tanlanishi uchun).
+    const { message, usage, model } = await res.json();
+    return { message, toolCalls: message.tool_calls ?? [], usage, model: typeof model === "string" ? model : null };
+  }
+}
+
+/**
+ * Mahalliy model qadami (desktop/electron/ollama.mjs → cli/src/ollama.mjs chat()).
+ * Vositalar faqat model tool-calling'ni qo'llasa (`local.tools === true`). Tokenlar oqim bilan
+ * olinadi; UI'ga faqat taraqqiyot ("local-progress", ~0.7 s da bir) — matn qadam oxirida "text" bilan.
+ */
+async function runLocalRound(messages, local, withTools, signal, onProgress) {
+  let chars = 0;
+  let last = 0;
+  const r = await ollama.chat({
+    model: local.model,
+    messages: forServer(messages),
+    tools: withTools && local.tools === true ? TOOL_SCHEMA : undefined,
+    stream: true,
+    signal,
+    onText: onProgress
+      ? (t) => {
+          chars += t.length;
+          const now = Date.now();
+          if (now - last >= 700) {
+            last = now;
+            onProgress(chars);
+          }
+        }
+      : undefined,
+    contextLength: local.contextLength || 0,
+  });
+  return { message: r.message, toolCalls: r.toolCalls ?? [], usage: r.usage, model: `local/${local.model}` };
+}
+
+/** UI'ga yuboriladigan xato. Mahalliy model xatosi — alohida kod (`local`) va tur (localKind). */
+function errorPayload(e) {
+  if (e?.local) {
+    const localKind = e.status === 404 ? "not-found" : e.status ? "failed" : "unreachable";
+    // R2-5: CLI xabaridagi o'zbekcha "— o'rnatish: ollama pull …" maslahati UI tiliga tushmasin — faqat xom xato
+    // (sarlavha/tavsif/amallar err.local.* orqali UI tilida).
+    const raw = String(e.detail ?? e.message ?? "").replace(/\s*—\s*o'rnatish:.*$/s, "");
+    return { code: "local", localKind, message: localKind === "unreachable" ? "127.0.0.1:11434" : raw.slice(0, 300), status: e.status ?? null };
+  }
+  return { message: e?.message ?? String(e), code: e?.code ?? "server", status: e?.status ?? null, ...(e?.serverCode ? { serverCode: e.serverCode } : {}) };
+}
+
+// ---- Mahalliy model zaxirasi (§B.1) ---------------------------------------------
+// Sessiya bo'yicha mahalliy rejim (faqat ish vaqtida, diskka yozilmaydi):
+// {model, tools, vision, contextLength, maxContext, known, reason: "manual"|"fallback"} | null.
+
+/** Server xatosi → zaxira turi: user_limit | rate_limited | offline | server | null (auth/mintaqa — taklif yo'q). */
+function fallbackKind(e) {
+  if (!e || e.local) return null;
+  if (e.code === "offline" || e.code === "network") return "offline";
+  const kind = ollama.classifyServerError({ status: e.status, retryAfter: e.retryAfter, code: e.serverCode || "" });
+  return kind === "auth" ? null : kind;
+}
+
+function localEvent(spec, reason, extra = {}) {
+  return {
+    active: true,
+    model: spec.model,
+    tools: spec.tools === true,
+    vision: spec.vision === true,
+    reason,
+    // Full auto + mahalliy model — alohida tasdiqsiz Full auto pauza (tasdiqlar so'raladi).
+    fullAutoPaused: fullAutoEnabled() && !loadSettings().fullAutoLocal,
+    ...extra,
+  };
+}
+
+/**
+ * Limit/offline/server xatosida mahalliy model taklifi. `localFallback`:
+ *  - off  → hech narsa;
+ *  - auto → darhol (sozlamadagi yoki mos o'rnatilgan model);
+ *  - ask  → "local-offer" kartasi, javob `local:use({id, model|null, remember})` orqali (confirm naqshi).
+ * Ollama topilmasa / modeli yo'q — kutmaydigan "local-offer" (id: null): o'rnatish havolasi va tavsiya.
+ * @returns {Promise<object|null>} model spetsifikatsiyasi yoki null
+ */
+async function offerLocal(turn, kind) {
+  const s = loadSettings();
+  if (s.localFallback === "off") return null;
+  const list = await ollama.listModels({ withCaps: true, timeoutMs: 800 });
+  if (turn.aborted) return null;
+  const rec = ollama.recommendations();
+  const base = { kind, available: list.available, ramGb: ollama.ramGb(), recommend: rec };
+  if (!list.models.length) {
+    send("local-offer", { id: null, ...base, models: [], suggested: "" });
+    return null;
+  }
+  const suggested = ollama.pickDefault(list.models, s.localModel, rec);
+  let model = suggested;
+  if (s.localFallback !== "auto") {
+    const id = randomUUID();
+    const reply = await new Promise((resolve) => {
+      pendingChoices.set(id, { type: "local", resolve, models: new Set(list.models.map((m) => m.name)) });
+      send("local-offer", { id, ...base, models: list.models, suggested, fullAuto: fullAutoEnabled() });
+      attention();
     });
-  } catch (e) {
-    const err = new Error(e?.message || "network");
-    err.code = e?.message === "offline" ? "offline" : "network";
-    throw err;
+    if (turn.aborted || !reply) return null;
+    // "Keyingi safar so'rama": rozi bo'lsa — auto (shu model bilan), rad etsa — off.
+    if (reply.remember) updateFromRenderer(reply.model ? { localFallback: "auto" } : { localFallback: "off" });
+    if (!reply.model) return null;
+    model = reply.model;
   }
-  if (!res.ok) {
-    const e = await res.json().catch(() => ({}));
-    const err = new Error(e.error ?? `HTTP ${res.status}`);
-    err.code = res.status === 401 || res.status === 403 ? "auth" : res.status === 402 || res.status === 429 ? "limit" : "server";
-    err.status = res.status;
-    throw err;
+  const spec = await ollama.modelSpec(model);
+  if (turn.aborted || !spec) return null;
+  if (loadSettings().localModel !== model) updateFromRenderer({ localModel: model });
+  return { ...spec, reason: "fallback" };
+}
+
+/**
+ * Qadam xatosidan keyin: "retry" (5xx birinchi marta — serverni yana sinaymiz) |
+ * "local" (mahalliy modelga o'tildi — shu qadam qayta bajariladi) | null (xato ko'rsatiladi).
+ */
+async function recoverFromError(e, turn, state) {
+  if (turn.aborted || turn.local) return null;
+  const kind = fallbackKind(e);
+  if (!kind) {
+    state.server = 0;
+    return null;
   }
-  // `usage` — server yangi versiyada qaytaradi (yo'q bo'lsa — taxmin).
-  // `model` — haqiqatda javob bergan model (mustaqil hakam boshqa kompaniyadan tanlanishi uchun).
-  const { message, usage, model } = await res.json();
-  return { message, toolCalls: message.tool_calls ?? [], usage, model: typeof model === "string" ? model : null };
+  if (kind === "server" && ++state.server < 2) return "retry";
+  const spec = await offerLocal(turn, kind);
+  if (!spec || turn.aborted) return null;
+  turn.local = spec;
+  session.local = spec; // keyingi navbatlar ham mahalliy (foydalanuvchi bulutga qaytarishi mumkin)
+  send("local", localEvent(spec, "fallback", { kind, ...(turn.mode === "code" && !spec.tools ? { toolsOff: true } : {}) }));
+  return "local";
+}
+
+function progressFor(turn) {
+  return turn.local ? (chars) => send("local-progress", { chars }) : null;
 }
 
 /**
@@ -366,7 +543,8 @@ async function runRound(messages, config, withTools = true, signal = undefined) 
  */
 async function judgeTurn(entries, finalText, config, turn, answerModel) {
   const text = String(finalText ?? "").trim();
-  if (!text || !config?.token || !config?.baseUrl || !netAllowed(config.baseUrl) || turn.aborted) return null;
+  // Mahalliy rejimda hakam yo'q (serverga hech narsa ketmaydi) — ledger'da `local` bilan ochiq aytiladi.
+  if (!text || turn.local || !config?.token || !config?.baseUrl || !netAllowed(config.baseUrl) || turn.aborted) return null;
   const regexWarn = unsupportedClaim(text, entries) || testClaimIssue(text, entries);
   if (!shouldVerify(entries, regexWarn)) return null;
   const r = await verifyClaims(config, { answer: text, entries, signal: turn.controller.signal, answerModel: answerModel ?? undefined });
@@ -381,18 +559,20 @@ async function judgeTurn(entries, finalText, config, turn, answerModel) {
  *   "loop" (takroriy sikl — `loop`: {kind, target, count}) | "budget" (token byudjeti — `budget`: {used, limit}).
  * testWarning: "testlar o'tdi" da'vosi tasdiqlanmagan — {code: noTest|testFailed|stale, command?, files?}.
  * judge: mustaqil hakam natijasi — {unsupported: string[], vendor: "Alibaba (Qwen)" | null, vendorId} yoki null.
+ * local: mahalliy model nomi (mustaqil tekshiruv o'tkazilmadi — "mahalliy model") yoki null.
  */
-function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0, loop = null, budget = null, judge = null } = {}) {
+function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0, loop = null, budget = null, judge = null, local = null } = {}) {
   const warn = unsupportedClaim(finalText, entries);
   const testWarning = testClaimIssue(finalText, entries);
   const show = ledgerWorthShowing(entries);
   if (!show && !warn && !testWarning && !noteCode && !judge?.unsupported?.length) return;
-  send("ledger", { entries: show ? entries : [], warning: warn ?? null, testWarning, noteCode, maxSteps, loop, budget, judge });
+  send("ledger", { entries: show ? entries : [], warning: warn ?? null, testWarning, noteCode, maxSteps, loop, budget, judge, local });
 }
 
-/** Vazifa narxi: token va qadamlar (UI jurnal ostida ko'rsatadi). */
-function sendUsage(meter) {
-  if (meter.rounds) send("usage", meter.snapshot());
+/** Vazifa narxi: token va qadamlar (UI jurnal ostida ko'rsatadi). Mahalliy model — "server tokeni sarflanmadi". */
+function sendUsage(meter, turn = null) {
+  if (!meter.rounds) return;
+  send("usage", { ...meter.snapshot(), ...(turn?.local ? { local: turn.local.model, localRounds: turn.localRounds ?? 0 } : {}) });
 }
 
 /** Sozlamalardagi token byudjeti (0 — cheklovsiz). */
@@ -414,11 +594,13 @@ function uiArgs(args) {
 async function agentTurn(messages, config, turn) {
   // Full auto — navbat boshida o'qiladi: yoz → testla → tuzat sikli uchun ko'proq qadam;
   // qoida faqat so'rovga qo'shiladi (tarixga yozilmaydi).
-  const fullAuto = fullAutoActive();
-  const maxSteps = fullAuto ? 40 : 14;
+  // Qoida har qadamda qayta o'qiladi: mahalliy modelga o'tilsa (alohida tasdiqsiz) Full auto pauza.
+  const maxSteps = fullAutoActive() ? 40 : 14;
   const confirm = confirmFor(turn);
   let nudges = 0; // full auto: "vazifa tugamagan" avtomatik davom ettirishlar
   const nudgeState = {};
+  const fbState = { server: 0 }; // ketma-ket 5xx hisoblagichi (mahalliy zaxira uchun)
+  const localName = () => turn.local?.model ?? null;
   // signal: "To'xtatish" / yangi vazifa / papka almashtirish ishlayotgan buyruqni ham
   // (butun jarayon daraxti bilan) to'xtatadi — 120 s kutib qolmaydi.
   const tracker = createTurnTracker((name, args) => runToolWithUndo(name, args, confirm, { signal: turn.controller.signal }));
@@ -428,23 +610,33 @@ async function agentTurn(messages, config, turn) {
     if (turn.aborted) return "stopped";
     // Byudjet — keyingi model chaqiruvidan OLDIN (bajarilgan vositalar javobsiz qolmaydi).
     if (meter.over()) {
-      sendLedger(tracker.entries, { noteCode: "budget", budget: { used: meter.tokens, limit: meter.budget } });
-      sendUsage(meter);
+      sendLedger(tracker.entries, { noteCode: "budget", budget: { used: meter.tokens, limit: meter.budget }, local: localName() });
+      sendUsage(meter, turn);
       send("done");
       return "done";
     }
+    const fullAuto = fullAutoActive();
     let round;
     try {
-      const sent = fullAuto ? [...messages, { role: "system", content: FULL_AUTO_RULE }] : messages;
-      round = await runRound(sent, config, true, turn.controller.signal);
+      const sent = withTurnSystem(messages, turn, { fullAuto });
+      round = await runRound(sent, config, true, turn.controller.signal, turn.local, progressFor(turn));
       meter.add(round.usage, sent, round.message);
+      if (turn.local) turn.localRounds++;
     } catch (e) {
       if (turn.aborted) return "stopped";
-      sendLedger(tracker.entries, { noteCode: tracker.entries.length ? "error" : null });
-      sendUsage(meter);
-      send("error", { message: e.message, code: e.code ?? "server", status: e.status ?? null });
+      // Limit / offline / server yiqildi → mahalliy model zaxirasi yoki 5xx'da bitta qayta urinish.
+      const fb = await recoverFromError(e, turn, fbState);
+      if (turn.aborted) return "stopped";
+      if (fb) {
+        step--; // shu qadam qayta bajariladi (bajarilgan vositalar takrorlanmaydi)
+        continue;
+      }
+      sendLedger(tracker.entries, { noteCode: tracker.entries.length ? "error" : null, local: localName() });
+      sendUsage(meter, turn);
+      send("error", errorPayload(e));
       return "error";
     }
+    fbState.server = 0;
     if (turn.aborted) return "stopped"; // to'xtatilgan navbat hech narsa yubormaydi/bajarmaydi
     capToolCalls(round);
     messages.push(round.message);
@@ -468,8 +660,8 @@ async function agentTurn(messages, config, turn) {
       const finalText = round.message.content ?? "";
       const judge = await judgeTurn(tracker.entries, finalText, config, turn, round.model);
       if (turn.aborted) return "stopped";
-      sendLedger(tracker.entries, { finalText, judge });
-      sendUsage(meter);
+      sendLedger(tracker.entries, { finalText, judge, local: localName() });
+      sendUsage(meter, turn);
       send("done");
       return "done";
     }
@@ -505,15 +697,15 @@ async function agentTurn(messages, config, turn) {
     // DOOM LOOP: bir xil buyruq 3 marta yiqildi / bir xil fayl bir xil tarkib bilan qayta-qayta
     // yozildi — qadamlarni behuda yoqmasdan, halol izoh bilan to'xtaymiz.
     if (tracker.loop) {
-      sendLedger(tracker.entries, { noteCode: "loop", loop: tracker.loop });
-      sendUsage(meter);
+      sendLedger(tracker.entries, { noteCode: "loop", loop: tracker.loop, local: localName() });
+      sendUsage(meter, turn);
       send("done");
       return "done";
     }
   }
   if (turn.aborted) return "stopped";
-  sendLedger(tracker.entries, { noteCode: "steps", maxSteps });
-  sendUsage(meter);
+  sendLedger(tracker.entries, { noteCode: "steps", maxSteps, local: localName() });
+  sendUsage(meter, turn);
   send("done");
   return "done";
 }
@@ -523,32 +715,53 @@ const CHAT_MODE_NOTE =
   "Bu CHAT rejimi: senda vositalar YO'Q — bu javobda hech qanday fayl yozilmaydi, papka yaratilmaydi, buyruq bajarilmaydi. " +
   "'Yaratdim/yozdim/ishga tushirdim/saqladim' dema; kod yoki buyruqni matnda ber va foydalanuvchi uni o'zi qo'llashini (yoki Kod rejimiga o'tishini) ayt.";
 
+/**
+ * Faqat shu so'rovga qo'shiladigan system xabarlari (tarixga yozilmaydi): Chuqur so'rash addendum'i
+ * (/api/cli/inquiry), Full auto qoidasi, vositasiz mahalliy model uchun chat eslatmasi.
+ */
+function withTurnSystem(messages, turn, { fullAuto = false, chat = false } = {}) {
+  const extra = [];
+  if (chat || (turn.local && turn.local.tools !== true)) extra.push({ role: "system", content: CHAT_MODE_NOTE });
+  if (fullAuto && !chat) extra.push({ role: "system", content: FULL_AUTO_RULE });
+  if (turn.addendum) extra.push({ role: "system", content: turn.addendum });
+  return extra.length ? [...messages, ...extra] : messages;
+}
+
 /** Oddiy chat — vositasiz, bitta javob. */
 async function chatTurn(messages, config, turn) {
   let round;
   const meter = createUsageMeter(0);
-  try {
-    // Eslatma faqat shu so'rovga qo'shiladi (tarixga yozilmaydi).
-    const sent = [...messages, { role: "system", content: CHAT_MODE_NOTE }];
-    round = await runRound(sent, config, /*withTools=*/ false, turn.controller.signal);
-    meter.add(round.usage, sent, round.message);
-  } catch (e) {
-    if (turn.aborted) return "stopped";
-    send("error", { message: e.message, code: e.code ?? "server", status: e.status ?? null });
-    return "error";
+  const fbState = { server: 0 };
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const sent = withTurnSystem(messages, turn, { chat: true });
+      round = await runRound(sent, config, /*withTools=*/ false, turn.controller.signal, turn.local, progressFor(turn));
+      meter.add(round.usage, sent, round.message);
+      if (turn.local) turn.localRounds++;
+      break;
+    } catch (e) {
+      if (turn.aborted) return "stopped";
+      const fb = attempt < 3 ? await recoverFromError(e, turn, fbState) : null;
+      if (turn.aborted) return "stopped";
+      if (fb) continue;
+      send("error", errorPayload(e));
+      return "error";
+    }
   }
   if (turn.aborted) return "stopped";
   messages.push(round.message);
   if (round.message.content && round.message.content.trim()) {
     send("text", { text: round.message.content });
   }
-  sendUsage(meter);
+  sendUsage(meter, turn);
   send("done");
   return "done";
 }
 
 // ---- Sessiya holati ---------------------------------------------------------
-let session = { messages: [], config: null };
+// local — mahalliy (Ollama) rejim: null | {model, tools, vision, contextLength, ..., reason}.
+// Yangi vazifada ham saqlanadi (model tanlovi kabi); bulutga qaytish — local:use(null) yoki app:set-model.
+let session = { messages: [], config: null, local: null };
 
 function applyModelOverride(config) {
   const s = loadSettings();
@@ -580,6 +793,21 @@ function stateInfo() {
     task: currentTask ? metaOf(currentTask) : null,
     busy: !!activeTurn,
     update: updateState(),
+    local: publicLocal(),
+  };
+}
+
+/** Renderer uchun mahalliy rejim holati (badge, ModelPicker). */
+function publicLocal() {
+  const l = session.local;
+  if (!l) return null;
+  return {
+    model: l.model,
+    tools: l.tools === true,
+    vision: l.vision === true,
+    contextLength: l.contextLength || 0,
+    reason: l.reason ?? "manual",
+    fullAutoPaused: fullAutoEnabled() && !loadSettings().fullAutoLocal,
   };
 }
 
@@ -599,7 +827,7 @@ function setWorkspace(dir) {
   // Full auto faqat yoqilgan papkada: boshqa (ehtimol ishonchsiz) papka ochilsa — o'chadi.
   const s = loadSettings();
   if (s.fullAuto && !samePath(s.fullAutoFolder, dir)) {
-    updateInternal({ fullAuto: false, fullAutoFolder: "" });
+    updateInternal({ fullAuto: false, fullAutoFolder: "", fullAutoLocal: false });
     return true;
   }
   return false;
@@ -609,10 +837,19 @@ function samePath(a, b) {
   return !!a && !!b && a.replace(/[\\/]+$/, "").toLowerCase() === b.replace(/[\\/]+$/, "").toLowerCase();
 }
 
-/** Full auto hozir amaldami: yoqilgan VA aynan shu papka uchun yoqilgan. */
-function fullAutoActive() {
+/** Full auto yoqilganmi: yoqilgan VA aynan shu papka uchun yoqilgan. */
+function fullAutoEnabled() {
   const s = loadSettings();
   return !!(s.fullAuto && workspace && samePath(s.fullAutoFolder, workspace));
+}
+
+/**
+ * Full auto hozir amaldami. Mahalliy model rejimida — faqat alohida tasdiq bilan (`fullAutoLocal`):
+ * kichik model fayllardagi prompt-injection'ga zaifroq (§B.1), tasdiqsiz odatdagi tasdiq oynalari qaytadi.
+ */
+function fullAutoActive() {
+  if (!fullAutoEnabled()) return false;
+  return !session.local || loadSettings().fullAutoLocal === true;
 }
 
 function resetSession() {
@@ -679,6 +916,9 @@ const LINKS = {
   releases: "https://github.com/isa704480/Sovereign/releases",
   // macOS (imzosiz dmg avtomatik yangilanmaydi) — yangi versiya saytdan yuklanadi.
   download: "https://soveregn.xyz/#download",
+  // Mahalliy model (Ollama) — o'rnatish va modellar kutubxonasi.
+  ollama: "https://ollama.com/download",
+  ollamaLibrary: "https://ollama.com/library",
 };
 handle("app:open-link", async (_e, key) => {
   const url = LINKS[key];
@@ -687,10 +927,206 @@ handle("app:open-link", async (_e, key) => {
   return { ok: true };
 });
 
+// ---- Chuqur so'rash (Deep Inquiry) — §A.9 --------------------------------------
+// Yangi vazifaning BIRINCHI xabarida (tool-loop ichida hech qachon) /api/cli/inquiry chaqiriladi.
+// Javob "ask" bo'lsa — "inquiry" kartasi yuboriladi va foydalanuvchi javobi `inquiry:answer`
+// orqali kutiladi (confirm naqshi; To'xtatish — null). Har qanday xato/taymaut → oddiy javob (fail-open).
+// Mahalliy model, token yo'q, offline yoki inquiryMode=off → chaqirilmaydi.
+const INQUIRY_TIMEOUT_MS = 2500; // server blocking byudjeti 1200 ms + tarmoq
+const INQUIRY_MAX_ROUNDS = 2;
+const INQUIRY_MAX_BYTES = 200_000;
+const INQUIRY_DOMAINS = new Set(["legal", "medical", "financial", "code", "business", "personal", "education", "creative", "general"]);
+const INQUIRY_DECISIONS = new Set(["answer", "ask", "answer_then_ask"]);
+const INQUIRY_STAKES = new Set(["low", "medium", "high"]);
+const PROFESSIONALS = new Set(["lawyer", "doctor", "financial_advisor"]);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Bir qatorli oddiy matn: boshqaruv, nol-kenglik va bidi belgilari olib tashlanadi. */
+function plainLine(v, max) {
+  if (typeof v !== "string") return "";
+  return v
+    .replace(/[\x00-\x1f\x7f-\x9f\u200b-\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069\ufeff]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+/**
+ * Model yozgan savol matni (R1): markdown belgilari va "://" li har qanday bo'lak (havola) olib tashlanadi —
+ * savol matni "Clarification:" blokida user xabariga ko'chadi, havola agent tomonidan o'qilmasin.
+ */
+function modelLine(v, max) {
+  if (typeof v !== "string") return "";
+  let s = v;
+  for (let i = 0; i < 4; i++) {
+    const next = s.replace(/[*`|~]+|_{2,}/g, "").replace(/\S*:\/\/\S*/g, " ");
+    if (next === s) break;
+    s = next;
+  }
+  return plainLine(s.replace(/:\/\//g, " "), max);
+}
+
+/** Server javobini qayta tekshiradi (server ham tozalaydi — bu himoyaning ikkinchi qatlami). */
+function normalizeInquiry(j) {
+  if (!j || typeof j !== "object" || !INQUIRY_DECISIONS.has(j.decision)) return null;
+  const questions = [];
+  for (const q of Array.isArray(j.questions) ? j.questions.slice(0, 5) : []) {
+    const text = modelLine(q?.text, 200);
+    if (!text) continue;
+    const options = (Array.isArray(q.options) ? q.options.slice(0, 6) : []).map((o) => modelLine(o, 60)).filter(Boolean);
+    const kind = options.length ? (q.kind === "multi" ? "multi" : "single") : "text";
+    questions.push({ id: `q${questions.length + 1}`, slot: plainLine(q.slot, 40) || "other", text, why: modelLine(q.why, 160), kind, options, critical: q.critical === true });
+  }
+  const addendum = typeof j.addendum === "string" ? j.addendum.replace(/[\x00-\x08\x0b-\x1f\x7f\u202a-\u202e\u2066-\u2069]/g, "").slice(0, 8000) : "";
+  return {
+    decision: j.decision,
+    inquiryId: typeof j.inquiryId === "string" && UUID_RE.test(j.inquiryId) ? j.inquiryId : randomUUID(),
+    domain: INQUIRY_DOMAINS.has(j.domain) ? j.domain : "general",
+    stakes: INQUIRY_STAKES.has(j.stakes) ? j.stakes : "low",
+    goal: modelLine(j.goal, 160),
+    questions,
+    assumptions: (Array.isArray(j.assumptions) ? j.assumptions.slice(0, 6) : []).map((a) => modelLine(a, 160)).filter(Boolean),
+    blocking: j.blocking === true,
+    round: Number.isInteger(j.round) && j.round >= 1 && j.round <= 3 ? j.round : 1,
+    emergency: j.emergency === true,
+    professional: PROFESSIONALS.has(j.professional) ? j.professional : null,
+    addendum,
+  };
+}
+
+/** Kontekst (≤4000): papka tuzilmasi (to'liq yo'lsiz) + SOVEREIGN.md boshi — "stack" kabi faktlar qayta so'ralmasin. */
+function inquiryContext() {
+  if (!workspace) return "";
+  let ctx = "";
+  try {
+    ctx = contextSummary().replace(/^[^\n]*\n/, "").slice(0, 2500);
+    const pm = projectMemory.readProjectMemory(workspace);
+    if (pm?.content) ctx += `\n\nSOVEREIGN.md:\n${String(pm.content).slice(0, 1400)}`;
+  } catch {
+    /* kontekstsiz ham ishlaydi */
+  }
+  return ctx.slice(0, 4000);
+}
+
+async function fetchInquiry(config, turn, payload) {
+  const url = `${config.baseUrl.replace(/\/$/, "")}/api/cli/inquiry`;
+  if (!config.token || !netAllowed(url)) return null;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      signal: AbortSignal.any([turn.controller.signal, AbortSignal.timeout(INQUIRY_TIMEOUT_MS)]),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      await res.body?.cancel().catch(() => {});
+      return null;
+    }
+    const text = await res.text();
+    if (text.length > INQUIRY_MAX_BYTES) return null;
+    return normalizeInquiry(JSON.parse(text));
+  } catch {
+    return null; // taymaut / tarmoq / JSON — fail-open
+  }
+}
+
+/** Renderer'ga "inquiry" hodisasi (web InquiryEvent bilan bir xil + `blocking`). */
+function inquiryEvent(r, phase) {
+  return {
+    inquiryId: r.inquiryId,
+    phase,
+    round: r.round,
+    domain: r.domain,
+    stakes: r.stakes,
+    goal: r.goal,
+    questions: phase === "followup" ? r.questions.slice(0, 3) : r.questions,
+    assumptions: r.assumptions,
+    blocking: r.blocking,
+    ...(r.professional ? { professional: r.professional } : {}),
+  };
+}
+
+function waitInquiry(turn, ev) {
+  if (turn.aborted) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    pendingChoices.set(ev.inquiryId, { type: "inquiry", resolve, questions: ev.questions });
+    send("inquiry", ev);
+    attention();
+  });
+}
+
+/** Renderer javobi → [{q, value}] — savol matni main'dagi nusxadan (renderer bergan matn ishlatilmaydi). */
+function inquiryAnswerLines(questions, raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+  const out = [];
+  for (const q of questions) {
+    if (!Object.hasOwn(raw, q.id)) continue;
+    const v = raw[q.id];
+    const vals = (Array.isArray(v) ? v.slice(0, 6) : [v]).map((x) => plainLine(x, 400)).filter(Boolean);
+    if (!vals.length) continue;
+    out.push({ q, value: vals.join(", ").slice(0, 400) });
+  }
+  return out;
+}
+
+function clarificationText(lines, total) {
+  const rows = lines.map(({ q, value }) => `- ${q.text} — ${value}`);
+  return [mt("inquiry.clarify"), ...rows, ...(lines.length < total ? [mt("inquiry.assumeRest")] : [])].join("\n");
+}
+
+/**
+ * Rejalashtirish bosqichi. Qaytaradi: {addendum, followup} yoki null (navbat to'xtatildi).
+ * Javoblar birinchi user xabariga "Aniqlashtirish:" bloki sifatida qo'shiladi (modelga shu ketadi)
+ * va UI'da alohida user pufakchasi bo'lib ko'rinadi.
+ */
+async function inquiryStep(turn, messages, userIndex, mode) {
+  const none = { addendum: "", followup: null };
+  const s = loadSettings();
+  const config = session.config;
+  if (s.inquiryMode === "off" || turn.local || !config?.token || !config?.baseUrl) return none;
+  const context = inquiryContext();
+  const askedSlots = [];
+  for (let round = 0; ; round++) {
+    const content = String(messages[userIndex]?.content ?? "").slice(0, 8000);
+    if (!content.trim()) return none;
+    const r = await fetchInquiry(config, turn, {
+      messages: [{ role: "user", content }],
+      surface: "cowork",
+      mode,
+      fullAuto: fullAutoActive(),
+      lang: mainLang(),
+      inquiryMode: s.inquiryMode,
+      round,
+      askedSlots: askedSlots.slice(-20),
+      ...(context ? { context } : {}),
+    });
+    if (turn.aborted) return null;
+    if (!r) return none;
+    if (r.decision !== "ask" || !r.questions.length || round >= INQUIRY_MAX_ROUNDS) {
+      const followup = r.decision === "answer_then_ask" && r.questions.length ? inquiryEvent(r, "followup") : null;
+      return { addendum: r.addendum, followup };
+    }
+    const ev = inquiryEvent(r, "ask");
+    const reply = await waitInquiry(turn, ev);
+    if (turn.aborted || !reply) return null;
+    if (reply.skip) {
+      // "Taxmin bilan javob ber" — ask javobidagi addendum aynan shu holat uchun.
+      send("inquiry-state", { inquiryId: ev.inquiryId, state: "skipped" });
+      return { addendum: r.addendum, followup: null };
+    }
+    const block = clarificationText(reply.lines, ev.questions.length);
+    messages[userIndex] = { ...messages[userIndex], content: `${messages[userIndex].content}\n\n${block}` };
+    send("inquiry-state", { inquiryId: ev.inquiryId, state: "answered" });
+    send("user", { text: block, mode, inquiry: true });
+    for (const q of ev.questions) if (!askedSlots.includes(q.slot)) askedSlots.push(q.slot);
+  }
+}
+
 on("agent:send", async (_e, payload) => {
   const { text, mode, retry } = typeof payload === "string" ? { text: payload, mode: "code" } : (payload ?? {});
   const m = mode === "chat" ? "chat" : "code";
-  if (!session.config?.token) {
+  // Mahalliy rejimda server kerak emas — kirmagan foydalanuvchi ham ishlata oladi.
+  if (!session.config?.token && !session.local) {
     send("error", { code: "auth", message: "not-signed-in" });
     return;
   }
@@ -713,16 +1149,29 @@ on("agent:send", async (_e, payload) => {
   currentTask.updatedAt = Date.now();
   send("task", { task: metaOf(currentTask) });
 
-  const turn = { aborted: false, controller: new AbortController() };
+  // Vositasiz mahalliy model — Kod rejimi Chat'ga tushadi (tushuntirish `local` hodisasida: toolsOff).
+  const local = session.local;
+  const runMode = local && m === "code" && local.tools !== true ? "chat" : m;
+  const turn = { aborted: false, controller: new AbortController(), local, localRounds: 0, addendum: "", mode: runMode };
   activeTurn = turn;
   const messages = session.messages;
+  const firstOfTask = !messages.some((x) => x.role === "user");
   if (!retry) {
     messages.push({ role: "user", content: body });
     send("user", { text: body, mode: m });
   }
+  if (local) send("local", localEvent(local, local.reason ?? "manual", runMode !== m ? { toolsOff: true } : {}));
   let outcome = "error";
   try {
-    outcome = m === "chat" ? await chatTurn(messages, session.config, turn) : await agentTurn(messages, session.config, turn);
+    const inq = !retry && firstOfTask ? await inquiryStep(turn, messages, messages.length - 1, m) : { addendum: "", followup: null };
+    if (!inq || turn.aborted) {
+      outcome = "stopped";
+    } else {
+      turn.addendum = inq.addendum || "";
+      outcome = runMode === "chat" ? await chatTurn(messages, session.config, turn) : await agentTurn(messages, session.config, turn);
+      // answer_then_ask — javobdan keyin follow-up chip'lar (chip bosilsa — oddiy yangi xabar).
+      if (outcome === "done" && inq.followup && !turn.aborted && !turn.local) send("inquiry", inq.followup);
+    }
   } catch (e) {
     send("error", { code: "server", message: e?.message ?? String(e) });
   } finally {
@@ -780,6 +1229,73 @@ on("agent:remember", (_e, fact) => {
   if (session.config && netAllowed(session.config.baseUrl)) addMemory(session.config, String(fact));
 });
 
+// ---- Chuqur so'rash: karta javobi --------------------------------------------
+// {id, answers: {q1: "…", q2: ["a","b"]}, skip?} — savol matni main'dagi nusxadan olinadi.
+handle("inquiry:answer", async (_e, msg) => {
+  const { id, answers, skip } = msg && typeof msg === "object" ? msg : {};
+  const p = typeof id === "string" && id.length <= 64 ? pendingChoices.get(id) : null;
+  if (!p || p.type !== "inquiry") return { ok: false, error: "not-found" };
+  pendingChoices.delete(id);
+  const lines = skip === true ? [] : inquiryAnswerLines(p.questions, answers);
+  p.resolve({ skip: !lines.length, lines });
+  return { ok: true, answered: lines.length };
+});
+
+// ---- Mahalliy model (Ollama) -----------------------------------------------------
+// Faqat 127.0.0.1:11434 (desktop/electron/ollama.mjs). Renderer URL bera olmaydi; model nomi
+// regex bilan tekshiriladi va o'rnatilganlar ro'yxatida bo'lishi shart.
+handle("local:status", async () => {
+  const s = loadSettings();
+  const list = await ollama.listModels({ withCaps: false, timeoutMs: 800 });
+  return {
+    available: list.available,
+    version: list.version,
+    models: list.models,
+    ramGb: ollama.ramGb(),
+    recommend: ollama.recommendations(),
+    contextEnv: ollama.envContextLength(),
+    active: publicLocal(),
+    localFallback: s.localFallback,
+    localModel: s.localModel,
+  };
+});
+
+handle("local:models", async () => {
+  const list = await ollama.listModels({ withCaps: true, timeoutMs: 1500 });
+  return { available: list.available, version: list.version, models: list.models, ramGb: ollama.ramGb(), recommend: ollama.recommendations(), active: publicLocal() };
+});
+
+// {model: string|null, id?: string, remember?: boolean}
+//  - id bor: "local-offer" kartasiga javob (model null — rad; remember — "Keyingi safar so'rama");
+//  - id yo'q: qo'lda almashtirish (model null — bulutga qaytish). Navbat ishlayotganda — busy.
+handle("local:use", async (_e, arg) => {
+  const a = arg && typeof arg === "object" ? arg : { model: arg };
+  const model = a.model == null || a.model === "" ? null : a.model;
+  if (model !== null && !ollama.isValidModelName(model)) return { ok: false, error: "bad-model" };
+  if (a.id != null) {
+    const p = typeof a.id === "string" ? pendingChoices.get(a.id) : null;
+    if (!p || p.type !== "local") return { ok: false, error: "not-found" };
+    if (model && !p.models.has(model)) return { ok: false, error: "not-installed" };
+    pendingChoices.delete(a.id);
+    p.resolve({ model, remember: a.remember === true });
+    return { ok: true };
+  }
+  if (activeTurn) return { ok: false, error: "busy" };
+  if (!model) {
+    session.local = null;
+    return { ok: true, local: null };
+  }
+  const st = await ollama.detect(1500);
+  if (!st.available) return { ok: false, error: "unavailable" };
+  if (!st.models.some((m) => m.name === model)) return { ok: false, error: "not-installed" };
+  const spec = await ollama.modelSpec(model);
+  if (!spec) return { ok: false, error: "bad-model" };
+  if (activeTurn) return { ok: false, error: "busy" };
+  session.local = { ...spec, reason: "manual" };
+  updateFromRenderer({ localModel: model });
+  return { ok: true, local: publicLocal() };
+});
+
 handle("app:new-task", async () => {
   resetSession();
   return { ok: true, history: listTasks() };
@@ -827,7 +1343,10 @@ handle("history:clear", async () => {
 handle("settings:set", async (_e, patch) => {
   const s = updateFromRenderer(patch);
   // Full auto shu (joriy) papkaga bog'lanadi; o'chirilsa — bog'lanish ham o'chadi.
-  if (patch && "fullAuto" in patch) updateInternal({ fullAutoFolder: s.fullAuto ? workspace ?? "" : "" });
+  // Full auto o'chsa — "Full auto + mahalliy model" tasdig'i ham bekor bo'ladi.
+  if (patch && "fullAuto" in patch) updateInternal({ fullAutoFolder: s.fullAuto ? workspace ?? "" : "", ...(s.fullAuto ? {} : { fullAutoLocal: false }) });
+  // R1: "Full auto + mahalliy model" faqat Full auto shu papkada yoqilgan bo'lsa (tasdiq faqat renderer'da emas).
+  if (loadSettings().fullAutoLocal === true && !fullAutoEnabled()) updateInternal({ fullAutoLocal: false });
   if (patch && "theme" in patch) applyTheme();
   if (patch && "lang" in patch) buildAppMenu(); // menyu yorliqlari ham darhol yangi tilda
   if (patch && "model" in patch && session.config) session.config.omniModel = s.model || loadConfig().omniModel || "";
@@ -980,7 +1499,9 @@ handle("app:set-model", async (_e, id, label) => {
   const lbl = typeof label === "string" ? label.slice(0, 200) : "";
   updateFromRenderer({ model: id || "", modelLabel: id ? lbl : "" });
   if (session.config) session.config.omniModel = id || loadConfig().omniModel || "";
-  return { ok: true, model: modelLabel() };
+  // Bulut modeli tanlandi — mahalliy rejimdan chiqiladi (navbat ishlayotgan bo'lmasa).
+  if (!activeTurn) session.local = null;
+  return { ok: true, model: modelLabel(), local: publicLocal() };
 });
 
 // Model katalogi — renderer tashqi serverga to'g'ridan-to'g'ri ulanmasin (CSP

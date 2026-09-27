@@ -125,6 +125,8 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
   const setReducedMotion = useChat((s) => s.setReducedMotion);
   const autoScroll = useChat((s) => s.autoScroll);
   const setAutoScroll = useChat((s) => s.setAutoScroll);
+  const inquiryMode = useChat((s) => s.inquiryMode);
+  const setInquiryMode = useChat((s) => s.setInquiryMode);
   const lang = useChat((s) => s.lang);
   const setLang = useChat((s) => s.setLang);
   const t = useT();
@@ -337,6 +339,19 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                 </Row>
                 <Row title={t("autoScrollTitle")} desc={t("autoScrollDesc")}>
                   <Toggle on={autoScroll} onChange={setAutoScroll} label={t("autoScrollTitle")} />
+                </Row>
+                {/* Chuqur so'rash (docs/INQUIRY.md §A.7): auto (standart) / always / off. */}
+                <Row title={t("p14iSettingTitle")} desc={t("p14iSettingDesc")}>
+                  <Segmented
+                    label={t("p14iSettingTitle")}
+                    value={inquiryMode}
+                    options={[
+                      { value: "auto", label: t("p14iModeAuto"), aria: t("p14iModeAutoAria") },
+                      { value: "always", label: t("p14iModeAlways"), aria: t("p14iModeAlwaysAria") },
+                      { value: "off", label: t("p14iModeOff"), aria: t("p14iModeOffAria") },
+                    ]}
+                    onChange={setInquiryMode}
+                  />
                 </Row>
               </div>
 

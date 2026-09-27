@@ -1,4 +1,6 @@
+import { totalmem } from "node:os";
 import { c } from "./ui.mjs";
+import { detect, capabilities, recommend, isValidModelName } from "./ollama.mjs";
 
 /**
  * Kod-agent uchun ideal modellar. Server-mode (account) da server bu ID'ni
@@ -28,7 +30,76 @@ export const CLI_MODELS = [
   { id: "anthropic/claude-3.5-haiku",          label: "Claude 3.5 Haiku",    note: "arzon Anthropic" },
 ];
 
-export function printModels(current) {
+/** Mahalliy model identifikatori prefiksi: `/model local:qwen2.5-coder:7b`. */
+export const LOCAL_PREFIX = "local:";
+
+/** "local:<nom>" yoki "ollama:<nom>" → model nomi; aks holda null. */
+export function parseLocalModelId(input) {
+  const s = String(input ?? "").trim();
+  const m = /^(?:local|ollama):(.+)$/i.exec(s);
+  if (!m) return null;
+  return isValidModelName(m[1]) ? m[1] : null;
+}
+
+/**
+ * O'rnatilgan mahalliy modellar + (ixtiyoriy) har birining imkoniyatlari.
+ * Faqat loopback (ollama.mjs); hech narsa yuklab olinmaydi.
+ * @returns {Promise<{available: boolean, version: string|null, models: object[]}>}
+ */
+export async function fetchLocalModels({ withCaps = true, timeoutMs = 800 } = {}) {
+  const d = await detect(timeoutMs);
+  if (!d.available || !withCaps) return d;
+  const list = d.models.slice(0, 16);
+  const caps = await Promise.all(list.map((m) => capabilities(m.name, 1500)));
+  return { ...d, models: list.map((m, i) => ({ ...m, ...caps[i] })) };
+}
+
+function gb(bytes) {
+  return bytes > 0 ? (bytes / 1024 ** 3).toFixed(1) + " GB" : "";
+}
+
+/** "Mahalliy (Ollama)" bo'limi: o'rnatilgan modellar yoki o'rnatish ko'rsatmasi. */
+export function printLocalModels(local, currentLocal = "") {
+  console.log(`
+  ${c.bold(c.white("Mahalliy (Ollama)"))}  ${c.dim("— kompyuteringizda, server tokeni sarflanmaydi")}
+`);
+  if (!local?.available) {
+    const rec = recommend(totalmem() / 1024 ** 3, 0);
+    console.log(`  ${c.dim("Ollama topilmadi (127.0.0.1:11434).")} ${c.dim("O'rnatish:")} ${c.white("https://ollama.com/download")}`);
+    if (rec.length) {
+      console.log(`  ${c.dim("Kompyuteringizga tavsiya:")} ${c.white("ollama pull " + rec[0].name)}  ${c.gray("— " + rec[0].why)}`);
+      console.log(`  ${c.dim(rec[0].quality)}`);
+    }
+    console.log("");
+    return;
+  }
+  if (!local.models.length) {
+    const rec = recommend(totalmem() / 1024 ** 3, 0);
+    console.log(`  ${c.dim("Ollama ishlayapti, lekin model o'rnatilmagan.")} ${c.dim("Buyruq:")} ${c.white("ollama pull " + (rec[0]?.name ?? "qwen2.5-coder:7b"))}
+`);
+    return;
+  }
+  for (const m of local.models) {
+    const active = m.name === currentLocal;
+    const mark = active ? c.green("●") : c.dim("○");
+    const caps = [m.tools ? "🔧" : "", m.vision ? "👁" : ""].filter(Boolean).join(" ");
+    const meta = [m.paramSize, m.quant, gb(m.size)].filter(Boolean).join(" · ");
+    console.log(`  ${mark} ${c.white((LOCAL_PREFIX + m.name).padEnd(40))} ${c.gray(caps.padEnd(6))} ${c.dim(meta)}`);
+  }
+  const noTools = local.models.some((m) => m.tools === false);
+  if (noTools) console.log(`
+  ${c.dim("🔧 belgisiz modellar vositalarni (fayl/buyruq) qo'llamaydi — faqat suhbat rejimi.")}`);
+  console.log(`
+  ${c.dim("Tanlash:")} ${c.white("/model " + LOCAL_PREFIX + local.models[0].name)}   ${c.dim("· mahalliy model sifati bulut modellaridan past bo'lishi mumkin")}
+`);
+}
+
+/**
+ * @param {string} current     joriy server/OpenRouter model id
+ * @param {object} [local]     fetchLocalModels() natijasi — berilsa "Mahalliy (Ollama)" bo'limi ham chiqadi
+ * @param {string} [currentLocal] joriy mahalliy model nomi
+ */
+export function printModels(current, local, currentLocal = "") {
   console.log(`\n  ${c.bold(c.white("Modellar"))}  ${c.dim("(/model <id> yoki qisqa nom bilan)")}\n`);
   const autoOn = !current;
   console.log(`  ${autoOn ? c.green("●") : c.dim("○")} ${c.white("SOVEREIGN Auto".padEnd(22))} ${c.dim("/model auto".padEnd(38))}  ${c.gray("— ★ tavsiya: server o'zi eng mosini tanlaydi")}`);
@@ -37,7 +108,8 @@ export function printModels(current) {
     const mark = active ? c.green("●") : c.dim("○");
     console.log(`  ${mark} ${c.white(m.label.padEnd(22))} ${c.dim(m.id.padEnd(38))}  ${c.gray("— " + m.note)}`);
   }
-  console.log(`\n  ${c.dim("Misol:")} ${c.white("/model claude")}   yoki   ${c.white("/model openai/gpt-4o")}\n`);
+  if (local) printLocalModels(local, currentLocal);
+  console.log(`\n  ${c.dim("Misol:")} ${c.white("/model claude")}   yoki   ${c.white("/model openai/gpt-4o")}   yoki   ${c.white("/model " + LOCAL_PREFIX + "qwen2.5-coder:7b")}\n`);
 }
 
 /** OmniRoute id — har doim "provider/model" ko'rinishida (slash bor). */
@@ -124,6 +196,8 @@ export function printCatalog(data, query, current) {
 
 /** Resolve a short name or partial id to a full model id. */
 export function resolveModelId(input) {
+  // Mahalliy model ("local:<nom>") — o'zgarishsiz qaytadi; chaqiruvchi parseLocalModelId bilan ajratadi.
+  if (parseLocalModelId(input)) return input.trim();
   const q = input.trim().toLowerCase();
   const exact = CLI_MODELS.find((m) => m.id.toLowerCase() === q);
   if (exact) return exact.id;
