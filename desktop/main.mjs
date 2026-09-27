@@ -26,6 +26,7 @@ import {
   classifyCommand,
   fullAutoDenyReason,
   fullAutoNudge,
+  stallNudge,
   FULL_AUTO_MAX_NUDGES,
   FULL_AUTO_RULE,
   HONESTY_RULE,
@@ -121,6 +122,7 @@ const SYSTEM = [
   "Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (asosan o'zbek).",
   "Vazifa tushunarli bo'lsa DARHOL bajar: aytilmagan tafsilotlarga (uslub, tuzilma, nom) oqilona standart tanla va oxirida qanday taxmin qilganingni 1 qatorda ayt. Faqat natija foydalanuvchiga xos ma'lumotga bog'liq bo'lsa (uning ismi, aniq raqamlari, kalit, qaysi fayl yoki yo'l) 1-3 ta qisqa savol ber — bir vazifaga bir marta; foydalanuvchi javob bergan yoki \"qil/davom et\" degan bo'lsa, qayta so'ramay bajar.",
   "Har qadamda nima qilayotganingni QISQA tushuntir; avval reja, keyin vositani chaqir.",
+  "Foydalanuvchidan 'davom et' deb yozishni SO'RAMA — vazifa berilgan bo'lsa, shu javobning o'zida vositani chaqir. Ism o'ylab topma: foydalanuvchiga faqat u o'zi aytgan ism bilan murojaat qil.",
   "Kod toza, ishlaydigan va xavfsiz bo'lsin. Ish tugagach vosita natijalari TASDIQLAGAN ishni 1-2 gapda xulosala.",
   HONESTY_RULE,
   FAILURE_EXPLAIN_RULE,
@@ -311,6 +313,14 @@ function forServer(messages) {
   return [...system, ...tail];
 }
 
+/** Bitta javobda bajariladigan vosita chaqiruvlari (server 32 tagacha qabul qiladi). Qolganini model keyingi qadamda so'raydi. */
+const MAX_TOOL_CALLS = 16;
+function capToolCalls(round) {
+  if (round.toolCalls.length <= MAX_TOOL_CALLS) return;
+  round.toolCalls = round.toolCalls.slice(0, MAX_TOOL_CALLS);
+  round.message = { ...round.message, tool_calls: round.toolCalls };
+}
+
 async function runRound(messages, config, withTools = true, signal = undefined) {
   const url = `${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`;
   if (!netAllowed(url)) {
@@ -436,6 +446,7 @@ async function agentTurn(messages, config, turn) {
       return "error";
     }
     if (turn.aborted) return "stopped"; // to'xtatilgan navbat hech narsa yubormaydi/bajarmaydi
+    capToolCalls(round);
     messages.push(round.message);
     if (round.message.content && round.message.content.trim()) {
       send("text", { text: round.message.content });
@@ -446,6 +457,12 @@ async function agentTurn(messages, config, turn) {
       if (nudge) {
         nudges++;
         messages.push({ role: "user", content: nudge });
+        continue;
+      }
+      // Oddiy rejimda ham: "davom et deb yozing" bilan to'xtagan bo'lsa — bir marta o'zi boshlaydi.
+      const stall = stallNudge(tracker.entries, round.message.content ?? "", nudgeState);
+      if (stall) {
+        messages.push({ role: "user", content: stall });
         continue;
       }
       const finalText = round.message.content ?? "";

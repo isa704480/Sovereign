@@ -407,6 +407,21 @@ export function fullAutoNudge(entries, finalText, state = {}) {
   return null;
 }
 
+/** Model foydalanuvchidan "davom et" deb yozishni so'rab, hech narsa qilmay to'xtadi (uz/ru/en). */
+const ASKS_TO_CONTINUE =
+  /(?:davom et(?:tir)?|boshla|(?<![a-z'ʻ])ha)["»”']?\s*(?:deb|deya)\s*(?:yozing|yozsangiz|yuboring|ayting)|(?:давом эт|бошла|ҳа)["»”']?\s*(?:деб|дея)\s*(?:ёзинг|ёзсангиз|айтинг)|(?:напишите|скажите)\s*["«„]?(?:продолж|да["»”]|начина)|\b(?:type|say|reply)\s*["'“]?(?:continue|go|yes)\b/i;
+
+/**
+ * Oddiy rejimda ham: model vositasiz "davom et deb yozing" bilan to'xtasa — bir marta o'zi davom etadi.
+ * Foydalanuvchi vazifani allaqachon bergan; qo'shimcha "davom et" faqat token va vaqtni yeydi.
+ */
+export function stallNudge(entries, finalText, state = {}) {
+  if (state.stallNudged) return null;
+  if (!ASKS_TO_CONTINUE.test(String(finalText ?? ""))) return null;
+  state.stallNudged = true;
+  return "[Avtomatik eslatma] Foydalanuvchidan 'davom et' deb yozishni so'rama — vazifa allaqachon berilgan. Hozir birinchi kerakli vositani chaqirib ishni boshla. Vazifa haqiqatan noaniq bo'lsa, bitta aniq savol ber.";
+}
+
 /** FULL AUTO'da ham rad etiladigan buyruq bo'lsa — sababi (o'zbekcha), aks holda null. */
 export function fullAutoDenyReason(command) {
   const cmd = String(command ?? "");

@@ -153,7 +153,9 @@ const messageSchema = z.object({
   role: z.enum(["user", "assistant", "system", "tool"]),
   content: z.union([z.string().max(40_000), z.array(contentPart).max(12), z.null()]).optional(),
   tool_call_id: z.string().max(200).optional(),
-  tool_calls: z.array(z.any()).max(8).optional(),
+  // Model bitta javobda bir nechta faylni parallel yozishi mumkin (9+ chaqiruv) — 8 chegarasi
+  // keyingi so'rovni 400 bilan buzardi. Chiqishda MAX_TOOL_CALLS_OUT ga kesiladi, kirish zaxira bilan.
+  tool_calls: z.array(z.any()).max(32).optional(),
   name: z.string().max(100).optional(),
 });
 const toolSchema = z.object({
@@ -394,7 +396,7 @@ export async function POST(req: Request) {
     return Response.json({ error: t("secAllProvidersBusy") }, { status: 502 });
   }
 
-  const message = outcome.message ?? { role: "assistant", content: "" };
+  const message = capToolCalls(outcome.message ?? { role: "assistant", content: "" });
   await recordCliUsage(userId, outcome.model, outcome.usage, raw.length, message);
   // `usage` — mijoz (CLI/Cowork) har vazifa qancha token sarflaganini ko'rsatadi va
   // --budget'ni tekshiradi. Qo'shimcha maydon: eski mijozlar e'tiborsiz qoldiradi.
@@ -411,6 +413,14 @@ export async function POST(req: Request) {
     // Shaffoflik: tanlangan model mintaqada yopiq edi — boshqa model javob berdi (eski mijozlar e'tiborsiz qoldiradi).
     ...(regionSwapped && chosen ? { requested: chosen, region: country, notice: t("p10RegionUnavailable") } : {}),
   });
+}
+
+/** Bitta javobdagi vosita chaqiruvlari soni. Qolganini model keyingi qadamda qayta so'raydi. */
+const MAX_TOOL_CALLS_OUT = 16;
+function capToolCalls(message: unknown): unknown {
+  const m = message as { tool_calls?: unknown } | null;
+  if (!m || !Array.isArray(m.tool_calls) || m.tool_calls.length <= MAX_TOOL_CALLS_OUT) return message;
+  return { ...m, tool_calls: m.tool_calls.slice(0, MAX_TOOL_CALLS_OUT) };
 }
 
 type CliMessages = z.infer<typeof schema>["messages"];
