@@ -11,6 +11,7 @@ import {
   PROVIDER_POLICY,
   REGION_EQUIVALENTS,
   REGION_SAFE,
+  REGION_SAFE_CF,
   regionClassOf,
   regionDecision,
   regionEquivalents,
@@ -154,7 +155,7 @@ test("host qoidasi: NVIDIA NIM, LLM7, Mistral, noma'lum shlyuz — Rossiyada yop
   for (const h of ["nvidia", "llm7", "mistral", "openai", "rsi", "experiential", "gateway", "no-such-host"]) {
     assert.ok(!hostAllowedIn(h, "RU"), h);
   }
-  for (const h of ["groq", "openrouter", "cerebras", "sambanova", "omniroute", "tella"]) assert.ok(hostAllowedIn(h, "RU"), h);
+  for (const h of ["groq", "cloudflare", "openrouter", "cerebras", "sambanova", "omniroute", "tella"]) assert.ok(hostAllowedIn(h, "RU"), h);
   assert.ok(!hostAllowedIn("groq", "IR"));
   assert.ok(hostAllowedIn("nvidia", "UZ"));
 });
@@ -201,6 +202,46 @@ test("regionEquivalents: tarif chegarasi va mavjudlik hisobga olinadi", () => {
   assert.equal(regionEquivalents("mistral/codestral-latest", "RU", { tierAllowed: planUpTo("starter") })[0], REGION_SAFE.deepseek);
   // Embargo — tashqi provayderlarning hech biri yo'q.
   assert.deepEqual(regionEquivalents("gpt-4o", "IR", { tier: "pro" }), []);
+});
+
+test("Cloudflare: AQSh hosti — faqat OFAC embargosida yopiq; ochiq og'irlikli modellari RU/BY/CN da ochiq", () => {
+  assert.ok(hostAllowedIn("cloudflare", "RU") && hostAllowedIn("cloudflare", "BY") && hostAllowedIn("cloudflare", "CN"));
+  for (const c of ["IR", "KP", "SY", "CU"]) assert.ok(!hostAllowedIn("cloudflare", c), c);
+  const owners: [string, string][] = [
+    [REGION_SAFE_CF.deepseekPro, "deepseek"],
+    [REGION_SAFE_CF.deepseekFlash, "deepseek"],
+    [REGION_SAFE_CF.kimi, "moonshot"],
+    [REGION_SAFE_CF.kimiCode, "moonshot"],
+    [REGION_SAFE_CF.glm, "zhipu"],
+    [REGION_SAFE_CF.qwen, "alibaba"],
+    [REGION_SAFE_CF.gptOss, "openweight"],
+    ["cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast", "meta"],
+  ];
+  for (const [id, owner] of owners) {
+    assert.equal(policyOwner(id), owner, id);
+    for (const c of ["RU", "BY", "CN"]) assert.ok(modelAllowedIn(id, c), `${id} @ ${c}`);
+    assert.ok(!modelAllowedIn(id, "IR"), `${id} @ IR`);
+  }
+  // Host prefiksi ko'rinadi — noma'lum host deb yopilmaydi.
+  assert.ok(modelAllowedIn("cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813", "RU"));
+});
+
+test("Cloudflare: OpenRouter bo'sh bo'lsa ham RU/BY foydalanuvchisiga ishlaydigan ekvivalent bor", () => {
+  // OmniRoute yo'q, OpenRouter krediti yo'q (katalog id'lari ishlamaydi) — faqat Cloudflare/Groq id'lari.
+  const onlyDirect = (id: string) => id.startsWith("cloudflare/") || id.startsWith("groq/");
+  for (const c of ["RU", "BY"]) {
+    const ultra = regionEquivalents("claude-opus-5", c, { tier: "ultra", tierAllowed: planUpTo("ultra"), available: onlyDirect });
+    assert.equal(ultra[0], REGION_SAFE_CF.deepseekPro, c);
+    assert.ok(ultra.includes(REGION_SAFE_CF.kimi) && ultra.includes(REGION_SAFE_CF.glm), ultra.join(","));
+    const code = regionEquivalents("mistral/codestral-latest", c, { tierAllowed: planUpTo("pro"), available: onlyDirect });
+    assert.equal(code[0], REGION_SAFE_CF.kimiCode);
+    const starter = regionEquivalents("claude-haiku-4-5", c, { tier: "starter", tierAllowed: planUpTo("starter"), available: onlyDirect });
+    assert.equal(starter[0], REGION_SAFE_CF.deepseekFlash);
+    assert.ok(!starter.includes(REGION_SAFE_CF.deepseekPro), "starter pullik Pro modelni olmaydi");
+    const free = regionEquivalents("gemini-flash-free", c, { tier: "free", tierAllowed: planUpTo("free"), available: onlyDirect });
+    assert.deepEqual(free.slice(0, 2), [REGION_SAFE.qwen, REGION_SAFE_CF.qwen]);
+    assert.ok(free.every((id) => onlyDirect(id)));
+  }
 });
 
 test("regionDecision (route qarori): cheklanmagan mintaqa — o'zgarishsiz", () => {

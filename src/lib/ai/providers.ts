@@ -4,7 +4,18 @@ import { DEFAULT_LANG, fmt, translate, type Lang, type TKey } from "@/lib/i18n";
 import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 import type { AnswerMeta } from "@/lib/chat/answer-meta";
 import { isSubstitution } from "./served";
-import { hostAllowedIn, modelAllowedIn, restrictedRegion } from "./region";
+import { hostAllowedIn, modelAllowedIn, regionClassOf, restrictedRegion } from "./region";
+import {
+  CF,
+  CF_BY_CLASS,
+  CF_PREFIX,
+  cfErrorMessage,
+  cfId,
+  cfSameModel,
+  cfStreams,
+  jsonCompletionToChunk,
+} from "./cloudflare";
+import { providerSideFailure } from "./chain";
 
 /**
  * O'z serverimizdagi modellar (providerModel). Ular faqat o'z serverimizda
@@ -76,6 +87,13 @@ const NVIDIA_BASE = "https://integrate.api.nvidia.com/v1";
 const LLM7_BASE = "https://api.llm7.io/v1";
 /** LLM7 free tier: no signup. A token only raises the rate limit. */
 const LLM7_FREE_MODEL = "mistral-Nemo-Instruct-2407";
+/**
+ * Cloudflare Workers AI — OpenAI-mos endpoint:
+ *   POST {CF_API_BASE}/accounts/{CLOUDFLARE_ACCOUNT_ID}/ai/v1/chat/completions (Bearer CLOUDFLARE_AI_TOKEN).
+ * Kunlik 10 000 neuron tekin; oshsa bepul rejada 429 (kod 4006) — keyingi provayderga o'tiladi.
+ * Model id'lari developers.cloudflare.com/workers-ai/platform/pricing/ da 2026-09-27 tekshirilgan.
+ */
+const CF_API_BASE = "https://api.cloudflare.com/client/v4";
 
 /**
  * Direct provider mapping — OpenRouter'ni chetlab tez va ishonchli endpointga
@@ -86,12 +104,26 @@ const LLM7_FREE_MODEL = "mistral-Nemo-Instruct-2407";
  * 4) OpenAI direct — kuchli, ammo pullik
  * 5) OpenRouter — universal fallback
  */
-type Provider = "groq" | "cerebras" | "sambanova" | "mistral" | "openai" | "nvidia" | "llm7" | "tella" | "omniroute" | "rsi";
+type Provider =
+  | "groq"
+  | "cerebras"
+  | "sambanova"
+  | "mistral"
+  | "openai"
+  | "nvidia"
+  | "llm7"
+  | "tella"
+  | "omniroute"
+  | "rsi"
+  | "cloudflare";
 
 interface RouteCandidate {
   provider: Provider;
   model: string;
 }
+
+/** Tanlangan upstream yo'l (to'g'ridan-to'g'ri provayder, OmniRoute, RSI yoki Cloudflare). */
+type DirectRoute = { url: string; auth: string; model: string; provider: Provider };
 
 const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
   // Tella 2 — faqat o'z serverimiz. Zaxirasi yo'q: boshqa provayderga yuborsak
@@ -100,12 +132,15 @@ const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
   // Llama 3.3 70B — Groq → Cerebras → SambaNova (barchada bor)
   "meta-llama/llama-3.3-70b-instruct": [
     { provider: "groq", model: "openai/gpt-oss-120b" },
+    { provider: "cloudflare", model: CF.llama },
     { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "sambanova", model: "Meta-Llama-3.3-70B-Instruct" },
     { provider: "nvidia", model: "meta/llama-3.3-70b-instruct" },
   ],
+  // Tekin tarif zanjiri: Groq → Cloudflare → (qolgan kalitlar) → OpenRouter tekin → LLM7.
   "meta-llama/llama-3.3-70b-instruct:free": [
     { provider: "groq", model: "openai/gpt-oss-120b" },
+    { provider: "cloudflare", model: CF.llama },
     { provider: "cerebras", model: "llama-3.3-70b" },
     { provider: "sambanova", model: "Meta-Llama-3.3-70B-Instruct" },
     { provider: "nvidia", model: "meta/llama-3.3-70b-instruct" },
@@ -156,7 +191,67 @@ function providerAvailable(p: Provider): boolean {
   // Tella — o'z serverimizdagi model (Ollama/vLLM). Manzil yo'q bo'lsa mavjud emas.
   if (p === "tella") return !!process.env.TELLA_BASE_URL;
   if (p === "llm7") return true; // anonymous free tier
+  if (p === "cloudflare") return cloudflareConfigured();
+  if (p === "omniroute") return !!(process.env.OMNIROUTE_BASE_URL && process.env.OMNIROUTE_API_KEY);
+  if (p === "rsi") return !!(process.env.RSI_BASE_URL && process.env.RSI_API_KEY);
   return !!process.env.OPENAI_API_KEY;
+}
+
+/** Cloudflare Workers AI faqat ikkala env bo'lsa yoqiladi. */
+export function cloudflareConfigured(): boolean {
+  return !!(process.env.CLOUDFLARE_ACCOUNT_ID && process.env.CLOUDFLARE_AI_TOKEN);
+}
+
+function cloudflareEndpoint(): { url: string; auth: string } {
+  const account = encodeURIComponent(process.env.CLOUDFLARE_ACCOUNT_ID!.trim());
+  return { url: `${CF_API_BASE}/accounts/${account}/ai/v1/chat/completions`, auth: process.env.CLOUDFLARE_AI_TOKEN!.trim() };
+}
+
+/**
+ * OpenRouter (yoki OmniRoute orqali OpenRouter) krediti/kvotasi tugaganda shu modelning
+ * Cloudflare zaxirasi: avval AYNAN shu model (DeepSeek V4 Pro, Kimi, GLM, Qwen ...), bo'lmasa
+ * sinf ekvivalenti (flagship → DeepSeek V4 Pro / Kimi / GLM). Mintaqa siyosati va shu so'rovda
+ * xato bergan provayderlar hisobga olinadi. `sameOnly` — faqat aynan shu model.
+ */
+function cloudflareRoute(
+  providerModel: string,
+  country: string | null | undefined,
+  opts: { exclude?: Provider[]; sameOnly?: boolean; tier?: SovereignModel["tier"] } = {},
+): DirectRoute | null {
+  if (!cloudflareConfigured() || opts.exclude?.includes("cloudflare")) return null;
+  if (!hostAllowedIn("cloudflare", country)) return null;
+  const same = cfSameModel(providerModel);
+  const pool = same
+    ? [same]
+    : opts.sameOnly
+      ? []
+      : CF_BY_CLASS[regionClassOf(providerModel, { tier: opts.tier })];
+  const model = pool.find((m) => modelAllowedIn(cfId(m), country));
+  return model ? { ...cloudflareEndpoint(), model, provider: "cloudflare" } : null;
+}
+
+/**
+ * Host prefiksli id ("groq/qwen/qwen3.8-27b", "cloudflare/@cf/...") — kalit bo'lsa
+ * OmniRoute'siz to'g'ridan-to'g'ri o'sha provayderga. Auto navbati va tekin zanjir shu
+ * id'lardan foydalanadi.
+ */
+function hostPrefixedRoute(id: string): DirectRoute | null {
+  if (id.startsWith(CF_PREFIX)) {
+    return cloudflareConfigured() ? { ...cloudflareEndpoint(), model: id.slice(CF_PREFIX.length), provider: "cloudflare" } : null;
+  }
+  if (id.startsWith("groq/") && providerAvailable("groq")) {
+    return { ...providerEndpoint("groq"), model: id.slice("groq/".length), provider: "groq" };
+  }
+  return null;
+}
+
+/** Katalogda yo'q "host/..." id chaqirilishi mumkinmi (to'g'ridan-to'g'ri kalit yoki OmniRoute). */
+export function hostIdAvailable(id: string): boolean {
+  if (!id.includes("/")) return false;
+  if (hostPrefixedRoute(id)) return true;
+  // cloudflare/... faqat Cloudflare kaliti bilan (OmniRoute'da bunday provayder yo'q).
+  if (id.startsWith(CF_PREFIX)) return false;
+  return providerAvailable("omniroute");
 }
 
 function providerEndpoint(p: Provider): { url: string; auth: string } {
@@ -173,6 +268,7 @@ function providerEndpoint(p: Provider): { url: string; auth: string } {
     };
   }
   if (p === "llm7") return { url: `${LLM7_BASE}/chat/completions`, auth: process.env.LLM7_API_KEY ?? "unused" };
+  if (p === "cloudflare") return cloudflareEndpoint();
   return { url: `${OPENAI_BASE}/chat/completions`, auth: process.env.OPENAI_API_KEY! };
 }
 
@@ -228,9 +324,10 @@ function rsiRoute(providerModel: string): { url: string; auth: string; model: st
 
 function pickDirectRoute(
   providerModel: string,
-  opts: { skipOmni?: boolean; country?: string | null } = {},
-): { url: string; auth: string; model: string; provider: Provider } | null {
+  opts: { skipOmni?: boolean; country?: string | null; exclude?: Provider[] } = {},
+): DirectRoute | null {
   const country = opts.country ?? null;
+  const exclude = opts.exclude ?? [];
   if (!opts.skipOmni) {
     const viaRsi = rsiRoute(providerModel);
     if (viaRsi && hostAllowedIn("rsi", country)) return viaRsi;
@@ -240,6 +337,8 @@ function pickDirectRoute(
   const candidates = DIRECT_ROUTES[providerModel];
   if (!candidates) return null;
   for (const c of candidates) {
+    // Shu so'rovda xato bergan provayder (Groq 429, Cloudflare neuron limiti ...) qayta tanlanmaydi.
+    if (exclude.includes(c.provider)) continue;
     // Mintaqa siyosati: haqiqiy upstream model (Groq'da gpt-oss va h.k.) va host
     // (NVIDIA NIM, LLM7, Mistral ...) ikkalasi ham shu mintaqaga ruxsat bergan bo'lsin.
     if (!modelAllowedIn(c.model, country) || !hostAllowedIn(c.provider, country)) continue;
@@ -276,7 +375,9 @@ export function hasKeyFor(model: SovereignModel): boolean {
   if (isOwnModel(model.providerModel)) return providerAvailable("tella");
   // Agar direct provider (Groq/Cerebras/SambaNova/Mistral/OpenAI) bor bo'lsa, OpenRouter shart emas.
   if (pickDirectRoute(model.providerModel)) return true;
-  return !!process.env.OPENROUTER_API_KEY;
+  if (process.env.OPENROUTER_API_KEY) return true;
+  // OpenRouter kaliti yo'q, lekin Cloudflare'da AYNAN shu model bor (DeepSeek/Qwen/GLM/Kimi).
+  return !!cloudflareRoute(model.providerModel, null, { sameOnly: true });
 }
 
 /**
@@ -476,11 +577,34 @@ async function* readSse(
 }
 
 /**
+ * Javob tanasi: SSE oqimi yoki (oqimsiz model, masalan Cloudflare'dagi gpt-oss) bitta JSON.
+ * JSON — bitta SSE bo'lagi shakliga keltiriladi, shunda o'qish kodi bir xil qoladi.
+ */
+async function* readChunks(res: Response, idleMs = IDLE_TIMEOUT_MS): AsyncGenerator<Record<string, unknown>> {
+  const type = res.headers.get("content-type") ?? "";
+  if (type.includes("application/json") && !type.includes("event-stream")) {
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      throw new Error("upstream JSON javobi o'qilmadi");
+    }
+    const chunk = jsonCompletionToChunk(body);
+    if (chunk) yield chunk as unknown as Record<string, unknown>;
+    return;
+  }
+  yield* readSse(res.body!, idleMs);
+}
+
+/** Oqimsiz so'rovda sarlavhalar butun javob tayyor bo'lgach keladi — ulanish kutilishi uzunroq. */
+const NON_STREAM_CONNECT_TIMEOUT_MS = 90_000;
+
+/**
  * Provayderning xom xatosini foydalanuvchi tilidagi umumiy xabarga aylantiradi.
  * Xom matn (balans, provayder/model nomlari) faqat server logiga yoziladi.
  */
 function friendlyError(raw: string, code: number, lang: Lang, fallback: TKey = "chErrRequestFailed"): string {
-  if (code === 429 || /rate-limited|rate limit/i.test(raw)) return translate(lang, "chErrModelBusy");
+  if (code === 429 || /rate-limited|rate limit|daily free allocation|neurons/i.test(raw)) return translate(lang, "chErrModelBusy");
   if (code === 402 || /credits|billing|payment|can only afford/i.test(raw)) return translate(lang, "chErrServerConfig");
   if (code >= 500) return translate(lang, "chErrProviderTemporary");
   if (code === 401 || code === 403) return translate(lang, "chErrServerConfig");
@@ -494,7 +618,7 @@ function friendlyError(raw: string, code: number, lang: Lang, fallback: TKey = "
 async function errorMessage(
   res: Response,
   lang: Lang = DEFAULT_LANG,
-): Promise<{ message: string; afford: number | null }> {
+): Promise<{ message: string; afford: number | null; soft: boolean }> {
   let rawMessage = `${res.status} ${res.statusText}`;
   let code = res.status;
   try {
@@ -502,11 +626,14 @@ async function errorMessage(
       error?: { message?: string; code?: number; metadata?: { raw?: string } } | string;
       message?: string;
     };
+    const cfMessage = cfErrorMessage(j);
     if (typeof j.error === "string") rawMessage = j.error;
     else if (j.error?.message) {
       rawMessage = j.error.metadata?.raw ?? j.error.message;
-      code = j.error.code ?? code;
-    } else if (j.message) rawMessage = j.message;
+      // OpenRouter HTTP kodini tanada ham beradi; boshqa (masalan Cloudflare 4006) raqamlar HTTP emas.
+      if (typeof j.error.code === "number" && j.error.code >= 100 && j.error.code < 600) code = j.error.code;
+    } else if (cfMessage) rawMessage = cfMessage;
+    else if (j.message) rawMessage = j.message;
   } catch {
     /* ignore */
   }
@@ -521,6 +648,7 @@ async function errorMessage(
     message: friendlyError(rawMessage, code, lang),
     // low-credit auto-retry uchun (streamOpenRouter ichida ushlanadi)
     afford: afford ? Number(afford[1]) : null,
+    soft: providerSideFailure(code, rawMessage),
   };
 }
 
@@ -600,6 +728,11 @@ function fallbackTargets(): { name: string; url: string; auth: string; model: st
       model: process.env.GATEWAY_MODEL ?? "auto",
     });
   }
+  // Cloudflare Workers AI — gpt-oss-120b: neuron bo'yicha eng arzon (kunlik 10k tekin ulushini
+  // tejaydi), ochiq og'irlik (mintaqa: faqat OFAC embargosi yopiq).
+  if (cloudflareConfigured()) {
+    out.push({ name: "cloudflare", ...cloudflareEndpoint(), model: CF.gptOss });
+  }
   // Anonymous free tier — always available, so it goes last.
   out.push({
     name: "llm7",
@@ -619,15 +752,19 @@ async function* streamFreeFallback(
   messages: ChatMessageInput[],
   opts: StreamOptions,
   maxTokens: number,
+  exclude: string[] = [],
 ): AsyncGenerator<StreamEvent, boolean> {
   const plain = messages.map((m) => ({ role: m.role, content: textOf(m.content) }));
 
   // Mintaqa siyosati: zaxira shlyuz ham cheklangan provayderga (claude-3-haiku, "auto"
-  // kombo, LLM7'dagi Mistral) yuborilmaydi.
+  // kombo, LLM7'dagi Mistral) yuborilmaydi. Shu so'rovda yiqilgan provayder (masalan
+  // Cloudflare neuron limiti) qayta sinalmaydi.
   const targets = fallbackTargets().filter(
-    (tg) => modelAllowedIn(tg.model, opts.country) && hostAllowedIn(tg.name, opts.country),
+    (tg) => !exclude.includes(tg.name) && modelAllowedIn(tg.model, opts.country) && hostAllowedIn(tg.name, opts.country),
   );
   for (const target of targets) {
+    const isCf = target.name === "cloudflare";
+    const stream = !isCf || cfStreams(target.model);
     let res: Response;
     try {
       res = await fetchUpstream(
@@ -640,11 +777,11 @@ async function* streamFreeFallback(
             messages: plain,
             temperature: opts.temperature ?? 0.7,
             max_tokens: Math.min(maxTokens, 2048),
-            stream: true,
+            stream,
           }),
         },
         opts.signal,
-        RESCUE_CONNECT_TIMEOUT_MS,
+        stream ? RESCUE_CONNECT_TIMEOUT_MS : NON_STREAM_CONNECT_TIMEOUT_MS,
       );
     } catch (err) {
       if (userAborted(opts)) throw err;
@@ -652,19 +789,21 @@ async function* streamFreeFallback(
       continue; // network error / timeout — try the next gateway
     }
     if (!res.ok || !res.body) {
+      if (isCf) console.error(`[ai] zaxira cloudflare ${res.status}`);
       res.body?.cancel().catch(() => {});
       continue;
     }
 
     let produced = false;
     try {
-      for await (const chunk of readSse(res.body)) {
+      for await (const chunk of readChunks(res)) {
         const c = chunk as OrChunk;
         if (c.error?.message) break;
         const text = c.choices?.[0]?.delta?.content;
         if (text) {
           // Zaxira shlyuz — har doim so'ralgan modeldan boshqa model (shaffoflik uchun belgilanadi).
-          if (!produced) yield { type: "served", model: reportedModel(c) ?? target.model, substituted: true, rescue: true };
+          const served = isCf ? cfId(target.model) : (reportedModel(c) ?? target.model);
+          if (!produced) yield { type: "served", model: served, substituted: true, rescue: true };
           produced = true;
           yield { type: "text", text };
         }
@@ -687,24 +826,49 @@ async function* streamFreeFallback(
   return false;
 }
 
+/** streamOpenRouter ichki holati: qayta urinish, davom ettirish va zaxira yo'li. */
+interface RouteState {
+  /** "can only afford N" — kamroq max_tokens bilan bir marta qayta urinildi. */
+  retried?: boolean;
+  /** Uzilgan javobni avtomatik davom ettirish soni. */
+  continuation?: number;
+  /** OmniRoute/RSI o'tkazib yuboriladi (ular xato bergandan keyin). */
+  skipOmni?: boolean;
+  /** Majburiy yo'l: OmniRoute katalog modeli, host prefiksli id yoki Cloudflare zaxirasi. */
+  forced?: DirectRoute;
+  /** Shu so'rovda provayder tomonida yiqilgan provayderlar — qayta tanlanmaydi. */
+  exclude?: Provider[];
+}
+
+/** Bular yiqilsa shu model uchun "keyingi provayder" izlanmaydi (o'z yo'li bor yoki oxirgi zaxira). */
+const NO_NEXT_PROVIDER: Provider[] = ["omniroute", "rsi", "tella", "llm7"];
+
 async function* streamOpenRouter(
   model: SovereignModel,
   messages: ChatMessageInput[],
   opts: StreamOptions,
   maxTokens: number,
-  retried = false,
-  continuation = 0,
-  skipOmni = false,
-  forced?: { url: string; auth: string; model: string; provider: Provider },
+  state: RouteState = {},
 ): AsyncGenerator<StreamEvent> {
+  const { retried = false, continuation = 0, skipOmni = false, forced } = state;
+  const exclude = state.exclude ?? [];
+  const lang = opts.lang ?? DEFAULT_LANG;
   const cached = withPromptCache(model, messages);
-  const direct = forced ?? pickDirectRoute(model.providerModel, { skipOmni, country: opts.country });
+  let direct: DirectRoute | null =
+    forced ?? pickDirectRoute(model.providerModel, { skipOmni, country: opts.country, exclude });
+  // OpenRouter kaliti yo'q — Cloudflare'dagi AYNAN shu model (bo'lsa).
+  if (!direct && !process.env.OPENROUTER_API_KEY) {
+    direct = cloudflareRoute(model.providerModel, opts.country, { exclude, sameOnly: true });
+  }
+  const isCf = direct?.provider === "cloudflare";
 
   // Direct route ishlatiladigan bo'lsa uni ishlatamiz — Groq / OpenAI direct
   // OpenRouter proxysidan tezroq va ishonchliroq.
   const url = direct ? direct.url : `${OPENROUTER_BASE}/chat/completions`;
   const auth = direct ? direct.auth : process.env.OPENROUTER_API_KEY!;
   const modelId = direct ? direct.model : model.providerModel;
+  // Cloudflare'dagi ba'zi modellar (gpt-oss) oqimsiz — butun javob bitta bo'lak bo'lib keladi.
+  const stream = !isCf || cfStreams(modelId);
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -717,10 +881,11 @@ async function* streamOpenRouter(
 
   const body: Record<string, unknown> = {
     model: modelId,
-    messages: cached,
+    // Cloudflare: faqat matn (multimodal qismlar va cache_control yuborilmaydi).
+    messages: isCf ? messages.map((m) => ({ role: m.role, content: textOf(m.content) })) : cached,
     temperature: opts.temperature ?? 0.7,
     max_tokens: maxTokens,
-    stream: true,
+    stream,
   };
   if (!direct) {
     // OpenRouter-specific transforms + fallback pool
@@ -735,16 +900,41 @@ async function* streamOpenRouter(
     }
   }
 
-  const lang = opts.lang ?? DEFAULT_LANG;
+  /**
+   * Provayder tomonidagi xatodan keyingi yo'l (bo'lmasa null):
+   *  1) to'g'ridan-to'g'ri provayder (Groq 429, Cloudflare neuron limiti ...) — shu model uchun
+   *     keyingi provayder, ular tugasa OpenRouter;
+   *  2) OpenRouter / OmniRoute / host yo'li (402 kredit, kvota) — Cloudflare'dagi shu model yoki
+   *     sinf ekvivalenti. Haqiqiy model "served" orqali ochiq ko'rsatiladi.
+   */
+  function nextRoute(): RouteState | null {
+    const failed = direct?.provider;
+    if (direct && !forced && failed && !NO_NEXT_PROVIDER.includes(failed)) {
+      return { skipOmni: true, exclude: [...exclude, failed] };
+    }
+    if (isCf || failed === "tella" || failed === "llm7" || isOwnModel(model.providerModel)) return null;
+    // Katalog modeli bo'lsa uning tarifi (narx nazorati); sintetik (OmniRoute/host) id — nomidan.
+    const tier = MODEL_BY_ID[model.id] ? model.tier : undefined;
+    const cf = cloudflareRoute(model.providerModel, opts.country, { exclude, tier });
+    if (!cf) return null;
+    return { skipOmni: true, forced: cf, exclude: failed ? [...exclude, failed] : exclude };
+  }
 
   // Provayder xato bersa, javob bermasa yoki uzilib qolsa — bitta umumiy zanjir.
-  async function* failover(message: string): AsyncGenerator<StreamEvent> {
+  async function* failover(message: string, soft = true): AsyncGenerator<StreamEvent> {
     // OmniRoute/RSI (asosiy yo'l) tugagan/xato bergan bo'lsa — xuddi shu modelni
     // to'g'ridan-to'g'ri provayder yoki OpenRouter orqali qayta urinamiz.
     // OmniRoute katalog modeli (forced) bundan mustasno: uning id'si OpenRouter
     // id'si emas va u yerda tarif tekshiruvidan o'tmagan modelga olib borishi mumkin.
     if ((direct?.provider === "omniroute" || direct?.provider === "rsi") && !skipOmni && !forced) {
-      yield* streamOpenRouter(model, messages, opts, maxTokens, retried, continuation, true);
+      yield* streamOpenRouter(model, messages, opts, maxTokens, { retried, continuation, skipOmni: true, exclude });
+      return;
+    }
+    const next = soft ? nextRoute() : null;
+    if (next) {
+      const to = next.forced ? `cloudflare:${next.forced.model}` : "next-provider";
+      console.warn(`[ai] ${direct?.provider ?? "openrouter"} (${modelId}) yiqildi → ${to}`);
+      yield* streamOpenRouter(model, messages, opts, maxTokens, { retried, continuation, ...next });
       return;
     }
     // Last resort: the anonymous free tier, so the chat still answers when the
@@ -753,15 +943,28 @@ async function* streamOpenRouter(
     // route boshqa modelga ochiq ("switch") o'tadi.
     const own = direct?.provider === "tella" || isOwnModel(model.providerModel);
     if (direct?.provider !== "llm7" && !own && opts.freeRescue !== false) {
-      const rescued = yield* streamFreeFallback(messages, opts, maxTokens);
+      const failed = direct ? [...exclude, direct.provider] : exclude;
+      const rescued = yield* streamFreeFallback(messages, opts, maxTokens, failed);
       if (rescued) return;
     }
     yield { type: "error", message };
   }
 
+  // OpenRouter kaliti ham, muqobil yo'l ham yo'q — kalitsiz so'rov yubormaymiz.
+  if (!direct && !process.env.OPENROUTER_API_KEY) {
+    console.error(`[ai] ${model.providerModel}: OPENROUTER_API_KEY yo'q`);
+    yield* failover(translate(lang, "chErrServerConfig"));
+    return;
+  }
+
   let res: Response;
   try {
-    res = await fetchUpstream(url, { method: "POST", headers, body: JSON.stringify(body) }, opts.signal);
+    res = await fetchUpstream(
+      url,
+      { method: "POST", headers, body: JSON.stringify(body) },
+      opts.signal,
+      stream ? CONNECT_TIMEOUT_MS : NON_STREAM_CONNECT_TIMEOUT_MS,
+    );
   } catch (err) {
     // Foydalanuvchi to'xtatdi — xato emas, chat route jim yopadi.
     if (userAborted(opts)) throw err;
@@ -773,14 +976,14 @@ async function* streamOpenRouter(
   }
 
   if (!res.ok || !res.body) {
-    const { message, afford } = await errorMessage(res, lang);
+    const { message, afford, soft } = await errorMessage(res, lang);
     // Low-credit accounts: "You requested up to N tokens, but can only afford M."
     if (afford !== null && !retried) {
       const allowed = Math.max(256, afford - 64);
-      yield* streamOpenRouter(model, messages, opts, allowed, true, continuation, skipOmni, forced);
+      yield* streamOpenRouter(model, messages, opts, allowed, { ...state, retried: true });
       return;
     }
-    yield* failover(message);
+    yield* failover(message, soft);
     return;
   }
 
@@ -822,11 +1025,12 @@ async function* streamOpenRouter(
   // tanlangan modeldan farq qilishi mumkin: masalan Groq'dagi o'rinbosar).
   let servedSent = false;
   try {
-    for await (const chunk of readSse(res.body)) {
+    for await (const chunk of readChunks(res)) {
       const c = chunk as OrChunk;
       if (!servedSent && !c.error?.message && c.choices?.length) {
         servedSent = true;
-        const served = reportedModel(c) ?? modelId;
+        // Cloudflare — badge'da provayder ham ko'rinsin: "cloudflare/@cf/deepseek-ai/...".
+        const served = isCf ? cfId(modelId) : (reportedModel(c) ?? modelId);
         if (!modelAllowedIn(served, opts.country)) {
           // Upstream o'zi boshqa (cheklangan) modelga yo'naltirgan — bu yo'lni yopish uchun log.
           console.warn(`[region] upstream cheklangan modelga yo'naltirdi: ${modelId} → ${served} (${opts.country})`);
@@ -837,7 +1041,13 @@ async function* streamOpenRouter(
         // Oqim ichidagi xato: xom matn faqat logga, foydalanuvchiga tarjima.
         console.error(`[ai] ${direct?.provider ?? "openrouter"} oqim xatosi:`, c.error.message.slice(0, 500));
         const code = typeof c.error.code === "number" ? c.error.code : Number(c.error.code) || 0;
-        yield { type: "error", message: friendlyError(c.error.message, code, lang, "chErrProviderTemporary") };
+        const message = friendlyError(c.error.message, code, lang, "chErrProviderTemporary");
+        // Hali matn chiqmagan (OpenRouter 200 + birinchi bo'lakda "credits" xatosi) — zanjir davom etadi.
+        if (!produced && !pending) {
+          yield* failover(message, providerSideFailure(code, c.error.message));
+          return;
+        }
+        yield { type: "error", message };
         return;
       }
       const choice = c.choices?.[0];
@@ -883,12 +1093,9 @@ async function* streamOpenRouter(
       ],
       opts,
       maxTokens,
-      retried,
-      continuation + 1,
-      skipOmni,
-      // Katalog modeli davomi ham o'sha OmniRoute yo'lida qolsin (aks holda
-      // yarmi boshqa provayder/modeldan kelardi).
-      forced,
+      // Davomi ham o'sha yo'lda qolsin (katalog/Cloudflare zaxirasi — forced; yiqilgan
+      // provayderlar — exclude), aks holda yarmi boshqa provayder/modeldan kelardi.
+      { retried, continuation: continuation + 1, skipOmni, forced: forced ?? (isCf && direct ? direct : undefined), exclude },
     );
     return;
   }
@@ -1082,21 +1289,21 @@ export function isOmniCatalogId(id: string): boolean {
   return typeof id === "string" && id.includes("/") && !MODEL_BY_ID[id];
 }
 
-function omniCatalogRoute(modelId: string): { url: string; auth: string; model: string; provider: Provider } | null {
+function omniCatalogRoute(modelId: string): DirectRoute | null {
   const base = process.env.OMNIROUTE_BASE_URL;
   const auth = process.env.OMNIROUTE_API_KEY;
   if (!base || !auth) return null;
   return { url: `${base.replace(/\/$/, "")}/chat/completions`, auth, model: modelId, provider: "omniroute" };
 }
 
-/** OmniRoute katalog modeli uchun yengil sintetik SovereignModel (brend emas). */
-function syntheticOmniModel(id: string): SovereignModel {
+/** OmniRoute katalog / host prefiksli model uchun yengil sintetik SovereignModel (brend emas). */
+function syntheticOmniModel(id: string, provider = "OmniRoute"): SovereignModel {
   const short = id.split("/").pop() ?? id;
   return {
     id,
     name: short,
     shortName: short,
-    provider: "OmniRoute",
+    provider,
     theme: "sovereign",
     cost: "free",
     category: "free",
@@ -1104,7 +1311,7 @@ function syntheticOmniModel(id: string): SovereignModel {
     providerModel: id,
     price: "TEKIN",
     glyph: "✦",
-    tagline: "OmniRoute katalog",
+    tagline: `${provider} katalog`,
     description: "",
     primary: "#7C6FF7",
     accent: "#7C6FF7",
@@ -1122,6 +1329,27 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
     yield { type: "error", message: fmt(translate(opts.lang ?? DEFAULT_LANG, "p10RegionModelBlocked"), { model: name }) };
     return;
   }
+  // Host prefiksli id (Auto / tekin zanjir: "groq/...", "cloudflare/@cf/...") — kalit bo'lsa
+  // OmniRoute'siz to'g'ridan-to'g'ri o'sha provayderga.
+  const hostRoute = isOmniCatalogId(opts.modelId) ? hostPrefixedRoute(opts.modelId) : null;
+  if (hostRoute || (opts.modelId.startsWith(CF_PREFIX) && !MODEL_BY_ID[opts.modelId])) {
+    if (!hostRoute) {
+      console.error("[ai] Cloudflare modeli: CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_AI_TOKEN sozlanmagan");
+      yield { type: "error", message: translate(opts.lang ?? DEFAULT_LANG, "chErrServerConfig") };
+      return;
+    }
+    if (!hostAllowedIn(hostRoute.provider, opts.country)) {
+      yield { type: "error", message: fmt(translate(opts.lang ?? DEFAULT_LANG, "p10RegionModelBlocked"), { model: opts.modelId }) };
+      return;
+    }
+    const smodel = syntheticOmniModel(opts.modelId, hostRoute.provider === "cloudflare" ? "Cloudflare" : "Groq");
+    const messages: ChatMessageInput[] = [
+      { role: "system", content: buildSystemPrompt(smodel, !!opts.research, opts.extraSystem) },
+      ...opts.messages.filter((m) => m.role !== "system"),
+    ];
+    yield* streamOpenRouter(smodel, messages, opts, opts.maxTokens ?? 2048, { forced: hostRoute });
+    return;
+  }
   // Foydalanuvchi OmniRoute katalogidan model tanlagan bo'lsa — o'sha id bilan
   // to'g'ridan-to'g'ri OmniRoute'ga; xato bersa quyidagi zaxira zanjiri ishlaydi.
   if (isOmniCatalogId(opts.modelId)) {
@@ -1136,7 +1364,7 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
       { role: "system", content: buildSystemPrompt(smodel, !!opts.research, opts.extraSystem) },
       ...opts.messages.filter((m) => m.role !== "system"),
     ];
-    yield* streamOpenRouter(smodel, messages, opts, opts.maxTokens ?? 2048, false, 0, false, route);
+    yield* streamOpenRouter(smodel, messages, opts, opts.maxTokens ?? 2048, { forced: route });
     return;
   }
 

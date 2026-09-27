@@ -23,6 +23,8 @@
  * ehtiyotkorlik bilan HAMMA cheklangan mintaqada taqiqlangan.
  */
 
+import { CF, cfId } from "./cloudflare";
+
 /** OFAC to'liq (comprehensive) embargo — har bir AQSh upstream'i (OpenRouter, Groq, ...) uchun. */
 export const SANCTIONED = ["CU", "IR", "KP", "SY"] as const;
 const RU_BY = ["RU", "BY"] as const;
@@ -103,6 +105,11 @@ export const PROVIDER_POLICY: Record<PolicyOwner, ProviderPolicy> = {
 export const HOST_POLICY: Record<string, readonly string[]> = {
   openrouter: SANCTIONED, // ToS §5.7: mintaqa cheklovi model provayderiga topshirilgan (model qoidasi alohida tekshiriladi)
   groq: SANCTIONED, // Services Agreement §6.3 (EAR/OFAC)
+  // Cloudflare Workers AI — AQSh kompaniyasi, ochiq og'irlikli modellar hosti. Mamlakat ro'yxati
+  // yo'q; Self-Serve Subscription Agreement / Website & Online Services Terms eksport nazorati va
+  // sanksiya bandlari (OFAC to'liq embargosi: CU, IR, KP, SY) — boshqa AQSh hostlari kabi.
+  // Manba: https://www.cloudflare.com/terms/ , https://www.cloudflare.com/website-terms/ (2026-09-27)
+  cloudflare: SANCTIONED,
   cerebras: SANCTIONED,
   sambanova: SANCTIONED,
   omniroute: [], // o'z proksi-serverimiz — model id qoidasi hal qiladi
@@ -193,7 +200,7 @@ export function policyOwner(modelId: string): PolicyOwner {
 }
 
 /** Faqat host bo'la oladigan prefikslar (model ishlab chiqaruvchi nomi emas). */
-const PURE_HOSTS = new Set(["openrouter", "groq", "cerebras", "sambanova", "omniroute", "aihorde", "pollinations", "rsi", "llm7", "experiential", "gateway"]);
+const PURE_HOSTS = new Set(["openrouter", "groq", "cloudflare", "cerebras", "sambanova", "omniroute", "aihorde", "pollinations", "rsi", "llm7", "experiential", "gateway"]);
 
 /**
  * OmniRoute id prefiksi ("groq/qwen/..." → "groq") — ma'lum host bo'lsa. "openai/gpt-oss-120b"
@@ -243,6 +250,20 @@ export const REGION_SAFE = {
 } as const;
 
 /**
+ * Cloudflare Workers AI'dagi xuddi shu oilalar (OpenRouter krediti tugaganda ham ishlaydi —
+ * alohida hisob, kuniga 10k neuron tekin). Id'lar: cloudflare.ts (pricing sahifasidan tekshirilgan).
+ */
+export const REGION_SAFE_CF = {
+  kimi: cfId(CF.kimi),
+  kimiCode: cfId(CF.kimiCode),
+  deepseekPro: cfId(CF.deepseekPro),
+  deepseekFlash: cfId(CF.deepseekFlash),
+  glm: cfId(CF.glm),
+  qwen: cfId(CF.qwen),
+  gptOss: cfId(CF.gptOss),
+} as const;
+
+/**
  * Sinf → ruxsat etilgan ekvivalentlar (afzallik tartibida) va har birining minimal
  * tarifi (narx nazorati: Free foydalanuvchiga pullik Kimi berilmaydi). OmniRoute id'lari
  * avval (ular ishlaydi), keyin katalog id'lari (OpenRouter/Groq kaliti bilan), oxirida
@@ -257,31 +278,45 @@ export const REGION_EQUIVALENTS: Record<RegionClass, { id: string; tier: Tier }[
     { id: REGION_SAFE.kimi, tier: "pro" },
     { id: REGION_SAFE.deepseek, tier: "starter" },
     { id: REGION_SAFE.glm, tier: "starter" },
+    // OpenRouter bo'sh bo'lsa ham ishlaydigan yo'l (Cloudflare kaliti bo'lsa).
+    { id: REGION_SAFE_CF.deepseekPro, tier: "pro" },
+    { id: REGION_SAFE_CF.kimi, tier: "pro" },
+    { id: REGION_SAFE_CF.glm, tier: "pro" },
+    { id: REGION_SAFE_CF.deepseekFlash, tier: "starter" },
     { id: "qwen3-8-max", tier: "pro" },
     { id: "deepseek-v4-pro", tier: "pro" },
     { id: "glm-5-3", tier: "pro" },
     { id: REGION_SAFE.qwen, tier: "free" },
+    { id: REGION_SAFE_CF.qwen, tier: "free" },
     { id: "llama-3.3-free", tier: "free" },
   ],
   fast: [
     { id: REGION_SAFE.deepseek, tier: "starter" },
     { id: REGION_SAFE.glm, tier: "starter" },
+    { id: REGION_SAFE_CF.deepseekFlash, tier: "starter" },
     { id: "deepseek-v4-flash", tier: "starter" },
     { id: "qwen3-7-flash", tier: "starter" },
     { id: REGION_SAFE.qwen, tier: "free" },
+    { id: REGION_SAFE_CF.qwen, tier: "free" },
     { id: REGION_SAFE.glmAuto, tier: "free" },
     { id: "llama-3.3-free", tier: "free" },
   ],
   code: [
     { id: REGION_SAFE.kimi, tier: "pro" },
     { id: REGION_SAFE.deepseek, tier: "starter" },
+    { id: REGION_SAFE_CF.kimiCode, tier: "pro" },
+    { id: REGION_SAFE_CF.deepseekPro, tier: "pro" },
+    { id: REGION_SAFE_CF.deepseekFlash, tier: "starter" },
     { id: "deepseek-v4-pro", tier: "pro" },
     { id: "qwen3-8-27b", tier: "starter" },
     { id: REGION_SAFE.qwen, tier: "free" },
+    { id: REGION_SAFE_CF.qwen, tier: "free" },
     { id: "llama-3.3-free", tier: "free" },
   ],
   free: [
     { id: REGION_SAFE.qwen, tier: "free" },
+    { id: REGION_SAFE_CF.qwen, tier: "free" },
+    { id: REGION_SAFE_CF.gptOss, tier: "free" },
     { id: REGION_SAFE.glmAuto, tier: "free" },
     { id: REGION_SAFE.minimaxAuto, tier: "free" },
     { id: "deepseek-r1-free", tier: "free" },

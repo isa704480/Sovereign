@@ -19,6 +19,8 @@ function tokens(id: string): string[] {
   s = s.replace(/:[a-z0-9-]+$/, ""); // ":free", ":beta"
   // Sana qo'shimchalari: -20250929, -2024-07-18
   s = s.replace(/[-_.]?\d{4}-\d{2}-\d{2}$/, "").replace(/[-_.]?\d{8}$/, "");
+  // Kvantlash qo'shimchasi — og'irliklar o'sha model (Cloudflare: "llama-3.3-70b-instruct-fp8-fast").
+  s = s.replace(/[-_](fp8|fp16|bf16|int8|int4|awq)(-fast)?$/, "");
   const parts = s
     .split(/[^a-z0-9]+/)
     .flatMap((p) => p.split(/(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])/))

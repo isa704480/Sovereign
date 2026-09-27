@@ -33,6 +33,23 @@ test("boshqa model — almashtirish", () => {
   assert.ok(isSubstitution("meta-llama/llama-3.3-70b-instruct:free", "mistral-Nemo-Instruct-2407"));
 });
 
+test("Cloudflare: xuddi shu model (host prefiksi, @cf/, kvantlash) — almashtirish emas", () => {
+  assert.ok(!isSubstitution("deepseek/deepseek-v4-pro-0813", "cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813"));
+  assert.ok(!isSubstitution("qwen/qwen3.8-27b", "cloudflare/@cf/qwen/qwen3.8-27b"));
+  assert.ok(!isSubstitution("z-ai/glm-5.3", "cloudflare/@cf/zai-org/glm-5.3"));
+  assert.ok(!isSubstitution("groq/qwen/qwen3.8-27b", "cloudflare/@cf/qwen/qwen3.8-27b"));
+  assert.ok(!isSubstitution("meta-llama/llama-3.3-70b-instruct:free", "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast"));
+  assert.ok(!isSubstitution("cloudflare/@cf/moonshotai/kimi-k2.6", "cloudflare/@cf/moonshotai/kimi-k2.6"));
+});
+
+test("Cloudflare: boshqa model (OpenRouter krediti tugagan Claude → DeepSeek) — almashtirish", () => {
+  assert.ok(isSubstitution("anthropic/claude-sonnet-5", "cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813"));
+  assert.ok(isSubstitution("deepseek/deepseek-v4.1-flash", "cloudflare/@cf/deepseek-ai/deepseek-v4-flash-0731"));
+  assert.ok(isSubstitution("moonshotai/kimi-k2.6", "cloudflare/@cf/moonshotai/kimi-k2.7-code"));
+  // Kvantlash qo'shimchasi faqat oxirida — "fast" model nomining o'zi bo'lsa saqlanadi.
+  assert.ok(isSubstitution("x-ai/grok-4", "x-ai/grok-4-fast"));
+});
+
 test("auto/* kombosi almashtirish emas", () => {
   assert.ok(!isSubstitution("auto/gemini", "gemini-2.5-flash"));
 });

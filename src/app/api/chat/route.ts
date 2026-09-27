@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   fallbackModelIds,
   hasKeyFor,
+  hostIdAvailable,
   GROUNDED_GENERATION,
   SIMPLE_CHAT_GUARDRAIL,
   streamCompletion,
@@ -14,7 +15,7 @@ import { checkClaims, detectActionClaims, unsourcedMarkers, type ActionRecord, t
 import { isCodeRequest, planRouteLLM, type RouteStep } from "@/lib/ai/router";
 import { modelAllowedIn, regionDecision } from "@/lib/ai/region";
 import { resolveUserRegion } from "@/lib/ai/region-server";
-import { omniRouteConfigured } from "@/lib/ai/omniroute-models";
+import { freePlanCandidates } from "@/lib/ai/chain";
 import { AUTO_MODEL_ID, MODEL_BY_ID, RESEARCH_MODEL_ID } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
@@ -299,10 +300,10 @@ export async function POST(req: Request) {
   const country = region.restricted ? region.country : null;
   if (region.sanctioned) return refuse(t("p10RegionNoModels"));
   const tierAllowed = (tier: Parameters<typeof planAllowsTier>[1]) => planAllowsTier(plan, tier);
-  const omniOk = omniRouteConfigured();
   const available = (id: string) => {
     const m = MODEL_BY_ID[id];
-    return m ? hasKeyFor(m) : omniOk && id.includes("/");
+    // "groq/..." / "cloudflare/@cf/..." — to'g'ridan-to'g'ri kalit; boshqa "host/..." — OmniRoute.
+    return m ? hasKeyFor(m) : hostIdAvailable(id);
   };
   // So'ralgan model mintaqada yopiq — ekvivalentlar (tarif ruxsat bergan) oldindan tanlanadi,
   // shuning uchun "Pro'ga o'ting" taklifi foydalanuvchi baribir ishlata olmaydigan model uchun chiqmaydi.
@@ -648,9 +649,15 @@ ${connectorContext}`
           // etilgan boshqa modelga o'tamiz va buni foydalanuvchiga aytamiz.
           // Auto qadami o'z navbatini olib keladi (tarif × vazifa); qo'lda tanlangan
           // model uchun esa — shu turdagi, tarif ruxsat bergan zaxiralar.
+          const manualFallbacks = () => fallbackModelIds(step.modelId, (tier) => planAllowsTier(plan, tier));
+          // Tekin tarif: tanlangan model yiqilsa avval Groq → Cloudflare (chain.ts), keyin eski zaxiralar.
+          // Research (Perplexity) qadami bundan mustasno — u boshqa turdagi model.
+          const freeChain = !planAllowsTier(plan, "starter") && step.kind !== "research";
           const baseCandidates = step.fallbacks?.length
             ? step.fallbacks
-            : [step.modelId, ...fallbackModelIds(step.modelId, (tier) => planAllowsTier(plan, tier))];
+            : freeChain
+              ? freePlanCandidates(step.modelId, manualFallbacks(), available)
+              : [step.modelId, ...manualFallbacks()];
           // Mintaqa siyosati: zaxiralar ham faqat ruxsat etilgan provayderlardan.
           const candidates = country
             ? regionDecision({

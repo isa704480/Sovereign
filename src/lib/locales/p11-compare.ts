@@ -219,10 +219,16 @@ export const P11C = {
     en: "{tasks} tasks, 1 run per model, on {date}. Temperature 0 where supported.",
   },
   p11cMethod2: {
-    uz: "Modellar ilovaning o'zi ishlatadigan provayder yo'llari orqali chaqiriladi (OpenRouter, RSI, Groq, OmniRoute); aslida ishlatilgan yo'l jadvalda ko'rsatilgan.",
-    "uz-cyrl": "Моделлар илованинг ўзи ишлатадиган провайдер йўллари орқали чақирилади (OpenRouter, RSI, Groq, OmniRoute); аслида ишлатилган йўл жадвалда кўрсатилган.",
-    ru: "Модели вызываются через те же маршруты провайдеров, что использует само приложение (OpenRouter, RSI, Groq, OmniRoute); фактический маршрут указан в таблице.",
-    en: "Models are called through the same provider routes the app itself uses (OpenRouter, RSI, Groq, OmniRoute); the route actually used is shown in the table.",
+    uz: "Modellar ilovaning o'zi ishlatadigan provayder yo'llari orqali chaqiriladi (OpenRouter, RSI, Groq, OmniRoute, Cloudflare Workers AI); aslida ishlatilgan yo'l jadvalda ko'rsatilgan. Barcha vazifalarni tugatmagan model \"hali o'lchanmagan\" deb qoladi.",
+    "uz-cyrl": "Моделлар илованинг ўзи ишлатадиган провайдер йўллари орқали чақирилади (OpenRouter, RSI, Groq, OmniRoute, Cloudflare Workers AI); аслида ишлатилган йўл жадвалда кўрсатилган. Барча вазифаларни тугатмаган модель \"ҳали ўлчанмаган\" деб қолади.",
+    ru: "Модели вызываются через те же маршруты провайдеров, что использует само приложение (OpenRouter, RSI, Groq, OmniRoute, Cloudflare Workers AI); фактический маршрут указан в таблице. Модель, не прошедшая все задачи, остаётся «пока не измерено».",
+    en: "Models are called through the same provider routes the app itself uses (OpenRouter, RSI, Groq, OmniRoute, Cloudflare Workers AI); the route actually used is shown in the table. A model that did not finish every task stays \"not measured yet\".",
+  },
+  p11cCfNeurons: {
+    uz: "Cloudflare Workers AI yo'li: bu o'lchovlarda taxminan {n} neuron sarflandi (tekin ulush — kuniga 10 000 neuron). Narx ustuni baribir OpenRouter ro'yxat narxida.",
+    "uz-cyrl": "Cloudflare Workers AI йўли: бу ўлчовларда тахминан {n} нейрон сарфланди (текин улуш — кунига 10 000 нейрон). Нарх устуни барибир OpenRouter рўйхат нархида.",
+    ru: "Маршрут Cloudflare Workers AI: в этих замерах израсходовано около {n} нейронов (бесплатно — 10 000 нейронов в день). Столбец стоимости всё равно указан по прайсу OpenRouter.",
+    en: "Cloudflare Workers AI route: about {n} neurons were used for these measurements (free allowance: 10,000 neurons per day). The cost column still uses the OpenRouter list price.",
   },
   p11cMethod3: {
     uz: "Kod vazifalari yashirin unit-testlar bilan izolyatsiya qilingan jarayonda (tarmoqsiz, vaqt chegarasi bilan) tekshiriladi — barcha testlar o'tishi shart.",

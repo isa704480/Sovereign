@@ -65,22 +65,102 @@ async function checkDatabase(): Promise<Check> {
   }
 }
 
-async function checkAiGateway(): Promise<Check> {
-  if (!process.env.OMNIROUTE_BASE_URL) {
-    return { status: "degraded", latencyMs: null, note: "Not configured" };
-  }
+/** Bitta chat provayderining holati: null — sozlanmagan (hisobga olinmaydi). */
+type ProviderProbe = { ok: boolean; latencyMs: number | null } | null;
+
+/** TIMEOUT_MS bilan so'rov; tarmoq xatosi/taymautda res = null (hech qachon throw qilmaydi). */
+async function timedFetch(url: string, init: RequestInit): Promise<{ res: Response | null; latencyMs: number }> {
   const started = Date.now();
   try {
-    const result = await withTimeout(probeOmniRoute(), TIMEOUT_MS);
-    const latencyMs = Date.now() - started;
-    if (result === TIMEOUT) return { status: "degraded", latencyMs: null, note: "Slow responses" };
-    if (!result.healthy) return { status: "down", latencyMs, note: "Not responding" };
-    // 4xx/429 — gateway tirik, lekin provayderlar cheklangan bo'lishi mumkin.
-    if (result.status >= 400) return { status: "degraded", latencyMs, note: "Some models may be unavailable" };
-    return { status: "operational", latencyMs };
+    const res = await fetch(url, { ...init, cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
+    return { res, latencyMs: Date.now() - started };
   } catch {
-    return { status: "down", latencyMs: null, note: "Not responding" };
+    return { res: null, latencyMs: Date.now() - started };
   }
+}
+
+/** OmniRoute: kichik haqiqiy so'rov (probeOmniRoute). 4xx — provayderlar cheklangan. */
+async function probeOmni(): Promise<ProviderProbe> {
+  if (!process.env.OMNIROUTE_BASE_URL) return null;
+  const started = Date.now();
+  const result = await withTimeout(probeOmniRoute(), TIMEOUT_MS).catch((): typeof TIMEOUT => TIMEOUT);
+  if (result === TIMEOUT) return { ok: false, latencyMs: null };
+  return { ok: result.healthy && result.status < 400, latencyMs: Date.now() - started };
+}
+
+/**
+ * OpenRouter: balans (GET /credits — token sarflanmaydi). Kredit tugagan bo'lsa (402 holati)
+ * provayder ishlamaydi deb hisoblanadi.
+ */
+async function probeOpenRouter(): Promise<ProviderProbe> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return null;
+  const { res, latencyMs } = await timedFetch("https://openrouter.ai/api/v1/credits", {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  if (!res?.ok) {
+    await res?.body?.cancel().catch(() => {});
+    return { ok: false, latencyMs: res ? latencyMs : null };
+  }
+  const j = (await res.json().catch(() => null)) as { data?: { total_credits?: number; total_usage?: number } } | null;
+  const total = Number(j?.data?.total_credits);
+  const used = Number(j?.data?.total_usage);
+  const hasCredit = Number.isFinite(total) && Number.isFinite(used) ? total - used > 0 : false;
+  return { ok: hasCredit, latencyMs };
+}
+
+/** Groq: GET /models — kalit va xizmat tirikligi (bepul kunlik so'rov kvotasi sarflanmaydi). */
+async function probeGroq(): Promise<ProviderProbe> {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) return null;
+  const { res, latencyMs } = await timedFetch("https://api.groq.com/openai/v1/models", {
+    headers: { Authorization: `Bearer ${key}` },
+  });
+  await res?.body?.cancel().catch(() => {});
+  return { ok: !!res?.ok, latencyMs: res ? latencyMs : null };
+}
+
+/**
+ * Cloudflare Workers AI: eng kichik model bilan 1 tokenli so'rov (~0.05 neuron) — kunlik 10k
+ * neuron limiti tugagan bo'lsa (429 / 4006) shu yerda ko'rinadi; /models buni ko'rsatmaydi.
+ */
+async function probeCloudflare(): Promise<ProviderProbe> {
+  const account = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const token = process.env.CLOUDFLARE_AI_TOKEN?.trim();
+  if (!account || !token) return null;
+  const { res, latencyMs } = await timedFetch(
+    `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/v1/chat/completions`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ model: "@cf/meta/llama-3.2-1b-instruct", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+    },
+  );
+  await res?.body?.cancel().catch(() => {});
+  return { ok: !!res?.ok, latencyMs: res ? latencyMs : null };
+}
+
+/**
+ * AI shlyuzi — chat provayderlari (OmniRoute, OpenRouter, Groq, Cloudflare) birgalikda:
+ *  - hammasi ishlaydi → operational;
+ *  - kamida bittasi ishlaydi (masalan OpenRouter krediti tugagan, Groq/Cloudflare ishlayapti) →
+ *    operational + "Some models may be unavailable" (pullik modellar ekvivalentga almashishi mumkin);
+ *  - hech biri ishlamaydi → degraded "Using fallback provider" (faqat anonim LLM7 zaxirasi qoladi);
+ *  - hech biri sozlanmagan → degraded "Not configured".
+ * Qaysi provayder ekani JSON'ga chiqmaydi — faqat umumiy izoh.
+ */
+async function checkAiGateway(): Promise<Check> {
+  const probes = (await Promise.all([probeOmni(), probeOpenRouter(), probeGroq(), probeCloudflare()])).filter(
+    (p): p is NonNullable<ProviderProbe> => p !== null,
+  );
+  if (!probes.length) return { status: "degraded", latencyMs: null, note: "Not configured" };
+  const healthy = probes.filter((p) => p.ok);
+  if (!healthy.length) return { status: "degraded", latencyMs: null, note: "Using fallback provider" };
+  const latencyMs = Math.min(...healthy.map((p) => p.latencyMs ?? Number.POSITIVE_INFINITY));
+  const latency = Number.isFinite(latencyMs) ? latencyMs : null;
+  if (latency !== null && bySpeed(latency) === "degraded") return { status: "degraded", latencyMs: latency, note: "Slow responses" };
+  if (healthy.length < probes.length) return { status: "operational", latencyMs: latency, note: "Some models may be unavailable" };
+  return { status: "operational", latencyMs: latency };
 }
 
 async function checkImages(): Promise<Check> {

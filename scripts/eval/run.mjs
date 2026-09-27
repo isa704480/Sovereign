@@ -8,6 +8,9 @@
  *   node scripts/eval/run.mjs --budget=5      # USD (OpenRouter list narxida), oshsa to'xtaydi (standart 5)
  *   node scripts/eval/run.mjs --no-write      # src/data/model-compare.json yozilmaydi
  *   node scripts/eval/run.mjs --regrade=<runId>  # API'siz: out/<runId> javoblarini joriy baholovchi bilan qayta baholash
+ *   node scripts/eval/run.mjs --only-unmeasured  # faqat model-compare.json da hali o'lchanmagan modellar;
+ *                                                # natija mavjud JSON bilan BIRLASHTIRILADI (--merge)
+ *   node scripts/eval/run.mjs --neurons=8000     # Cloudflare neuron chegarasi (standart 8000; tekin 10k/kun)
  *
  * Modellar ilova ishlatadigan YO'LLAR orqali chaqiriladi (src/lib/ai/providers.ts):
  *   openrouter — streamOpenRouter: https://openrouter.ai/api/v1, OPENROUTER_API_KEY, providerModel id,
@@ -15,6 +18,9 @@
  *   rsi        — rsiRoute(): RSI_BASE_URL + RSI_API_KEY (ilova Opus 5/4.8, Fable'ni shu orqali yuboradi)
  *   groq       — DIRECT_ROUTES provayderi: api.groq.com, GROQ_API_KEY
  *   omniroute  — omniCatalogRoute(): OMNIROUTE_BASE_URL + OMNIROUTE_API_KEY, katalog id
+ *   cloudflare — cloudflareRoute(): Workers AI OpenAI-mos endpoint, CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_AI_TOKEN,
+ *                "@cf/..." id; gpt-oss oqimsiz. Neuron sarfi usage × pricing jadvali (src/lib/ai/cloudflare.ts)
+ *                bo'yicha hisoblanadi va --neurons chegarasidan oshmasdan to'xtatiladi.
  * Har model uchun yo'llar tartib bilan "probe" qilinadi (to'liq max_tokens bilan kichik so'rov);
  * birinchi haqiqiy javob bergan yo'l ishlatiladi. Hech biri ishlamasa — model "o'lchanmagan"
  * deb yoziladi (raqam O'YLAB TOPILMAYDI).
@@ -50,19 +56,58 @@ export const MODELS = [
       { via: "openrouter", model: "deepseek/deepseek-v4-pro-0813" },
       { via: "omniroute", model: "openrouter/deepseek/deepseek-v4-pro-0813" },
       { via: "omniroute", model: "cfp/deepseek-ai/deepseek-v4-pro-0813" },
+      { via: "cloudflare", model: "@cf/deepseek-ai/deepseek-v4-pro-0813" },
     ] },
   { key: "deepseek-v4-1-flash", id: "deepseek/deepseek-v4.1-flash", label: "DeepSeek V4.1 Flash", family: "deepseek",
     routes: [{ via: "openrouter", model: "deepseek/deepseek-v4.1-flash" }, { via: "omniroute", model: "openrouter/deepseek/deepseek-v4.1-flash" }] },
   { key: "qwen3-8-max", id: "qwen/qwen3.8-max-0902", label: "Qwen 3.8 Max", family: "qwen",
     routes: [{ via: "openrouter", model: "qwen/qwen3.8-max-0902" }, { via: "omniroute", model: "openrouter/qwen/qwen3.8-max-0902" }] },
   { key: "qwen3-8-27b", id: "qwen/qwen3.8-27b", label: "Qwen 3.8 27B", family: "qwen",
-    routes: [{ via: "openrouter", model: "qwen/qwen3.8-27b" }, { via: "groq", model: "qwen/qwen3.8-27b" }] },
+    routes: [
+      { via: "openrouter", model: "qwen/qwen3.8-27b" },
+      { via: "groq", model: "qwen/qwen3.8-27b" },
+      { via: "cloudflare", model: "@cf/qwen/qwen3.8-27b" },
+    ] },
+  // Cloudflare Workers AI orqali (OpenRouter krediti tugaganda ilova shu yo'lga o'tadi).
+  { key: "kimi-k2-6", id: "moonshotai/kimi-k2.6", label: "Kimi K2.6", family: "kimi",
+    routes: [{ via: "openrouter", model: "moonshotai/kimi-k2.6" }, { via: "cloudflare", model: "@cf/moonshotai/kimi-k2.6" }] },
+  { key: "kimi-k2-7-code", id: "moonshotai/kimi-k2.7-code", label: "Kimi K2.7 Code", family: "kimi",
+    routes: [{ via: "openrouter", model: "moonshotai/kimi-k2.7-code" }, { via: "cloudflare", model: "@cf/moonshotai/kimi-k2.7-code" }] },
+  { key: "glm-5-3", id: "z-ai/glm-5.3", label: "GLM 5.3", family: "glm",
+    routes: [{ via: "openrouter", model: "z-ai/glm-5.3" }, { via: "cloudflare", model: "@cf/zai-org/glm-5.3" }] },
 ];
 
 const MAX_TOKENS = 8000;
 const REQUEST_TIMEOUT_MS = 180_000;
-/** Groq bepul tarifida TPM cheklovi bor — ketma-ket. */
-const CONCURRENCY = { openrouter: 3, rsi: 3, omniroute: 2, groq: 1 };
+/** Groq bepul tarifida TPM cheklovi bor — ketma-ket. Cloudflare — neuron chegarasini aniq ushlash uchun ketma-ket. */
+const CONCURRENCY = { openrouter: 3, rsi: 3, omniroute: 2, groq: 1, cloudflare: 1 };
+
+/**
+ * Cloudflare neuron narxi (1M token uchun) — src/lib/ai/cloudflare.ts CF_NEURONS_PER_M nusxasi
+ * (manba: developers.cloudflare.com/workers-ai/platform/pricing/, 2026-09-27).
+ */
+const CF_NEURONS_PER_M = {
+  "@cf/deepseek-ai/deepseek-v4-flash-0731": { in: 40_000, out: 120_000 },
+  "@cf/deepseek-ai/deepseek-v4-pro-0813": { in: 120_000, out: 360_000 },
+  "@cf/moonshotai/kimi-k2.6": { in: 86_364, out: 363_636 },
+  "@cf/moonshotai/kimi-k2.7-code": { in: 86_364, out: 363_636 },
+  "@cf/qwen/qwen3.8-27b": { in: 40_909, out: 290_909 },
+  "@cf/zai-org/glm-5.3": { in: 127_273, out: 400_000 },
+  "@cf/openai/gpt-oss-120b": { in: 31_818, out: 68_182 },
+  "@cf/meta/llama-3.3-70b-instruct-fp8-fast": { in: 26_668, out: 204_805 },
+};
+
+/**
+ * Neuron sarfi: usage bo'lsa undan; bo'lmasa matn uzunligidan ehtiyotkor baho (≈3 belgi/token,
+ * ya'ni sarf oshirib hisoblanadi — chegaradan chiqib ketmaslik uchun).
+ */
+function cfNeurons(model, usage, promptText, outText) {
+  const rate = CF_NEURONS_PER_M[model];
+  if (!rate) return null;
+  const pt = usage?.prompt_tokens ?? usage?.input_tokens ?? Math.ceil((promptText?.length ?? 0) / 3);
+  const ct = usage?.completion_tokens ?? usage?.output_tokens ?? Math.ceil((outText?.length ?? 0) / 3);
+  return { neurons: (pt * rate.in + ct * rate.out) / 1e6, estimated: !usage };
+}
 
 /* ------------------------------------------------------------------ */
 /* CLI / env                                                            */
@@ -89,8 +134,16 @@ function endpoint(via) {
   if (via === "rsi") return process.env.RSI_BASE_URL && process.env.RSI_API_KEY ? { base: trim(process.env.RSI_BASE_URL), key: process.env.RSI_API_KEY } : null;
   if (via === "groq") return process.env.GROQ_API_KEY ? { base: "https://api.groq.com/openai/v1", key: process.env.GROQ_API_KEY } : null;
   if (via === "omniroute") return process.env.OMNIROUTE_BASE_URL && process.env.OMNIROUTE_API_KEY ? { base: trim(process.env.OMNIROUTE_BASE_URL), key: process.env.OMNIROUTE_API_KEY } : null;
+  if (via === "cloudflare") {
+    const account = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+    const token = process.env.CLOUDFLARE_AI_TOKEN?.trim();
+    return account && token ? { base: `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/v1`, key: token } : null;
+  }
   return null;
 }
+
+/** Cloudflare'dagi gpt-oss oqimsiz (src/lib/ai/cloudflare.ts cfStreams bilan bir xil). */
+const streams = (route) => route.via !== "cloudflare" || !/gpt-oss/i.test(route.model);
 
 /* ------------------------------------------------------------------ */
 /* Self-test                                                            */
@@ -129,14 +182,15 @@ async function fetchCatalog() {
 /** Ilova bilan bir xil so'rov shakli (streamOpenRouter): OpenAI chat-completions, stream. */
 async function callModel(route, prompt, { temperature, maxTokens = MAX_TOKENS }) {
   const ep = endpoint(route.via);
+  const stream = streams(route);
   const body = {
     model: route.model,
     messages: [{ role: "user", content: prompt }],
     max_tokens: maxTokens,
-    stream: true,
+    stream,
   };
   if (route.via === "openrouter") body.usage = { include: true };
-  else body.stream_options = { include_usage: true };
+  else if (stream) body.stream_options = { include_usage: true };
   if (temperature != null) body.temperature = temperature;
   const headers = { "Content-Type": "application/json", Authorization: `Bearer ${ep.key}` };
   if (route.via === "openrouter") {
@@ -164,6 +218,19 @@ async function callModel(route, prompt, { temperature, maxTokens = MAX_TOKENS })
   let served = null;
   let finish = null;
   let buf = "";
+  // Oqimsiz javob (Cloudflare gpt-oss) yoki SSE o'rniga JSON qaytgan bo'lsa.
+  const type = res.headers.get("content-type") ?? "";
+  if (!stream || (type.includes("application/json") && !type.includes("event-stream"))) {
+    const raw = await res.json();
+    const j = raw?.result && typeof raw.result === "object" ? raw.result : raw;
+    const msg = j?.choices?.[0]?.message;
+    text = typeof msg?.content === "string" ? msg.content : typeof j?.response === "string" ? j.response : "";
+    const latencyMs = Math.round(performance.now() - t0);
+    return {
+      text, latencyMs, ttftMs: text ? latencyMs : null, usage: j?.usage ?? null, provider: route.via,
+      served: j?.model ?? null, finish: j?.choices?.[0]?.finish_reason ?? null,
+    };
+  }
   const dec = new TextDecoder();
   for await (const chunk of res.body) {
     buf += dec.decode(chunk, { stream: true });
@@ -204,6 +271,8 @@ async function callWithRetry(route, prompt, opts) {
     } catch (e) {
       last = e;
       if (e.status && e.status < 500 && e.status !== 429) break; // 4xx — qayta urinish befoyda
+      // Cloudflare kunlik neuron limiti (4006) — ertaga (00:00 UTC) tiklanadi, kutish befoyda.
+      if (/4006|daily free allocation/i.test(String(e.message))) break;
       const wait = e.status === 429 ? Math.max((e.retryAfter ?? 0) * 1000, 8000 * (attempt + 1)) : 2000 * (attempt + 1);
       await new Promise((r) => setTimeout(r, wait));
     }
@@ -214,8 +283,10 @@ async function callWithRetry(route, prompt, opts) {
 /** Yo'lni sinaydi: to'liq max_tokens bilan (kredit yetishini ham tekshiradi), javob bo'sh bo'lmasligi shart. */
 async function probe(route) {
   if (!endpoint(route.via)) return { ok: false, reason: `${route.via}: env key missing` };
+  const probePrompt = "Reply with exactly one word: ready";
   try {
-    const r = await callWithRetry(route, "Reply with exactly one word: ready", { temperature: 0 });
+    const r = await callWithRetry(route, probePrompt, { temperature: 0 });
+    if (route.via === "cloudflare") neuronsSpent += cfNeurons(route.model, r.usage, probePrompt, r.text)?.neurons ?? 0;
     if (!r.text.trim()) return { ok: false, reason: `${route.via}: empty response (0 output tokens)` };
     return { ok: true, served: r.served };
   } catch (e) {
@@ -248,16 +319,34 @@ const median = (xs) => {
 };
 const round = (x, d = 4) => (x == null || Number.isNaN(x) ? null : Math.round(x * 10 ** d) / 10 ** d);
 
+/** Shu jarayonda Cloudflare'da sarflangan neuron (probe + vazifalar). */
+let neuronsSpent = 0;
+
+function previousCompare() {
+  return existsSync(OUT_JSON) ? JSON.parse(readFileSync(OUT_JSON, "utf8")) : null;
+}
+
 async function main() {
   loadEnv();
   if (flag("self-test")) return selfTest();
   if (opt("regrade")) return regrade(opt("regrade"));
 
   const budget = Number(opt("budget") ?? 5);
+  const neuronBudget = Number(opt("neurons") ?? 8000);
   const onlyModels = opt("models")?.split(",");
   const onlyTasks = opt("only")?.split(",");
-  const models = MODELS.filter((m) => !onlyModels || onlyModels.includes(m.key)).map((m) => ({ ...m }));
+  // --only-unmeasured: model-compare.json da allaqachon o'lchangan modellar qayta o'lchanmaydi.
+  const measuredBefore = new Set(
+    flag("only-unmeasured") ? (previousCompare()?.models ?? []).filter((m) => m.measured).map((m) => m.key) : [],
+  );
+  const models = MODELS.filter((m) => (!onlyModels || onlyModels.includes(m.key)) && !measuredBefore.has(m.key)).map((m) => ({ ...m }));
   const tasks = TASKS.filter((t) => !onlyTasks || onlyTasks.includes(t.id));
+  const merge = flag("merge") || flag("only-unmeasured");
+  if (!models.length) {
+    console.log("O'lchanadigan model yo'q (hammasi allaqachon o'lchangan).");
+    return;
+  }
+  console.log(`Modellar: ${models.map((m) => m.key).join(", ")}${merge ? " (mavjud JSON bilan birlashtiriladi)" : ""}`);
 
   const catalog = await fetchCatalog();
   const runId = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -302,10 +391,18 @@ async function main() {
   async function runModel(model) {
     if (!model.route) return;
     const queue = [...tasks];
+    const isCf = model.route.via === "cloudflare";
+    // Keyingi vazifa uchun zaxira: shu modelda ko'rilgan eng katta sarf (boshida — 2000 chiqish tokeni).
+    let reserve = isCf ? ((CF_NEURONS_PER_M[model.route.model]?.out ?? 400_000) * 2000) / 1e6 : 0;
     async function worker() {
       while (queue.length) {
         if (spent > budget) {
           stopped ??= `budget $${budget} exceeded`;
+          return;
+        }
+        if (isCf && neuronsSpent + reserve > neuronBudget) {
+          stopped ??= `Cloudflare neuron budget ${neuronBudget} reached (${Math.round(neuronsSpent)} used)`;
+          model.neuronStop = true;
           return;
         }
         const task = queue.shift();
@@ -318,6 +415,11 @@ async function main() {
           const listCost = pt * model.priceIn + ct * model.priceOut;
           const cost = Number.isFinite(listCost) ? listCost : 0;
           spent += cost;
+          const nr = isCf ? cfNeurons(model.route.model, r.usage, task.prompt, r.text) : null;
+          if (nr) {
+            neuronsSpent += nr.neurons;
+            reserve = Math.max(reserve, nr.neurons);
+          }
           const g = await grade(task, r.text);
           row = {
             task: task.id, category: task.category, lang: task.lang, pass: g.pass, reason: g.reason,
@@ -327,10 +429,18 @@ async function main() {
             reasoningTokens: u.completion_tokens_details?.reasoning_tokens ?? null,
             costUsd: cost,
             billedUsd: typeof u.cost === "number" ? u.cost : null,
+            neurons: nr ? round(nr.neurons, 1) : null,
+            neuronsEstimated: nr ? nr.estimated : null,
             response: r.text,
           };
         } catch (e) {
           row = { task: task.id, category: task.category, lang: task.lang, pass: false, error: String(e.message ?? e).slice(0, 300) };
+          // Kunlik neuron limiti — qolgan vazifalar ham yiqiladi, to'xtaymiz.
+          if (isCf && /4006|daily free allocation/i.test(row.error)) {
+            stopped ??= "Cloudflare daily free neuron allocation exhausted (4006)";
+            model.neuronStop = true;
+            queue.length = 0;
+          }
         }
         results.get(model.key).push(row);
         appendFileSync(join(outDir, `${model.key}.jsonl`), JSON.stringify(row) + "\n");
@@ -340,8 +450,15 @@ async function main() {
     await Promise.all(Array.from({ length: CONCURRENCY[model.route.via] ?? 2 }, worker));
   }
 
-  await Promise.all(models.map(runModel));
-  writeSummary({ models, results, tasks, spent, stopped, runId, outDir });
+  // Cloudflare modellari ketma-ket (neuron chegarasi umumiy), qolganlari parallel.
+  await Promise.all([
+    ...models.filter((m) => m.route?.via !== "cloudflare").map(runModel),
+    (async () => {
+      for (const m of models.filter((x) => x.route?.via === "cloudflare")) await runModel(m);
+    })(),
+  ]);
+  if (neuronsSpent) console.log(`[cloudflare] ~${Math.round(neuronsSpent)} neuron sarflandi (chegara ${neuronBudget})`);
+  writeSummary({ models, results, tasks, spent, stopped, runId, outDir, merge, neurons: neuronsSpent });
 }
 
 /**
@@ -375,15 +492,37 @@ async function regrade(runId) {
   writeSummary({
     models, results, tasks, spent: prevSummary.estimatedCostUsd ?? 0, stopped: prevSummary.stoppedEarly ?? null,
     runId, outDir, runDate: prevSummary.runDate,
+    // Qisman (--only-unmeasured / --merge) run qayta baholansa ham boshqa modellar saqlanadi.
+    merge: prevSummary.merge ?? false, neurons: prevSummary.cloudflareNeurons ?? 0, addSpend: false,
   });
 }
 
-function writeSummary({ models, results, tasks, spent, stopped, runId, outDir, runDate }) {
+/** Reference = ro'yxatdagi birinchi O'LCHANGAN Claude; har modelga vsReference yoziladi. */
+function applyReference(list) {
+  const ref = list.find((m) => m.family === "claude" && m.measured);
+  for (const m of list) {
+    m.reference = !!ref && m.key === ref.key;
+    m.vsReference = ref && m.measured
+      ? {
+          scoreRatio: ref.overall.pct ? round(m.overall.pct / ref.overall.pct, 3) : null,
+          costRatio: ref.costUsd ? round(m.costUsd / ref.costUsd, 4) : null,
+          latencyRatio: ref.latency.medianMs ? round(m.latency.medianMs / ref.latency.medianMs, 3) : null,
+        }
+      : null;
+  }
+  return ref ?? null;
+}
+
+function writeSummary({ models, results, tasks, spent, stopped, runId, outDir, runDate, merge = false, neurons = 0, addSpend = true }) {
   /* ---------------- summary ---------------- */
   const summaryModels = models.map((m) => {
     const rows = results.get(m.key) ?? [];
     const ok = rows.filter((r) => !r.error);
-    const measured = ok.length > 0;
+    // Chala run (budjet / neuron chegarasi) — boshqa modellar bilan solishtirib bo'lmaydi: o'lchanmagan.
+    const partial = ok.length > 0 && rows.length < tasks.length;
+    const measured = ok.length > 0 && !partial;
+    if (partial) m.probeLog = [...(m.probeLog ?? []), `partial run: ${rows.length}/${tasks.length} tasks (${stopped ?? "stopped"})`];
+    const neuronRows = ok.filter((r) => typeof r.neurons === "number");
     const byCat = {};
     for (const c of CATEGORIES) {
       const cr = rows.filter((r) => r.category === c);
@@ -419,20 +558,12 @@ function writeSummary({ models, results, tasks, spent, stopped, runId, outDir, r
         : null,
       costUsd: measured ? round(cost, 4) : null,
       costPerTaskUsd: measured ? round(cost / ok.length, 5) : null,
+      // Cloudflare yo'li: usage × pricing jadvali bo'yicha neuron (tekin: 10k/kun).
+      neurons: neuronRows.length ? round(neuronRows.reduce((s, r) => s + r.neurons, 0), 1) : null,
+      runId,
+      runDate: runDate ?? new Date().toISOString().slice(0, 10),
     };
   });
-
-  const ref = summaryModels.find((m) => m.family === "claude" && m.measured);
-  for (const m of summaryModels) {
-    m.reference = !!ref && m.key === ref.key;
-    m.vsReference = ref && m.measured
-      ? {
-          scoreRatio: ref.overall.pct ? round(m.overall.pct / ref.overall.pct, 3) : null,
-          costRatio: ref.costUsd ? round(m.costUsd / ref.costUsd, 4) : null,
-          latencyRatio: ref.latency.medianMs ? round(m.latency.medianMs / ref.latency.medianMs, 3) : null,
-        }
-      : null;
-  }
 
   const perTask = tasks.map((t) => ({
     id: t.id, category: t.category, lang: t.lang,
@@ -442,20 +573,44 @@ function writeSummary({ models, results, tasks, spent, stopped, runId, outDir, r
     })),
   }));
 
-  const prev = existsSync(OUT_JSON) ? JSON.parse(readFileSync(OUT_JSON, "utf8")) : {};
-  const summary = {
+  const prev = previousCompare() ?? {};
+  let allModels = summaryModels;
+  let allTasks = perTask;
+  if (merge && Array.isArray(prev.models)) {
+    // Birlashtirish: bu run'dagi modellar yangilanadi, qolganlari (va ularning vazifa natijalari) saqlanadi.
+    const runKeys = new Set(summaryModels.map((m) => m.key));
+    const kept = prev.models
+      .filter((m) => !runKeys.has(m.key))
+      .map((m) => ({ ...m, runId: m.runId ?? prev.runId ?? null, runDate: m.runDate ?? prev.runDate ?? null }));
+    const order = (k) => {
+      const i = MODELS.findIndex((m) => m.key === k);
+      return i === -1 ? MODELS.length : i;
+    };
+    allModels = [...kept, ...summaryModels].sort((a, b) => order(a.key) - order(b.key));
+    allTasks = perTask.map((t) => ({
+      ...t,
+      results: { ...(prev.tasks?.find((p) => p.id === t.id)?.results ?? {}), ...t.results },
+    }));
+  }
+  // Run-only nusxa (regrade uchun) — reference o'z ichida hisoblanadi, umumiy obyektlarga tegmaydi.
+  const runModels = structuredClone(summaryModels);
+  applyReference(runModels);
+  const ref = applyReference(allModels);
+
+  const base = {
     version: 1,
     runDate: runDate ?? new Date().toISOString().slice(0, 10),
     runId,
     referenceModel: ref?.key ?? null,
     stoppedEarly: stopped,
     estimatedCostUsd: round(spent, 4),
+    cloudflareNeurons: neurons ? round(neurons, 1) : null,
     methodology: {
       tasks: tasks.length,
       categories: Object.fromEntries(CATEGORIES.map((c) => [c, tasks.filter((t) => t.category === c).length])),
       languages: Object.fromEntries(["ru", "uz", "en"].map((l) => [l, tasks.filter((t) => t.lang === l).length])),
       runsPerTask: 1,
-      routes: "the provider routes the app itself uses (src/lib/ai/providers.ts): OpenRouter, RSI, Groq, OmniRoute; OpenAI chat-completions format, stream=true; first working route per model after a probe",
+      routes: "the provider routes the app itself uses (src/lib/ai/providers.ts): OpenRouter, RSI, Groq, OmniRoute, Cloudflare Workers AI; OpenAI chat-completions format, stream=true (stream=false only for gpt-oss on Cloudflare); first working route per model after a probe",
       temperature: "0 where supported, otherwise provider default",
       maxTokens: MAX_TOKENS,
       reasoning: "each model's default reasoning/thinking setting on its route; no extra effort flags",
@@ -469,13 +624,32 @@ function writeSummary({ models, results, tasks, spent, stopped, runId, outDir, r
       cost: "tokens reported by each route × OpenRouter list price for the same model (reseller/free-tier prices differ)",
       latency: "wall-clock from request to last streamed byte on the machine running the harness; depends on the route's hardware (e.g. Groq LPUs are unusually fast), not only the model",
       apiErrors: "counted as failures and reported separately",
+      partialRuns: "a model that did not finish all tasks (USD budget or Cloudflare neuron budget) is reported as not measured",
+      merged: "rows from different runs may be combined (--only-unmeasured / --merge); each model carries its own runId and runDate",
     },
-    models: summaryModels,
-    tasks: perTask,
+  };
+  // out/<runId>/summary.json — faqat shu run (regrade uchun; `merge` bayrog'i saqlanadi).
+  const runSummary = { ...base, merge, models: runModels, tasks: perTask, public: prev.public ?? null };
+  const summary = {
+    ...base,
+    // Birlashtirilganda — barcha run'lar bo'yicha jami taxminiy sarf (runId/runDate — oxirgi run).
+    ...(merge && allModels !== summaryModels
+      ? {
+          referenceModel: ref?.key ?? null,
+          // regrade (addSpend=false) — sarf allaqachon jamlangan, qayta qo'shilmaydi.
+          estimatedCostUsd: round((prev.estimatedCostUsd ?? 0) + (addSpend ? spent : 0), 4),
+          cloudflareNeurons:
+            prev.cloudflareNeurons || (addSpend && neurons)
+              ? round((prev.cloudflareNeurons ?? 0) + (addSpend ? neurons : 0), 1)
+              : null,
+        }
+      : {}),
+    models: allModels,
+    tasks: allTasks,
     public: prev.public ?? null,
   };
 
-  writeFileSync(join(outDir, "summary.json"), JSON.stringify(summary, null, 2));
+  writeFileSync(join(outDir, "summary.json"), JSON.stringify(runSummary, null, 2));
   if (!flag("no-write")) {
     mkdirSync(dirname(OUT_JSON), { recursive: true });
     writeFileSync(OUT_JSON, JSON.stringify(summary, null, 2) + "\n");
