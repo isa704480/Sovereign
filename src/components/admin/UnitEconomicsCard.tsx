@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useId } from "react";
 import { PRICES_CHECKED } from "@/config/model-prices";
 import { PLAN_BY_ID, type PlanId } from "@/config/plans";
+import type { BudgetSnapshot } from "@/lib/econ/budget";
 import { ECON_RANGES, type Breakdown, type EconRange, type UnitEconomics } from "@/lib/econ/unit-economics";
 import { fmt as fmtT } from "@/lib/i18n";
 import { useT } from "@/store/chat";
@@ -67,7 +68,90 @@ function BreakdownTable({ title, rows, label }: { title: string; rows: Breakdown
   );
 }
 
-export function UnitEconomicsCard({ data, days }: { data: UnitEconomics | null; days: EconRange }) {
+/** API byudjeti (50% qoidasi): joriy oy daromad / sarf, guard holati, OpenRouter balansi. */
+function BudgetPanel({ budget }: { budget: BudgetSnapshot | null }) {
+  const t = useT();
+  const s = budget?.state ?? null;
+  const or = budget?.openrouter ?? null;
+  const ratio = (n: number | null | undefined) => (n == null || !Number.isFinite(n) ? "—" : `${(n * 100).toFixed(1)}%`);
+  const guardColor = s?.paidRestricted ? "#FF6B6B" : s?.level === "warn" ? "#F5AA3C" : "#10D4A0";
+  const guardText = !s
+    ? "—"
+    : s.paidRestricted
+      ? t("p13eBudgetGuardOn")
+      : s.level === "warn"
+        ? t("p13eBudgetGuardWarn")
+        : t("p13eBudgetGuardOff");
+  const orLow = or?.balanceUsd != null && s != null && or.balanceUsd < s.cfg.openrouterAlertUsd;
+
+  return (
+    <div className="mb-6 rounded-xl border border-white/5 bg-white/[0.02] p-4">
+      <div className="mb-3 text-sm text-white/70">
+        {t("p13eBudgetTitle")}
+        {s && <span className="ml-2 text-white/40 tabular-nums">{s.month}</span>}
+      </div>
+      {!s ? (
+        <p className="text-sm text-white/50">{t("p13eBudgetUnavailable")}</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <Stat label={t("p13eBudgetRevenue")} value={usd(s.revenueUsd)} />
+            <Stat
+              label={t("p13eBudgetSpend")}
+              value={usd(s.spendUsd)}
+              sub={fmtT(t("p13eBudgetFreeTier"), { cost: usd(s.spend.freeTierAtListUsd) })}
+            />
+            <Stat
+              label={t("p13eBudgetRatio")}
+              value={ratio(s.ratio)}
+              sub={fmtT(t("p13eBudgetRatioSub"), { warn: ratio(s.cfg.warnRatio), cap: ratio(s.cfg.capRatio) })}
+              color={guardColor}
+            />
+            <Stat label={t("p13eBudgetGuard")} value={guardText} color={guardColor} />
+            <Stat
+              label={t("p13eBudgetOpenrouter")}
+              value={or?.balanceUsd != null ? usd(or.balanceUsd) : t("p13eBudgetOpenrouterNa")}
+              sub={
+                or?.usageMonthlyUsd != null ? fmtT(t("p13eBudgetOpenrouterMonth"), { usd: usd(or.usageMonthlyUsd) }) : undefined
+              }
+              color={orLow ? "#FF6B6B" : undefined}
+            />
+          </div>
+          <div className="mt-3 space-y-1 text-xs text-white/50 tabular-nums">
+            <div>
+              {fmtT(t("p13eBudgetAllowance"), {
+                allowance: usd(s.allowanceUsd),
+                floor: usd(s.cfg.minMonthlyUsd),
+                cap: ratio(s.cfg.capRatio),
+              })}
+            </div>
+            <div>
+              {fmtT(t("p13eBudgetOrders"), { n: s.revenue.orders, yearly: s.revenue.yearlyAmortized })}
+              {s.revenue.rubPerUsd != null &&
+                ` · ${fmtT(t("p13eBudgetRubRate"), { rate: s.revenue.rubPerUsd.toFixed(2), source: s.revenue.rubRateSource })}`}
+            </div>
+            {s.revenue.unconverted > 0 && (
+              <div className="text-[#F5AA3C]">{fmtT(t("p13eBudgetRubNone"), { n: s.revenue.unconverted })}</div>
+            )}
+            <div className="text-white/30">
+              {fmtT(t("p13eBudgetAsOf"), { time: new Date(s.at).toISOString().slice(0, 16).replace("T", " ") })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function UnitEconomicsCard({
+  data,
+  days,
+  budget = null,
+}: {
+  data: UnitEconomics | null;
+  days: EconRange;
+  budget?: BudgetSnapshot | null;
+}) {
   const t = useT();
   const tipId = useId();
   const unknown = (k: string) => (k === "unknown" ? t("p13eUnknown") : k);
@@ -113,6 +197,8 @@ export function UnitEconomicsCard({ data, days }: { data: UnitEconomics | null; 
           ))}
         </nav>
       </div>
+
+      <BudgetPanel budget={budget} />
 
       {!data ? (
         <p className="text-sm text-white/50">{t("p13eUnavailable")}</p>

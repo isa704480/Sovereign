@@ -1,0 +1,23 @@
+# API byudjeti kuzatuvi: har 30 daqiqada sayt joriy oy daromadi (to'langan buyurtmalar) va API
+# sarfi (unit-economics taxmini) nisbatini hisoblaydi, sarf chegarasiga (BUDGET_CAP_RATIO, standart
+# 50%) yetsa mesh'ni faqat tekin provayderlarga o'tkazadi va Telegram/email alert yuboradi
+# (OpenRouter balansi OPENROUTER_ALERT_USD dan kam bo'lsa ham). Pul hech qayerga o'tkazilmaydi.
+# Kerak: repo Settings -> Secrets -> CRON_SECRET (Vercel'dagi CRON_SECRET bilan bir xil).
+name: Budget watch
+on:
+  schedule:
+    - cron: "7,37 * * * *"
+  workflow_dispatch: {}
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      # Javob tanasi (daromad/sarf raqamlari) Actions log'iga chiqarilmaydi — faqat HTTP status.
+      - name: Check budget
+        run: |
+          code=$(curl -sS --max-time 90 -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://soveregn.xyz/api/cron/budget-watch")
+          echo "budget-watch HTTP $code"
+          test "$code" = "200"

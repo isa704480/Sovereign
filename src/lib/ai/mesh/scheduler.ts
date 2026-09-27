@@ -20,6 +20,7 @@ import { sameModel as sameModelId } from "../served";
 import { effectiveCaps } from "./caps";
 import { maxTier, minTier, modelTierFor } from "./tier";
 import {
+  COST_RANK,
   MESH_TUNING,
   TIER_RANK,
   type Candidate,
@@ -68,6 +69,7 @@ export type DropReason =
   | "not_substitutable"
   | "class_mismatch"
   | "rescue_disallowed"
+  | "cost_ceiling"
   | "duplicate";
 
 export interface ScoreFactors {
@@ -374,6 +376,11 @@ function evaluate(req: RouteRequest, deps: PlanDeps): Evaluation {
       }
       if (a.rescue && !allowRescue) {
         drop("rescue_disallowed");
+        continue;
+      }
+      // Byudjet guard'i (RouteRequest.costCeiling) — shiftdan qimmat taklif tanlanmaydi.
+      if (req.costCeiling && COST_RANK[offer.cost] > COST_RANK[req.costCeiling]) {
+        drop("cost_ceiling", `${offer.cost}>${req.costCeiling}`);
         continue;
       }
       if (!same && req.sameModelOnly) {

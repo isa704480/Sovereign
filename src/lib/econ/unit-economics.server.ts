@@ -44,15 +44,27 @@ async function fetchRows(
 
 /** Oxirgi `days` kun (UTC, bugun ham) bo'yicha unit economics. Xato bo'lsa — null. */
 export async function getUnitEconomics(days: EconRange = 30): Promise<UnitEconomics | null> {
+  const now = new Date();
+  const to = isoDay(now);
+  const from = isoDay(new Date(now.getTime() - (days - 1) * 86_400_000));
+  return getUnitEconomicsBetween(from, to);
+}
+
+/**
+ * [from, to] ("YYYY-MM-DD", UTC, ikkalasi ham kiradi) bo'yicha. `plans: false` — tarif bo'yicha
+ * taqsimot kerak emas (profiles so'ralmaydi; byudjet guard'i uchun). Xato bo'lsa — null.
+ */
+export async function getUnitEconomicsBetween(
+  from: string,
+  to: string,
+  opts: { plans?: boolean } = {},
+): Promise<UnitEconomics | null> {
   let sb: ReturnType<typeof createServiceClient>;
   try {
     sb = createServiceClient();
   } catch {
     return null; // SUPABASE_SERVICE_ROLE_KEY yo'q (lokal/preview)
   }
-  const now = new Date();
-  const to = isoDay(now);
-  const from = isoDay(new Date(now.getTime() - (days - 1) * 86_400_000));
 
   let servedColumns = true;
   let res = await fetchRows(sb, `${BASE_COLS},provider,upstream_model`, from, to);
@@ -67,7 +79,7 @@ export async function getUnitEconomics(days: EconRange = 30): Promise<UnitEconom
 
   // Tarif bo'yicha taqsimot — foydalanuvchining JORIY tarifi (tarif tarixi saqlanmaydi).
   const planByUser: Record<string, string> = {};
-  const ids = [...new Set(res.rows.map((r) => r.user_id))];
+  const ids = opts.plans === false ? [] : [...new Set(res.rows.map((r) => r.user_id))];
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await sb.from("profiles").select("id,plan").in("id", ids.slice(i, i + 200));
     if (error) {

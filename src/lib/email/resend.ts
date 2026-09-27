@@ -13,6 +13,8 @@ export interface SendEmailInput {
   html: string;
   text: string;
   headers?: Record<string, string>;
+  /** Jo'natuvchi (standart: TIPS_FROM). Domen Resend'da tasdiqlangan bo'lishi shart. */
+  from?: string;
   /** Takroriy yuborishdan himoya (Resend Idempotency-Key). */
   idempotencyKey?: string;
 }
@@ -35,7 +37,7 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
         ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
       },
       body: JSON.stringify({
-        from: TIPS_FROM,
+        from: input.from ?? TIPS_FROM,
         to: [input.to],
         subject: input.subject,
         html: input.html,
