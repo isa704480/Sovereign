@@ -11,13 +11,14 @@ export function VisualPanel() {
   return (
     <aside className="relative hidden overflow-hidden bg-bg-elevated lg:flex lg:flex-col">
       <div
+        aria-hidden
         className="absolute inset-0"
         style={{
           background:
             "radial-gradient(70% 60% at 30% 20%, rgba(91,80,240,0.28) 0%, transparent 70%), radial-gradient(50% 50% at 80% 90%, rgba(32,212,232,0.14) 0%, transparent 70%), linear-gradient(180deg, #0D1033 0%, #060812 100%)",
         }}
       />
-      <div className="noise absolute inset-0" />
+      <div className="noise absolute inset-0" aria-hidden />
       {isDesktop && (
         <div aria-hidden="true" className="absolute inset-0">
           <AuthScene className="absolute inset-0" />
@@ -39,9 +40,9 @@ export function VisualPanel() {
           <p className="mt-4 text-sm text-text-secondary">
             {t("auHeroDesc")}
           </p>
-          <div className="mt-6 flex items-center gap-2 font-mono text-xs text-text-muted">
-            <span className="size-1.5 rounded-full bg-success" />
-            TLS · Blind Prompting · RLS
+          <div className="mt-6 flex items-center gap-2 text-xs text-text-secondary">
+            <span className="size-1.5 rounded-full bg-success" aria-hidden />
+            {t("p21AuthTrustLine")}
           </div>
         </blockquote>
       </div>

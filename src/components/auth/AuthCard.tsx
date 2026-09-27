@@ -19,12 +19,12 @@ export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
   const t = useT();
   return (
     <div className="relative">
-      <div className="pointer-events-none absolute -inset-x-10 -top-16 h-40 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(91,80,240,0.18),transparent_70%)]" />
-      <div className="relative rounded-3xl border border-border bg-bg-elevated/60 p-7 shadow-lg backdrop-blur-sm sm:p-8">
+      <div aria-hidden className="pointer-events-none absolute -inset-x-10 -top-16 h-40 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(91,80,240,0.18),transparent_70%)]" />
+      <div className="relative rounded-2xl border border-border bg-bg-elevated p-6 shadow-lg sm:p-8">
         <div className="hidden lg:block">
           <LogoMark size={30} />
         </div>
-        <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary lg:mt-6">{t(title)}</h1>
+        <h1 className="font-display mt-5 text-balance text-2xl font-extrabold tracking-[-0.02em] text-text-primary lg:mt-6">{t(title)}</h1>
         {subtitle && <p className="mt-1.5 text-sm text-text-secondary">{t(subtitle)}</p>}
         <div className="mt-6">{children}</div>
         {footer && <div className="mt-6 text-center text-sm text-text-secondary">{footer}</div>}
@@ -39,7 +39,7 @@ export function AuthFooterLink({ prompt, link, href }: { prompt: AuthKey; link: 
   return (
     <>
       {t(prompt)}{" "}
-      <Link href={href} className="font-medium text-primary-soft underline-offset-4 hover:underline">
+      <Link href={href} className="inline-flex min-h-11 items-center font-medium text-primary-soft underline-offset-4 hover:underline md:min-h-0">
         {t(link)}
       </Link>
     </>

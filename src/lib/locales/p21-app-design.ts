@@ -5,6 +5,12 @@ import type { Dict } from "@/lib/i18n";
  * sahifalaridagi yangi matnlar, 4 tilda (uz / uz-cyrl / ru / en).
  */
 export const P21A = {
+  p21AuthTrustLine: {
+    uz: "Shifrlangan ulanish · Ismlar modelga yuborilishidan oldin yashiriladi",
+    "uz-cyrl": "Шифрланган уланиш · Исмлар моделга юборилишидан олдин яширилади",
+    ru: "Шифрованное соединение · Имена скрываются до отправки модели",
+    en: "Encrypted in transit · Names are masked before the model sees them",
+  },
   p21OnbPickOne: {
     uz: "Davom etish uchun kamida bitta variantni tanlang.",
     "uz-cyrl": "Давом этиш учун камида битта вариантни танланг.",
