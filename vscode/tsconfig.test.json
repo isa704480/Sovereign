@@ -1,0 +1,12 @@
+{
+  "//": "Faqat SOF (vscode'siz) modullar + node:test testlari — `node --test out/test/` uchun.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "out",
+    "rootDir": ".",
+    "declaration": false,
+    "types": ["node"]
+  },
+  "include": ["src/core/**/*.ts", "test/**/*.ts"]
+}

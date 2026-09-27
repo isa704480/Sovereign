@@ -1,0 +1,23 @@
+{
+  "ext.description": "SOVEREIGN в вашем редакторе — вопросы о текущем файле или выделении, объяснение кода, исправление ошибок и написание тестов.",
+  "view.container.title": "SOVEREIGN",
+  "view.chat.name": "Чат",
+  "menu.submenu": "SOVEREIGN",
+  "cmd.openChat": "Открыть чат",
+  "cmd.explainSelection": "Объяснить выделенное",
+  "cmd.fixError": "Исправить эту ошибку",
+  "cmd.writeTest": "Написать тест для этой функции",
+  "cmd.askAboutFile": "Спросить об этом файле",
+  "cmd.login": "Войти",
+  "cmd.useCliLogin": "Использовать вход из CLI",
+  "cmd.logout": "Выйти",
+  "cmd.pickModel": "Выбрать модель",
+  "cmd.openSettings": "Настройки",
+  "cmd.statusMenu": "Меню состояния",
+  "cfg.baseUrl": "Адрес сервера SOVEREIGN. Принимается только `https://` (и `http://localhost` для разработки).",
+  "cfg.model": "Идентификатор модели из каталога SOVEREIGN или `auto` — сервер выберет сам.",
+  "cfg.maxContextLines": "Максимальное число строк вокруг выделения. Весь проект никогда не отправляется.",
+  "cfg.language": "Язык панели SOVEREIGN. `auto` — как язык редактора.",
+  "cfg.language.auto": "Как в редакторе",
+  "cfg.telemetry": "По умолчанию выключено. Расширение не собирает телеметрию; переключатель оставлен для явного ответа."
+}

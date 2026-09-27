@@ -1,0 +1,23 @@
+{
+  "ext.description": "SOVEREIGN муҳарриригизда — жорий файл ёки белгиланган код ҳақида сўранг, кодни тушунтиринг, хатоларни тузатинг ва тест ёзинг.",
+  "view.container.title": "SOVEREIGN",
+  "view.chat.name": "Суҳбат",
+  "menu.submenu": "SOVEREIGN",
+  "cmd.openChat": "Суҳбатни очиш",
+  "cmd.explainSelection": "Белгиланганини тушунтириш",
+  "cmd.fixError": "Бу хатони тузатиш",
+  "cmd.writeTest": "Бу функцияга тест ёзиш",
+  "cmd.askAboutFile": "Шу файл ҳақида сўраш",
+  "cmd.login": "Кириш",
+  "cmd.useCliLogin": "CLI’даги киришдан фойдаланиш",
+  "cmd.logout": "Чиқиш",
+  "cmd.pickModel": "Модель танлаш",
+  "cmd.openSettings": "Созламалар",
+  "cmd.statusMenu": "Ҳолат менюси",
+  "cfg.baseUrl": "SOVEREIGN сервер манзили. Фақат `https://` қабул қилинади (ишлаб чиқиш учун `http://localhost` ҳам).",
+  "cfg.model": "SOVEREIGN каталогидаги модель id’си ёки `auto` — сервернинг ўзи танлайди.",
+  "cfg.maxContextLines": "Белгиланган жой атрофидан юбориладиган қаторларнинг энг кўп сони. Бутун лойиҳа ҳеч қачон юборилмайди.",
+  "cfg.language": "SOVEREIGN панелининг тили. `auto` — муҳаррир тилига эргашади.",
+  "cfg.language.auto": "Муҳаррир тилига эргашиш",
+  "cfg.telemetry": "Стандарт ҳолатда ўчиқ. Кенгайтма телеметрия йиғмайди; бу тугма жавоб аниқ бўлиши учун қолдирилган."
+}

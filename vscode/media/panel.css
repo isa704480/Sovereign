@@ -1,0 +1,389 @@
+/* SOVEREIGN paneli — VS Code mavzu o'zgaruvchilari bilan (yorug'/qorong'i o'zi moslashadi). */
+:root {
+  --sov-indigo: #5b50f0;
+  --sov-indigo-soft: rgba(91, 80, 240, 0.14);
+  --sov-radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background, transparent);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--vscode-panel-border, transparent);
+  min-height: 32px;
+}
+
+.ctx {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctx code {
+  background: var(--sov-indigo-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.empty {
+  margin: auto;
+  max-width: 320px;
+  text-align: center;
+  opacity: 0.75;
+  padding: 24px 8px;
+}
+
+.empty h2 {
+  font-size: 13px;
+  margin: 0 0 6px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.empty p {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.msg .who {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.msg.user .bubble {
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: var(--sov-radius);
+  padding: 8px 10px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msg.assistant .bubble {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.msg.error .bubble {
+  color: var(--vscode-errorForeground);
+  border-left: 2px solid var(--vscode-errorForeground);
+  padding-left: 8px;
+}
+
+.msg.notice .bubble {
+  opacity: 0.8;
+  font-size: 12px;
+}
+
+.bubble p {
+  margin: 0 0 8px;
+}
+
+.bubble p:last-child {
+  margin-bottom: 0;
+}
+
+.bubble ul,
+.bubble ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+.bubble blockquote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--vscode-panel-border, currentColor);
+  opacity: 0.85;
+}
+
+.bubble h1,
+.bubble h2,
+.bubble h3,
+.bubble h4,
+.bubble h5,
+.bubble h6 {
+  font-size: 13px;
+  margin: 10px 0 6px;
+}
+
+.bubble code {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+  background: var(--vscode-textCodeBlock-background, rgba(127, 127, 127, 0.18));
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.bubble a {
+  color: var(--vscode-textLink-foreground);
+}
+
+.bubble hr {
+  border: none;
+  border-top: 1px solid var(--vscode-panel-border, currentColor);
+  opacity: 0.4;
+}
+
+.stream {
+  font-family: var(--vscode-editor-font-family);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0;
+  font-size: 0.95em;
+}
+
+.code-block {
+  border: 1px solid var(--vscode-panel-border, rgba(127, 127, 127, 0.3));
+  border-radius: var(--sov-radius);
+  overflow: hidden;
+  margin: 0 0 8px;
+}
+
+.code-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 6px 3px 10px;
+  background: var(--vscode-editorWidget-background, rgba(127, 127, 127, 0.12));
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(127, 127, 127, 0.3));
+}
+
+.code-lang {
+  flex: 1;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.code-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.code-btn {
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+
+.code-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(127, 127, 127, 0.2));
+}
+
+.code-btn:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 8px 10px;
+  overflow-x: auto;
+  background: var(--vscode-textCodeBlock-background, rgba(127, 127, 127, 0.08));
+}
+
+.code-block pre code {
+  background: none;
+  padding: 0;
+  font-family: var(--vscode-editor-font-family);
+  font-size: var(--vscode-editor-font-size, 12px);
+}
+
+.composer {
+  border-top: 1px solid var(--vscode-panel-border, transparent);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 56px;
+  max-height: 180px;
+  resize: vertical;
+  font: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: var(--sov-radius);
+  padding: 6px 8px;
+}
+
+textarea:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row .spacer {
+  flex: 1;
+}
+
+label.ctx-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  opacity: 0.85;
+  cursor: pointer;
+}
+
+button.primary {
+  font: inherit;
+  padding: 4px 14px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+
+button.primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+button.secondary {
+  font: inherit;
+  padding: 4px 12px;
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border, transparent));
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, transparent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.gate {
+  margin: auto;
+  max-width: 300px;
+  text-align: center;
+  padding: 24px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.gate h2 {
+  font-size: 13px;
+  margin: 0;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gate p {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
+  opacity: 0.8;
+}
+
+.authcode {
+  font-family: var(--vscode-editor-font-family);
+  font-size: 18px;
+  letter-spacing: 0.22em;
+  padding: 8px 12px;
+  border: 1px dashed var(--sov-indigo);
+  border-radius: var(--sov-radius);
+  background: var(--sov-indigo-soft);
+}
+
+/* Inline `style=` atributi CSP tufayli ishlamaydi — shu sinf bilan qilamiz. */
+#main {
+  display: contents;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.dots::after {
+  content: "…";
+  animation: sov-dots 1.2s steps(4, end) infinite;
+}
+
+@keyframes sov-dots {
+  0% {
+    content: "";
+  }
+  25% {
+    content: "·";
+  }
+  50% {
+    content: "··";
+  }
+  75% {
+    content: "···";
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dots::after {
+    animation: none;
+    content: "…";
+  }
+}

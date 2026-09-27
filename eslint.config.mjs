@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "cli/**",
     // SOVEREIGN Cowork desktop (Electron + React) — alohida sub-loyiha.
     "desktop/**",
+    // SOVEREIGN muharrir kengaytmasi (VS Code) — alohida sub-loyiha, o'z tsconfig/testi bilan.
+    "vscode/**",
   ]),
 ]);
 

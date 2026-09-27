@@ -1,0 +1,23 @@
+{
+  "ext.description": "SOVEREIGN in your editor — ask about the current file or selection, explain code, fix diagnostics and write tests.",
+  "view.container.title": "SOVEREIGN",
+  "view.chat.name": "Chat",
+  "menu.submenu": "SOVEREIGN",
+  "cmd.openChat": "Open chat",
+  "cmd.explainSelection": "Explain selection",
+  "cmd.fixError": "Fix this error",
+  "cmd.writeTest": "Write a test for this function",
+  "cmd.askAboutFile": "Ask about this file",
+  "cmd.login": "Sign in",
+  "cmd.useCliLogin": "Use my existing CLI login",
+  "cmd.logout": "Sign out",
+  "cmd.pickModel": "Choose model",
+  "cmd.openSettings": "Settings",
+  "cmd.statusMenu": "Status menu",
+  "cfg.baseUrl": "SOVEREIGN server address. Only `https://` is accepted (plus `http://localhost` for development).",
+  "cfg.model": "Model id from the SOVEREIGN catalogue, or `auto` to let the server choose.",
+  "cfg.maxContextLines": "Maximum number of lines sent around the selection. The whole workspace is never sent.",
+  "cfg.language": "Interface language of the SOVEREIGN panel. `auto` follows the editor display language.",
+  "cfg.language.auto": "Follow the editor language",
+  "cfg.telemetry": "Off by default. The extension collects no telemetry; this switch exists so the answer stays explicit."
+}
