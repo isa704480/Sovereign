@@ -40,7 +40,10 @@ export interface SovereignModel {
   providerModel: string;
   /** Short price hint shown in the switcher. */
   price: string;
-  /** Emoji / glyph used as the model mark. */
+  /**
+   * @deprecated UI'da ishlatilmaydi — belgi `ModelAvatar` / `ProviderMark` orqali (simple-icons,
+   * bir rangli). Eski landing kodi uchun oddiy geometrik belgi sifatida qoldirilgan (emoji emas).
+   */
   glyph: string;
   tagline: string;
   description: string;
@@ -195,7 +198,7 @@ const FLAGSHIP: SovereignModel[] = [
     tier: "starter",
     providerModel: "meta-llama/llama-3.1-8b-instruct",
     price: "$0.00002/1K",
-    glyph: "🦙",
+    glyph: "◆",
     tagline: "Ochiq manba, deyarli tekin",
     description: "Meta'ning ochiq modeli. Eng arzon variant — kundalik savollar uchun yetarli.",
     primary: "#7C3AED",
@@ -394,7 +397,7 @@ const PROV: Record<string, ProviderMeta> = {
   openai: { theme: "chatgpt", provider: "OpenAI", glyph: "⬡", primary: "#10A37F", accent: "#19C37D", bg: "#212121" },
   google: { theme: "gemini", provider: "Google", glyph: "✦", primary: "#4285F4", accent: "#A855F7", bg: "#0C0C1E" },
   mistralai: { theme: "mistral", provider: "Mistral AI", glyph: "⬌", primary: "#FF7000", accent: "#FF9500", bg: "#0F0A05" },
-  meta: { theme: "llama", provider: "Meta AI", glyph: "🦙", primary: "#7C3AED", accent: "#9F67FF", bg: "#080516" },
+  meta: { theme: "llama", provider: "Meta AI", glyph: "◆", primary: "#7C3AED", accent: "#9F67FF", bg: "#080516" },
   deepseek: { theme: "sovereign", provider: "DeepSeek", glyph: "◇", primary: "#4D6BFE", accent: "#7C8FFF", bg: "#060812" },
   qwen: { theme: "sovereign", provider: "Alibaba Qwen", glyph: "◈", primary: "#615CED", accent: "#8B87F5", bg: "#060812" },
   xai: { theme: "sovereign", provider: "xAI", glyph: "✕", primary: "#8E8E93", accent: "#C7C7CC", bg: "#060812" },
@@ -517,11 +520,11 @@ export function isModelVisible(m: SovereignModel): boolean {
 export const SHOWCASE_MODELS = MODELS.filter((m) => m.demo.user.length > 0);
 
 /** Switcher groups, ordered by subscription tier. */
-export const MODEL_GROUPS: { tier: ModelTier; label: string; badge?: string }[] = [
-  { tier: "free", label: "Tekin modellar", badge: "🆓" },
-  { tier: "starter", label: "Starter · $5", badge: "⚡" },
-  { tier: "pro", label: "Pro · $15", badge: "✦" },
-  { tier: "ultra", label: "Ultra · $29", badge: "🚀" },
+export const MODEL_GROUPS: { tier: ModelTier; label: string }[] = [
+  { tier: "free", label: "Tekin modellar" },
+  { tier: "starter", label: "Starter · $5" },
+  { tier: "pro", label: "Pro · $15" },
+  { tier: "ultra", label: "Ultra · $29" },
 ];
 
 // Default: Auto rejim — Dashboard SOVEREIGN temasi ko'rsatadi (model temasi emas).

@@ -68,9 +68,12 @@ export function countryName(code: string, lang = "uz"): string {
   return en && en !== code ? en : code;
 }
 
-/** 🇺🇿 kabi bayroq — ikki harfni regional indicator belgilariga aylantirish. */
+/**
+ * Davlat bayrog'i — ikki harfni regional indicator belgilariga aylantirish (faqat davlat
+ * tanlagichida). Noto'g'ri kodda bo'sh satr: UI o'rniga neytral Globe ikonini chizadi.
+ */
 export function countryFlag(code: string): string {
-  if (!/^[A-Z]{2}$/.test(code)) return "🏳️";
+  if (!/^[A-Z]{2}$/.test(code)) return "";
   return String.fromCodePoint(...[...code].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
 }
 

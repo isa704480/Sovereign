@@ -2,18 +2,33 @@
  * Onboarding questionnaire content (docs/DESIGN.md — Ekran 3).
  */
 
+/** lucide ikon nomi (OptionCard ichida chiziladi; emoji emas). */
+export type OnboardingIconName =
+  | "briefcase"
+  | "microscope"
+  | "palette"
+  | "message"
+  | "zap"
+  | "target"
+  | "lock"
+  | "wallet";
+
 export interface OnboardingOption {
   id: string;
   label: string;
   description?: string;
+  icon?: OnboardingIconName;
+  /** Til tanlovlari: tilning o'z nomi (bayroq o'rniga). */
+  nativeName?: string;
+  /** Faqat davlatlar: bayroq (davlat tanlagichida saqlanadi). */
   emoji?: string;
 }
 
 export const PURPOSES: OnboardingOption[] = [
-  { id: "work", emoji: "🏢", label: "Ish / Biznes", description: "Hisob-kitob, email, tahlil" },
-  { id: "research", emoji: "🔬", label: "Tadqiqot", description: "Internet qidiruv, maqolalar, faktlar" },
-  { id: "creative", emoji: "🎨", label: "Ijodiy", description: "Yozish, dizayn, kontent" },
-  { id: "personal", emoji: "💬", label: "Shaxsiy", description: "Suhbat, savol, o'rganish" },
+  { id: "work", icon: "briefcase", label: "Ish / Biznes", description: "Hisob-kitob, email, tahlil" },
+  { id: "research", icon: "microscope", label: "Tadqiqot", description: "Internet qidiruv, maqolalar, faktlar" },
+  { id: "creative", icon: "palette", label: "Ijodiy", description: "Yozish, dizayn, kontent" },
+  { id: "personal", icon: "message", label: "Shaxsiy", description: "Suhbat, savol, o'rganish" },
 ];
 
 export const INDUSTRIES: OnboardingOption[] = [
@@ -30,29 +45,29 @@ export const INDUSTRIES: OnboardingOption[] = [
 ];
 
 export const PRIORITIES: OnboardingOption[] = [
-  { id: "speed", emoji: "⚡", label: "Tezlik", description: "Tez javoblar kerak" },
-  { id: "accuracy", emoji: "🎯", label: "Aniqlik", description: "Tekshirilgan ma'lumotlar" },
-  { id: "privacy", emoji: "🔒", label: "Maxfiylik", description: "Ma'lumotlarim xavfsiz bo'lsin" },
-  { id: "price", emoji: "💰", label: "Narx", description: "Arzon yoki tekin modellar" },
+  { id: "speed", icon: "zap", label: "Tezlik", description: "Tez javoblar kerak" },
+  { id: "accuracy", icon: "target", label: "Aniqlik", description: "Tekshirilgan ma'lumotlar" },
+  { id: "privacy", icon: "lock", label: "Maxfiylik", description: "Ma'lumotlarim xavfsiz bo'lsin" },
+  { id: "price", icon: "wallet", label: "Narx", description: "Arzon yoki tekin modellar" },
 ];
 
 export const LANGUAGES: OnboardingOption[] = [
-  { id: "uz", emoji: "🇺🇿", label: "O'zbek" },
-  { id: "ru", emoji: "🇷🇺", label: "Rus" },
-  { id: "en", emoji: "🇬🇧", label: "Ingliz" },
-  { id: "de", emoji: "🇩🇪", label: "Nemis" },
-  { id: "fr", emoji: "🇫🇷", label: "Fransuz" },
-  { id: "ar", emoji: "🇸🇦", label: "Arab" },
+  { id: "uz", nativeName: "Oʻzbekcha", label: "O'zbek" },
+  { id: "ru", nativeName: "Русский", label: "Rus" },
+  { id: "en", nativeName: "English", label: "Ingliz" },
+  { id: "de", nativeName: "Deutsch", label: "Nemis" },
+  { id: "fr", nativeName: "Français", label: "Fransuz" },
+  { id: "ar", nativeName: "العربية", label: "Arab" },
 ];
 
 /** Yosh guruhlari — aniq son so'ramaymiz, javob uslubini moslash uchun yetarli. */
 export const AGE_GROUPS: OnboardingOption[] = [
-  { id: "u18", emoji: "🎒", label: "18 gacha", description: "Maktab, kollej" },
-  { id: "18-24", emoji: "🎓", label: "18–24", description: "Talaba, yosh mutaxassis" },
-  { id: "25-34", emoji: "💼", label: "25–34" },
-  { id: "35-44", emoji: "🏢", label: "35–44" },
-  { id: "45-54", emoji: "📚", label: "45–54" },
-  { id: "55+", emoji: "🌿", label: "55 va undan katta" },
+  { id: "u18", label: "18 gacha", description: "Maktab, kollej" },
+  { id: "18-24", label: "18–24", description: "Talaba, yosh mutaxassis" },
+  { id: "25-34", label: "25–34" },
+  { id: "35-44", label: "35–44" },
+  { id: "45-54", label: "45–54" },
+  { id: "55+", label: "55 va undan katta" },
 ];
 
 /** Davlatlar — mintaqa asosiylari birinchi, qolgani "Boshqa" orqali. */
@@ -140,5 +155,5 @@ export const TOTAL_STEPS = ONBOARDING_STEPS.length;
 export const COMPLETION_LINES = [
   "Shaxsiy AI Vault yaratilmoqda...",
   "Xotira tizimi sozlanmoqda...",
-  "Tayyor! 🎉",
+  "Tayyor!",
 ];
