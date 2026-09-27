@@ -344,6 +344,11 @@ export function DocsContent({ data }: { data: DocsData }) {
               </div>
 
               <p className="text-sm text-text-muted">{r("p7bDPlansNote")}</p>
+              <p className="text-sm">
+                <a href={`${SITE}/compare`} className="font-medium text-primary-soft hover:underline">
+                  {t("p11cDocsLink")}
+                </a>
+              </p>
 
               <h3 className="font-display pt-2 text-lg font-bold text-text-primary">{t("p7bDTierHeading")}</h3>
               <div className="space-y-3">

@@ -1,0 +1,1056 @@
+{
+  "version": 1,
+  "runDate": "2026-09-27",
+  "runId": "2026-09-27T05-53-09",
+  "referenceModel": "claude-opus-4-8",
+  "stoppedEarly": null,
+  "estimatedCostUsd": 0.1906,
+  "methodology": {
+    "tasks": 40,
+    "categories": {
+      "coding": 15,
+      "math": 10,
+      "instruction": 8,
+      "writing": 7
+    },
+    "languages": {
+      "ru": 34,
+      "uz": 3,
+      "en": 3
+    },
+    "runsPerTask": 1,
+    "routes": "the provider routes the app itself uses (src/lib/ai/providers.ts): OpenRouter, RSI, Groq, OmniRoute; OpenAI chat-completions format, stream=true; first working route per model after a probe",
+    "temperature": "0 where supported, otherwise provider default",
+    "maxTokens": 8000,
+    "reasoning": "each model's default reasoning/thinking setting on its route; no extra effort flags",
+    "systemPrompt": "none (single user message)",
+    "grading": {
+      "coding": "hidden unit tests (all must pass) in a sandboxed child process: JS in node:vm (no require/process/fetch), Python -I with sockets blocked; 10s timeout",
+      "math": "exact match of the final 'ОТВЕТ:/ANSWER:/JAVOB:' line",
+      "instruction": "deterministic checks: JSON parse + schema, sentence/word counts, required keywords, forbidden letter, uppercase, script ratio",
+      "writing": "deterministic checks only (script/alphabet, length, must-include terms); style and fluency are NOT judged"
+    },
+    "cost": "tokens reported by each route × OpenRouter list price for the same model (reseller/free-tier prices differ)",
+    "latency": "wall-clock from request to last streamed byte on the machine running the harness; depends on the route's hardware (e.g. Groq LPUs are unusually fast), not only the model",
+    "apiErrors": "counted as failures and reported separately"
+  },
+  "models": [
+    {
+      "key": "claude-opus-5",
+      "id": "anthropic/claude-opus-5",
+      "label": "Claude Opus 5",
+      "family": "claude",
+      "measured": false,
+      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford | rsi: empty response (0 output tokens)",
+      "route": null,
+      "completed": 0,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 5,
+        "outputPerM": 25,
+        "source": "OpenRouter list price"
+      },
+      "temperature": null,
+      "overall": null,
+      "categories": {
+        "coding": null,
+        "math": null,
+        "instruction": null,
+        "writing": null
+      },
+      "latency": null,
+      "tokens": null,
+      "costUsd": null,
+      "costPerTaskUsd": null,
+      "reference": false,
+      "vsReference": null
+    },
+    {
+      "key": "claude-sonnet-5",
+      "id": "anthropic/claude-sonnet-5",
+      "label": "Claude Sonnet 5",
+      "family": "claude",
+      "measured": false,
+      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford",
+      "route": null,
+      "completed": 0,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 2,
+        "outputPerM": 10,
+        "source": "OpenRouter list price"
+      },
+      "temperature": null,
+      "overall": null,
+      "categories": {
+        "coding": null,
+        "math": null,
+        "instruction": null,
+        "writing": null
+      },
+      "latency": null,
+      "tokens": null,
+      "costUsd": null,
+      "costPerTaskUsd": null,
+      "reference": false,
+      "vsReference": null
+    },
+    {
+      "key": "claude-opus-4-8",
+      "id": "anthropic/claude-opus-4.8",
+      "label": "Claude Opus 4.8",
+      "family": "claude",
+      "measured": true,
+      "notMeasuredReason": null,
+      "route": {
+        "via": "rsi",
+        "model": "claude-opus-4-8",
+        "servedAs": "claude-opus-4-8"
+      },
+      "completed": 40,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 5,
+        "outputPerM": 25,
+        "source": "OpenRouter list price"
+      },
+      "temperature": 0,
+      "overall": {
+        "pass": 40,
+        "total": 40,
+        "pct": 100
+      },
+      "categories": {
+        "coding": {
+          "pass": 15,
+          "total": 15,
+          "pct": 100,
+          "errors": 0
+        },
+        "math": {
+          "pass": 10,
+          "total": 10,
+          "pct": 100,
+          "errors": 0
+        },
+        "instruction": {
+          "pass": 8,
+          "total": 8,
+          "pct": 100,
+          "errors": 0
+        },
+        "writing": {
+          "pass": 7,
+          "total": 7,
+          "pct": 100,
+          "errors": 0
+        }
+      },
+      "latency": {
+        "avgMs": 3774,
+        "medianMs": 3557,
+        "medianTtftMs": 2729
+      },
+      "tokens": {
+        "prompt": 4034,
+        "completion": 5631
+      },
+      "costUsd": 0.1609,
+      "costPerTaskUsd": 0.00402,
+      "reference": true,
+      "vsReference": {
+        "scoreRatio": 1,
+        "costRatio": 1,
+        "latencyRatio": 1
+      }
+    },
+    {
+      "key": "deepseek-v4-pro",
+      "id": "deepseek/deepseek-v4-pro-0813",
+      "label": "DeepSeek V4 Pro",
+      "family": "deepseek",
+      "measured": false,
+      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford | omniroute: HTTP 402: {\"error\":{\"message\":\"[openrouter/deepseek/deepseek-v4-pro-0813] [402]: This request requires more credits, or fewer max_tokens. Yo | omniroute: HTTP 503: {\"error\":{\"message\":\"Service temporarily unavailable due to resource pressure. Retry shortly.\",\"type\":\"server_error\",\"code\":\"resou",
+      "route": null,
+      "completed": 0,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 0.245,
+        "outputPerM": 3.5,
+        "source": "OpenRouter list price"
+      },
+      "temperature": null,
+      "overall": null,
+      "categories": {
+        "coding": null,
+        "math": null,
+        "instruction": null,
+        "writing": null
+      },
+      "latency": null,
+      "tokens": null,
+      "costUsd": null,
+      "costPerTaskUsd": null,
+      "reference": false,
+      "vsReference": null
+    },
+    {
+      "key": "deepseek-v4-1-flash",
+      "id": "deepseek/deepseek-v4.1-flash",
+      "label": "DeepSeek V4.1 Flash",
+      "family": "deepseek",
+      "measured": false,
+      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford | omniroute: HTTP 402: {\"error\":{\"message\":\"[openrouter/deepseek/deepseek-v4.1-flash] [402]: This request requires more credits, or fewer max_tokens. You",
+      "route": null,
+      "completed": 0,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 0.035,
+        "outputPerM": 0.29,
+        "source": "OpenRouter list price"
+      },
+      "temperature": null,
+      "overall": null,
+      "categories": {
+        "coding": null,
+        "math": null,
+        "instruction": null,
+        "writing": null
+      },
+      "latency": null,
+      "tokens": null,
+      "costUsd": null,
+      "costPerTaskUsd": null,
+      "reference": false,
+      "vsReference": null
+    },
+    {
+      "key": "qwen3-8-max",
+      "id": "qwen/qwen3.8-max-0902",
+      "label": "Qwen 3.8 Max",
+      "family": "qwen",
+      "measured": false,
+      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford | omniroute: HTTP 402: {\"error\":{\"message\":\"[openrouter/qwen/qwen3.8-max-0902] [402]: This request requires more credits, or fewer max_tokens. You reques",
+      "route": null,
+      "completed": 0,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 2,
+        "outputPerM": 6,
+        "source": "OpenRouter list price"
+      },
+      "temperature": null,
+      "overall": null,
+      "categories": {
+        "coding": null,
+        "math": null,
+        "instruction": null,
+        "writing": null
+      },
+      "latency": null,
+      "tokens": null,
+      "costUsd": null,
+      "costPerTaskUsd": null,
+      "reference": false,
+      "vsReference": null
+    },
+    {
+      "key": "qwen3-8-27b",
+      "id": "qwen/qwen3.8-27b",
+      "label": "Qwen 3.8 27B",
+      "family": "qwen",
+      "measured": true,
+      "notMeasuredReason": null,
+      "route": {
+        "via": "groq",
+        "model": "qwen/qwen3.8-27b",
+        "servedAs": "qwen/qwen3.8-27b"
+      },
+      "completed": 40,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 0.42,
+        "outputPerM": 3,
+        "source": "OpenRouter list price"
+      },
+      "temperature": 0,
+      "overall": {
+        "pass": 37,
+        "total": 40,
+        "pct": 92.5
+      },
+      "categories": {
+        "coding": {
+          "pass": 14,
+          "total": 15,
+          "pct": 93.3,
+          "errors": 0
+        },
+        "math": {
+          "pass": 10,
+          "total": 10,
+          "pct": 100,
+          "errors": 0
+        },
+        "instruction": {
+          "pass": 6,
+          "total": 8,
+          "pct": 75,
+          "errors": 0
+        },
+        "writing": {
+          "pass": 7,
+          "total": 7,
+          "pct": 100,
+          "errors": 0
+        }
+      },
+      "latency": {
+        "avgMs": 692,
+        "medianMs": 541,
+        "medianTtftMs": 238
+      },
+      "tokens": {
+        "prompt": 3325,
+        "completion": 9422
+      },
+      "costUsd": 0.0297,
+      "costPerTaskUsd": 0.00074,
+      "reference": false,
+      "vsReference": {
+        "scoreRatio": 0.925,
+        "costRatio": 0.1846,
+        "latencyRatio": 0.152
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "js-plural-ru",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "js-palindrome-ru",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "js-merge-intervals",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "js-roman",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "js-parse-duration",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "js-flatten",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "js-format-rub",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "js-eval-rpn",
+      "category": "coding",
+      "lang": "en",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "py-top-k-words",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "py-inn",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "fail"
+      }
+    },
+    {
+      "id": "py-spiral",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "py-lcs",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "py-to-snake",
+      "category": "coding",
+      "lang": "uz",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "py-dijkstra",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "py-wrap-text",
+      "category": "coding",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-trains",
+      "category": "math",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-divisors",
+      "category": "math",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-dice",
+      "category": "math",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-distinct-digits",
+      "category": "math",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-sisters",
+      "category": "math",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-modpow",
+      "category": "math",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-walls-uz",
+      "category": "math",
+      "lang": "uz",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-sequence",
+      "category": "math",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-weekday",
+      "category": "math",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "math-factorial-en",
+      "category": "math",
+      "lang": "en",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "if-json-object",
+      "category": "instruction",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "if-json-sorted",
+      "category": "instruction",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "if-three-sentences",
+      "category": "instruction",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "if-keywords",
+      "category": "instruction",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "fail"
+      }
+    },
+    {
+      "id": "if-no-letter-o",
+      "category": "instruction",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "fail"
+      }
+    },
+    {
+      "id": "if-numbered-list",
+      "category": "instruction",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "if-answer-in-russian",
+      "category": "instruction",
+      "lang": "en",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "if-uppercase",
+      "category": "instruction",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "wr-en-ru",
+      "category": "writing",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "wr-ru-en",
+      "category": "writing",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "wr-uz-ru",
+      "category": "writing",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "wr-ru-uz",
+      "category": "writing",
+      "lang": "uz",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "wr-business-email",
+      "category": "writing",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "wr-summary",
+      "category": "writing",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    },
+    {
+      "id": "wr-product",
+      "category": "writing",
+      "lang": "ru",
+      "results": {
+        "claude-opus-5": "not-run",
+        "claude-sonnet-5": "not-run",
+        "claude-opus-4-8": "pass",
+        "deepseek-v4-pro": "not-run",
+        "deepseek-v4-1-flash": "not-run",
+        "qwen3-8-max": "not-run",
+        "qwen3-8-27b": "pass"
+      }
+    }
+  ],
+  "public": {
+    "collectedOn": "2026-09-27",
+    "note": "Only numbers seen on the fetched source pages on 2026-09-27. Model names are copied as written on each source.",
+    "benchmarks": [
+      {
+        "key": "aa",
+        "name": "Artificial Analysis Intelligence Index v4.3.2",
+        "type": "independent",
+        "urls": [
+          "https://artificialanalysis.ai/leaderboards/models"
+        ],
+        "date": "2026-09-27",
+        "rows": [
+          {
+            "model": "Claude Opus 5.5 (max with fallback)",
+            "score": "58"
+          },
+          {
+            "model": "Qwen3.8 Max (0902)",
+            "score": "45"
+          },
+          {
+            "model": "DeepSeek V4.1 Flash (max)",
+            "score": "39"
+          },
+          {
+            "model": "Claude Sonnet 5 (max)",
+            "score": "38"
+          },
+          {
+            "model": "DeepSeek V4 Pro 0813 (max)",
+            "score": "36"
+          },
+          {
+            "model": "Qwen3.8 27B (xhigh)",
+            "score": "34"
+          }
+        ]
+      },
+      {
+        "key": "arena",
+        "name": "LMArena — Text",
+        "type": "independent",
+        "urls": [
+          "https://arena.ai/leaderboard/text"
+        ],
+        "date": "2026-09-25",
+        "rows": [
+          {
+            "model": "claude-opus-5-high",
+            "score": "1491 ± 4"
+          },
+          {
+            "model": "claude-opus-4-8-high",
+            "score": "1480 ± 4"
+          },
+          {
+            "model": "qwen3.8-max",
+            "score": "1479 ± 5"
+          },
+          {
+            "model": "deepseek-v4.1-flash-max",
+            "score": "1477 ± 8"
+          },
+          {
+            "model": "deepseek-v4-pro-high-20260813",
+            "score": "1464 ± 7"
+          },
+          {
+            "model": "claude-sonnet-5-high",
+            "score": "1462 ± 4"
+          },
+          {
+            "model": "qwen3.8-27b",
+            "score": "1438 ± 6"
+          }
+        ]
+      },
+      {
+        "key": "hle",
+        "name": "Humanity's Last Exam (Artificial Analysis)",
+        "type": "independent",
+        "urls": [
+          "https://artificialanalysis.ai/models/comparisons/claude-opus-5-5-vs-deepseek-v4-pro",
+          "https://artificialanalysis.ai/models/comparisons/claude-sonnet-5-vs-qwen3-8-max"
+        ],
+        "date": "2026-09-27",
+        "rows": [
+          {
+            "model": "Claude Opus 5.5 (Adaptive Reasoning, Max Effort, Default Fallback)",
+            "score": "61%"
+          },
+          {
+            "model": "Qwen3.8 Max (0902)",
+            "score": "43%"
+          },
+          {
+            "model": "Claude Sonnet 5 (Adaptive Reasoning, Max Effort)",
+            "score": "41%"
+          },
+          {
+            "model": "DeepSeek V4 Pro 0813 (Reasoning, Max Effort)",
+            "score": "41%"
+          }
+        ]
+      },
+      {
+        "key": "terminal",
+        "name": "Terminal-Bench 4.0 (Artificial Analysis)",
+        "type": "independent",
+        "urls": [
+          "https://artificialanalysis.ai/models/comparisons/claude-opus-5-5-vs-deepseek-v4-pro",
+          "https://artificialanalysis.ai/models/comparisons/claude-sonnet-5-vs-qwen3-8-max"
+        ],
+        "date": "2026-09-27",
+        "rows": [
+          {
+            "model": "Claude Opus 5.5 (Adaptive Reasoning, Max Effort, Default Fallback)",
+            "score": "60%"
+          },
+          {
+            "model": "Qwen3.8 Max (0902)",
+            "score": "39%"
+          },
+          {
+            "model": "Claude Sonnet 5 (Adaptive Reasoning, Max Effort)",
+            "score": "14%"
+          },
+          {
+            "model": "DeepSeek V4 Pro 0813 (Reasoning, Max Effort)",
+            "score": "14%"
+          }
+        ]
+      },
+      {
+        "key": "swe",
+        "name": "SWE-bench Verified",
+        "type": "vendor",
+        "urls": [
+          "https://llm-stats.com/benchmarks/swe-bench-verified"
+        ],
+        "date": "2026-09-27",
+        "rows": [
+          {
+            "model": "Claude Opus 4.8",
+            "score": "88.6%"
+          },
+          {
+            "model": "Claude Sonnet 5",
+            "score": "85.2%"
+          },
+          {
+            "model": "DeepSeek-V4-Pro-Max",
+            "score": "80.6%"
+          },
+          {
+            "model": "Qwen3.7 Max",
+            "score": "80.4%"
+          },
+          {
+            "model": "DeepSeek-V4-Flash-Max",
+            "score": "79.0%"
+          }
+        ]
+      }
+    ]
+  }
+}
