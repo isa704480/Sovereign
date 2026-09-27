@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { generateImage } from "@/lib/ai/image";
+import { resolveUserRegion } from "@/lib/ai/region-server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
@@ -28,6 +29,8 @@ export async function POST(req: Request) {
 
   // Rasm endi tekin AI Horde orqali (OmniRoute) — barcha tariflarga ochiq,
   // lekin tarif bo'yicha kunlik limit (Upstash: barcha serverlar uchun umumiy).
+  // Mintaqa (region-server.ts): cheklangan provayderning zaxira modeli chaqirilmaydi.
+  let country: string | null = null;
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
     const {
@@ -35,6 +38,8 @@ export async function POST(req: Request) {
     } = await supabase.auth.getUser();
     if (user) {
       const profile = await getProfile(supabase, user.id);
+      const region = await resolveUserRegion({ headers: req.headers, supabase, userId: user.id, onboarding: profile?.onboarding ?? null });
+      country = region.restricted ? region.country : null;
       const plan = effectivePlan(profile);
       const perDay = IMAGES_PER_DAY[plan.id] ?? IMAGES_PER_DAY.free;
       const day = await rateLimit(`img:day:${user.id}`, perDay, 24 * 60 * 60 * 1000);
@@ -50,7 +55,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await generateImage(parsed.data.prompt);
+    const result = await generateImage(parsed.data.prompt, { country });
     return Response.json(result);
   } catch (e) {
     console.error("[image] generatsiya xato:", e instanceof Error ? e.message : e);

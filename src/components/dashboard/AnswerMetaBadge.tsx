@@ -29,6 +29,7 @@ export function AnswerMetaBadge({ meta }: { meta: AnswerMeta }) {
   const tokens = typeof meta.tokens === "number" && meta.tokens > 0 ? meta.tokens : 0;
 
   const title = [
+    meta.region ? fmt(t("p10RegionSwapTitle"), { model: modelName(meta.requested), country: meta.region }) : "",
     meta.upstream && !meta.upstream.startsWith("mock/") ? fmt(t("p9wUpstreamTitle"), { id: meta.upstream }) : "",
     meta.rescue ? t("p9wRescueTitle") : "",
     meta.cached ? t("p9wCachedTitle") : "",
@@ -50,6 +51,7 @@ export function AnswerMetaBadge({ meta }: { meta: AnswerMeta }) {
         <span className="min-w-0 truncate">
           {fmt(t("p9wFallback"), { req: modelName(meta.requested), served })}
           {meta.rescue ? ` · ${t("p9wRescue")}` : ""}
+          {meta.region ? ` · ${t("p10RegionUnavailable")}` : ""}
         </span>
       ) : meta.auto ? (
         <span className="inline-flex min-w-0 items-center gap-1 truncate">

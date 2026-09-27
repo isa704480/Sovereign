@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   fallbackModelIds,
+  hasKeyFor,
   GROUNDED_GENERATION,
   SIMPLE_CHAT_GUARDRAIL,
   streamCompletion,
@@ -10,8 +11,11 @@ import {
 import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
 import { confirmActionClaims, formatSearchSources, verifyAnswer, type VerifierIssue } from "@/lib/ai/verifier";
 import { checkClaims, detectActionClaims, unsourcedMarkers, type ActionRecord, type ClaimReason, type UnsupportedClaim } from "@/lib/ai/claims";
-import { planRouteLLM } from "@/lib/ai/router";
-import { AUTO_MODEL_ID, MODEL_BY_ID } from "@/config/models";
+import { isCodeRequest, planRouteLLM, type RouteStep } from "@/lib/ai/router";
+import { modelAllowedIn, regionDecision } from "@/lib/ai/region";
+import { resolveUserRegion } from "@/lib/ai/region-server";
+import { omniRouteConfigured } from "@/lib/ai/omniroute-models";
+import { AUTO_MODEL_ID, MODEL_BY_ID, RESEARCH_MODEL_ID } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
 import { AGENT_MODE_BY_ID } from "@/config/agent-modes";
@@ -106,12 +110,24 @@ async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
   /**
    * Bilim bazasi konteksti — embedding (pullik) chaqiruvi bor, shuning uchun kunlik
    * kvota tekshiruvidan KEYIN chaqiriladi: limiti tugagan foydalanuvchi uni ishlatmaydi.
+   * `similarity: false` — embedding (OpenAI text-embedding-3-small) chaqirilmaydi, faqat
+   * "@hujjat" bilan aniq ko'rsatilganlari (mintaqa siyosati).
    */
-  loadKnowledge: () => Promise<string>;
+  loadKnowledge: (similarity: boolean) => Promise<string>;
   trainingOptIn: boolean;
+  /** profiles.onboarding (mintaqa signali: foydalanuvchi tanlagan mamlakat). */
+  onboarding: Record<string, unknown> | null;
 }> {
   const noKnowledge = async () => "";
-  const none = { userId: null, usedToday: 0, tokensUsedMonth: 0, memoryText: "", loadKnowledge: noKnowledge, trainingOptIn: false };
+  const none = {
+    userId: null,
+    usedToday: 0,
+    tokensUsedMonth: 0,
+    memoryText: "",
+    loadKnowledge: noKnowledge,
+    trainingOptIn: false,
+    onboarding: null,
+  };
   if (!isSupabaseConfigured()) {
     // Local development-only: Supabase sozlanmagan bo'lsa demo rejim.
     return { authed: false, plan: PLAN_BY_ID.ultra, ...none };
@@ -143,11 +159,11 @@ async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
   // (Faqat zaxira: asosiy kunlik limit — consume_message, 0027.)
   const { data: used } = await supabase.rpc("messages_today");
   const memoryText = profile?.memory_enabled === false ? "" : memoryPrompt(await getMemories(supabase, user.id));
-  const loadKnowledge = async () => {
+  const loadKnowledge = async (similarity: boolean) => {
     // "@hujjat" mentions win over similarity search: the user named the source.
     const hits = docIds.length
       ? await fetchMentionedDocs(supabase, docIds)
-      : lastText
+      : lastText && similarity
         ? await retrieveKnowledge(supabase, user.id, lastText, 6)
         : [];
     return knowledgePrompt(hits);
@@ -162,6 +178,7 @@ async function resolveEntitlement(lastText: string, docIds: string[]): Promise<{
     loadKnowledge,
     // Ustunsiz (eski) bazada ham xavfsiz: faqat aniq false bo'lsa o'chiq.
     trainingOptIn: profile?.training_opt_in !== false,
+    onboarding: profile?.onboarding ?? null,
   };
 }
 
@@ -235,7 +252,7 @@ export async function POST(req: Request) {
   const messages = rawMessages.filter((m) => m.role !== "system");
   if (!messages.some((m) => m.role === "user")) return Response.json({ error: t("chBadRequest") }, { status: 400 });
   const mode = AGENT_MODE_BY_ID[agentMode];
-  const research = reqResearch || !!mode?.autoResearch;
+  let research = reqResearch || !!mode?.autoResearch;
   const langText = `JAVOB TILI: foydalanuvchi boshqa tilda yozmasa, ${LANG_FOR_AI[lang]} javob ber.`;
   const isAuto = modelId === AUTO_MODEL_ID;
   // OmniRoute katalog modeli — id da "/" bor va curated ro'yxatda yo'q.
@@ -256,7 +273,7 @@ export async function POST(req: Request) {
   // Skills (user-enabled ∪ auto-detected).
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
   const lastText = lastUser ? textOf(lastUser) : "";
-  const { authed, userId, plan, usedToday, tokensUsedMonth, memoryText, loadKnowledge, trainingOptIn } =
+  const { authed, userId, plan, usedToday, tokensUsedMonth, memoryText, loadKnowledge, trainingOptIn, onboarding } =
     await resolveEntitlement(lastText, docIds);
   const activeSkills = resolveActiveSkills(enabledSkills, lastText);
   const customText = customSkills
@@ -270,6 +287,45 @@ export async function POST(req: Request) {
     return refuse(`${UPGRADE} ${t("chLoginRequired")}`);
   }
 
+  // ---- Mintaqa siyosati (region.ts) ----
+  // Provayderi foydalanuvchi mintaqasiga xizmat ko'rsatmaydigan model (Claude/GPT/Gemini ...)
+  // HECH QACHON chaqirilmaydi: ruxsat etilgan ekvivalentga o'tiladi va bu ochiq aytiladi.
+  const region = await resolveUserRegion({
+    headers: req.headers,
+    supabase: authed && isSupabaseConfigured() ? await createClient() : null,
+    userId,
+    onboarding,
+  });
+  const country = region.restricted ? region.country : null;
+  if (region.sanctioned) return refuse(t("p10RegionNoModels"));
+  const tierAllowed = (tier: Parameters<typeof planAllowsTier>[1]) => planAllowsTier(plan, tier);
+  const omniOk = omniRouteConfigured();
+  const available = (id: string) => {
+    const m = MODEL_BY_ID[id];
+    return m ? hasKeyFor(m) : omniOk && id.includes("/");
+  };
+  // So'ralgan model mintaqada yopiq — ekvivalentlar (tarif ruxsat bergan) oldindan tanlanadi,
+  // shuning uchun "Pro'ga o'ting" taklifi foydalanuvchi baribir ishlata olmaydigan model uchun chiqmaydi.
+  let regionSwapFrom: string | null = null;
+  let regionCandidates: string[] | null = null;
+  if (country && !isAuto && !modelAllowedIn(modelId, country)) {
+    const dec = regionDecision({
+      requested: modelId,
+      candidates: [modelId],
+      country,
+      tier: MODEL_BY_ID[modelId]?.tier,
+      code: isCodeRequest(lastText),
+      tierAllowed,
+      available,
+    });
+    if (!dec.candidates.length) return refuse(t("p10RegionNoModels"));
+    regionSwapFrom = modelId;
+    regionCandidates = dec.candidates;
+  }
+  // Research (Perplexity) ham mintaqa siyosatiga bo'ysunadi — yopiq bo'lsa oddiy javob.
+  const regionDroppedResearch = !!country && research && !modelAllowedIn(RESEARCH_MODEL_ID, country);
+  if (regionDroppedResearch) research = false;
+
   const dailyLimitMsg = `${UPGRADE} ${fmt(t("chDailyLimit"), { n: plan.limits.messagesPerDay, plan: plan.name })}`;
   if (usedToday >= plan.limits.messagesPerDay) {
     return refuse(dailyLimitMsg);
@@ -281,7 +337,7 @@ export async function POST(req: Request) {
 
   // OmniRoute katalog gating: aniq modellar (mas. "dva/claude-opus-5-high") Pro+
   // tarifda ochiladi. "auto/*" kombolari (tekin yo'naltirish) barcha tarifda ochiq.
-  if (isOmni && !modelId.startsWith("auto/") && !planAllowsTier(plan, "pro")) {
+  if (isOmni && !regionSwapFrom && !modelId.startsWith("auto/") && !planAllowsTier(plan, "pro")) {
     return refuse(`${UPGRADE} ${t("chOmniProOnly")}`);
   }
 
@@ -291,8 +347,9 @@ export async function POST(req: Request) {
     return refuse(`${UPGRADE} ${t("chResearchPro")}`);
   }
 
-  // Plan gating for a concrete (non-auto) model.
-  if (!isAuto && !isOmni) {
+  // Plan gating for a concrete (non-auto) model. Mintaqa almashtirgan model — ekvivalentlar
+  // allaqachon tarif bo'yicha tanlangan.
+  if (!isAuto && !isOmni && !regionSwapFrom) {
     const model = MODEL_BY_ID[modelId];
     if (!planAllowsTier(plan, model.tier)) {
       const need = planForTier(model.tier);
@@ -335,21 +392,24 @@ export async function POST(req: Request) {
   }
 
   // Bilim bazasi (embedding) — kvota o'tgandan keyin.
-  const knowledgeText = await loadKnowledge();
+  // Mintaqa cheklangan bo'lsa embedding (OpenAI) chaqirilmaydi — faqat "@hujjat".
+  const knowledgeText = await loadKnowledge(!region.restricted);
 
   // ---- Build the execution plan (single model, or Auto orchestration) ----
-  const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan, lang, req.signal) : null;
-  const steps = routePlan
+  const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan, lang, req.signal, country) : null;
+  const steps: RouteStep[] = routePlan
     ? routePlan.steps
-    : [
-        {
-          modelId,
-          kind: (research || (!isOmni && MODEL_BY_ID[modelId].category === "research") ? "research" : "answer") as
-            | "research"
-            | "answer",
-          purpose: "",
-        },
-      ];
+    : regionCandidates
+      ? [{ modelId: regionCandidates[0], kind: "answer", purpose: "", fallbacks: regionCandidates }]
+      : [
+          {
+            modelId,
+            kind: research || (!isOmni && MODEL_BY_ID[modelId].category === "research") ? "research" : "answer",
+            purpose: "",
+          },
+        ];
+  // Auto mintaqada hech bir ruxsat etilgan model topa olmadi (kalitlar yo'q) — jim xato emas.
+  if (steps.some((s) => !s.modelId)) return refuse(t("p10RegionNoModels"));
   const routeReason = routePlan?.reason ?? "";
 
   // Semantic cache: faqat oddiy savol (RAG/xotira/attach yo'q, research emas)
@@ -358,6 +418,8 @@ export async function POST(req: Request) {
   const urls = extractUrls(lastText);
   const canCache =
     isSupabaseConfigured() &&
+    // Semantik kesh embedding'i — OpenAI (text-embedding-3-small): cheklangan mintaqada yo'q.
+    !region.restricted &&
     !research &&
     !isAuto &&
     urls.length === 0 &&
@@ -390,8 +452,12 @@ export async function POST(req: Request) {
         if (!borderline.length && !p.verify) return;
         const [facts, confirmed] = await Promise.all([
           p.verify ? p.verify().catch((): VerifierIssue[] => []) : Promise.resolve<VerifierIssue[]>([]),
+          // Tasdiqlovchi model — openai/gpt-4o-mini: cheklangan mintaqada chaqirilmaydi
+          // (null → ogohlantirish saqlanadi, xavfsiz tomonga).
           borderline.length
-            ? confirmActionClaims(borderline.map((c) => c.text), req.signal).catch(() => null)
+            ? region.restricted
+              ? Promise.resolve<boolean[] | null>(null)
+              : confirmActionClaims(borderline.map((c) => c.text), req.signal).catch(() => null)
             : Promise.resolve<boolean[] | null>([]),
         ]);
         // Tasdiqlab bo'lmasa (kalit yo'q / xato) — ogohlantirish saqlanadi (xavfsiz tomonga).
@@ -453,7 +519,7 @@ export async function POST(req: Request) {
       const answerMeta = (u: { input: number; output: number }): AnswerMeta => {
         const tokens = Math.min(100_000, u.input + u.output);
         const billed = authed && modelCalls > 0 && tokens > 0;
-        const requested = isAuto ? (answerStep?.modelId ?? modelId) : modelId;
+        const requested = regionSwapFrom ?? (isAuto ? (answerStep?.modelId ?? modelId) : modelId);
         return {
           requested,
           served: cachedFrom ?? servedId,
@@ -467,12 +533,15 @@ export async function POST(req: Request) {
           ...(billed && plan.limits.tokensPerMonth > 0
             ? { monthPct: Math.round((tokens / plan.limits.tokensPerMonth) * 10_000) / 100 }
             : {}),
+          ...((regionSwapFrom || regionDroppedResearch) && country ? { region: country } : {}),
         };
       };
 
       try {
         if (activeSkills.length) send({ type: "skills", skills: activeSkills.map((s) => s.id) });
         if (isAuto) send({ type: "route", reason: routeReason, steps });
+        // Mintaqa almashtiruvi darhol ko'rinsin (javob ostidagi belgi ham "so'ralgan → javob" deydi).
+        if (regionSwapFrom) send({ type: "switch", from: regionSwapFrom, to: steps[0].modelId, reason: t("p10RegionUnavailable") });
 
         // Semantik keshdan tekshirish.
         if (canCache) {
@@ -533,7 +602,7 @@ export async function POST(req: Request) {
               if (enabled.length) {
                 // Faqat katalog modeli (tarif tekshiruvidan o'tgan); OmniRoute/xom id → null (standart model).
                 const pm = MODEL_BY_ID[answerStep.modelId]?.providerModel ?? null;
-                const run = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: pm, messages, enabled, signal: req.signal });
+                const run = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: pm, messages, enabled, signal: req.signal, country });
                 if (run.context) connectorContext = run.context;
                 actionLedger = run.actions;
               }
@@ -579,9 +648,25 @@ ${connectorContext}`
           // etilgan boshqa modelga o'tamiz va buni foydalanuvchiga aytamiz.
           // Auto qadami o'z navbatini olib keladi (tarif × vazifa); qo'lda tanlangan
           // model uchun esa — shu turdagi, tarif ruxsat bergan zaxiralar.
-          const candidates = step.fallbacks?.length
+          const baseCandidates = step.fallbacks?.length
             ? step.fallbacks
             : [step.modelId, ...fallbackModelIds(step.modelId, (tier) => planAllowsTier(plan, tier))];
+          // Mintaqa siyosati: zaxiralar ham faqat ruxsat etilgan provayderlardan.
+          const candidates = country
+            ? regionDecision({
+                requested: step.modelId,
+                candidates: baseCandidates,
+                country,
+                tier: MODEL_BY_ID[step.modelId]?.tier,
+                code: isCodeRequest(lastText),
+                tierAllowed,
+                available,
+              }).candidates
+            : baseCandidates;
+          if (!candidates.length) {
+            send({ type: "error", message: t("p10RegionNoModels") });
+            break;
+          }
           for (let ci = 0; ci < candidates.length; ci++) {
             const candidate = candidates[ci];
             let failure = "";
@@ -598,6 +683,7 @@ ${connectorContext}`
               lang,
               // Bepul "rescue" gateway faqat oxirgi nomzodda — avval o'z zaxiralarimiz.
               freeRescue: ci === candidates.length - 1,
+              country,
             })) {
               if (ev.type === "done") break;
               if (ev.type === "served") {
@@ -697,7 +783,8 @@ ${connectorContext}`
           const attributionOnly = Boolean(searchCtx.text) && !searchCtx.withContent && !webContext && !knowledgeText;
           // Manbali tekshiruv qisqa javobga ham arziydi; manbasiz "ikkinchi fikr" — faqat uzun javobga.
           const minChars = sources ? 150 : 300;
-          const shouldVerify = verifyText.length >= minChars && isFactualProse(verifyText);
+          // Fakt-verifier — openai/gpt-4o-mini: cheklangan mintaqada chaqirilmaydi.
+          const shouldVerify = !region.restricted && verifyText.length >= minChars && isFactualProse(verifyText);
           await postChecks({
             text: modelText,
             ledger: actionLedger,

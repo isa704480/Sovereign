@@ -8,6 +8,7 @@ import { normalizePromo, reservePromoOrder, resolvePromo } from "@/lib/payments/
 import { purchaseBlocker } from "@/lib/payments/entitlement";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
+import { ROLLYPAY_CRYPTO_ORDER_PREFIX } from "@/lib/ai/region-server";
 
 export const runtime = "nodejs";
 
@@ -64,7 +65,9 @@ export async function POST(req: Request) {
   const price = method === "crypto" ? await cryptoAmountRub(planPrice(plan, period), sbpRub) : sbpRub;
   let amount = price.toFixed(2);
   const promo = normalizePromo(parsed.data.promo);
-  const orderId = `sov_${crypto.randomUUID()}`;
+  // Kripto buyurtma alohida prefiks bilan: mintaqa siyosati (region-server.ts) SBP
+  // (faqat Rossiya banklari) to'lovini RU signali deb biladi, kripto — yo'q.
+  const orderId = method === "crypto" ? `${ROLLYPAY_CRYPTO_ORDER_PREFIX}${crypto.randomUUID()}` : `sov_${crypto.randomUUID()}`;
 
   // Buyurtmani faqat server (service role) yozadi — foydalanuvchi summa/valyuta/
   // provider'ni o'zi belgilay olmaydi (0028: "orders: own insert" olib tashlandi).

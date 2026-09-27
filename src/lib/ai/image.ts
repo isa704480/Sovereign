@@ -1,7 +1,10 @@
 import "server-only";
 import { omniImage, omniImagePrompt } from "@/lib/ai/omniroute-media";
+import { modelAllowedIn } from "@/lib/ai/region";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
+/** Oxirgi zaxira — Google (mintaqa siyosati tekshiruvi uchun alohida). */
+const GEMINI_IMAGE_MODEL = "google/gemini-2.5-flash-image";
 
 /** Detects whether the user is asking for an image. */
 export function detectImageIntent(text: string): boolean {
@@ -163,7 +166,7 @@ async function pollinationsAnon(prompt: string, aspect: Aspect, deadline: number
  * Rasm yaratadi: Pollinations (kalitli, keyin anonim) → OmniRoute AI Horde →
  * OpenRouter Gemini. Data URL'lar qaytaradi; hammasi muvaffaqiyatsiz bo'lsa xato tashlaydi.
  */
-export async function generateImage(request: string): Promise<ImageResult> {
+export async function generateImage(request: string, opts: { country?: string | null } = {}): Promise<ImageResult> {
   // Route maxDuration 180s — hamma provayderlar shu byudjet ichida.
   const deadline = Date.now() + 165_000;
   const aspect = detectAspect(request);
@@ -175,6 +178,8 @@ export async function generateImage(request: string): Promise<ImageResult> {
   const viaOmni = await omniImage(prompt, deadline);
   if (viaOmni) return viaOmni;
   if (!process.env.OPENROUTER_API_KEY) throw new Error("Rasm provayderi yo'q");
+  // Mintaqa siyosati (region.ts): Google bu mintaqaga xizmat ko'rsatmasa — chaqirilmaydi.
+  if (!modelAllowedIn(GEMINI_IMAGE_MODEL, opts.country)) throw new Error("Rasm provayderi mintaqada yopiq");
   const res = await fetch(OPENROUTER, {
     method: "POST",
     headers: {
@@ -183,7 +188,7 @@ export async function generateImage(request: string): Promise<ImageResult> {
       "X-Title": "SOVEREIGN Image",
     },
     body: JSON.stringify({
-      model: "google/gemini-2.5-flash-image",
+      model: GEMINI_IMAGE_MODEL,
       modalities: ["image", "text"],
       messages: [{ role: "user", content: prompt }],
       max_tokens: 2048,
@@ -205,5 +210,5 @@ export async function generateImage(request: string): Promise<ImageResult> {
     }
   }
   if (!urls.length) throw new Error("Rasm qaytarilmadi");
-  return { urls, provider: "google/gemini-2.5-flash-image" };
+  return { urls, provider: GEMINI_IMAGE_MODEL };
 }

@@ -10,6 +10,7 @@ import { useLang, useT } from "@/store/chat";
 import type { TKey } from "@/lib/i18n";
 import { planText } from "@/lib/locales/plans";
 import { cn } from "@/lib/utils";
+import { useRegion } from "@/hooks/use-region";
 
 interface PricingDialogProps {
   open: boolean;
@@ -65,6 +66,8 @@ const METHODS: { id: Method; titleKey: TKey; sub?: string; subKey?: TKey; noteKe
 export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPlan, initialPlan, initialPeriod, preferredMethod = null }: PricingDialogProps) {
   const t = useT();
   const lang = useLang();
+  // Mintaqa siyosati: cheklangan mintaqada tarifga faqat ruxsat etilgan modellar kiradi.
+  const region = useRegion();
   const titleId = useId();
   const [selected, setSelected] = useState<PlanId | null>(null);
   const [period, setPeriod] = useState<BillingPeriod>("month");
@@ -226,6 +229,11 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     {reason && (
                       <p className="mx-auto mt-3 max-w-xl rounded-xl px-4 py-2 text-sm" style={{ background: "rgba(245,158,11,0.12)", color: "#F59E0B" }}>
                         {reason}
+                      </p>
+                    )}
+                    {region.restricted && (
+                      <p className="mx-auto mt-3 max-w-xl text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }} data-testid="region-plan-note">
+                        {t("p10RegionPlanNote")}
                       </p>
                     )}
                     <div className="mt-5 flex justify-center">
@@ -419,6 +427,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                                   to'lovi bilan hisoblanadi (checkout/rollypay CRYPTO_FEE). */}
                               {id === "card" && period === "year" ? t("p8bPayByCardNoteYear") : t(noteKey)}
                               {id === "crypto" && ` ${t("p8bCryptoFeeNote")}`}
+                              {/* SBP to'lovi foydalanuvchini Rossiya mintaqasiga bog'laydi (region-server.ts). */}
+                              {id === "sbp" && ` ${t("p10RegionSbpNote")}`}
                             </span>
                           </span>
                           <span className="nums shrink-0 text-sm font-semibold" style={{ color: plan.color }}>

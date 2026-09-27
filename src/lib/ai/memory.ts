@@ -12,6 +12,8 @@ export interface MemoryNode {
 }
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
+/** Xotira ajratuvchi model (mintaqa siyosati tekshiruvi uchun eksport — actions/memory.ts). */
+export const MEMORY_MODEL = "openai/gpt-4o-mini";
 
 /** Recent memories for a user (most recent first). */
 export async function getMemories(supabase: SupabaseClient, userId: string, limit = 40): Promise<MemoryNode[]> {
@@ -79,7 +81,7 @@ export async function rememberFromExchange(
         "X-Title": "SOVEREIGN Memory",
       },
       body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
+        model: MEMORY_MODEL,
         messages: [
           { role: "system", content: sys },
           { role: "user", content: user },

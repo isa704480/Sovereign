@@ -3,7 +3,10 @@
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import { getMemories, rememberFromExchange, type MemoryNode } from "@/lib/ai/memory";
+import { headers } from "next/headers";
+import { getMemories, MEMORY_MODEL, rememberFromExchange, type MemoryNode } from "@/lib/ai/memory";
+import { modelAllowedIn } from "@/lib/ai/region";
+import { resolveUserRegion } from "@/lib/ai/region-server";
 
 async function session() {
   if (!isSupabaseConfigured()) return null;
@@ -18,6 +21,10 @@ async function session() {
 export async function rememberExchange(userText: string, assistantText: string): Promise<{ added: number }> {
   const s = await session();
   if (!s || !userText.trim()) return { added: 0 };
+  // Xotira ajratuvchi model — openai/gpt-4o-mini: provayder mintaqaga xizmat
+  // ko'rsatmasa, suhbat matni unga yuborilmaydi (region.ts).
+  const region = await resolveUserRegion({ headers: await headers(), supabase: s.supabase, userId: s.user.id });
+  if (!modelAllowedIn(MEMORY_MODEL, region.country)) return { added: 0 };
   const added = await rememberFromExchange(s.supabase, s.user.id, userText.slice(0, 4000), assistantText.slice(0, 2000));
   return { added };
 }

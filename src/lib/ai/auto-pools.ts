@@ -2,6 +2,7 @@ import "server-only";
 import { MODEL_BY_ID } from "@/config/models";
 import { planAllowsTier, type Plan } from "@/config/plans";
 import { hasKeyFor } from "@/lib/ai/providers";
+import { modelAllowedIn, regionEquivalents, restrictedRegion } from "@/lib/ai/region";
 
 /**
  * SOVEREIGN Auto — tarif × vazifa bo'yicha model navbati.
@@ -93,15 +94,27 @@ function poolTier(plan: Plan): PoolTier {
 /**
  * Tarif va vazifaga mos model navbati: [asosiy, ...zaxiralar]. Statik
  * modellar faqat tarif ruxsat bersa va serverda kaliti bo'lsa qoladi;
- * OmniRoute id'lari faqat OmniRoute sozlangan bo'lsa.
+ * OmniRoute id'lari faqat OmniRoute sozlangan bo'lsa. `country` berilsa —
+ * provayderi shu mintaqaga xizmat ko'rsatmaydigan modellar (region.ts) chiqariladi;
+ * hech narsa qolmasa mintaqa ekvivalentlari (DeepSeek/Qwen/GLM ...) qo'yiladi.
  */
-export function autoCandidates(plan: Plan, category: AutoCategory): string[] {
+export function autoCandidates(plan: Plan, category: AutoCategory, country?: string | null): string[] {
   const omni = Boolean(process.env.OMNIROUTE_BASE_URL && process.env.OMNIROUTE_API_KEY);
-  const list = POOLS[poolTier(plan)][category].filter((id) => {
+  const available = (id: string) => {
     const m = MODEL_BY_ID[id];
     if (m) return planAllowsTier(plan, m.tier) && hasKeyFor(m);
     return omni && id.includes("/");
-  });
+  };
+  const list = POOLS[poolTier(plan)][category].filter((id) => available(id) && modelAllowedIn(id, country));
+  if (list.length) return list;
+  if (restrictedRegion(country)) {
+    // Ro'yxat bo'sh bo'lishi mumkin (masalan OFAC embargosi) — chat route rad etadi.
+    return regionEquivalents(category === "code" ? "coding" : "auto", country, {
+      code: category === "code",
+      tierAllowed: (t) => planAllowsTier(plan, t),
+      available,
+    });
+  }
   // Hech narsa qolmasa ham Auto jim qolmasin — eng xavfsiz tekin model.
-  return list.length ? list : ["llama-3.3-free"];
+  return ["llama-3.3-free"];
 }

@@ -5,6 +5,10 @@ import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { chunkText, embedTexts } from "@/lib/ai/embed";
 import { getServerT } from "@/lib/i18n-server";
+import { headers } from "next/headers";
+import { EMBED_MODEL } from "@/lib/ai/omniroute-media";
+import { modelAllowedIn } from "@/lib/ai/region";
+import { resolveUserRegion } from "@/lib/ai/region-server";
 
 async function session() {
   if (!isSupabaseConfigured()) return null;
@@ -42,6 +46,10 @@ export async function uploadKnowledge(input: unknown): Promise<UploadResult> {
   if (!parsed.success) return { ok: false, error: t("pnErrBadFileData") };
   const s = await session();
   if (!s) return { ok: false, error: t("pnErrLoginFirst") };
+  // Embedding modeli — OpenAI text-embedding-3-small: provayder mintaqaga xizmat
+  // ko'rsatmasa hujjat matni unga yuborilmaydi (region.ts).
+  const region = await resolveUserRegion({ headers: await headers(), supabase: s.supabase, userId: s.user.id });
+  if (!modelAllowedIn(EMBED_MODEL, region.country)) return { ok: false, error: t("p10RegionKbUnavailable") };
 
   const { name, mime, content } = parsed.data;
   const chunks = chunkText(content);
