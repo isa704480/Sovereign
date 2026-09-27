@@ -1,10 +1,13 @@
 import { redirect } from "next/navigation";
 import { AdminDashboard, type OnboardingStats, type ModelStats } from "@/components/admin/AdminDashboard";
 import { createClient } from "@/lib/supabase/server";
+import { parseEconRange } from "@/lib/econ/unit-economics";
+import { getUnitEconomics } from "@/lib/econ/unit-economics.server";
 
 export const metadata = { title: "Admin · SOVEREIGN" };
 
-export default async function AdminPage() {
+export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
+  const econDays = parseEconRange((await searchParams).econ);
   const supabase = await createClient();
   const {
     data: { user },
@@ -23,7 +26,7 @@ export default async function AdminPage() {
   }
 
   // Barcha analytics'larni parallel yuklaymiz
-  const [summary, daily, plans, recent, onboarding, models] = await Promise.all([
+  const [summary, daily, plans, recent, onboarding, models, economics] = await Promise.all([
     supabase.rpc("admin_users_summary"),
     supabase.rpc("admin_daily_stats", { p_days: 30 }),
     supabase.rpc("admin_plan_distribution"),
@@ -32,6 +35,8 @@ export default async function AdminPage() {
     supabase.rpc("admin_onboarding_stats"),
     // 0021 — qaysi model ko'p ishlatilgan va qanchalik yaxshi ishlagani.
     supabase.rpc("admin_model_stats"),
+    // Unit economics — service role FAQAT shu yerda, is_admin tekshiruvidan keyin (serverda).
+    getUnitEconomics(econDays),
   ]);
 
   return (
@@ -43,6 +48,8 @@ export default async function AdminPage() {
       recentOrders={recent.data ?? []}
       onboarding={(onboarding.data as OnboardingStats | null) ?? null}
       models={(models.data as ModelStats | null) ?? null}
+      economics={economics}
+      econDays={econDays}
     />
   );
 }

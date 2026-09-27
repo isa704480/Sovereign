@@ -28,6 +28,8 @@ import { localeOf } from "@/lib/locales/chat-data";
 import { EASE } from "@/lib/motion";
 import { plural } from "@/lib/plural";
 import { useLang, useT } from "@/store/chat";
+import type { EconRange, UnitEconomics } from "@/lib/econ/unit-economics";
+import { UnitEconomicsCard } from "./UnitEconomicsCard";
 
 interface DailyStat {
   day: string;
@@ -102,6 +104,9 @@ interface AdminDashboardProps {
   recentOrders: OrderRow[];
   onboarding?: OnboardingStats | null;
   models?: ModelStats | null;
+  /** Unit economics (service role, faqat admin sahifasida — is_admin tekshiruvidan keyin — hisoblanadi). */
+  economics?: UnitEconomics | null;
+  econDays?: EconRange;
 }
 
 const AGE_LABEL: Record<string, string> = {
@@ -159,7 +164,17 @@ function KPI({ label, value, sub, color }: { label: string; value: string; sub?:
   );
 }
 
-export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onboarding, models }: AdminDashboardProps) {
+export function AdminDashboard({
+  admin,
+  summary,
+  daily,
+  plans,
+  recentOrders,
+  onboarding,
+  models,
+  economics,
+  econDays = 30,
+}: AdminDashboardProps) {
   const t = useT();
   const lang = useLang();
   const locale = localeOf(lang);
@@ -555,6 +570,9 @@ export function AdminDashboard({ admin, summary, daily, plans, recentOrders, onb
             </p>
           )}
         </section>
+
+        {/* Unit economics: javob narxi bizda va bitta vendor flagmanida */}
+        <UnitEconomicsCard data={economics ?? null} days={econDays} />
 
         {/* Oxirgi to'lovlar jadvali */}
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
