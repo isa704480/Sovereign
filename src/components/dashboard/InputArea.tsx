@@ -40,6 +40,11 @@ interface InputAreaProps {
   isStreaming: boolean;
   research: boolean;
   onToggleResearch: (on: boolean) => void;
+  /** "O'ylab javob" — model javobdan oldin fikr yuritadi (Basic tarifidan boshlab). */
+  thinking: boolean;
+  onToggleThinking: (on: boolean) => void;
+  /** Tarif ruxsat bermaydi (Free): chip o'chiq ko'rinadi, bosilsa tarif oynasi ochiladi. */
+  thinkingLocked?: boolean;
   enabledSkills: string[];
   onToggleSkill: (id: string) => void;
   blindPrompting: boolean;
@@ -74,6 +79,7 @@ type MentionItem =
 function Chip({
   active,
   disabled,
+  locked,
   icon,
   label,
   onClick,
@@ -81,6 +87,11 @@ function Chip({
 }: {
   active?: boolean;
   disabled?: boolean;
+  /**
+   * Tarif yetmaydi: chip o'chiq ko'rinadi, lekin bosiladi — bosilganda tarif oynasi ochiladi
+   * (butunlay `disabled` bo'lsa foydalanuvchi nima uchun ishlamasligini bila olmasdi).
+   */
+  locked?: boolean;
   icon: React.ReactNode;
   label: string;
   onClick?: () => void;
@@ -92,9 +103,13 @@ function Chip({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      // Rejim chipi — bosiladigan bo'lsa ekran o'quvchiga holatini aytadi.
+      aria-pressed={onClick && !locked ? active === true : undefined}
+      aria-disabled={locked || undefined}
       className={cn(
         "tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
-        disabled && "cursor-not-allowed opacity-50",
+        (disabled || locked) && "opacity-50",
+        disabled && "cursor-not-allowed",
       )}
       style={{
         borderColor: active ? "var(--t-primary)" : "var(--t-border)",
@@ -114,6 +129,9 @@ export function InputArea({
   isStreaming,
   research,
   onToggleResearch,
+  thinking,
+  onToggleThinking,
+  thinkingLocked,
   enabledSkills,
   onToggleSkill,
   blindPrompting,
@@ -801,6 +819,15 @@ export function InputArea({
               label={t("researchMode")}
               onClick={() => onToggleResearch(!research)}
               title={t("chResearchTitle")}
+            />
+            {/* "O'ylab javob" — Free'da o'chiq ko'rinadi, bosilsa tarif oynasi ochiladi. */}
+            <Chip
+              active={thinking && !thinkingLocked}
+              locked={thinkingLocked}
+              icon={<Brain className="size-3.5" />}
+              label={t("p23ThinkChip")}
+              onClick={() => onToggleThinking(!thinking)}
+              title={thinkingLocked ? t("p23ThinkLocked") : t("p23ThinkChipTitle")}
             />
             <Chip
               active={blindPrompting}

@@ -61,6 +61,12 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
         ru: "Код: полные примеры средней длины",
         en: "Code: complete medium-sized examples",
       },
+      {
+        uz: "O'ylab javob berish — model fikr yuritishini ko'rsatadi",
+        "uz-cyrl": "Ўйлаб жавоб бериш — модел фикр юритишини кўрсатади",
+        ru: "Ответ с рассуждением — виден ход мысли модели",
+        en: "Answers with thinking — the model's reasoning is shown",
+      },
     ],
   },
   pro: {
@@ -93,6 +99,12 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
         en: "Full code generation (4K tokens)",
       },
       { uz: "CLI kod-agent to'liq", "uz-cyrl": "CLI код-агент тўлиқ", ru: "Полный доступ к CLI-агенту для кода", en: "Full CLI coding agent" },
+      {
+        uz: "O'ylab javob berish — fikrlaydigan modellarga ustunlik",
+        "uz-cyrl": "Ўйлаб жавоб бериш — фикрлайдиган моделларга устунлик",
+        ru: "Ответ с рассуждением — приоритет моделям, которые рассуждают",
+        en: "Answers with thinking — routing prefers reasoning models",
+      },
     ],
   },
   ultra: {
@@ -131,6 +143,12 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
         en: "Priority queue — no more waiting",
       },
       { uz: "Erta-yangi modellar", "uz-cyrl": "Эрта-янги моделлар", ru: "Ранний доступ к новым моделям", en: "Early access to new models" },
+      {
+        uz: "O'ylab javob berish — eng kuchli fikrlaydigan modellar",
+        "uz-cyrl": "Ўйлаб жавоб бериш — энг кучли фикрлайдиган моделлар",
+        ru: "Ответ с рассуждением — самые сильные рассуждающие модели",
+        en: "Answers with thinking — the strongest reasoning models",
+      },
     ],
   },
 };

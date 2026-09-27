@@ -120,6 +120,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     toggleSkill,
     blindPrompting,
     setBlindPrompting,
+    thinking,
+    setThinking,
   } = useChat(
     // Faqat kerakli maydonlar — boshqa holat (cowork outline, sozlamalar…) o'zgarsa qayta render yo'q.
     useShallow((s) => ({
@@ -140,6 +142,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       toggleSkill: s.toggleSkill,
       blindPrompting: s.blindPrompting,
       setBlindPrompting: s.setBlindPrompting,
+      thinking: s.thinking,
+      setThinking: s.setThinking,
     })),
   );
   const [memoryEnabled, setMemoryEnabled] = useState(memoryInit);
@@ -295,6 +299,19 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       if (on && model.category !== "research") setModel(RESEARCH_MODEL_ID);
     },
     [setResearch, setModel, model.category, plan.limits.research, openPricing, t],
+  );
+
+  // "O'ylab javob" — Free'da yopiq: chip bosilsa tarif oynasi (Basic taklifi) ochiladi.
+  // Server baribir haqiqiy tarifni qayta tekshiradi — bu faqat qulaylik.
+  const handleToggleThinking = useCallback(
+    (on: boolean) => {
+      if (on && !plan.limits.thinking) {
+        openPricing(t("p23ThinkLocked"), "starter");
+        return;
+      }
+      setThinking(on);
+    },
+    [setThinking, plan.limits.thinking, openPricing, t],
   );
 
   // O'chirish — darhol lokal olib tashlanadi, serverdan esa ~5s dan keyin
@@ -493,6 +510,9 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       isStreaming={isStreaming}
       research={research}
       onToggleResearch={handleToggleResearch}
+      thinking={thinking}
+      onToggleThinking={handleToggleThinking}
+      thinkingLocked={!plan.limits.thinking}
       enabledSkills={enabledSkills}
       onToggleSkill={toggleSkill}
       blindPrompting={blindPrompting}

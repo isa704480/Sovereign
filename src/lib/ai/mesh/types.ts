@@ -96,6 +96,12 @@ export interface ModelOffer {
    * Standart: true.
    */
   substitutable?: boolean;
+  /**
+   * Model javobdan oldin fikr yuritadimi ("o'ylab javob"). Berilmasa — upstream nomidan
+   * taxmin qilinadi (mesh/thinking.ts `thinkingWire`). Faqat marshrut USTUNLIGIGA ta'sir
+   * qiladi, qat'iy filtr emas.
+   */
+  reasoning?: boolean;
 }
 
 /* ------------------------------------------------------------------ */
@@ -308,7 +314,12 @@ export interface RouteRequest {
   /** Katalog id yoki providerModel yoki host-prefiksli id. Berilmasa — faqat `class` bo'yicha (Auto / CLI). */
   sovereignModelId?: string;
   class?: OfferClass;
-  needs: { tools?: boolean; vision?: boolean; stream?: boolean };
+  /**
+   * `thinking` — "o'ylab javob" afzalligi (QAT'IY filtr emas, faqat skor):
+   * true — fikrlaydigan modelga ustunlik; false — tez (flash) modelga ustunlik (Free tarifi);
+   * berilmasa — farqi yo'q. Mos model bo'lmasa ham nomzod tashlanmaydi (yumshoq zaxira).
+   */
+  needs: { tools?: boolean; vision?: boolean; stream?: boolean; thinking?: boolean };
   planTier: PlanTier;
   /**
    * So'ralgan modelning tarifi (aynan shu model — G0 — uchun tekshiriladi). Berilmasa katalogdan
@@ -417,6 +428,12 @@ export const MESH_TUNING = {
   rescueFactor: 0.3,
   /** Model stream'ni qo'llamasa-yu so'rov stream bo'lsa (bitta bo'lak bo'lib keladi). */
   noStreamFactor: 0.9,
+  /**
+   * "O'ylab javob" afzalligiga mos kelmagan taklif (needs.thinking berilgan, lekin
+   * offer.reasoning boshqa). Nomzod tashlanmaydi — faqat skori pasayadi, shuning uchun
+   * fikrlaydigan model bo'lmasa javob baribir keladi.
+   */
+  thinkingMismatchFactor: 0.5,
   /** Transient xatoda shu nomzodni qayta sinash (faqat hali bayt chiqmagan bo'lsa). */
   transientRetries: 1,
   retryBackoffMs: [250, 750] as [number, number],

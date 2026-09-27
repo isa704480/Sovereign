@@ -31,6 +31,7 @@ import { modelAllowedIn } from "../region";
 import { isSubstitution } from "../served";
 import { learnMissingCapability } from "./caps";
 import { keyFingerprint } from "./fingerprint";
+import { offerThinks, thinkingFields } from "./thinking";
 import {
   MESH_TUNING,
   type Attempt,
@@ -667,9 +668,12 @@ function buildBody(
   base: MeshBody,
   stream: boolean,
   maxTokens: number | undefined,
+  thinking = false,
 ): ChatBody {
   const body: ChatBody = { ...base, model: offer.wire, stream };
   if (maxTokens !== undefined) body.max_tokens = maxTokens;
+  // "O'ylab javob": provayder aniq maydonni qo'llasa — o'sha (faqat <think> ajratishga tayanmaymiz).
+  if (thinking && offerThinks(offer)) Object.assign(body, thinkingFields(adapter.id, offer.wire));
   if (!stream) delete body.stream_options;
   if (!adapter.transformBody) return body;
   try {
@@ -892,7 +896,7 @@ async function* streamOnce(
   onFirstByte: (ttfbMs: number) => void,
 ): AsyncGenerator<StreamEvent, StreamOutcome> {
   const wantStream = input.req.needs.stream !== false && c.offer.caps.stream;
-  const body = buildBody(adapter, c.offer, { ...input.body, messages }, wantStream, maxTokens);
+  const body = buildBody(adapter, c.offer, { ...input.body, messages }, wantStream, maxTokens, input.req.needs.thinking === true);
   const streaming = body.stream === true;
   const base = !streaming ? NON_STREAM_TIMEOUT_MS : adapter.rescue ? RESCUE_CONNECT_TIMEOUT_MS : CONNECT_TIMEOUT_MS;
   const timeout = Math.max(1, Math.min(base, remainingMs));
@@ -922,6 +926,8 @@ async function* streamOnce(
   const think = new ThinkSplitter();
   let emitted = false;
   let text = "";
+  /** Fikr (reasoning) matni uzunligi — javob tokenlari kabi hisobga kiradi. */
+  let reasonChars = 0;
   let finish: string | null = null;
   let usage: MeshUsage | undefined;
   let served: ServedInfo | null = null;
@@ -970,7 +976,11 @@ async function* streamOnce(
       const choice = chunk.choices?.[0];
       if (choice?.finish_reason) finish = choice.finish_reason;
       const reason = choice?.delta?.reasoning ?? choice?.delta?.reasoning_content;
-      if (typeof reason === "string" && reason) yield* emit([{ type: "reasoning", text: reason }]);
+      if (typeof reason === "string" && reason) {
+        // Fikr tokenlari ham haqiqiy sarf — upstream `usage` bermasa taxminga kiradi.
+        reasonChars += reason.length;
+        yield* emit([{ type: "reasoning", text: reason }]);
+      }
       const content = choice?.delta?.content;
       if (typeof content === "string" && content) yield* emit(think.push(content));
     }
@@ -986,12 +996,14 @@ async function* streamOnce(
     return { ok: false, status: res.status, error: { kind: "transient", message: "bo'sh javob" }, emitted: false, text };
   }
   const promptTokens = estTokens(messagesChars(messages));
+  // Upstream `usage` bermasa: chiqish = javob matni + fikr matni (ikkalasi ham pullik).
+  const outTokens = estTokens(text.length + reasonChars);
   return {
     ok: true,
     finish,
     text,
     ttfbMs,
-    usage: usage ?? { prompt_tokens: promptTokens, completion_tokens: estTokens(text.length), total_tokens: promptTokens + estTokens(text.length) },
+    usage: usage ?? { prompt_tokens: promptTokens, completion_tokens: outTokens, total_tokens: promptTokens + outTokens },
   };
 }
 
@@ -1130,7 +1142,7 @@ async function completeOnce(
   maxTokens: number | undefined,
   remainingMs: number,
 ): Promise<CompleteOutcome> {
-  const body = buildBody(adapter, c.offer, input.body, false, maxTokens);
+  const body = buildBody(adapter, c.offer, input.body, false, maxTokens, input.req.needs.thinking === true);
   // Oqimsiz nomzod: transformBody stream'ni qaytadan yoqmasin.
   body.stream = false;
   const started = deps.now();

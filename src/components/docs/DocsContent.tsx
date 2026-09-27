@@ -32,6 +32,8 @@ export interface DocsPlan {
   fullCode: boolean;
   research: boolean;
   deepResearch: boolean;
+  /** "O'ylab javob" (thinking) — Free'da yopiq. */
+  thinking: boolean;
   priority: boolean;
 }
 
@@ -183,6 +185,7 @@ export function DocsContent({ data }: { data: DocsData }) {
       children: [
         { id: "image-generation", label: t("p7bDImgTitle") },
         { id: "research", label: t("p7bDResearchTitle") },
+        { id: "thinking", label: t("p23DThinkTitle") },
         { id: "verification", label: t("p12DocsVerifyTitle") },
         { id: "memory", label: t("p7bDMemoryTitle") },
         { id: "knowledge-base", label: t("p7bDKbNav") },
@@ -229,6 +232,7 @@ export function DocsContent({ data }: { data: DocsData }) {
     ["p7bDRowFullCode", (p) => (p.fullCode ? yes : no)],
     ["p7bDRowResearch", (p) => (p.research ? yes : no)],
     ["p7bDRowDeep", (p) => (p.deepResearch ? yes : no)],
+    ["p23DRowThinking", (p) => (p.thinking ? yes : no)],
     ["p7bDRowPriority", (p) => (p.priority ? yes : no)],
   ];
 
@@ -387,6 +391,10 @@ export function DocsContent({ data }: { data: DocsData }) {
 
               <Sub id="research" title={t("p7bDResearchTitle")}>
                 <p>{r("p7bDResearchBody")}</p>
+              </Sub>
+
+              <Sub id="thinking" title={t("p23DThinkTitle")}>
+                <p>{r("p23DThinkBody")}</p>
               </Sub>
 
               <Sub id="verification" title={t("p12DocsVerifyTitle")}>

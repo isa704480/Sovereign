@@ -26,14 +26,25 @@ export interface InquiryRequest {
 }
 
 /**
+ * "O'ylab javob" so'ralgan, lekin fikrlaydigan model topilmadi — server tarjima qilingan
+ * izohni bir marta yuboradi (so'rov bekor qilinmaydi).
+ */
+export interface ThinkingNoteEvent {
+  type: "thinkingNote";
+  text: string;
+}
+
+/**
  * Mijoz qabul qiladigan hodisalar. T3 `InquiryEvent` ni `StreamEvent` union'iga qo'shgach bu
  * ortiqcha bo'ladi (union takrorni birlashtiradi), lekin shungacha ham tiplar to'g'ri.
  */
-export type ClientStreamEvent = StreamEvent | InquiryEvent;
+export type ClientStreamEvent = StreamEvent | InquiryEvent | ThinkingNoteEvent;
 
 export interface StreamChatOptions {
   modelId: string;
   research: boolean;
+  /** "O'ylab javob" — so'rov, ruxsat emas: server haqiqiy tarifni qayta tekshiradi. */
+  thinking?: boolean;
   skills?: string[];
   /** Knowledge-base documents referenced with "@name" in the prompt. */
   docIds?: string[];
@@ -57,6 +68,7 @@ export interface StreamChatOptions {
 export async function streamChat({
   modelId,
   research,
+  thinking,
   skills,
   docIds,
   customSkills,
@@ -74,6 +86,7 @@ export async function streamChat({
     body: JSON.stringify({
       modelId,
       research,
+      thinking: thinking === true,
       skills: skills ?? [],
       docIds: docIds ?? [],
       customSkills: customSkills ?? [],

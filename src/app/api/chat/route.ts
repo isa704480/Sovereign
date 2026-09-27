@@ -30,6 +30,7 @@ import { scriptDrift } from "@/lib/ai/script-check";
 import type { AnswerMeta } from "@/lib/chat/answer-meta";
 import { contentHasAttachment } from "@/lib/chat/attachment-markers";
 import { billableTotal, splitUsage } from "@/lib/chat/usage-chunks";
+import { forwardReasoning, resolveThinking } from "@/lib/chat/thinking";
 import { getEnabledConnectors, runConnectorTools } from "@/lib/ai/connector-tools";
 import { fmt, LANG_FOR_AI, pick, translate, type TKey } from "@/lib/i18n";
 import { getServerT } from "@/lib/i18n-server";
@@ -108,6 +109,11 @@ const bodySchema = z.object({
    */
   inquiry: inquirySchema.optional().catch(undefined),
   research: z.boolean().optional().default(false),
+  /**
+   * "O'ylab javob" — mijozdan kelgan SO'ROV, ruxsat emas. Server haqiqiy tarifni qayta
+   * tekshiradi (lib/chat/thinking.ts `resolveThinking`): Free'da bayroq e'tiborsiz qoladi.
+   */
+  thinking: z.boolean().optional().default(false),
   skills: z.array(z.string().max(64)).max(12).optional().default([]),
   /** Knowledge-base documents the user referenced with "@name". */
   docIds: z.array(z.uuid()).max(4).optional().default([]),
@@ -384,6 +390,7 @@ export async function POST(req: Request) {
   const {
     modelId,
     research: reqResearch,
+    thinking: reqThinking,
     skills: enabledSkills,
     messages: rawMessages,
     docIds,
@@ -531,6 +538,12 @@ export async function POST(req: Request) {
       return refuse(`${UPGRADE} ${t("chDeepResearchUltra")}`);
     }
   }
+
+  // "O'ylab javob" (thinking) — mijozdagi bayroq SO'ROV, ruxsat emas: haqiqiy tarif shu yerda
+  // qayta tekshiriladi. Free'da so'rov RAD ETILMAYDI (research'dan farqi), lekin bayroq
+  // e'tiborsiz qoladi: marshrut tez (flash) modelga suriladi va provayder o'zicha yuborgan
+  // reasoning mijozga uzatilmaydi (pastda, oqim halqasida).
+  const think = resolveThinking(reqThinking, plan);
 
   // Kunlik limit — server tomonida atomik hisob (0027 consume_message). Barcha
   // rad etish tekshiruvlaridan KEYIN: rad etilgan so'rov limitni yemaydi.
@@ -741,6 +754,8 @@ export async function POST(req: Request) {
       let connectorUsage: { input: number; output: number; model: string; provider: string } | null = null;
       // BARCHA qadamlar (research ham) va barcha nomzodlar chiqishi — kelgan har bo'lak.
       let billedOutChars = 0;
+      // "O'ylab javob" yoqilgan navbatda model haqiqatan fikr yubordimi (bir marta xabar berish uchun).
+      let sawReasoning = false;
       // Modelga haqiqatan yuborilgan qadam/nomzod chaqiruvlari soni (kirish har safar qayta yuboriladi).
       let modelCalls = 0;
       // Shu so'rovda butunlay yiqilgan mesh provayderlari (auth, 5xx, provayder limiti) — keyingi
@@ -1077,6 +1092,7 @@ ${connectorContext}`
               freeRescue: ci === candidates.length - 1,
               country,
               planTier: plan.id,
+              ...(think.preference === undefined ? {} : { thinking: think.preference }),
               deadline: requestDeadline,
               exclude: [...meshFailed],
               onProviderFailed: (p) => meshFailed.add(p),
@@ -1093,6 +1109,16 @@ ${connectorContext}`
               if (ev.type === "text") {
                 stepText += ev.text;
                 billedOutChars += ev.text.length;
+              }
+              if (ev.type === "reasoning") {
+                // Fikr tokenlari ham haqiqiy sarf — mijozga ko'rsatilmasa ham hisobga yoziladi.
+                billedOutChars += ev.text.length;
+                // Free: reasoning HECH QACHON mijozga chiqmaydi va saqlanmaydi (provayder
+                // o'zicha yuborgan bo'lsa ham). Pullik tarifda — o'tadi.
+                if (!forwardReasoning(think)) continue;
+                sawReasoning = true;
+                send(ev);
+                continue;
               }
               if (ev.type === "citations") {
                 // Qidiruv snippetlari faqat verifier uchun — mijozga faqat URL ro'yxati.
@@ -1127,6 +1153,16 @@ ${connectorContext}`
             if (steps.length > 1) send({ type: "text", text: "\n\n---\n\n" });
           } else if (step.kind === "answer") {
             cacheableAnswer = stepText;
+          }
+        }
+
+        // "O'ylab javob" so'ralgan, lekin fikrlaydigan model topilmadi (yoki mavjudi fikr
+        // yubormadi): so'rov bekor qilinmaydi — bir marta, tarjima qilingan holda aytiladi.
+        if (think.enabled && !sawReasoning && cacheableAnswer) {
+          try {
+            send({ type: "thinkingNote", text: t("p23ThinkNoModel") });
+          } catch {
+            /* mijoz uzilgan */
           }
         }
 

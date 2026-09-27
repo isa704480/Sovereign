@@ -18,6 +18,7 @@ import { MODEL_BY_ID } from "@/config/models";
 import { hostAllowedIn, modelAllowedIn, regionClassOf } from "../region";
 import { sameModel as sameModelId } from "../served";
 import { effectiveCaps } from "./caps";
+import { offerThinks } from "./thinking";
 import { maxTier, minTier, modelTierFor } from "./tier";
 import {
   COST_RANK,
@@ -80,6 +81,8 @@ export interface ScoreFactors {
   R: number;
   C: number;
   S: number;
+  /** "O'ylab javob" afzalligi (needs.thinking): mos — 1, mos emas — thinkingMismatchFactor. */
+  T: number;
   X: number;
 }
 
@@ -227,12 +230,17 @@ function factorsFor(
       : 1;
   const C = MESH_TUNING.costFactor[offer.cost];
   const S = req.needs.stream && !offer.caps.stream ? MESH_TUNING.noStreamFactor : 1;
+  // Afzallik, filtr emas: mos model bo'lmasa ham nomzod ro'yxatda qoladi.
+  const T =
+    req.needs.thinking === undefined || offerThinks(offer) === req.needs.thinking
+      ? 1
+      : MESH_TUNING.thinkingMismatchFactor;
   const X = a.rescue ? MESH_TUNING.rescueFactor : 1;
-  return { Q, F, H, L, R, C, S, X };
+  return { Q, F, H, L, R, C, S, T, X };
 }
 
 function product(f: ScoreFactors): number {
-  return f.Q * f.F * f.H * f.L * f.R * f.C * f.S * f.X;
+  return f.Q * f.F * f.H * f.L * f.R * f.C * f.S * f.T * f.X;
 }
 
 /**
@@ -536,5 +544,5 @@ function round(n: number): number {
 }
 
 function mapFactors(f: ScoreFactors, fn: (n: number) => number): ScoreFactors {
-  return { Q: fn(f.Q), F: fn(f.F), H: fn(f.H), L: fn(f.L), R: fn(f.R), C: fn(f.C), S: fn(f.S), X: fn(f.X) };
+  return { Q: fn(f.Q), F: fn(f.F), H: fn(f.H), L: fn(f.L), R: fn(f.R), C: fn(f.C), S: fn(f.S), T: fn(f.T), X: fn(f.X) };
 }

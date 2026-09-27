@@ -110,6 +110,13 @@ export interface ChatMessage {
   attachments?: Attachment[];
   /** Model o'ylash jarayoni (reasoning) — javobdan alohida. */
   reasoning?: string;
+  /**
+   * O'ylash davomiyligi (ms): birinchi va oxirgi fikr bo'lagi orasi. Panel sarlavhasi
+   * ("N soniya o'yladi") shundan hisoblanadi. Faqat shu qurilmada saqlanadi.
+   */
+  thinkingMs?: number;
+  /** Server izohi: "o'ylab javob" so'ralgan, lekin fikrlaydigan model topilmadi. */
+  thinkingNote?: string;
   /** Auto-mode routing decision shown above the answer. */
   route?: RouteInfo;
   /** Ids of models actually used (Auto pipeline). */
@@ -178,6 +185,11 @@ interface ChatState {
   customSkills: CustomSkill[];
   /** Mask PII in the outgoing prompt (Blind Prompting). */
   blindPrompting: boolean;
+  /**
+   * "O'ylab javob" — model javobdan oldin fikr yuritsin (Basic+ tariflarida). Server haqiqiy
+   * tarifni qayta tekshiradi; Free'da bayroq e'tiborsiz qoladi.
+   */
+  thinking: boolean;
   /** File list of the opened Cowork folder, sent with each request (names only). */
   coworkOutline: string | null;
   /** Loyihalar va hozir ochiq turgan loyiha (yangi suhbat shu loyihaga tushadi). */
@@ -211,6 +223,7 @@ interface ChatState {
   addCustomSkill: (skill: { name: string; instructions: string }) => string;
   removeCustomSkill: (id: string) => void;
   setBlindPrompting: (on: boolean) => void;
+  setThinking: (on: boolean) => void;
   setCoworkOutline: (text: string | null) => void;
   createProject: (name: string) => string;
   updateProject: (id: string, patch: Partial<Pick<Project, "name" | "instructions">>) => void;
@@ -421,6 +434,7 @@ export const useChat = create<ChatState>()(
       enabledSkills: DEFAULT_ENABLED_SKILLS,
       customSkills: [],
       blindPrompting: false,
+      thinking: false,
       coworkOutline: null,
       projects: [],
       activeProjectId: null,
@@ -481,6 +495,7 @@ export const useChat = create<ChatState>()(
             : [...s.enabledSkills, id],
         })),
       setBlindPrompting: (blindPrompting) => set({ blindPrompting }),
+      setThinking: (thinking) => set({ thinking }),
       setCoworkOutline: (coworkOutline) => set({ coworkOutline }),
 
       createProject: (name) => {
@@ -689,6 +704,7 @@ export const useChat = create<ChatState>()(
         autoScroll: s.autoScroll,
         agentMode: s.agentMode,
         blindPrompting: s.blindPrompting,
+        thinking: s.thinking,
         inquiryMode: s.inquiryMode,
       }),
     },

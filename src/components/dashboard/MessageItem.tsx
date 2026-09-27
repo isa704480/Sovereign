@@ -1,11 +1,12 @@
 "use client";
 
-import { AlertTriangle, Check, ChevronDown, Copy, Globe, Lightbulb, Pencil, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
-import { motion } from "motion/react";
+import { AlertTriangle, Brain, Check, ChevronDown, Copy, Globe, Pencil, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
+import { motion, useReducedMotionConfig } from "motion/react";
 import { memo, useMemo, useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
 import { SKILL_BY_ID } from "@/config/skills";
 import { attachmentGlyph } from "@/lib/chat/attachments";
+import { thinkingSeconds } from "@/lib/chat/thinking";
 import { useLang, useT, type ChatMessage } from "@/store/chat";
 import { fmt, type Lang } from "@/lib/i18n";
 import { localeOf } from "@/lib/locales/chat-data";
@@ -97,7 +98,9 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
     setEditing(false);
     if (text && text !== message.content) onEdit?.(message.id, text);
   }
-  const [showReasoning, setShowReasoning] = useState(false);
+  // O'ylash paneli: oqim vaqtida o'zi ochiq, javob kelgach o'zi yopiladi. Foydalanuvchi
+  // bir marta bossa — uning tanlovi ustun (null = avtomatik).
+  const [reasoningOpen, setReasoningOpen] = useState<boolean | null>(null);
   const [feedback, setFeedback] = useState<Feedback | null>(() => readFeedback(message.id));
   function rate(v: Feedback) {
     const next = feedback === v ? null : v;
@@ -107,6 +110,17 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
   const isUser = message.role === "user";
   const model = (message.modelId && MODEL_BY_ID[message.modelId]) || activeModel;
   const streaming = message.status === "streaming";
+  // Fikr hali oqyaptimi: javob matni boshlangach o'ylash tugagan hisoblanadi.
+  const thinkingLive = streaming && !message.content;
+  const reasoningExpanded = reasoningOpen ?? thinkingLive;
+  const reasoningPanelId = `reasoning-${message.id}`;
+  const thoughtFor = thinkingSeconds(message.thinkingMs);
+  const reasoningLabel = thinkingLive
+    ? t("p23ThinkStreaming")
+    : thoughtFor > 0
+      ? plural(lang, thoughtFor, { one: "p23ThinkSecondsOne", few: "p23ThinkSecondsFew", many: "p23ThinkSecondsMany" })
+      : t("p23ThinkDone");
+  const reduceMotion = useReducedMotionConfig() === true;
   const failed = message.status === "error";
   // Oqim yarmida uzildi: qisman matn saqlangan, xato ham bor.
   const interrupted = !streaming && !failed && !!message.error && !!message.content;
@@ -319,17 +333,47 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
         )}
 
         {message.reasoning ? (
-          <div className="mb-3 overflow-hidden rounded-xl border" style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}>
-            <button type="button" onClick={() => setShowReasoning((o) => !o)} className="flex w-full items-center gap-2 px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>
-              <Lightbulb className="size-3.5" style={{ color: "var(--t-accent)" }} />
-              <span className="flex-1 text-left font-medium">{t("chThinking")}{streaming && !message.content ? "..." : ""}</span>
-              <ChevronDown className="size-3.5 transition-transform" style={{ transform: showReasoning ? "rotate(180deg)" : "none" }} />
+          <div
+            className="tt mb-3 overflow-hidden rounded-[12px] border"
+            style={{ borderColor: "var(--t-border)", background: "var(--surface-hover, color-mix(in srgb, var(--t-text) 6%, transparent))" }}
+          >
+            <button
+              type="button"
+              onClick={() => setReasoningOpen((o) => !(o ?? thinkingLive))}
+              aria-expanded={reasoningExpanded}
+              aria-controls={reasoningPanelId}
+              aria-label={reasoningExpanded ? t("p23ThinkCollapse") : t("p23ThinkExpand")}
+              className="flex w-full items-center gap-2 px-3 py-2 text-xs"
+              style={{ color: "var(--t-text-muted)" }}
+            >
+              <Brain className="size-3.5 shrink-0" style={{ color: "var(--t-accent)" }} aria-hidden />
+              <span className="flex-1 text-left font-medium">{reasoningLabel}</span>
+              <ChevronDown
+                className="size-3.5 shrink-0"
+                aria-hidden
+                style={{
+                  transform: reasoningExpanded ? "rotate(180deg)" : "none",
+                  transition: reduceMotion ? undefined : "transform 200ms var(--ease-sovereign, ease)",
+                }}
+              />
             </button>
-            {showReasoning && (
-              <div className="max-h-64 overflow-y-auto whitespace-pre-wrap px-3 pb-3 text-[12px] leading-relaxed" style={{ color: "var(--t-text-muted)" }}>
+            {reasoningExpanded && (
+              <div
+                id={reasoningPanelId}
+                // Model chiqargan matn — HAR DOIM oddiy matn: markdown/HTML sifatida talqin qilinmaydi.
+                className="max-h-64 overflow-y-auto whitespace-pre-wrap break-words px-3 pb-3 text-[12px] leading-relaxed"
+                style={{ color: "var(--t-text-muted)" }}
+              >
                 {message.reasoning}
               </div>
             )}
+          </div>
+        ) : null}
+
+        {message.thinkingNote ? (
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]" style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}>
+            <Brain className="size-3" style={{ color: "var(--t-text-muted)" }} aria-hidden />
+            {message.thinkingNote}
           </div>
         ) : null}
 
