@@ -138,16 +138,25 @@ async function main() {
     assert.equal(r.served?.substituted, false);
   });
 
-  await test("pullik: OpenRouter 402 (kredit) → Cloudflare DeepSeek V4 Pro (aynan shu model)", async () => {
+  await test("pullik: DeepSeek V4 Pro — Cloudflare birinchi (OpenRouter chaqirilmaydi)", async () => {
     setKeys({ groq: true, cf: true, or: true });
+    replies = [(c) => sse(String(c.body.model), "javob")];
+    const r = await run("deepseek-v4-pro");
+    assert.deepEqual(calls.map((c) => host(c.url)), ["cloudflare"]);
+    assert.equal(calls[0].body.model, "@cf/deepseek-ai/deepseek-v4-pro-0813");
+    assert.deepEqual(r.served, { type: "served", model: "cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813", substituted: false });
+  });
+
+  await test("Cloudflare neuron limiti (4006) → shu model OpenRouter orqali", async () => {
+    setKeys({ cf: true, or: true });
     replies = [
-      () => json(402, { error: { code: 402, message: "Insufficient credits. Add more using https://openrouter.ai/settings/credits" } }),
-      (c) => sse(String(c.body.model), "javob"),
+      () => json(429, { errors: [{ code: 4006, message: "you have used up your daily free allocation of 10,000 neurons" }], success: false }),
+      () => sse("deepseek/deepseek-v4-pro", "javob"),
     ];
     const r = await run("deepseek-v4-pro");
-    assert.deepEqual(calls.map((c) => host(c.url)), ["openrouter", "cloudflare"]);
-    assert.equal(calls[1].body.model, "@cf/deepseek-ai/deepseek-v4-pro-0813");
-    assert.deepEqual(r.served, { type: "served", model: "cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813", substituted: false });
+    assert.deepEqual(calls.map((c) => host(c.url)), ["cloudflare", "openrouter"]);
+    assert.equal(r.text, "javob");
+    assert.equal(r.served?.model, "deepseek/deepseek-v4-pro");
   });
 
   await test("pullik: Claude + OpenRouter 402 → Cloudflare flagship ekvivalenti, almashtirish ochiq belgilanadi", async () => {
@@ -177,9 +186,12 @@ async function main() {
         }),
       (c) => sse(String(c.body.model), "ok"),
     ];
-    const r = await run("glm-5-3");
-    assert.equal(calls[1]?.body.model, "@cf/zai-org/glm-5.3");
-    assert.equal(r.served?.model, "cloudflare/@cf/zai-org/glm-5.3");
+    // Cloudflare'da yo'q model (Claude) — avval OpenRouter, u "200 + kredit xatosi" bersa Cloudflare ekvivalenti.
+    const r = await run("claude-sonnet-5");
+    assert.deepEqual(calls.map((c) => host(c.url)), ["openrouter", "cloudflare"]);
+    assert.equal(calls[1]?.body.model, "@cf/deepseek-ai/deepseek-v4-pro-0813");
+    assert.equal(r.served?.model, "cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813");
+    assert.equal(r.served?.substituted, true);
     assert.equal(r.text, "ok");
   });
 

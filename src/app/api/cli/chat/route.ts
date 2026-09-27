@@ -58,13 +58,14 @@ function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
   const big = plan === "pro" || plan === "ultra";
 
   // Foydalanuvchi katalogdan model tanlagan bo'lsa — avval OmniRoute orqali shu model.
-  if (chosen && OMNIROUTE && omniKey) {
-    list.push({ provider: "omniroute", model: chosen, url: `${OMNIROUTE}/chat/completions`, auth: omniKey });
-  }
-  // Tanlangan model Cloudflare'da ham bo'lsa (aynan shu og'irliklar) — OmniRoute band/kreditsiz bo'lganda.
+  // Tanlangan model Cloudflare'da ham bo'lsa (aynan shu og'irliklar) — avval Cloudflare,
+  // OmniRoute/OpenRouter krediti o'rniga; neuron limiti tugasa keyingisi OmniRoute.
   const same = chosen ? cfSameModel(chosen) : null;
   const sameCand = same ? cloudflareCand(same) : null;
   if (sameCand) list.push(sameCand);
+  if (chosen && OMNIROUTE && omniKey) {
+    list.push({ provider: "omniroute", model: chosen, url: `${OMNIROUTE}/chat/completions`, auth: omniKey });
+  }
 
   const mistral = process.env.MISTRAL_API_KEY;
 

@@ -854,8 +854,15 @@ async function* streamOpenRouter(
   const exclude = state.exclude ?? [];
   const lang = opts.lang ?? DEFAULT_LANG;
   const cached = withPromptCache(model, messages);
-  let direct: DirectRoute | null =
-    forced ?? pickDirectRoute(model.providerModel, { skipOmni, country: opts.country, exclude });
+  let direct: DirectRoute | null = forced ?? null;
+  if (!direct) {
+    const picked = pickDirectRoute(model.providerModel, { skipOmni, country: opts.country, exclude });
+    // Cloudflare birinchi: AYNAN shu model (DeepSeek, Kimi, GLM, Qwen, gpt-oss) Cloudflare'da bo'lsa —
+    // OmniRoute/OpenRouter krediti o'rniga. Groq bundan mustasno (tezroq, bepul limiti kattaroq).
+    // Cloudflare shu so'rovda yiqilsa (neuron limiti) — `exclude` orqali odatdagi yo'lga qaytadi.
+    const cfFirst = picked?.provider === "groq" ? null : cloudflareRoute(model.providerModel, opts.country, { exclude, sameOnly: true });
+    direct = cfFirst ?? picked;
+  }
   // OpenRouter kaliti yo'q — Cloudflare'dagi AYNAN shu model (bo'lsa).
   if (!direct && !process.env.OPENROUTER_API_KEY) {
     direct = cloudflareRoute(model.providerModel, opts.country, { exclude, sameOnly: true });
@@ -910,7 +917,8 @@ async function* streamOpenRouter(
   function nextRoute(): RouteState | null {
     const failed = direct?.provider;
     if (direct && !forced && failed && !NO_NEXT_PROVIDER.includes(failed)) {
-      return { skipOmni: true, exclude: [...exclude, failed] };
+      // Cloudflare (birinchi urinish) yiqilsa — OmniRoute ham sinalsin (u o'tkazib yuborilmagan edi).
+      return { skipOmni: failed === "cloudflare" ? !!skipOmni : true, exclude: [...exclude, failed] };
     }
     if (isCf || failed === "tella" || failed === "llm7" || isOwnModel(model.providerModel)) return null;
     // Katalog modeli bo'lsa uning tarifi (narx nazorati); sintetik (OmniRoute/host) id — nomidan.
