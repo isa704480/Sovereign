@@ -5,6 +5,7 @@
 import { app } from "electron";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, readdirSync } from "node:fs";
+import { persistableContent, boundThumbs } from "./attachments.mjs";
 
 const MAX_TASKS = 100;
 const MAX_EVENTS = 600;
@@ -39,9 +40,11 @@ function trimEvent(ev) {
   return out;
 }
 
+// Biriktirmali xabar (content massivi): rasm base64'i diskka yozilmaydi — belgi bilan almashtiriladi,
+// matn qismlari kesiladi (attachments.mjs persistableContent).
 function trimMessage(m) {
   const out = { ...m };
-  if (typeof out.content === "string") out.content = cut(out.content);
+  out.content = persistableContent(out.content, cut);
   return out;
 }
 
@@ -58,7 +61,8 @@ export function saveTask(task, messages) {
   try {
     mkdirSync(dir(), { recursive: true });
     const rest = messages.filter((m) => m.role !== "system").slice(-MAX_MESSAGES).map(trimMessage);
-    const events = task.events.slice(-MAX_EVENTS).map(trimEvent);
+    // "user" hodisasidagi rasm ko'rinishlari (kichik thumb) soni cheklangan — fayl hajmi chegaralangan.
+    const events = boundThumbs(task.events.slice(-MAX_EVENTS).map(trimEvent));
     writeFileSync(join(dir(), `${task.id}.json`), JSON.stringify({ meta: metaOf(task), messages: rest, events }));
     let list = readIndex().filter((t) => t.id !== task.id);
     list.unshift(metaOf(task));

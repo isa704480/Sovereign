@@ -1,8 +1,17 @@
 // SOVEREIGN Cowork — preload. Renderer'ga xavfsiz (contextIsolation) API beradi.
 // Diskka yozadigan chaqiruvlar — fsRestore / fsRestoreSnapshot (faqat main'dagi zaxira/nusxa id'si bo'yicha).
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 const invoke = (ch, ...a) => ipcRenderer.invoke(ch, ...a);
+
+/** Haqiqiy File obyektining diskdagi yo'li (drag&drop / Explorer'dan nusxa); JS'da yasalgan File — "". */
+function pathOf(file) {
+  try {
+    return webUtils.getPathForFile(file) || "";
+  } catch {
+    return "";
+  }
+}
 
 contextBridge.exposeInMainWorld("sovereign", {
   init: () => invoke("app:init"),
@@ -23,7 +32,27 @@ contextBridge.exposeInMainWorld("sovereign", {
   audit: () => invoke("audit:run"),
   setModel: (id, label) => invoke("app:set-model", id, label),
   models: (qs) => invoke("app:models", qs),
-  send: (text, mode) => ipcRenderer.send("agent:send", { text, mode }),
+  // attachments: [{kind: "file", id} | {kind: "image", name, dataUrl, thumb}] — main qayta tekshiradi.
+  send: (text, mode, attachments) => ipcRenderer.send("agent:send", { text, mode, ...(Array.isArray(attachments) && attachments.length ? { attachments } : {}) }),
+  // Biriktirmalar. Renderer yo'l satrini bera OLMAYDI: yo'l faqat native dialogdan yoki
+  // haqiqiy File obyektidan (webUtils) olinadi. `files` — yo'li yo'q File'lar (mas. clipboard
+  // skrinshoti) indekslari `rest` da qaytadi — renderer ularni rasm sifatida o'zi o'qiydi.
+  attach: {
+    pick: () => invoke("attach:pick"),
+    files: async (files) => {
+      const list = Array.from(files ?? []).slice(0, 40);
+      const paths = [];
+      const rest = [];
+      list.forEach((f, i) => {
+        const p = pathOf(f);
+        if (p) paths.push(p);
+        else rest.push(i);
+      });
+      const r = paths.length ? await invoke("attach:paths", paths) : { items: [], errors: [] };
+      return { ...r, rest };
+    },
+    discard: (id) => invoke("attach:discard", id),
+  },
   retry: (mode) => ipcRenderer.send("agent:send", { text: "", mode, retry: true }),
   remember: (fact) => ipcRenderer.send("agent:remember", fact),
   confirmReply: (id, ok) => ipcRenderer.send("agent:confirm-reply", { id, ok }),

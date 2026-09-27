@@ -158,6 +158,31 @@ function closeOpen(items, offerState = "closed") {
   return changed ? out : items;
 }
 
+// Biriktirma ko'rinishi (thumb) — faqat kichik png/jpeg/webp data URL (main ham tekshiradi; tarixdan ham keladi).
+const THUMB_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+const THUMB_MAX = 48_000;
+
+/** "user" hodisasidagi biriktirmalar meta'si → xavfsiz ro'yxat (≤10; nom — oddiy matn). */
+export function sanitizeAttachments(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const a of list.slice(0, 10)) {
+    if (!a || typeof a !== "object") continue;
+    const kind = a.kind === "image" ? "image" : "file";
+    const item = { kind, name: plainText(a.name, 120) || (kind === "image" ? "image" : "file"), size: Number.isFinite(a.size) && a.size > 0 ? Math.round(a.size) : 0 };
+    if (kind === "file") {
+      item.sub = a.sub === "pdf" ? "pdf" : "text";
+      if (a.truncated === true) item.truncated = true;
+    } else if (typeof a.thumb === "string" && a.thumb.length <= THUMB_MAX && THUMB_RE.test(a.thumb)) {
+      item.thumb = a.thumb;
+    }
+    out.push(item);
+  }
+  return out;
+}
+
+const NOTICE_CODES = new Set(["localNoVision"]);
+
 function lastIndex(list, pred) {
   for (let i = list.length - 1; i >= 0; i--) if (pred(list[i])) return i;
   return -1;
@@ -169,7 +194,16 @@ export function applyEvent(s, ev, { replay = false } = {}) {
     case "user":
       // inquiry: true — savol kartasiga javoblar ("Aniqlashtirish:" bloki); navbat davom etadi.
       if (ev.inquiry === true) return { ...s, awaiting: null, items: [...s.items, { id: nid(), kind: "user", text: ev.text, mode: ev.mode, inquiry: true }] };
-      return { ...s, busy: !replay, startedAt: Date.now(), localProgress: 0, items: [...s.items, { id: nid(), kind: "user", text: ev.text, mode: ev.mode }] };
+    {
+      // attachments — nom/hajm/kichik ko'rinish (to'liq rasm yoki fayl tarkibi hech qachon kelmaydi).
+      const attachments = sanitizeAttachments(ev.attachments);
+      const item = { id: nid(), kind: "user", text: typeof ev.text === "string" ? ev.text : "", mode: ev.mode, ...(attachments.length ? { attachments } : {}) };
+      return { ...s, busy: !replay, startedAt: Date.now(), localProgress: 0, items: [...s.items, item] };
+    }
+    case "notice":
+      // Kichik ochiq ogohlantirish (mas. mahalliy model rasmlarni ko'rmaydi — yuborilmadi).
+      if (!NOTICE_CODES.has(ev.code)) return s;
+      return { ...s, items: [...s.items, { id: nid(), kind: "notice", code: ev.code, model: plainText(ev.model, 100), n: Number.isInteger(ev.n) && ev.n > 0 ? Math.min(ev.n, 99) : 1 }] };
     case "text": {
       const last = s.items[s.items.length - 1];
       if (last?.kind === "assistant") {

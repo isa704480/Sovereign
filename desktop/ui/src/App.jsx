@@ -13,6 +13,7 @@ import Modal from "./components/Modal.jsx";
 import Icon, { Logo } from "./components/Icon.jsx";
 import { applyEvent, replayEvents, addChange, initialAgent } from "./lib/agent.js";
 import { I18n, makeT, detectLang, LANGS } from "./lib/i18n.js";
+import { ATTACH_LIMITS, attachErrKey, checkSend, toSendPayload, prepareImage, dataUrlToBlob, isImageMime } from "./lib/attachments.js";
 
 const S = () => window.sovereign;
 
@@ -59,6 +60,13 @@ export default function App() {
   const [update, setUpdate] = useState(null);
   const [toasts, setToasts] = useState([]);
   const [input, setInput] = useState("");
+  // Biriktirmalar: {key, kind: "image"|"file", name, size, status: "processing"|"ready", id?, sub?, chars?, truncated?, dataUrl?, thumb?}
+  const [attachments, setAttachments] = useState([]);
+  const attRef = useRef(attachments);
+  attRef.current = attachments;
+  const attSeq = useRef(0);
+  const addFilesRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
   const [dark, setDark] = useState(() => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? true);
   const composerRef = useRef(null);
   // Sidebar kartasidan bosilgan yuklash: tayyor bo'lgach avtomatik o'rnatib qayta ishga tushiriladi
@@ -218,11 +226,115 @@ export default function App() {
     toast(t("privacy.cleared"), "ok");
   };
 
+  // ---- Biriktirmalar ----
+  // Fayllar diskdan faqat main'da o'qiladi (yo'l — native dialog yoki preload'dagi webUtils orqali);
+  // rasmlar bu yerda kichraytiriladi (≤2000 px, ~200 KB) va yuborishda main yana tekshiradi.
+  const attachErr = (code, name) => toast(t(attachErrKey(code), { name: name || "", n: ATTACH_LIMITS.maxAttachments }), "err");
+  const patchAtt = (key, patch) => setAttachments((l) => l.map((a) => (a.key === key ? { ...a, ...patch } : a)));
+  const dropAtt = (key) => setAttachments((l) => l.filter((a) => a.key !== key));
+  const addImage = async (blob, name) => {
+    const key = `att${++attSeq.current}`;
+    setAttachments((l) => [...l, { key, kind: "image", name, size: blob.size, status: "processing" }]);
+    try {
+      const r = await prepareImage(blob);
+      if (!r.dataUrl || r.dataUrl.length > ATTACH_LIMITS.imageDataUrlChars) throw new Error("too-large");
+      patchAtt(key, { status: "ready", dataUrl: r.dataUrl, thumb: r.thumb });
+    } catch {
+      dropAtt(key);
+      attachErr("bad-image", name);
+    }
+  };
+  /** Joy bormi: ortiqchasi rad (main'dagi fayl tarkibi ham o'chiriladi). */
+  const room = () => ATTACH_LIMITS.maxAttachments - attRef.current.length;
+  const takeResult = (r) => {
+    for (const e of r?.errors ?? []) attachErr(e.code, e.name);
+    let full = false;
+    for (const it of r?.items ?? []) {
+      if (room() <= 0) {
+        full = true;
+        if (it.kind === "file") S().attach.discard(it.id).catch(() => {});
+        continue;
+      }
+      if (it.kind === "image") {
+        attRef.current = [...attRef.current, { key: "pending" }]; // joy band — ketma-ket qo'shishda hisob to'g'ri qolsin
+        addImage(dataUrlToBlob(it.dataUrl), it.name);
+      } else {
+        const a = { key: `att${++attSeq.current}`, kind: "file", id: it.id, sub: it.sub, name: it.name, size: it.size, chars: it.chars, truncated: !!it.truncated, status: "ready" };
+        attRef.current = [...attRef.current, a];
+        setAttachments((l) => [...l, a]);
+      }
+    }
+    if (full) attachErr("too-many");
+  };
+  const pickAttachments = async () => {
+    if (room() <= 0) { attachErr("too-many"); return; }
+    takeResult(await S().attach.pick().catch(() => null));
+    composerRef.current?.focus();
+  };
+  /** Drag&drop va Ctrl+V: yo'li bor File'lar main'da o'qiladi, yo'lsiz rasmlar (skrinshot) — shu yerda. */
+  const addFiles = async (files) => {
+    const list = Array.from(files ?? []);
+    if (!list.length) return;
+    const free = room();
+    if (free <= 0) { attachErr("too-many"); return; }
+    const take = list.slice(0, free);
+    const r = await S().attach.files(take).catch(() => null);
+    if (!r) return;
+    takeResult(r);
+    for (const i of r.rest ?? []) {
+      const f = take[i];
+      if (!f) continue;
+      if (!isImageMime(f.type)) { attachErr("unsupported", f.name); continue; }
+      if (room() <= 0) { attachErr("too-many"); break; }
+      attRef.current = [...attRef.current, { key: "pending" }];
+      addImage(f, f.name && f.name !== "image.png" ? f.name : `${t("attach.pasted")}.png`);
+    }
+    if (list.length > take.length) attachErr("too-many");
+    composerRef.current?.focus();
+  };
+  const removeAttachment = (key) => {
+    const a = attRef.current.find((x) => x.key === key);
+    if (a?.kind === "file" && a.id) S().attach.discard(a.id).catch(() => {});
+    dropAtt(key);
+    composerRef.current?.focus();
+  };
+
+  // Oyna ustiga fayl sudralsa — butun oyna tashlash maydoni (overlay); boshqa joyga tashlansa ham ochilmaydi.
+  useEffect(() => {
+    let depth = 0;
+    const hasFiles = (e) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    const enter = (e) => { if (!hasFiles(e)) return; e.preventDefault(); depth++; setDragging(true); };
+    const over = (e) => { if (!hasFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; };
+    const leave = (e) => { if (!hasFiles(e)) return; depth = Math.max(0, depth - 1); if (!depth) setDragging(false); };
+    const drop = (e) => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      setDragging(false);
+      addFilesRef.current?.(e.dataTransfer.files);
+    };
+    window.addEventListener("dragenter", enter);
+    window.addEventListener("dragover", over);
+    window.addEventListener("dragleave", leave);
+    window.addEventListener("drop", drop);
+    return () => {
+      window.removeEventListener("dragenter", enter);
+      window.removeEventListener("dragover", over);
+      window.removeEventListener("dragleave", leave);
+      window.removeEventListener("drop", drop);
+    };
+  }, []);
+  addFilesRef.current = addFiles;
+
   const send = () => {
     const text = input.trim();
-    if (!text || agent.busy) return;
-    S().send(text, mode);
+    const atts = attachments;
+    if ((!text && !atts.length) || agent.busy) return;
+    const err = checkSend(atts);
+    if (err) { attachErr(err); return; }
+    S().send(text, mode, toSendPayload(atts));
     setInput("");
+    setAttachments([]);
   };
   const stop = () => S().stop();
   const retry = () => S().retry(mode);
@@ -448,6 +560,7 @@ export default function App() {
               ref={composerRef} value={input} onChange={setInput} onSend={send} onStop={stop} busy={agent.busy} mode={mode} setMode={setMode}
               model={info.model} onModel={onModel} disabledReason={disabledReason} onFix={(r) => (r === "auth" ? setSettingsOpen("account") : pickFolder())}
               fullAuto={!!settings.fullAuto} onFullAuto={setFullAuto}
+              attachments={attachments} onAttach={pickAttachments} onRemoveAttachment={removeAttachment} onFiles={addFiles}
             />
           </main>
           {settings.rightPanel && (
@@ -497,6 +610,15 @@ export default function App() {
           </Modal>
         )}
         {agent.confirm && <ConfirmDialog req={agent.confirm} onReply={replyConfirm} />}
+        {dragging && (
+          <div className="drop-overlay" aria-hidden="true">
+            <div className="drop-card">
+              <Icon name="upload" size={28} />
+              <div className="strong">{t("attach.drop")}</div>
+              <div className="muted small">{t("attach.dropHint", { n: ATTACH_LIMITS.maxAttachments })}</div>
+            </div>
+          </div>
+        )}
         <Toasts toasts={toasts} onDismiss={dismissToast} />
       </div>
     </I18n.Provider>
