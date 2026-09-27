@@ -154,10 +154,11 @@ export default function TerminalPanel({ cwd, height, onHeight, onClose, platform
     // Klaviatura va qo'yish → pty. Bu YAGONA yozish yo'li. Ko'p satrli qo'yish
     // shu oqimda ushlanadi (DOM paste hodisasidan ishonchliroq: Ctrl+V, o'ng
     // tugma, o'rta tugma va sudrab tashlash — hammasi shu yerdan o'tadi).
+    const send = (d) => writeChunks(r.id, d);
     const dData = term.onData((d) => {
       if (approvedRef.current) {
         approvedRef.current = false;
-        writeChunks(r.id, d);
+        send(d);
         return;
       }
       const body = pastePayload(d);
@@ -167,7 +168,7 @@ export default function TerminalPanel({ cwd, height, onHeight, onClose, platform
         setPaste({ id: r.id, text: body });
         return;
       }
-      writeChunks(r.id, d);
+      send(d);
     });
     const dBinary = term.onBinary((d) => writeChunks(r.id, d));
     // Ctrl+V / Cmd+V / Shift+Insert — xterm ularni shellga ^V sifatida yuboradi,
