@@ -79,7 +79,7 @@ electron-builder NSIS, per-user (`perMachine:false`, no elevation), desktop + St
 menu shortcuts, `build/icon.ico` generated from `public/logo.svg`
 (`npm run icons`), artifact `SOVEREIGN-Cowork-Setup-<version>.exe`.
 Unsigned: Windows SmartScreen shows "Windows protected your PC" → *More info* →
-*Run anyway* until a code-signing certificate is added (`win.signtoolOptions` / CSC_LINK).
+*Run anyway* until code-signing secrets are added (Azure Trusted Signing or PFX — see docs/SIGNING.md).
 Version: 0.5.0 (package was already 0.4.1, so "0.2.0" would have been a downgrade and would
 break updater ordering). Release: push tag `desktop-vX.Y.Z` → `.github/workflows/desktop-release.yml` builds and
 uploads installer + `latest.yml` to a GitHub Release; the app's updater reads that

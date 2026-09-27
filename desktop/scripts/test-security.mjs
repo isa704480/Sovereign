@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { generateKeyPairSync, sign } from "node:crypto";
 import { folderKey, sameFolder, persistentAutoRun, hasHiddenFormat, inlineEval, fullAutoMustAsk } from "../electron/full-auto.mjs";
 import { parseSig, verifyManifest, infoMatchesManifest, channelFile } from "../electron/update-sig.mjs";
+import { signingConfig } from "./signing-config.mjs";
 
 let n = 0;
 const test = (name, fn) => {
@@ -96,6 +97,50 @@ test("updateInfo manifestga mos bo'lishi shart", () => {
 test("kanal fayli", () => {
   assert.equal(channelFile("win32", "x64"), "latest.yml");
   assert.equal(channelFile("linux", "x64"), "latest-linux.yml");
+});
+
+// ---- Kod imzosi konfiguratsiyasi (docs/SIGNING.md) ----
+const AZ = {
+  AZURE_TENANT_ID: "t", AZURE_CLIENT_ID: "c", AZURE_CLIENT_SECRET: "s",
+  AZURE_SIGNING_ENDPOINT: "https://weu.codesigning.azure.net", AZURE_SIGNING_ACCOUNT: "acc", AZURE_SIGNING_PROFILE: "prof",
+  WIN_PUBLISHER_NAME: "SOVEREIGN",
+};
+const quiet = (fn) => {
+  const e = console.error;
+  console.error = () => {};
+  try { return fn(); } finally { console.error = e; }
+};
+test("imzo: secret'siz — imzosiz build (package.json o'zgarmaydi)", () => {
+  for (const p of ["--win", "--mac", "--linux"]) assert.equal(quiet(() => signingConfig(p, {})), null, p);
+  assert.equal(quiet(() => signingConfig("--win", { AZURE_TENANT_ID: "", WIN_CSC_LINK: " " })), null);
+  assert.equal(quiet(() => signingConfig("--linux", { ...AZ, CSC_LINK: "x" })), null);
+});
+test("imzo: Windows Azure — to'liq bo'lsagina, verifyUpdateCodeSignature yoqiladi", () => {
+  const r = signingConfig("--win", AZ);
+  assert.equal(r.mode, "azure");
+  assert.equal(r.config.win.verifyUpdateCodeSignature, true);
+  assert.deepEqual(r.config.win.azureSignOptions, { publisherName: "SOVEREIGN", endpoint: AZ.AZURE_SIGNING_ENDPOINT, codeSigningAccountName: "acc", certificateProfileName: "prof" });
+  assert.equal(r.config.forceCodeSigning, true);
+  assert.equal(JSON.stringify(r.config).includes('"s"'), false, "secret faylga yozilmaydi");
+  assert.equal(quiet(() => signingConfig("--win", { ...AZ, AZURE_SIGNING_PROFILE: "" })), null);
+});
+test("imzo: Windows PFX", () => {
+  const r = quiet(() => signingConfig("--win", { WIN_CSC_LINK: "base64", WIN_PUBLISHER_NAME: "X" }));
+  assert.equal(r.mode, "pfx");
+  assert.equal(r.config.win.verifyUpdateCodeSignature, true);
+  assert.equal(r.config.win.signtoolOptions.publisherName, "X");
+  assert.equal(r.config.win.azureSignOptions, undefined);
+});
+test("imzo: macOS Developer ID + notarizatsiya", () => {
+  const r = signingConfig("--mac", { CSC_LINK: "p12", APPLE_ID: "a", APPLE_APP_SPECIFIC_PASSWORD: "p", APPLE_TEAM_ID: "T" });
+  assert.equal(r.mode, "developer-id+notarize");
+  assert.equal("identity" in r.config.mac, false, "ad-hoc '-' olib tashlanadi");
+  assert.equal(r.config.mac.hardenedRuntime, true);
+  assert.equal(r.config.mac.notarize, true);
+  assert.match(r.config.mac.entitlements, /mac-entitlements\.plist$/);
+  const r2 = quiet(() => signingConfig("--mac", { CSC_LINK: "p12" }));
+  assert.equal(r2.config.mac.notarize, false);
+  assert.equal(quiet(() => signingConfig("--mac", { APPLE_ID: "a", APPLE_APP_SPECIFIC_PASSWORD: "p", APPLE_TEAM_ID: "T" })), null);
 });
 
 console.log(`\n${n} ta test o'tdi`);

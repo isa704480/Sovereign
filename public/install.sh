@@ -16,6 +16,10 @@ set -eu
 
 PKG="@islombekrrr/sov-cli"
 REPO="isa704480/Sovereign"
+# SHA256SUMS imzosini tekshiruvchi ochiq kalit (RSA, PEM). Bo'sh — imzo tekshiruvi o'chiq
+# (faqat SHA256). Kalit qo'yilgach, imzosiz/noto'g'ri imzoli binary O'RNATILMAYDI.
+# Kalit: node cli/scripts/sign-sums.mjs keygen — batafsil docs/SIGNING.md.
+SUMS_PUBKEY=''
 MODE="${SOV_INSTALL:-auto}"
 BIN_DIR="${SOV_INSTALL_DIR:-$HOME/.local/bin}"
 
@@ -150,9 +154,23 @@ install_binary() {
   TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t sov)
   say "Downloading $name ..."
   download "$base/$name" "$TMP_DIR/$name" || { err "download failed: $base/$name"; return 1; }
-  download "$base/$name.sha256" "$TMP_DIR/$name.sha256" || { err "checksum file missing: $base/$name.sha256"; return 1; }
-
-  expected=$(awk '{print $1}' "$TMP_DIR/$name.sha256" | tr 'A-F' 'a-f')
+  if [ -n "$SUMS_PUBKEY" ]; then
+    # Imzolangan SHA256SUMS: avval imzo, keyin shu ro'yxatdagi hash.
+    download "$base/SHA256SUMS" "$TMP_DIR/SHA256SUMS" || { err "SHA256SUMS missing: $base/SHA256SUMS"; return 1; }
+    download "$base/SHA256SUMS.sig" "$TMP_DIR/SHA256SUMS.sig" || { err "signature missing: $base/SHA256SUMS.sig — not installed"; return 1; }
+    has openssl || { err "openssl is required to verify the release signature — not installed (or install Node.js 20+ and use npm)"; return 1; }
+    printf '%s\n' "$SUMS_PUBKEY" >"$TMP_DIR/sums.pub"
+    tr -d '\r\n ' <"$TMP_DIR/SHA256SUMS.sig" | openssl base64 -d -A >"$TMP_DIR/SHA256SUMS.sig.bin" 2>/dev/null || true
+    if ! openssl dgst -sha256 -verify "$TMP_DIR/sums.pub" -signature "$TMP_DIR/SHA256SUMS.sig.bin" "$TMP_DIR/SHA256SUMS" >/dev/null 2>&1; then
+      err "SHA256SUMS signature is INVALID — not installed"
+      return 1
+    fi
+    say "Signature OK (SHA256SUMS)"
+    expected=$(awk -v n="$name" '{ f = $2; sub(/^\*/, "", f); if (f == n) { print $1; exit } }' "$TMP_DIR/SHA256SUMS" | tr 'A-F' 'a-f')
+  else
+    download "$base/$name.sha256" "$TMP_DIR/$name.sha256" || { err "checksum file missing: $base/$name.sha256"; return 1; }
+    expected=$(awk '{print $1}' "$TMP_DIR/$name.sha256" | tr 'A-F' 'a-f')
+  fi
   actual=$(sha256_of "$TMP_DIR/$name") || { err "no sha256 tool (sha256sum/shasum/openssl) — refusing to install an unverified binary"; return 1; }
   if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
     err "SHA256 mismatch for $name (expected $expected, got $actual) — not installed"

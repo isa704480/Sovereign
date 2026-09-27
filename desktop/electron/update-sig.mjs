@@ -1,10 +1,12 @@
 // Yangilanish manifesti (latest.yml) imzosi — Ed25519, kalit ilovaga o'rnatilgan.
 // electron-builder imzosiz (verifyUpdateCodeSignature: false) — relizni e'lon qila oladigan
 // har kim (o'g'irlangan token, buzilgan workflow) istalgan .exe ni yubora olardi. Imzo
-// yopiq kalit bilan OFFLINE qo'yiladi (Actions secret EMAS): scripts/sign-update.mjs.
+// scripts/sign-update.mjs bilan qo'yiladi: OFFLINE (eng xavfsiz) yoki CI'da UPDATE_SIGNING_KEY
+// secret'i bilan (desktop-release.yml publish job'i). Qo'llanma: docs/SIGNING.md.
 //
 // UPDATE_PUBKEY_PEM bo'sh — tekshiruv o'chiq (eski xatti-harakat). Kalit qo'yilgach, imzosi
-// yo'q yoki noto'g'ri reliz YUKLANMAYDI. Electron'siz modul (scripts/test-update-sig.mjs).
+// yo'q yoki noto'g'ri reliz YUKLANMAYDI (updater.mjs → verifySignedRelease). Electron'siz modul
+// (testlar: scripts/test-security.mjs).
 
 import { createPublicKey, verify } from "node:crypto";
 

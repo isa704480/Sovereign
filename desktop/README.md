@@ -42,7 +42,8 @@ npm run dist:win     # release/SOVEREIGN-Cowork-Setup-<versiya>.exe
 - Agar build `EXDEV: cross-device link not permitted` bilan yiqilsa (TEMP va kesh turli disklarda):
   `ELECTRON_BUILDER_CACHE` ni TEMP bilan bir diskdagi papkaga yo'naltiring.
 - **Imzo yo'q:** Windows SmartScreen "Windows protected your PC" deydi → *More info* → *Run anyway*.
-  Sertifikat olingach `CSC_LINK` / `CSC_KEY_PASSWORD` (CI secret) qo'shing — ogohlantirish yo'qoladi.
+  Imzo CI'da tayyor — faqat secret'larni qo'shing (Azure Trusted Signing yoki PFX, macOS notarizatsiya,
+  yangilanish manifesti imzosi): [docs/SIGNING.md](../docs/SIGNING.md).
 
 ## Reliz va avtomatik yangilanish
 

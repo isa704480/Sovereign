@@ -17,6 +17,15 @@ name: Desktop release (SOVEREIGN Cowork)
 # (persist-credentials: false), install skriptlari o'chirilgan (--ignore-scripts) va
 # GH_TOKEN berilmaydi. Relizga yozish (contents: write) faqat npm ishlamaydigan
 # prepare/publish job'larida. Actions commit SHA'ga qadalgan (teg ko'chirilsa ham o'zgarmaydi).
+#
+# Kod imzosi (docs/SIGNING.md) — hammasi IXTIYORIY: secret/variable'lar yo'q bo'lsa
+# workflow bugungidek imzosiz yig'adi (har bir qadam "notice" bilan o'tkazib yuboriladi).
+#   Windows: AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET (secret) +
+#            AZURE_SIGNING_ENDPOINT / AZURE_SIGNING_ACCOUNT / AZURE_SIGNING_PROFILE /
+#            WIN_PUBLISHER_NAME (variable) — yoki klassik WIN_CSC_LINK / WIN_CSC_KEY_PASSWORD.
+#   macOS:   MAC_CSC_LINK / MAC_CSC_KEY_PASSWORD + APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID.
+#   Yangilanish manifesti: UPDATE_SIGNING_KEY (Ed25519 PEM) — latest*.yml.sig.
+# Secret'lar faqat tegishli OS'ning build qadamiga (va publish'dagi imzo qadamiga) beriladi.
 on:
   push:
     tags:
@@ -58,12 +67,36 @@ jobs:
           fi
           echo "version=$PKG" >> "$GITHUB_OUTPUT"
 
+      # Reliz matni uchun: imzo sozlanganmi? Secret QIYMATLARI bu job'ga berilmaydi —
+      # faqat "bor/yo'q" belgisi (signing-config.mjs build job'idagi bilan bir xil qoida).
+      - name: Code signing status
+        id: sign
+        shell: bash
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID != '' && 'set' || '' }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID != '' && 'set' || '' }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET != '' && 'set' || '' }}
+          AZURE_SIGNING_ENDPOINT: ${{ (vars.AZURE_SIGNING_ENDPOINT != '' || secrets.AZURE_SIGNING_ENDPOINT != '') && 'set' || '' }}
+          AZURE_SIGNING_ACCOUNT: ${{ (vars.AZURE_SIGNING_ACCOUNT != '' || secrets.AZURE_SIGNING_ACCOUNT != '') && 'set' || '' }}
+          AZURE_SIGNING_PROFILE: ${{ (vars.AZURE_SIGNING_PROFILE != '' || secrets.AZURE_SIGNING_PROFILE != '') && 'set' || '' }}
+          WIN_PUBLISHER_NAME: ${{ (vars.WIN_PUBLISHER_NAME != '' || secrets.WIN_PUBLISHER_NAME != '') && 'set' || '' }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK != '' && 'set' || '' }}
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK != '' && 'set' || '' }}
+          APPLE_ID: ${{ secrets.APPLE_ID != '' && 'set' || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && 'set' || '' }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID != '' && 'set' || '' }}
+        run: |
+          echo "win=$(node desktop/scripts/signing-config.mjs --win /dev/null || echo unsigned)" >> "$GITHUB_OUTPUT"
+          echo "mac=$(node desktop/scripts/signing-config.mjs --mac /dev/null || echo unsigned)" >> "$GITHUB_OUTPUT"
+
       - name: Create draft release (idempotent)
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ steps.ver.outputs.version }}
+          WIN_SIGN: ${{ steps.sign.outputs.win }}
+          MAC_SIGN: ${{ steps.sign.outputs.mac }}
         run: |
           if gh release view "$TAG" --json isDraft >/dev/null 2>&1; then
             if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != "true" ]; then
@@ -71,14 +104,33 @@ jobs:
             fi
             echo "Draft release $TAG already exists (re-run) — reusing it."
           else
+            APPIMAGE_LINE="- Linux: chmod +x SOVEREIGN-Cowork-$VERSION-x86_64.AppImage, then run it."
+            if [ "$WIN_SIGN" = unsigned ] && [ "$MAC_SIGN" != "developer-id+notarize" ]; then
+              # Imzo yo'q — bugungi matn aynan o'zi.
+              SIGN_NOTES="Builds are not code-signed yet:
+          - Windows SmartScreen: More info → Run anyway.
+          - macOS: right-click the app → Open (or System Settings → Privacy & Security → Open Anyway).
+          $APPIMAGE_LINE"
+            else
+              if [ "$WIN_SIGN" = unsigned ]; then
+                WIN_LINE="- Windows: not code-signed yet — SmartScreen: More info → Run anyway."
+              else
+                WIN_LINE="- Windows: code-signed."
+              fi
+              if [ "$MAC_SIGN" = "developer-id+notarize" ]; then
+                MAC_LINE="- macOS: signed and notarized by Apple."
+              else
+                MAC_LINE="- macOS: not notarized yet — right-click the app → Open (or System Settings → Privacy & Security → Open Anyway)."
+              fi
+              SIGN_NOTES="$WIN_LINE
+          $MAC_LINE
+          $APPIMAGE_LINE"
+            fi
             gh release create "$TAG" --draft --verify-tag \
               --title "SOVEREIGN Cowork $VERSION" \
               --notes "SOVEREIGN Cowork $VERSION — Windows (.exe), macOS (.dmg: Apple Silicon / Intel), Linux (.AppImage).
 
-          Builds are not code-signed yet:
-          - Windows SmartScreen: More info → Run anyway.
-          - macOS: right-click the app → Open (or System Settings → Privacy & Security → Open Anyway).
-          - Linux: chmod +x SOVEREIGN-Cowork-$VERSION-x86_64.AppImage, then run it."
+          $SIGN_NOTES"
           fi
 
   build:
@@ -147,15 +199,54 @@ jobs:
       - name: Build renderer
         run: npx vite build
 
-      # Imzo sertifikati hali yo'q. Windows: imzosiz. macOS: ad-hoc imzo (mac.identity "-"),
-      # Apple Silicon'da ilova ochilishi uchun shart; notarizatsiya yo'q.
-      # Sertifikat paydo bo'lganda: CSC_LINK / CSC_KEY_PASSWORD (va Apple notarize) secret'larini qo'shing.
+      # Kod imzosi (docs/SIGNING.md). Secret'lar yo'q bo'lsa — bugungidek: Windows imzosiz,
+      # macOS ad-hoc imzo (mac.identity "-", Apple Silicon'da ochilishi uchun shart), notarizatsiya yo'q.
+      # Secret'lar bor bo'lsa scripts/signing-config.mjs imzolangan konfiguratsiyani yozadi
+      # (Windows: Azure Trusted Signing yoki PFX + verifyUpdateCodeSignature; macOS: Developer ID +
+      # hardened runtime + notarizatsiya) va electron-builder --config bilan ishga tushadi.
+      # Secret'lar faqat o'z OS'iga beriladi; bo'sh qiymatlar unset qilinadi (electron-builder
+      # bo'sh CSC_LINK'ni "berilgan" deb hisoblaydi).
       # Faqat yig'ish (--publish never, token yo'q). latest*.yml publish konfiguratsiyasi
       # bo'yicha baribir release/ ichida yaratiladi; yuklashni publish job'i qiladi.
       - name: Build (no publish)
+        shell: bash
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder ${{ matrix.platform }} --publish never
+          PLATFORM: ${{ matrix.platform }}
+          AZURE_TENANT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ runner.os == 'Windows' && secrets.AZURE_CLIENT_SECRET || '' }}
+          AZURE_SIGNING_ENDPOINT: ${{ runner.os == 'Windows' && (vars.AZURE_SIGNING_ENDPOINT || secrets.AZURE_SIGNING_ENDPOINT) || '' }}
+          AZURE_SIGNING_ACCOUNT: ${{ runner.os == 'Windows' && (vars.AZURE_SIGNING_ACCOUNT || secrets.AZURE_SIGNING_ACCOUNT) || '' }}
+          AZURE_SIGNING_PROFILE: ${{ runner.os == 'Windows' && (vars.AZURE_SIGNING_PROFILE || secrets.AZURE_SIGNING_PROFILE) || '' }}
+          WIN_PUBLISHER_NAME: ${{ runner.os == 'Windows' && (vars.WIN_PUBLISHER_NAME || secrets.WIN_PUBLISHER_NAME) || '' }}
+          WIN_CSC_LINK: ${{ runner.os == 'Windows' && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ runner.os == 'Windows' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+          CSC_LINK: ${{ runner.os == 'macOS' && secrets.MAC_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ runner.os == 'macOS' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
+        run: |
+          for v in AZURE_TENANT_ID AZURE_CLIENT_ID AZURE_CLIENT_SECRET AZURE_SIGNING_ENDPOINT \
+            AZURE_SIGNING_ACCOUNT AZURE_SIGNING_PROFILE WIN_PUBLISHER_NAME WIN_CSC_LINK \
+            WIN_CSC_KEY_PASSWORD CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            if [ -z "${!v:-}" ]; then unset "$v"; fi
+          done
+          args=("$PLATFORM" --publish never)
+          cfg="$RUNNER_TEMP/electron-builder.signed.json"
+          mode="$(node scripts/signing-config.mjs "$PLATFORM" "$cfg")" || {
+            echo "::warning::signing-config.mjs failed — unsigned build"; mode=unsigned; rm -f "$cfg"
+          }
+          if [ "$mode" != unsigned ] && [ -f "$cfg" ]; then
+            echo "::notice::Code signing enabled ($PLATFORM: $mode)"
+            args+=(--config "$cfg")
+            # macOS: Developer ID identity CSC_LINK'dan import qilingan vaqtinchalik keychain'dan topiladi.
+            export CSC_IDENTITY_AUTO_DISCOVERY=true
+          else
+            echo "::notice::Code signing secrets not set for $PLATFORM — unsigned build (as before)"
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+          fi
+          npx electron-builder "${args[@]}"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -172,11 +263,34 @@ jobs:
     permissions:
       contents: write # fayllarni draft relizga yuklash va ommaviy qilish (npm yo'q)
     steps:
+      # Faqat imzo skriptlari va ilovaga o'rnatilgan ochiq kalit uchun (npm ishlamaydi).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: src
+          persist-credentials: false
+
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: sovereign-cowork-*
           path: out
           merge-multiple: true
+
+      # Yangilanish manifesti imzosi (Ed25519, docs/SIGNING.md). Secret yo'q — o'tkazib yuboriladi
+      # (bugungidek). Kalit ilovadagi UPDATE_PUBKEY_PEM ga mos kelmasa — job yiqiladi, reliz draft qoladi.
+      - name: Sign update manifests
+        shell: bash
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          if [ -z "$UPDATE_SIGNING_KEY" ]; then
+            echo "::notice::UPDATE_SIGNING_KEY not set — latest*.yml are not signed (as before)"
+            exit 0
+          fi
+          files=()
+          for f in out/latest.yml out/latest-mac.yml out/latest-linux.yml; do
+            if [ -f "$f" ]; then files+=("$f"); fi
+          done
+          node src/desktop/scripts/sign-update.mjs sign --env "${files[@]}"
 
       - name: Upload assets to draft release
         shell: bash
@@ -210,5 +324,19 @@ jobs:
             fi
           done
           [ "$missing" = 0 ] || exit 1
+          # Ilovaga ochiq kalit o'rnatilgan bo'lsa (UPDATE_PUBKEY_PEM), imzosiz reliz ommaviy
+          # qilinmaydi: aks holda ilovalar yangilanishni rad etadi. Relizdagi aynan o'sha fayllar
+          # tekshiriladi (CI imzosi yoki qo'lda yuklangan .sig — ikkalasi ham ishlaydi).
+          if grep -q '^export const UPDATE_PUBKEY_PEM = "";' src/desktop/electron/update-sig.mjs; then
+            echo "UPDATE_PUBKEY_PEM is empty — manifest signature not required"
+          else
+            mkdir -p verify
+            gh release download "$TAG" -D verify --clobber -p 'latest*.yml' -p 'latest*.yml.sig' || true
+            man=()
+            for f in latest.yml latest-mac.yml latest-linux.yml; do
+              if [ -f "verify/$f" ]; then man+=("verify/$f"); fi
+            done
+            node src/desktop/scripts/sign-update.mjs verify-embedded "${man[@]}"
+          fi
           # --latest: electron-updater (Windows/Linux) yangilanishni /releases/latest orqali topadi.
           gh release edit "$TAG" --draft=false --latest

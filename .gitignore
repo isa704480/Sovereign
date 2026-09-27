@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+# kod imzosi sertifikatlari (docs/SIGNING.md) — hech qachon repo'ga
+*.p12
+*.pfx
 
 # debug
 npm-debug.log*
