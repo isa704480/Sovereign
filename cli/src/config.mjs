@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, rmSync, chmodSync }
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { isValidModelName } from "./ollama.mjs";
+import { SANDBOX_MODES, isValidImageName } from "./sandbox.mjs";
 
 const DIR = join(homedir(), ".sovereign");
 const FILE = join(DIR, "config.json");
@@ -27,10 +28,17 @@ const DEFAULTS = {
   localFallback: "ask",
   // Chuqur so'rash (§A.7): "auto" | "always" | "off".
   inquiry: "auto",
+  // Buyruqlar sandbox'i (cli/src/sandbox.mjs): "auto" — Full auto'da eng kuchli mavjud daraja;
+  // "required" — Full auto faqat haqiqiy sandbox bilan (bo'lmasa buyruq so'raladi), oddiy rejimda ham
+  // tasdiqlangan buyruq sandbox'da; "off" — OS sandbox yo'q (Full auto'da faqat env to'sig'i).
+  sandbox: "auto",
+  // Konteyner darajasi uchun image ("" — node:22-bookworm-slim). Avtomatik pull qilinmaydi.
+  sandboxImage: "",
 };
 
 export const LOCAL_FALLBACK_MODES = ["off", "ask", "auto"];
 export const INQUIRY_MODES = ["auto", "always", "off"];
+export { SANDBOX_MODES };
 
 /**
  * Yangi sozlamalar qiymatini tekshiradi (`sov config key=value` va fayldan o'qishda).
@@ -45,6 +53,10 @@ export function normalizeSetting(key, value) {
       return INQUIRY_MODES.includes(v) ? { ok: true, value: v } : { ok: false, error: `inquiry: ${INQUIRY_MODES.join(" | ")}` };
     case "localModel":
       return v === "" || isValidModelName(v) ? { ok: true, value: v } : { ok: false, error: "localModel: noto'g'ri model nomi" };
+    case "sandbox":
+      return SANDBOX_MODES.includes(v) ? { ok: true, value: v } : { ok: false, error: `sandbox: ${SANDBOX_MODES.join(" | ")}` };
+    case "sandboxImage":
+      return v === "" || isValidImageName(v) ? { ok: true, value: v } : { ok: false, error: "sandboxImage: noto'g'ri image nomi (mas. node:22-bookworm-slim)" };
     default:
       return { ok: false, error: `noma'lum sozlama: ${key}` };
   }
@@ -90,6 +102,8 @@ export function loadConfig() {
     localModel: settingOr("localModel", stored.localModel ?? ""),
     localFallback: settingOr("localFallback", stored.localFallback ?? DEFAULTS.localFallback),
     inquiry: settingOr("inquiry", stored.inquiry ?? DEFAULTS.inquiry),
+    sandbox: settingOr("sandbox", stored.sandbox ?? DEFAULTS.sandbox),
+    sandboxImage: settingOr("sandboxImage", stored.sandboxImage ?? ""),
     baseUrl: sanitizeBaseUrl(process.env.SOVEREIGN_URL || file.baseUrl || DEFAULTS.baseUrl),
     token: process.env.SOVEREIGN_TOKEN || file.token || "",
     openrouterKey: process.env.OPENROUTER_API_KEY || file.openrouterKey || "",

@@ -6,6 +6,7 @@ import { delimiter, join, resolve } from "node:path";
 import { loadConfig, CONFIG_PATH } from "./config.mjs";
 import { VERSION, IS_BINARY } from "./version.mjs";
 import { isProtected } from "./tools.mjs";
+import { detectSandbox, planSandbox, describeSandbox, sandboxHint, isRealLevel } from "./sandbox.mjs";
 import { c, colorEnabled } from "./ui.mjs";
 
 const PKG = "@islombekrrr/sov-cli";
@@ -158,6 +159,19 @@ export async function runDoctor({ checkUpdates = true } = {}) {
     add("cwd", "Ish papkasi", "warn", `${cwd} — yozish huquqi yo'q`, "Yozish mumkin bo'lgan papkada ishga tushiring");
   } else {
     add("cwd", "Ish papkasi", "ok", cwd);
+  }
+
+  // 7b. Full auto buyruqlari sandbox'i (cli/src/sandbox.mjs) — qaysi daraja haqiqatda ishlaydi.
+  try {
+    const info = cfg.sandbox === "off" ? null : await detectSandbox({ image: cfg.sandboxImage, force: true });
+    const plan = planSandbox({ mode: cfg.sandbox, fullAuto: true, info });
+    const mode = cfg.sandbox === "auto" ? "" : ` · rejim: ${cfg.sandbox}`;
+    // "required" + sandbox yo'q — xato emas: Full auto har buyruqni so'raydi (xavfsiz holat).
+    const status = isRealLevel(plan.level) ? "ok" : "warn";
+    const hint = plan.reason === "workspace-home" ? "Loyiha papkasiga o'ting: cd <loyiha>" : cfg.sandbox === "off" ? "sov config sandbox=auto" : sandboxHint(info);
+    add("sandbox", "Sandbox", status, `${describeSandbox(plan, cfg.sandbox)}${mode}`, hint);
+  } catch (err) {
+    add("sandbox", "Sandbox", "warn", `aniqlab bo'lmadi: ${err?.message ?? err}`);
   }
 
   // 8. PATH

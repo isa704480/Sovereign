@@ -247,6 +247,12 @@ export function install() {
     remember: () => {},
     confirmReply: (id, ok) => { const r = pending.get(id); if (r) { pending.delete(id); r(!!ok); } },
     settings: { set: async (p) => { const { fullAutoAck, ...rest } = p ?? {}; if (fullAutoAck) settings.fullAutoConsented = true; if (rest.fullAuto && !settings.fullAutoConsented) rest.fullAuto = false; Object.assign(settings, rest); return { ...settings }; } },
+    // Soxta sandbox holati (main: sandbox:status). ?sandbox=full|container — boshqa darajani ko'rish.
+    sandboxStatus: async () => {
+      const lvl = qs.get("sandbox") || "limited";
+      const mode = settings.sandbox || "auto";
+      return { mode, level: mode === "off" ? "limited" : lvl, method: lvl === "full" ? "bwrap" : lvl === "container" ? "docker" : "env", image: "node:22-bookworm-slim", reason: mode === "off" ? "off" : lvl === "limited" ? "no-engine" : "", containerReason: lvl === "limited" ? "no-engine" : "", platform: qs.has("mac") ? "darwin" : "win32" };
+    },
     // Chuqur so'rash kartasi javobi (main: inquiry:answer).
     inquiry: {
       answer: async (id, answers) => { const c = choices.get(id); if (!c || c.type !== "inquiry") return { ok: false, error: "not-found" }; choices.delete(id); const n = Object.keys(answers ?? {}).length; c.resolve(n ? { answers } : { skip: true }); return { ok: true, answered: n }; },

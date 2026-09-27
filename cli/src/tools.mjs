@@ -1,9 +1,10 @@
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, existsSync, realpathSync } from "node:fs";
 import { resolve, relative, dirname, join, isAbsolute, basename, sep, win32, posix } from "node:path";
 import { homedir } from "node:os";
-import { exec, spawn } from "node:child_process";
+import { exec, execFile, spawn } from "node:child_process";
 import { c } from "./ui.mjs";
 import { loadProjectRules, projectCheckText, protectHitForCommand, protectHitForPath } from "./project-rules.mjs";
+import { detectSandbox, planSandbox, prepareSandboxedRun } from "./sandbox.mjs";
 
 const IS_WIN = process.platform === "win32";
 
@@ -757,10 +758,10 @@ export function visible(s) {
 }
 
 /**
- * run_command bolasi uchun muhit: SOVEREIGN_TOKEN bolaga hech qachon berilmaydi. Full auto'da
- * (tasdiqsiz buyruqlar) OpenRouter/Perplexity kalitlari ham olib tashlanadi va HTTP(S) proxy yopiq portga (127.0.0.1:9) yo'naltiriladi — proxy'ni hurmat qiladigan
- * vositalar (npm, curl, pip, git https) tarmoqqa chiqa olmaydi. Bu SANDBOX EMAS (to'g'ridan-to'g'ri
- * socket ochadigan dastur to'xtamaydi) — faqat tezlikni pasaytiruvchi to'siq (§8.8 #1).
+ * run_command bolasi uchun muhit (sandbox'siz yo'l — oddiy rejim): SOVEREIGN_TOKEN bolaga hech
+ * qachon berilmaydi. Full auto'da buyruq sandbox.mjs orqali ishlaydi (full / container / limited:
+ * allowlist env, HOME yo'naltirilgan, o'lik proxy) — bu funksiya faqat zaxira. `fullAuto` bo'lsa
+ * kalitlar ham olib tashlanadi va proxy yopiq portga (127.0.0.1:9) — bu sandbox EMAS, faqat to'siq.
  */
 export function childEnv(opts = {}) {
   const env = { ...process.env };
@@ -782,7 +783,9 @@ export function childEnv(opts = {}) {
  * @param {string} name
  * @param {object} args
  * @param {(question: string, forcePrompt?: boolean, meta?: object) => Promise<boolean>} confirm
- * @param {{ signal?: AbortSignal, fullAuto?: boolean }} [opts]  ixtiyoriy: Ctrl+C bilan run_command'ni to'xtatish; fullAuto — childEnv
+ * @param {{ signal?: AbortSignal, fullAuto?: boolean, sandbox?: "auto"|"off"|"required", sandboxImage?: string, sandboxInfo?: object }} [opts]
+ *   signal — Ctrl+C bilan run_command'ni to'xtatish; fullAuto — buyruq sandbox'da (sandbox.mjs);
+ *   sandbox — config rejimi; sandboxInfo — oldindan aniqlangan daraja (testlar / Cowork).
  */
 export async function runTool(name, args, confirm, opts = {}) {
   switch (name) {
@@ -860,13 +863,24 @@ export async function runTool(name, args, confirm, opts = {}) {
         cls.level === "safe"
           ? `${tegmaNote(protect)}Buyruq bajarilsinmi: ${c.amber(visible(args.command))}?`
           : `${tegmaNote(protect)}⚠️  ${cls.reason.toUpperCase()} — bajarilsinmi: ${c.amber(visible(args.command))}?`;
-      const cmdMeta = { tool: "run_command", command: args.command, risky: cls.level !== "safe", ...(protect ? { protect, fullAutoDeny: tegmaReason(protect) } : {}) };
+      // Sandbox darajasi TASDIQDAN OLDIN aniqlanadi: Full auto + sandbox="required" va haqiqiy
+      // sandbox yo'q bo'lsa — tasdiq so'raladi (full-auto.mjs "sandbox"); UI darajani ko'rsatadi.
+      const wantsSandbox = (opts.fullAuto && opts.sandbox !== "off") || opts.sandbox === "required";
+      const sbInfo = wantsSandbox ? (opts.sandboxInfo ?? (await detectSandbox({ image: opts.sandboxImage }))) : null;
+      const plan = planSandbox({ mode: opts.sandbox, fullAuto: !!opts.fullAuto, info: sbInfo });
+      const cmdMeta = { tool: "run_command", command: args.command, risky: cls.level !== "safe", sandboxLevel: plan.level, sandboxRequired: plan.required, ...(protect ? { protect, fullAutoDeny: tegmaReason(protect) } : {}) };
       const ok = cls.level === "safe" && !protect
         ? await confirm(label, false, cmdMeta)
         : await confirm(label, /*forcePrompt=*/ true, cmdMeta);
       if (!ok) return tegmaDeclined(args.command, protect, opts) ?? "Foydalanuvchi rad etdi.";
       if (opts.signal?.aborted) return "XATO (exit ?):\nBekor qilindi (Ctrl+C) — buyruq ishga tushirilmadi.";
-      // Asinxron (exec) — spinner va Ctrl+C ishlaydi; natija formati execSync bilan bir xil.
+      let spec;
+      try {
+        spec = prepareSandboxedRun({ command: args.command, plan });
+      } catch (err) {
+        return `XATO (exit ?):\nSandbox tayyorlanmadi: ${err?.message ?? err}`;
+      }
+      // Asinxron (exec / execFile) — spinner va Ctrl+C ishlaydi; natija formati execSync bilan bir xil.
       return await new Promise((resolveRun) => {
         let child;
         let stopReason = null; // "abort" | "timeout"
@@ -874,41 +888,44 @@ export async function runTool(name, args, confirm, opts = {}) {
         const onAbort = () => {
           stopReason ??= "abort";
           killTree(child);
+          spec.onStop();
+        };
+        const execOpts = {
+          cwd: process.cwd(),
+          encoding: "utf8",
+          maxBuffer: 16 * 1024 * 1024,
+          windowsHide: true,
+          // POSIX: alohida jarayon guruhi — bekor qilinganda butun daraxt to'xtaydi.
+          detached: !IS_WIN,
+          // Sandbox: allowlist env, HOME yo'naltirilgan (sandbox.mjs); oddiy rejim: kalitlarsiz muhit.
+          env: spec.env ?? childEnv(opts),
+        };
+        const done = (err, stdout, stderr) => {
+          clearTimeout(timer);
+          spec.cleanup();
+          opts.signal?.removeEventListener("abort", onAbort);
+          if (!err && !stopReason) return resolveRun(`EXIT 0\n${String(stdout ?? "").slice(0, 20_000)}`);
+          const code = typeof err?.code === "number" ? err.code : "?";
+          const why =
+            stopReason === "abort"
+              ? "Bekor qilindi (Ctrl+C) — jarayon to'xtatildi."
+              : stopReason === "timeout"
+                ? "Vaqt tugadi (120 s) — jarayon to'xtatildi."
+                : String(stderr ?? "") || err?.message || "";
+          resolveRun(`XATO (exit ${code}):\n${String(stdout ?? "") + why}`.slice(0, 20_000));
         };
         try {
-          child = exec(
-            args.command,
-            {
-              cwd: process.cwd(),
-              encoding: "utf8",
-              maxBuffer: 16 * 1024 * 1024,
-              windowsHide: true,
-              // POSIX: alohida jarayon guruhi — bekor qilinganda butun daraxt to'xtaydi.
-              detached: !IS_WIN,
-              // Kalitlarsiz muhit (+ Full auto'da proxy to'sig'i, Windows'da joriy papka qidiruvi o'chiq).
-              env: childEnv(opts),
-            },
-            (err, stdout, stderr) => {
-              clearTimeout(timer);
-              opts.signal?.removeEventListener("abort", onAbort);
-              if (!err && !stopReason) return resolveRun(`EXIT 0\n${String(stdout ?? "").slice(0, 20_000)}`);
-              const code = typeof err?.code === "number" ? err.code : "?";
-              const why =
-                stopReason === "abort"
-                  ? "Bekor qilindi (Ctrl+C) — jarayon to'xtatildi."
-                  : stopReason === "timeout"
-                    ? "Vaqt tugadi (120 s) — jarayon to'xtatildi."
-                    : String(stderr ?? "") || err?.message || "";
-              resolveRun(`XATO (exit ${code}):\n${String(stdout ?? "") + why}`.slice(0, 20_000));
-            },
-          );
+          // Sandbox (bwrap / sandbox-exec / docker): shell'siz execFile — buyruq sandbox ichidagi sh'ga argument.
+          child = spec.file ? execFile(spec.file, spec.args, execOpts, done) : exec(args.command, execOpts, done);
         } catch (err) {
+          spec.cleanup();
           return resolveRun(`XATO (exit ?):\n${err?.message ?? err}`);
         }
         track(child);
         timer = setTimeout(() => {
           stopReason ??= "timeout";
           killTree(child);
+          spec.onStop();
         }, COMMAND_TIMEOUT_MS);
         opts.signal?.addEventListener("abort", onAbort, { once: true });
         // execSync kabi: stdin darhol yopiladi — kiritish kutuvchi buyruq osilib qolmasin.

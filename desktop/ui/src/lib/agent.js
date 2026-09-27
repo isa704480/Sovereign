@@ -216,7 +216,9 @@ export function applyEvent(s, ev, { replay = false } = {}) {
       const i = lastIndex(s.items, (it) => it.kind === "tool" && it.status === "running");
       if (i === -1) return { ...s, changes };
       const items = s.items.slice();
-      items[i] = { ...items[i], auto: ev.ok ? "ok" : ev.denied || "command" };
+      // sandbox — buyruq qaysi darajada bajarildi (full | container | limited; cli/src/sandbox.mjs).
+      const sandbox = m.tool === "run_command" && ["full", "container", "limited"].includes(m.sandboxLevel) ? m.sandboxLevel : undefined;
+      items[i] = { ...items[i], auto: ev.ok ? "ok" : ev.denied || "command", ...(sandbox ? { sandbox } : {}) };
       return { ...s, changes, items };
     }
     case "snapshot": {

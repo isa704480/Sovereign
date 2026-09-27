@@ -63,8 +63,10 @@ export function fullAutoWarningLines(c) {
   return [
     `${c.amber("⚠ FULL AUTO:")} ${c.dim("hech narsa so'ralmaydi — agent yozgan kod va buyruqlar sizning huquqlaringiz bilan darhol bajariladi.")}`,
     c.dim("  Rad etish ro'yxati (push/publish/deploy/sudo/tarmoq) faqat buyruq MATNINI tekshiradi — bu sandbox EMAS."),
-    c.dim("  Repo fayllaridagi yashirin ko'rsatmalar (prompt-injection) agentni skript yozib ishga tushirishga undashi,"),
-    c.dim("  u esa ~/.sovereign token, ~/.ssh kalit va boshqa sirlarni o'qib tashqariga yuborishi mumkin."),
+    c.dim("  Buyruqlar mavjud bo'lsa OS sandbox'ida bajariladi (Linux bubblewrap, macOS sandbox-exec, Docker/Podman —"),
+    c.dim("  daraja: sov doctor). \"Cheklangan\" darajada (odatda Windows Docker'siz) repo fayllaridagi yashirin ko'rsatmalar"),
+    c.dim("  (prompt-injection) agentni skript yozib ishga tushirishga undashi, u esa ~/.ssh kalit va boshqa sirlarni"),
+    c.dim("  o'qib tashqariga yuborishi mumkin. To'liq darajada ham ish papkasidagi fayllar (.env) agentga ochiq."),
     c.dim("  Faqat o'zingiz ishonadigan (o'zingiz yozgan yoki tekshirgan) papkada yoqing."),
   ];
 }

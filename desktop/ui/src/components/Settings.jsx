@@ -44,6 +44,54 @@ function Seg({ value, options, onChange, label }) {
   );
 }
 
+/** Sandbox usuli nomi (brend nomlari — tarjima qilinmaydi). */
+const SANDBOX_METHOD = { bwrap: "bubblewrap", "sandbox-exec": "sandbox-exec", docker: "Docker", podman: "Podman", env: "env" };
+const SANDBOX_HINTS = new Set(["no-engine", "engine-down", "no-image", "no-bwrap", "bwrap-failed", "no-sandbox-exec", "sandbox-exec-failed", "workspace-home", "off"]);
+
+/**
+ * "Buyruqlar sandbox'i" qatori: Full auto buyruqlari HAQIQATDA qaysi darajada bajariladi
+ * (full / container / limited — main: sandbox:status, cli/src/sandbox.mjs) va rejim (auto / required / off).
+ */
+function SandboxSection({ settings, setSetting }) {
+  const t = useT();
+  const [st, setSt] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const mode = settings.sandbox ?? "auto";
+  const load = (force = false) => {
+    if (!window.sovereign?.sandboxStatus) return;
+    setBusy(true);
+    Promise.resolve(window.sovereign.sandboxStatus(force))
+      .then((s) => setSt(s ?? null))
+      .catch(() => setSt(null))
+      .finally(() => setBusy(false));
+  };
+  useEffect(() => { load(false); }, [mode]);
+  const level = st?.level;
+  const real = level === "full" || level === "container";
+  const hintKey = st ? (SANDBOX_HINTS.has(st.reason) ? st.reason : SANDBOX_HINTS.has(st.containerReason) ? st.containerReason : "") : "";
+  return (
+    <div className="field">
+      <span className="label-sm">{t("settings.sandbox")}</span>
+      <div className="row gap-sm" role="status" aria-live="polite">
+        {busy || !st ? (
+          <span className="grow small muted"><span className="spinner sm" aria-hidden="true" /> {t("settings.sandboxChecking")}</span>
+        ) : (
+          <>
+            <span className={`pill ${real ? "pill-ok" : "pill-failed"}`}><Icon name={real ? "lock" : "info"} size={12} /> {t(`sandbox.level.${level}`)}</span>
+            <span className="grow small muted">{t(`sandbox.desc.${level}`, { method: SANDBOX_METHOD[st.method] ?? st.method, image: st.image || "" })}</span>
+          </>
+        )}
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => load(true)} disabled={busy}><Icon name="refresh" size={13} /> {t("settings.sandboxRecheck")}</button>
+      </div>
+      {!busy && st && !real && hintKey && <span className="block faint small mt-sm">{t(`sandbox.hint.${hintKey}`, { image: st.image || "" })}</span>}
+      <div className="mt-sm">
+        <Seg label={t("settings.sandbox")} value={mode} onChange={(v) => setSetting({ sandbox: v })} options={[["auto", t("settings.sandboxMode.auto")], ["required", t("settings.sandboxMode.required")], ["off", t("settings.sandboxMode.off")]]} />
+      </div>
+      <span className="block faint small mt-sm">{t(`settings.sandboxModeDesc.${mode}`)}</span>
+    </div>
+  );
+}
+
 const LOCAL_ERRORS = new Set(["busy", "bad-model", "unavailable", "not-installed"]);
 const CONTEXT_ENV_HINT = "OLLAMA_CONTEXT_LENGTH=16384";
 
@@ -256,6 +304,7 @@ export default function Settings({ initial = "general", onClose, info, settings,
                 <span className="block faint small mt-sm">{t("settings.inquiryDesc")}</span>
               </div>
               <Toggle checked={!!settings.fullAuto} onChange={(v) => Promise.resolve(onFullAuto ? onFullAuto(v) : setSetting({ fullAuto: v })).then(refreshLocal)} label={t("settings.fullAuto")} desc={t("settings.fullAutoDesc")} />
+              <SandboxSection settings={settings} setSetting={setSetting} />
               <Toggle checked={settings.notifications} onChange={(v) => setSetting({ notifications: v })} label={t("settings.notifications")} desc={t("settings.notificationsDesc")} />
             </>
           )}
