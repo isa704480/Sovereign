@@ -37,6 +37,7 @@ import { shouldVerify, verifyClaims } from "../cli/src/verify.mjs";
 import { SnapshotStore, withCommandSnapshots } from "../cli/src/snapshot.mjs";
 import * as projectMemory from "../cli/src/project-memory.mjs";
 import { registerProjectIpc } from "./electron/project.mjs";
+import { registerFilesIpc } from "./electron/files-ipc.mjs";
 import { runAudit, auditPrompt, AUDIT_LANGS } from "../cli/src/audit.mjs";
 
 import { OFFLINE, netAllowed, installOfflineGuard } from "./electron/net.mjs";
@@ -217,6 +218,33 @@ function prepareWriteMeta(meta) {
     backupIdByReal.set(real, backupId);
   }
   return { meta: { ...meta, before, beforeUnknown, existed, backupId }, createdId };
+}
+
+/**
+ * Muharrirdagi saqlash/yaratish uchun Undo zaxirasi (files-ipc.mjs shu orqali o'tadi) —
+ * agent yozuvlari bilan bir xil do'kon, shuning uchun mavjud «O'zgarishlar» paneli
+ * va Undo foydalanuvchi tahrirlariga ham ishlaydi. Bir fayl uchun ENG BIRINCHI asl holat.
+ */
+function addUndoBackup(real) {
+  const prev = backupIdByReal.get(real);
+  if (prev) return prev;
+  let existed = false;
+  let data = null;
+  try {
+    if (existsSync(real)) {
+      const st = statSync(real);
+      if (!st.isFile()) return null;
+      if (st.size > BACKUP_MAX) return null; // juda katta — Undo yo'q
+      existed = true;
+      data = readFileSync(real);
+    }
+  } catch {
+    return null;
+  }
+  const id = randomUUID();
+  backupsById.set(id, { real, existed, data });
+  backupIdByReal.set(real, id);
+  return id;
 }
 
 function dropBackup(id) {
@@ -1488,9 +1516,22 @@ function walkTree(dir, depth = 0, max = 6, budget = { n: 0 }) {
   return nodes;
 }
 
+// Muharrir fayl amallari (yaratish/nom/o'chirish/saqlash/kuzatuv) — alohida modulda,
+// har bir yo'l va nom o'sha yerda qayta tekshiriladi (renderer'ga ishonilmaydi).
+const filesIpc = registerFilesIpc({
+  handle,
+  getWorkspace: () => workspace,
+  resolvePath,
+  isProtected,
+  backups: { add: addUndoBackup },
+  shell,
+  send,
+});
+
 handle("fs:tree", async () => {
   if (!workspace) return { cwd: null, nodes: [] };
   if (!isDir(workspace)) return { cwd: workspace, nodes: [], error: "missing" };
+  filesIpc.ensureWatch(workspace); // papka almashsa — kuzatuvchi ham almashadi
   return { cwd: workspace, nodes: walkTree(workspace) };
 });
 

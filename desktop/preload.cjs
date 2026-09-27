@@ -19,6 +19,18 @@ contextBridge.exposeInMainWorld("sovereign", {
   fsRestore: (backupId) => invoke("fs:restore", backupId),
   // Shell Undo — buyruq o'zgartirgan fayllar main'dagi nusxa id'si bo'yicha tiklanadi.
   fsRestoreSnapshot: (snapId) => invoke("fs:restore-snapshot", snapId),
+  // Muharrir fayl amallari — yo'l/nom main jarayonda tekshiriladi (electron/files-ipc.mjs):
+  // realpath → ish papkasi ichida → himoyalangan ro'yxat → SOVEREIGN.md «Tegma».
+  files: {
+    open: (path) => invoke("fs:open", { path }),
+    stat: (path) => invoke("fs:stat", { path }),
+    write: (arg) => invoke("fs:write", arg),
+    create: (arg) => invoke("fs:create", arg),
+    rename: (arg) => invoke("fs:rename", arg),
+    duplicate: (arg) => invoke("fs:duplicate", arg),
+    trash: (arg) => invoke("fs:trash", arg),
+    revealItem: (path) => invoke("fs:reveal-item", { path }),
+  },
   // Xavfsizlik tekshiruvi — faqat o'qish (ish papkasi).
   audit: () => invoke("audit:run"),
   setModel: (id, label) => invoke("app:set-model", id, label),
