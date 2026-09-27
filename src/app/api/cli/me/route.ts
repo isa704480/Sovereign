@@ -4,11 +4,10 @@ import { createAnonClient } from "@/lib/supabase/anon";
 import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 import { tokenKey } from "@/lib/cli/device";
 import { getServerT } from "@/lib/i18n-server";
+import { normalizeSkillIds } from "@/config/skills";
 
 export const runtime = "nodejs";
 
-// Faqat ma'lum skil ID'lariga ruxsat — attacker o'zboshimchalik yozib qo'yolmasin
-const KNOWN_SKILLS = ["ui-ux-pro-max", "apple-design", "clean-code", "cybersecurity", "pro-writing", "data-viz"];
 const patchSchema = z.object({
   enabled_skills: z.array(z.string().min(1).max(64)).max(12).optional(),
   default_model: z.string().max(100).regex(/^[\w./:@-]+$/).optional(),
@@ -57,7 +56,8 @@ export async function GET(req: Request) {
       plan_state: status.state,
       days_left: status.daysLeft,
       default_model: row.default_model,
-      enabled_skills: row.enabled_skills ?? [],
+      // Kanonik id'lar (eski "pro-writing" → "no-ai-slop"), noma'lumlari tashlanadi.
+      enabled_skills: normalizeSkillIds(row.enabled_skills),
       memory_enabled: row.memory_enabled,
     });
   } catch (e) {
@@ -79,10 +79,9 @@ export async function PATCH(req: Request) {
   if (!parsed.success) return Response.json({ error: t("chBadRequest") }, { status: 400 });
 
   const body = parsed.data;
-  // Skil ID'larini oq ro'yxatga cheklash — attacker o'zboshimchalik yozmasin
-  const skills = body.enabled_skills
-    ? body.enabled_skills.filter((s) => KNOWN_SKILLS.includes(s))
-    : null;
+  // Skil ID'larini katalog (src/config/skills.ts) bilan cheklash — attacker o'zboshimchalik
+  // yozmasin; taxalluslar kanonik id'ga aylanadi ("pro-writing" → "no-ai-slop").
+  const skills = body.enabled_skills ? normalizeSkillIds(body.enabled_skills) : null;
 
   try {
     const supabase = createAnonClient();

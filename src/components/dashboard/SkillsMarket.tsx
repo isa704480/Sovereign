@@ -3,10 +3,12 @@
 import { Check, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
-import { SKILLS, SKILL_CATEGORY_LABEL, type SkillCategory } from "@/config/skills";
+import { MAX_ACTIVE_SKILLS, SKILLS, SKILL_CATEGORIES, type SkillCategory, type SkillIconName } from "@/config/skills";
+import { fmt } from "@/lib/i18n";
 import { skillCategoryLabel, skillText } from "@/lib/locales/panels-data";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { CUSTOM_SKILL_PREFIX, useChat, useLang, useT, type CustomSkill } from "@/store/chat";
+import { SkillIcon } from "./SkillIcon";
 import { useDialogA11y } from "./use-dialog-a11y";
 
 interface SkillsMarketProps {
@@ -16,16 +18,7 @@ interface SkillsMarketProps {
   onToggle: (id: string) => void;
 }
 
-const CATEGORIES: (SkillCategory | "all" | "mine")[] = ["all", "design", "code", "security", "writing", "data", "mine"];
-
-/** First lines of the skill prompt — enough to judge what it will do. */
-function summarize(prompt: string): string[] {
-  return prompt
-    .split("\n")
-    .slice(1, 5)
-    .map((l) => l.replace(/^[•\d)\s.-]+/, "").trim())
-    .filter(Boolean);
-}
+const CATEGORIES: (SkillCategory | "all" | "mine")[] = ["all", ...SKILL_CATEGORIES, "mine"];
 
 function Toggle({ on }: { on: boolean }) {
   return (
@@ -45,7 +38,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
   const t = useT();
   const lang = useLang();
   const catLabel = (k: (typeof CATEGORIES)[number]) =>
-    k === "all" ? t("catAll") : k === "mine" ? t("catMine") : skillCategoryLabel(lang, k, SKILL_CATEGORY_LABEL[k]);
+    k === "all" ? t("catAll") : k === "mine" ? t("catMine") : skillCategoryLabel(lang, k);
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("all");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -66,10 +59,11 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
         id: s.id,
         name: tx.name,
         description: tx.description,
-        glyph: s.glyph,
+        icon: s.icon as SkillIconName | "custom",
         color: s.color,
         category: s.category as string,
-        details: tx.details ?? summarize(s.prompt),
+        details: tx.details,
+        auto: s.triggers.length > 0,
         custom: false as const,
       };
     });
@@ -77,10 +71,11 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
       id: `${CUSTOM_SKILL_PREFIX}${s.id}`,
       name: s.name,
       description: t("skillCustomDesc"),
-      glyph: "✻",
+      icon: "custom" as const,
       color: "#10D4A0",
       category: "mine",
       details: [s.instructions.slice(0, 220)],
+      auto: false,
       custom: true as const,
     }));
     return [...built, ...mine]
@@ -168,6 +163,9 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+              <p className="mb-3 text-xs" style={{ color: "var(--t-text-muted)" }}>
+                {fmt(t("p18SkLimitNote"), { n: MAX_ACTIVE_SKILLS })}
+              </p>
               {items.length === 0 && (
                 <p className="py-8 text-center text-sm" style={{ color: "var(--t-text-muted)" }}>{t("nothingFound")}</p>
               )}
@@ -195,10 +193,21 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                         className="grid size-9 shrink-0 place-items-center rounded-xl text-base"
                         style={{ background: `color-mix(in srgb, ${s.color} 18%, transparent)`, color: s.color }}
                       >
-                        {s.glyph}
+                        <SkillIcon name={s.icon} className="size-[18px]" />
                       </span>
-                      <button type="button" onClick={() => setExpanded(isOpen ? null : s.id)} className="min-w-0 flex-1 text-left">
-                        <span className="block text-sm font-semibold">{s.name}</span>
+                      <button type="button" onClick={() => setExpanded(isOpen ? null : s.id)} aria-expanded={isOpen} className="min-w-0 flex-1 text-left">
+                        <span className="flex items-center gap-2 text-sm font-semibold">
+                          <span className="truncate">{s.name}</span>
+                          {!s.custom && (
+                            <span
+                              className="shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium"
+                              style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
+                              title={t(s.auto ? "p18SkAutoTitle" : "p18SkManualTitle")}
+                            >
+                              {t(s.auto ? "p18SkAutoBadge" : "p18SkManualBadge")}
+                            </span>
+                          )}
+                        </span>
                         <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{s.description}</span>
                       </button>
                       {s.custom && (

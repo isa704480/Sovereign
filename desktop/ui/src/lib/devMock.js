@@ -221,6 +221,7 @@ export function install() {
     await sleep(500);
     emit({ type: "text", text: "Tayyor: `/health` endpoint qo‘shildi va testlar o‘tdi." });
     emit({ type: "ledger", entries, warning: entries.some((e) => e.status === "declined") ? "Javobda tilga olingan, lekin aslida yozilmagan: src/server.js." : null, noteCode: null });
+    emit({ type: "skills", skills: ["clean-code", "ui-ux-pro-max"] });
     emit({ type: "usage", tokens: 8420, rounds: 3, estimated: false, budget: 0 });
     emit({ type: "done" });
     finish("done");
@@ -345,6 +346,14 @@ export function install() {
         open: async () => ({ ok: exists }),
         create: async () => { const created = !exists; exists = true; return { ok: true, created, info: info() }; },
         remember: async (text) => { if (!String(text).trim()) return { ok: false, error: "empty", info: info() }; const created = !exists; exists = true; notes++; return { ok: true, created, info: info() }; },
+      };
+    })(),
+    // ?skillsfail=1 — skillarni yuklash xatosi.
+    skills: (() => {
+      let enabled = ["ui-ux-pro-max", "clean-code"];
+      return {
+        get: async () => { await sleep(300); if (!authed) return { ok: false, error: "auth" }; if (qs.has("skillsfail")) return { ok: false, error: "network" }; return { ok: true, enabled: [...enabled] }; },
+        set: async (ids) => { await sleep(250); if (!authed) return { ok: false, error: "auth" }; enabled = [...ids]; return { ok: true, enabled: [...enabled] }; },
       };
     })(),
     auth: {

@@ -6,6 +6,7 @@ import ModelPicker, { LocalRecommend, LocalCaps, loadLocal } from "./ModelPicker
 import { useT, LANGS } from "../lib/i18n.js";
 import { formatTokens } from "../lib/agent.js";
 import { useLocalMode, setLocalMode, refreshLocal } from "../lib/localMode.js";
+import { SKILLS, MAX_ACTIVE_SKILLS, skillName } from "../lib/skills.js";
 
 /** Vazifa uchun token byudjeti tanlovlari (0 — cheklovsiz). */
 const BUDGETS = [0, 50_000, 100_000, 250_000, 500_000, 1_000_000];
@@ -13,6 +14,7 @@ const BUDGETS = [0, 50_000, 100_000, 250_000, 500_000, 1_000_000];
 const SECTIONS = [
   ["general", "settings"],
   ["model", "sparkle"],
+  ["skills", "layers"],
   ["local", "monitor"],
   ["workspace", "folder"],
   ["account", "user"],
@@ -89,6 +91,92 @@ function SandboxSection({ settings, setSetting }) {
       </div>
       <span className="block faint small mt-sm">{t(`settings.sandboxModeDesc.${mode}`)}</span>
     </div>
+  );
+}
+
+/**
+ * "Skillar" bo'limi: akkauntda yoqilgan SOVEREIGN Skills (web va CLI bilan umumiy — /api/cli/me,
+ * so'rov main jarayondan, token renderer'ga chiqmaydi). Qo'llanmalarni server qo'shadi.
+ */
+function SkillsSection({ authed }) {
+  const t = useT();
+  const local = useLocalMode();
+  const [status, setStatus] = useState("loading"); // loading | ready | error
+  const [enabled, setEnabled] = useState([]);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    if (!authed) return undefined;
+    let alive = true;
+    setStatus("loading");
+    setErr("");
+    Promise.resolve(window.sovereign?.skills?.get() ?? null).catch(() => null).then((r) => {
+      if (!alive) return;
+      if (r?.ok) {
+        setEnabled(r.enabled ?? []);
+        setStatus("ready");
+      } else {
+        setErr(r?.error === "offline" ? "settings.skillsOffline" : "settings.skillsError");
+        setStatus("error");
+      }
+    });
+    return () => { alive = false; };
+  }, [authed, reload]);
+
+  const toggle = async (id, on) => {
+    if (busy) return;
+    const prev = enabled;
+    const next = on ? [...prev, id] : prev.filter((x) => x !== id);
+    setEnabled(next); // darhol ko'rinadi; xato bo'lsa qaytariladi
+    setBusy(true);
+    setErr("");
+    const r = await Promise.resolve(window.sovereign?.skills?.set(next) ?? null).catch(() => null);
+    setBusy(false);
+    if (r?.ok) setEnabled(r.enabled ?? next);
+    else {
+      setEnabled(prev);
+      setErr(r?.error === "offline" ? "settings.skillsOffline" : "settings.skillsSaveError");
+    }
+  };
+
+  return (
+    <>
+      <h3>{t("settings.skills")}</h3>
+      <p className="muted small">{t("settings.skillsDesc")}</p>
+      {!authed && <div className="banner banner-info mt" role="status"><Icon name="user" size={14} /><span>{t("settings.skillsNeedAuth")}</span></div>}
+      {local && <div className="banner banner-warn mt-sm" role="status"><Icon name="monitor" size={14} /><span>{t("settings.skillsLocal")}</span></div>}
+      {err && (
+        <div className="banner banner-danger mt-sm" role="alert">
+          <Icon name="alert" size={14} />
+          <span className="grow">{t(err)}</span>
+          {status === "error" && <button type="button" className="link-btn" onClick={() => setReload((n) => n + 1)}>{t("common.retry")}</button>}
+        </div>
+      )}
+      {authed && status === "loading" && <div className="muted small mt" role="status"><span className="spinner sm" aria-hidden="true" /> {t("common.loading")}</div>}
+      {authed && status === "ready" && (
+        <div className="mt">
+          {SKILLS.map((s) => {
+            const name = skillName(s, t);
+            return (
+              <label key={s.id} className="toggle-row skill-row">
+                <span className="skill-mark"><Icon name={s.icon} size={15} /></span>
+                <span className="grow">
+                  <span className="block strong small">
+                    {name}
+                    <span className="pill" title={t(s.auto ? "settings.skillsAutoTitle" : "settings.skillsManualTitle")}>{t(s.auto ? "settings.skillsAuto" : "settings.skillsManual")}</span>
+                  </span>
+                  <span className="block faint small">{t(`skill.${s.id}.desc`)}</span>
+                </span>
+                <input type="checkbox" role="switch" className="switch" checked={enabled.includes(s.id)} disabled={busy} onChange={(e) => toggle(s.id, e.target.checked)} aria-label={name} />
+              </label>
+            );
+          })}
+          <p className="faint small mt-sm">{t("settings.skillsLimit", { n: MAX_ACTIVE_SKILLS })}</p>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -324,6 +412,8 @@ export default function Settings({ initial = "general", onClose, info, settings,
               </div>
             </>
           )}
+
+          {sec === "skills" && <SkillsSection authed={!!info.authed} />}
 
           {sec === "local" && <LocalSection settings={settings} setSetting={setSetting} onLink={onLink} />}
 

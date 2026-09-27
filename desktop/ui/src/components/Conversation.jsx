@@ -6,6 +6,7 @@ import { useT } from "../lib/i18n.js";
 import { localizeResult, localizeBody, ledgerWarning } from "../lib/cliText.js";
 import InquiryCard, { InquiryFollowups } from "./InquiryCard.jsx";
 import { ATTACH_LIMITS, attachErrKey, formatSize } from "../lib/attachments.js";
+import { SKILL_BY_ID, skillName } from "../lib/skills.js";
 
 const S = () => window.sovereign;
 
@@ -89,6 +90,24 @@ function UsageLine({ it }) {
     <div className="usage-line faint small tnum" title={t("usage.title")} aria-label={t("usage.title")}>
       <Icon name="bolt" size={11} />
       <span>{(it.budget ? t("usage.lineBudget", vars) : t("usage.line", vars)) + est + local}</span>
+    </div>
+  );
+}
+
+/** Shu javobda server qo'llagan SOVEREIGN Skills — kichik chip'lar (belgi + nom, tavsif — sarlavhada). */
+function SkillChips({ ids }) {
+  const t = useT();
+  return (
+    <div className="skill-chips" role="note" aria-label={t("skills.used")}>
+      {ids.map((id) => {
+        const s = SKILL_BY_ID[id];
+        if (!s) return null;
+        return (
+          <span key={id} className="skill-chip" title={t(`skill.${id}.desc`)}>
+            <Icon name={s.icon} size={11} /> {skillName(s, t)}
+          </span>
+        );
+      })}
     </div>
   );
 }
@@ -534,6 +553,8 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
                 return <ProjectCheckNote key={it.id} it={it} />;
               case "usage":
                 return <UsageLine key={it.id} it={it} />;
+              case "skills":
+                return <SkillChips key={it.id} ids={it.ids} />;
               case "error":
                 return <ErrorCard key={it.id} it={it} onAction={onAction} last={it.id === lastErrorId && !busy} />;
               case "stopped":

@@ -2,17 +2,8 @@
 
 import { spawn } from "node:child_process";
 
-/** Web'dagi 6 ta skil bilan bir xil. */
-export const SKILLS = [
-  { id: "ui-ux-pro-max", name: "UI/UX Pro Max", glyph: "✦", desc: "Premium interfeys dizayni" },
-  { id: "apple-design", name: "Apple Design", glyph: "", desc: "Apple HIG uslubi, liquid glass" },
-  { id: "clean-code", name: "Clean Code", glyph: "◆", desc: "Toza, xavfsiz kod" },
-  { id: "cybersecurity", name: "Cybersecurity Pro", glyph: "🛡", desc: "26-domenli xavfsizlik audit" },
-  { id: "pro-writing", name: "Pro Writing", glyph: "✎", desc: "Aniq, ishonarli matn" },
-  { id: "data-viz", name: "Data Viz", glyph: "▦", desc: "Grafik va jadval tamoyillari" },
-];
-
-export const SKILL_IDS = SKILLS.map((s) => s.id);
+/** Skillar katalogi — skills.mjs (server katalogi src/config/skills.ts bilan mos). */
+export { SKILLS, SKILL_IDS, canonicalSkillId } from "./skills.mjs";
 
 /**
  * Slash-buyruqlar — Apple-style restraint: hech qanday emoji, faqat matn.
