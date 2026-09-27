@@ -388,7 +388,8 @@ export function registerFilesIpc({ handle, getWorkspace, resolvePath, isProtecte
       truncated,
       tooLarge,
       longLines,
-      readOnly: tooLarge || truncated || longLines || chk.tegma,
+      // «Tegma» fayli faqat o'qish EMAS — tahrirlash mumkin, ammo saqlashda tasdiq so'raladi.
+      readOnly: tooLarge || truncated || longLines,
     };
   });
 
@@ -433,7 +434,9 @@ export function registerFilesIpc({ handle, getWorkspace, resolvePath, isProtecte
       mkdirSync(dirname(chk.real), { recursive: true });
       atomicWrite(chk.real, Buffer.from(data, "utf8"));
       const st = statSync(chk.real);
-      send?.("fs-changed", { paths: [chk.real] });
+      // «fs-changed» yuborilmaydi: yozgan renderer javobdan yangi holatni oladi,
+      // qolganini kuzatuvchi xabar qiladi (aks holda hodisa javobdan oldin kelib,
+      // o'z saqlashimiz «diskda o'zgardi» qatorini chiqarardi).
       return { ok: true, size: st.size, mtimeMs: st.mtimeMs, backupId, rel: chk.rel, existed: !!cur };
     } catch (e) {
       return fsError(e);

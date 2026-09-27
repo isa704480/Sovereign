@@ -281,6 +281,12 @@ await test("fs:open — juda uzun qator faqat o'qish uchun", async () => {
   assert.equal(r.readOnly, true);
   rmSync(p);
 });
+await test("fs:open — «Tegma» fayli tahrirlanadi, lekin belgilanadi", async () => {
+  const r = await call("fs:open", { path: "migrations/001.sql" });
+  assert.equal(r.kind, "text");
+  assert.equal(r.tegma, true);
+  assert.equal(r.readOnly, false); // saqlashda tasdiq so'raladi
+});
 await test("fs:open — .env va tashqi yo'l rad etiladi", async () => {
   assert.equal((await call("fs:open", { path: ".env" })).error, "protected");
   assert.equal((await call("fs:open", { path: "../outside/secret.txt" })).error, "outside");

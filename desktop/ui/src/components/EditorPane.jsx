@@ -55,6 +55,10 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
   const [ask, setAsk] = useState(null); // { kind: "dirty" | "tegma", ... }
   const editorRef = useRef(null);
   const docs = useRef(new Map()); // path -> joriy matn (har bosishda state yangilanmasin)
+  // path -> { size, mtimeMs, origin }: diskdagi oxirgi ma'lum holat. React holati
+  // keyinroq yangilanadi, kuzatuvchi esa darhol keladi — shuning uchun alohida ref.
+  const meta = useRef(new Map());
+  const saving = useRef(new Set()); // yozilayotgan yo'llar — kuzatuvchi ularni o'tkazib yuboradi
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
 
@@ -92,6 +96,7 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
         return [...next, { ...r, dirty: false, origin: r.content ?? "", disk: null, reloadSeq: 0 }];
       });
       docs.current.set(r.path, r.content ?? "");
+      meta.current.set(r.path, { size: r.size, mtimeMs: r.mtimeMs, origin: r.content ?? "" });
       setActive(r.path);
       setTimeout(() => editorRef.current?.focus(), 0);
     },
@@ -104,9 +109,12 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
       const tab = tabsRef.current.find((x) => x.path === path);
       if (!tab || tab.kind !== "text" || tab.readOnly) return false;
       const content = docs.current.get(path) ?? tab.content ?? "";
+      const known = meta.current.get(path) ?? { size: tab.size, mtimeMs: tab.mtimeMs };
+      saving.current.add(path);
       const r = await S()
-        ?.files.write({ path, content, eol: tab.eol, finalNewline: tab.finalNewline, expect: { mtimeMs: tab.mtimeMs, size: tab.size }, ...opts })
-        .catch(() => null);
+        ?.files.write({ path, content, eol: tab.eol, finalNewline: tab.finalNewline, expect: { mtimeMs: known.mtimeMs, size: known.size }, ...opts })
+        .catch(() => null)
+        .finally(() => saving.current.delete(path));
       if (r?.error === "stale") {
         patch(path, { disk: r.missing ? "missing" : "changed" });
         onToast?.(t("editor.staleToast"), "err");
@@ -120,6 +128,8 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
         onToast?.(`${t("editor.saveFailed")}: ${errText(r, t)}`, "err");
         return false;
       }
+      // Avval ref (kuzatuvchi hodisasi React holatidan oldin kelishi mumkin).
+      meta.current.set(path, { size: r.size, mtimeMs: r.mtimeMs, origin: content });
       patch(path, { dirty: false, origin: content, content, size: r.size, mtimeMs: r.mtimeMs, disk: null });
       onSaved?.({ path: tab.rel || path, before: tab.origin, beforeUnknown: false, existed: r.existed, backupId: r.backupId, after: content });
       onToast?.(t("editor.saved", { name: tab.name }), "ok");
@@ -146,6 +156,7 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
         return;
       }
       docs.current.delete(path);
+      meta.current.delete(path);
       editorRef.current?.forget(path);
       setTabs((l) => {
         const i = l.findIndex((x) => x.path === path);
@@ -168,6 +179,7 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
         return;
       }
       docs.current.set(path, r.content ?? "");
+      meta.current.set(path, { size: r.size, mtimeMs: r.mtimeMs, origin: r.content ?? "" });
       editorRef.current?.forget(path);
       patch(path, { ...r, dirty: false, origin: r.content ?? "", disk: null, reloadSeq: (tabsRef.current.find((x) => x.path === path)?.reloadSeq ?? 0) + 1 });
     },
@@ -183,14 +195,18 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
       const set = new Set((paths ?? []).map(norm));
       for (const tab of tabsRef.current) {
         if (set.size && !set.has(norm(tab.path))) continue;
+        if (saving.current.has(tab.path)) continue; // o'z saqlashimiz
+        const known = meta.current.get(tab.path) ?? { size: tab.size, mtimeMs: tab.mtimeMs, origin: tab.origin };
         const st = await S()?.files.stat(tab.path).catch(() => null);
         if (st?.error === "not-found") {
           patch(tab.path, { disk: "missing" });
           continue;
         }
         if (!st?.ok) continue;
-        if (st.size === tab.size && Math.abs(st.mtimeMs - tab.mtimeMs) <= 1) continue;
-        if (tab.dirty) patch(tab.path, { disk: "changed" });
+        // O'zimiz yozgan holat — hodisa bizning saqlashimizdan (kuzatuvchi ham xabar beradi).
+        if (st.size === known.size && Math.abs(st.mtimeMs - known.mtimeMs) <= 1) continue;
+        const dirty = (docs.current.get(tab.path) ?? known.origin) !== known.origin;
+        if (dirty) patch(tab.path, { disk: "changed" });
         else reload(tab.path);
       }
     },
@@ -211,7 +227,7 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
       const tab = tabsRef.current.find((x) => norm(x.path) === norm(p) || norm(x.path).startsWith(`${norm(p)}/`));
       if (tab) closeTab(tab.path, true);
     },
-    closeAll: () => { docs.current.clear(); editorRef.current?.forgetAll(); setTabs([]); setActive(null); },
+    closeAll: () => { docs.current.clear(); meta.current.clear(); editorRef.current?.forgetAll(); setTabs([]); setActive(null); },
     has: (p) => tabsRef.current.some((x) => norm(x.path) === norm(p)),
   }));
 
@@ -234,7 +250,7 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
       docs.current.set(path, doc);
       const tab = tabsRef.current.find((x) => x.path === path);
       if (!tab) return;
-      const dirty = doc !== tab.origin;
+      const dirty = doc !== (meta.current.get(path)?.origin ?? tab.origin);
       if (dirty !== tab.dirty) patch(path, { dirty });
     },
     [patch],
@@ -297,8 +313,14 @@ const EditorPane = forwardRef(function EditorPane({ dark, wrap, onWrap, onSaved,
         <div className="banner ed-banner">
           <Icon name="lock" size={14} />
           <span className="grow">
-            {cur.tooLarge ? t("editor.roLarge") : cur.longLines ? t("editor.roLongLines") : cur.truncated ? t("editor.roTruncated") : cur.tegma ? t("editor.roTegma") : t("editor.readOnly")}
+            {cur.tooLarge ? t("editor.roLarge") : cur.longLines ? t("editor.roLongLines") : cur.truncated ? t("editor.roTruncated") : t("editor.readOnly")}
           </span>
+        </div>
+      )}
+      {cur?.tegma && !cur.readOnly && (
+        <div className="banner banner-warn ed-banner">
+          <Icon name="alert" size={14} />
+          <span className="grow">{t("editor.roTegma")}</span>
         </div>
       )}
 
