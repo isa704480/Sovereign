@@ -19,6 +19,8 @@ const DEFAULTS = {
   tokenBudget: 0, // bitta vazifa uchun token byudjeti (0 — cheklovsiz); oshsa navbat to'xtaydi
   sidebar: true,
   rightPanel: false,
+  mainView: "chat", // chat | editor — o'rta ustun ko'rinishi (muharrir yorlig'i)
+  editorWrap: true, // muharrirda uzun qatorlarni o'rash
   model: "", // OmniRoute katalog id ("" = Auto)
   modelLabel: "",
   // Mahalliy model (Ollama) zaxirasi — docs/INQUIRY.md §B.1:
@@ -45,6 +47,8 @@ const VALID = {
   tokenBudget: (v) => Number.isInteger(v) && v >= 0 && v <= 100_000_000,
   sidebar: (v) => typeof v === "boolean",
   rightPanel: (v) => typeof v === "boolean",
+  mainView: (v) => ["chat", "editor"].includes(v),
+  editorWrap: (v) => typeof v === "boolean",
   model: (v) => typeof v === "string" && v.length <= 200,
   modelLabel: (v) => typeof v === "string" && v.length <= 200,
   localFallback: (v) => ["off", "ask", "auto"].includes(v),

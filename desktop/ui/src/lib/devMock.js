@@ -17,6 +17,7 @@ export function install() {
   const settings = {
     onboarded: !qs.has("fresh"), theme: qs.get("theme") || "system", lang: qs.get("lang") || "", notifications: true, autoUpdate: true,
     defaultMode: "code", sidebar: true, rightPanel: qs.has("panel"), model: "", modelLabel: "",
+    mainView: qs.get("view") === "editor" ? "editor" : "chat", editorWrap: true,
     localFallback: "ask", localModel: "", inquiryMode: "auto", fullAutoLocal: false, fullAuto: qs.has("blocking"),
   };
   // Soxta Ollama: o'rnatilgan modellar (hajm — bayt), imkoniyatlar /api/show'dagidek.
@@ -245,14 +246,41 @@ export function install() {
     emit({ type: "task", task: { ...task } });
   }
 
-  const tree = [
-    { name: "src", path: "D:\\Projects\\demo-shop\\src", dir: true, children: [
-      { name: "components", path: "D:\\Projects\\demo-shop\\src\\components", dir: true, children: [{ name: "Hero.jsx", path: "D:\\Projects\\demo-shop\\src\\components\\Hero.jsx", dir: false }] },
-      { name: "server.js", path: "D:\\Projects\\demo-shop\\src\\server.js", dir: false },
-    ] },
-    { name: "package.json", path: "D:\\Projects\\demo-shop\\package.json", dir: false },
-    { name: "README.md", path: "D:\\Projects\\demo-shop\\README.md", dir: false },
-  ];
+  // ---- Soxta disk (muharrir va daraxt amallari uchun) ----------------------
+  // Kalit — to'liq yo'l; qiymat — { dir } yoki { text | dataUrl | binary }.
+  const ROOT = "D:\\Projects\\demo-shop";
+  const DOT_PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAQklEQVR42u3OMQEAAAgDoC251a3gLzSgu5MBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPBrAWHsAAFQrWl3AAAAAElFTkSuQmCC";
+  const disk = new Map([
+    [`${ROOT}\\src`, { dir: true }],
+    [`${ROOT}\\src\\components`, { dir: true }],
+    [`${ROOT}\\src\\components\\Hero.jsx`, { text: "import React from \"react\";\n\n/** Bosh sahifa hero bo'limi. */\nexport default function Hero({ title, onStart }) {\n  const [open, setOpen] = React.useState(false);\n  return (\n    <section className=\"hero\" data-open={open}>\n      <h1>{title ?? \"Salom\"}</h1>\n      <button type=\"button\" onClick={() => { setOpen(!open); onStart?.(); }}>\n        Boshlash\n      </button>\n    </section>\n  );\n}\n" }],
+    [`${ROOT}\\src\\server.js`, { text: "const http = require(\"node:http\");\n\nconst PORT = Number(process.env.PORT) || 3000;\n// Oddiy demo server.\nhttp\n  .createServer((req, res) => {\n    res.writeHead(200, { \"content-type\": \"application/json\" });\n    res.end(JSON.stringify({ ok: true, url: req.url }));\n  })\n  .listen(PORT, () => console.log(`http://localhost:${PORT}`));\n" }],
+    [`${ROOT}\\src\\styles.css`, { text: ":root {\n  --accent: #5b50f0;\n}\n.hero {\n  display: grid;\n  gap: 12px; /* izoh */\n  padding: 24px;\n}\n" }],
+    [`${ROOT}\\src\\query.sql`, { text: "select id, name\nfrom products\nwhere price > 100\norder by name;\n" }],
+    [`${ROOT}\\src\\build.py`, { text: "import os\n\n\ndef main(path: str) -> int:\n    \"\"\"Fayllarni sanaydi.\"\"\"\n    return len(os.listdir(path))\n\n\nif __name__ == \"__main__\":\n    print(main(\".\"))\n" }],
+    [`${ROOT}\\package.json`, { text: "{\n  \"name\": \"demo-shop\",\n  \"version\": \"1.0.0\",\n  \"private\": true,\n  \"scripts\": { \"dev\": \"vite\", \"build\": \"vite build\" },\n  \"dependencies\": { \"react\": \"^18.3.1\" }\n}\n" }],
+    [`${ROOT}\\README.md`, { text: "# Demo Shop\n\n**Ishga tushirish:** `npm run dev`\n\n- Birinchi band\n- Ikkinchi band\n\n```js\nconst x = 1;\n```\n" }],
+    [`${ROOT}\\logo.png`, { dataUrl: DOT_PNG }],
+    [`${ROOT}\\app.bin`, { binary: true }],
+    [`${ROOT}\\huge.log`, { text: "x".repeat(40), big: true }],
+  ]);
+  const parent = (p) => p.replace(/\\[^\\]*$/, "");
+  const baseName = (p) => p.split("\\").pop();
+  const buildTree = (dir) =>
+    [...disk.keys()]
+      .filter((p) => parent(p) === dir)
+      .sort((a, b) => (!!disk.get(a).dir === !!disk.get(b).dir ? baseName(a).localeCompare(baseName(b)) : disk.get(a).dir ? -1 : 1))
+      .map((p) => (disk.get(p).dir ? { name: baseName(p), path: p, dir: true, children: buildTree(p) } : { name: baseName(p), path: p, dir: false }));
+  const tree = { get nodes() { return buildTree(ROOT); } };
+  const mockOpen = (path) => {
+    const f = disk.get(path);
+    if (!f) return { error: "not-found" };
+    if (f.dir) return { error: "is-dir" };
+    const meta = { path, rel: path.slice(ROOT.length + 1).replace(/\\/g, "/"), name: baseName(path), size: (f.text ?? "").length, mtimeMs: f.mtimeMs ?? 1, tegma: false };
+    if (f.dataUrl) return { ...meta, kind: "image", readOnly: true, dataUrl: f.dataUrl };
+    if (f.binary) return { ...meta, kind: "binary", readOnly: true };
+    return { ...meta, kind: "text", content: f.text, eol: "lf", finalNewline: true, truncated: false, tooLarge: !!f.big, longLines: false, readOnly: !!f.big };
+  };
 
   window.sovereign = {
     init: async () => { await sleep(250); return state(); },
@@ -263,8 +291,44 @@ export function install() {
     openLink: async (key) => { window.__mockOpenedLink = key; return { ok: true }; },
     newTask: async () => { task = null; aborted = true; return { ok: true, history: [...history] }; },
     stop: async () => { aborted = true; for (const r of pending.values()) r(false); pending.clear(); for (const c of choices.values()) c.resolve(null); choices.clear(); emit({ type: "stopped" }); if (task) finish("stopped"); return { ok: true }; },
-    fsTree: async () => ({ cwd, nodes: cwd ? tree : [] }),
+    fsTree: async () => ({ cwd, nodes: cwd ? tree.nodes : [] }),
     fsRead: async (p) => ({ content: `// ${p}\nexport default function Demo() {\n  return null;\n}\n` }),
+    // Muharrir amallari — soxta diskda (haqiqiy tekshiruv main jarayonda).
+    files: {
+      open: async (path) => { await sleep(80); return mockOpen(path); },
+      stat: async (path) => { const f = disk.get(path); return f ? { ok: true, size: (f.text ?? "").length, mtimeMs: f.mtimeMs ?? 1, dir: !!f.dir } : { error: "not-found" }; },
+      write: async ({ path, content }) => {
+        const f = disk.get(path);
+        if (!f) return { error: "not-found" };
+        disk.set(path, { ...f, text: content, mtimeMs: Date.now() });
+        return { ok: true, size: content.length, mtimeMs: disk.get(path).mtimeMs, backupId: `mock:${path}`, rel: path.slice(ROOT.length + 1), existed: true };
+      },
+      create: async ({ dir, name, kind }) => {
+        const err = /[\\/]/.test(name) || name === ".." ? "bad-name" : /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.|$)/i.test(name) ? "reserved" : null;
+        if (err) return { error: err };
+        const p = `${dir}\\${name}`;
+        if (disk.has(p)) return { error: "exists" };
+        disk.set(p, kind === "folder" ? { dir: true } : { text: "", mtimeMs: Date.now() });
+        return { ok: true, path: p, rel: p.slice(ROOT.length + 1), kind };
+      },
+      rename: async ({ path, name }) => {
+        if (/[\\/]/.test(name) || name === "..") return { error: "bad-name" };
+        const p = `${parent(path)}\\${name}`;
+        if (disk.has(p)) return { error: "exists" };
+        disk.set(p, disk.get(path));
+        disk.delete(path);
+        return { ok: true, path: p, rel: p.slice(ROOT.length + 1), from: path };
+      },
+      duplicate: async ({ path }) => {
+        const p = path.replace(/(\.[^.\\]+)?$/, (e) => ` (2)${e}`);
+        disk.set(p, { ...disk.get(path) });
+        return { ok: true, path: p, rel: p.slice(ROOT.length + 1) };
+      },
+      trash: async ({ path }) => { for (const k of [...disk.keys()]) if (k === path || k.startsWith(`${path}\\`)) disk.delete(k); return { ok: true, path }; },
+      revealItem: async (path) => { window.__mockRevealed = path; return { ok: true }; },
+    },
+    // Konsoldan sinash uchun: agent faylni tashqaridan o'zgartirgandek qiladi.
+    __agentWrite: (path, text) => { const f = disk.get(path) ?? {}; disk.set(path, { ...f, text, mtimeMs: Date.now() }); emit({ type: "fs-changed", paths: [path] }); },
     fsRestore: async () => ({ ok: true }),
     fsRestoreSnapshot: async () => ({ ok: true, restored: 1, removed: 1, kept: 0, lost: 0 }),
     // Xavfsizlik tekshiruvi — namunaviy natija (haqiqiy skaner main'da; ?cleanaudit=1 — toza).

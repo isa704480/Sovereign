@@ -5,7 +5,7 @@
 import { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, Notification, Menu, screen, session as electronSession } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, sep } from "node:path";
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
 // CLI modullari: dev'da repo'dagi ../cli/src; o'rnatilgan ilovada electron-builder
@@ -45,6 +45,7 @@ import { FileBackupStore, FILE_BACKUP_LIMITS } from "./electron/file-backups.mjs
 import * as projectMemory from "../cli/src/project-memory.mjs";
 import { projectCheckStatus, projectClaimIssue, projectJudgeLines } from "../cli/src/project-rules.mjs";
 import { registerProjectIpc } from "./electron/project.mjs";
+import { registerFilesIpc, buildTree } from "./electron/files-ipc.mjs";
 import { runAudit, auditPrompt, AUDIT_LANGS } from "../cli/src/audit.mjs";
 import { detectSandbox, planSandbox, sandboxRule } from "../cli/src/sandbox.mjs";
 
@@ -245,6 +246,33 @@ function prepareWriteMeta(meta) {
     createdId = backupId;
   }
   return { meta: { ...meta, before, beforeUnknown, existed, backupId }, createdId };
+}
+
+/**
+ * Muharrirdagi saqlash/yaratish uchun Undo zaxirasi (files-ipc.mjs shu orqali o'tadi) —
+ * agent yozuvlari bilan bir xil do'kon, shuning uchun mavjud «O'zgarishlar» paneli
+ * va Undo foydalanuvchi tahrirlariga ham ishlaydi. Bir fayl uchun ENG BIRINCHI asl holat.
+ */
+function addUndoBackup(real) {
+  const prev = backupIdByReal.get(real);
+  if (prev) return prev;
+  let existed = false;
+  let data = null;
+  try {
+    if (existsSync(real)) {
+      const st = statSync(real);
+      if (!st.isFile()) return null;
+      if (st.size > BACKUP_MAX) return null; // juda katta — Undo yo'q
+      existed = true;
+      data = readFileSync(real);
+    }
+  } catch {
+    return null;
+  }
+  const id = randomUUID();
+  backupsById.set(id, { real, existed, data });
+  backupIdByReal.set(real, id);
+  return id;
 }
 
 function dropBackup(id) {
@@ -1697,37 +1725,25 @@ handle("update:install", async () => {
 });
 
 // ---- Fayl daraxti / o'qish (React sidebar + diff uchun) ----------------
-const SKIP = new Set(["node_modules", ".git", ".next", "dist", "build", "out", ".turbo", ".cache", "__pycache__", ".venv", "venv", "ui-dist", "release"]);
+// Daraxt qurish electron/files-ipc.mjs da (testlarda Electron'siz tekshiriladi).
 
-function walkTree(dir, depth = 0, max = 6, budget = { n: 0 }) {
-  let entries;
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  const nodes = [];
-  entries.sort((a, b) => (a.isDirectory() === b.isDirectory() ? a.name.localeCompare(b.name) : a.isDirectory() ? -1 : 1));
-  for (const e of entries) {
-    if (budget.n > 4000) break;
-    if (e.name.startsWith(".") && e.name !== ".env.example") continue;
-    if (e.isDirectory() && SKIP.has(e.name)) continue;
-    const full = join(dir, e.name);
-    budget.n++;
-    if (e.isDirectory()) {
-      nodes.push({ name: e.name, path: full, dir: true, children: depth < max ? walkTree(full, depth + 1, max, budget) : [] });
-    } else {
-      nodes.push({ name: e.name, path: full, dir: false });
-    }
-    if (nodes.length > 800) break;
-  }
-  return nodes;
-}
+// Muharrir fayl amallari (yaratish/nom/o'chirish/saqlash/kuzatuv) — alohida modulda,
+// har bir yo'l va nom o'sha yerda qayta tekshiriladi (renderer'ga ishonilmaydi).
+const filesIpc = registerFilesIpc({
+  handle,
+  getWorkspace: () => workspace,
+  resolvePath,
+  isProtected,
+  backups: { add: addUndoBackup },
+  shell,
+  send,
+});
 
 handle("fs:tree", async () => {
   if (!workspace) return { cwd: null, nodes: [] };
   if (!isDir(workspace)) return { cwd: workspace, nodes: [], error: "missing" };
-  return { cwd: workspace, nodes: walkTree(workspace) };
+  filesIpc.ensureWatch(workspace); // papka almashsa — kuzatuvchi ham almashadi
+  return { cwd: workspace, nodes: buildTree(workspace) };
 });
 
 handle("fs:read", async (_e, path) => {

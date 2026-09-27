@@ -105,7 +105,7 @@ function UpdateCard({ update, platform, onAction }) {
   );
 }
 
-export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree, treeError, onOpenTask, onRemoveTask, onNewTask, onPick, onReveal, onRefresh, onOpenFile, changedSet, onSettings, onAccount, busy, update, onUpdateAction }) {
+export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree, treeError, onOpenTask, onRemoveTask, onNewTask, onPick, onReveal, onRefresh, onOpenFile, changedSet, onSettings, onAccount, busy, update, onUpdateAction, onToast, onFileRenamed, onFileRemoved }) {
   const t = useT();
   const folderName = info.cwd ? info.cwd.split(/[\\/]/).filter(Boolean).pop() : null;
   const initials = info.authed ? (info.email || "SC").replace(/@.*/, "").slice(0, 2).toUpperCase() : "";
@@ -165,7 +165,10 @@ export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree
         ) : tree == null ? (
           <div className="skeleton-list" aria-label={t("common.loading")}>{Array.from({ length: 8 }, (_, i) => <span key={i} className="skeleton" style={{ width: `${50 + ((i * 37) % 45)}%` }} />)}</div>
         ) : (
-          <FileTree nodes={tree} onOpen={onOpenFile} changed={changedSet} />
+          <FileTree
+            nodes={tree} onOpen={onOpenFile} changed={changedSet} cwd={info.cwd} platform={info.platform}
+            onRefresh={onRefresh} onToast={onToast} onRenamed={onFileRenamed} onRemoved={onFileRemoved}
+          />
         )}
       </div>
 
