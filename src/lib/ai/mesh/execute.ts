@@ -102,23 +102,33 @@ export interface MeshDeps {
    * nomzod o'tkazib yuboriladi. Berilmasa — hamma nomzodga ruxsat.
    */
   claim?(c: Candidate, adapter: ProviderAdapter, health: HealthSnapshot): Promise<boolean>;
+  /**
+   * Byudjet guard'i (econ/budget.server.ts isPaidRestricted — keshlangan, kutmaydi): true bo'lsa
+   * so'rov `costCeiling: "free"` bilan rejalashtiriladi. Tekin nomzod umuman bo'lmasa — so'rov
+   * buzilmaydi, cheklovsiz reja ishlatiladi (log). Berilmasa — guard yo'q.
+   */
+  paidRestricted?(): Promise<boolean>;
   fetch: typeof fetch;
   sleep(ms: number, signal?: AbortSignal): Promise<void>;
   rng(): number;
   now(): number;
 }
 
-type CoreDeps = Pick<MeshDeps, "adapters" | "snapshot" | "plan" | "record" | "recordUsage" | "claim">;
+type CoreDeps = Pick<MeshDeps, "adapters" | "snapshot" | "plan" | "record" | "recordUsage" | "claim" | "paidRestricted">;
 
 let defaultsPromise: Promise<CoreDeps> | null = null;
 
 /** health/scheduler/registry — faqat kerak bo'lganda (testda soxta deps bo'lsa umuman yuklanmaydi). */
 function loadDefaults(): Promise<CoreDeps> {
   defaultsPromise ??= (async () => {
-    const [health, scheduler, registry] = await Promise.all([
+    const [health, scheduler, registry, budget] = await Promise.all([
       import("./health"),
       import("./scheduler"),
       import("./registry"),
+      import("../../econ/budget.server").catch((err) => {
+        console.error("[mesh] byudjet guard yuklanmadi:", errText(err));
+        return null;
+      }),
     ]);
     const core: CoreDeps = {
       adapters: () => registry.enabledAdapters(),
@@ -136,6 +146,7 @@ function loadDefaults(): Promise<CoreDeps> {
         }
         return true;
       },
+      ...(budget ? { paidRestricted: () => budget.isPaidRestricted() } : {}),
     };
     return core;
   })();
@@ -169,6 +180,8 @@ async function resolveDeps(partial?: Partial<MeshDeps>): Promise<MeshDeps> {
     recordUsage: p.recordUsage ?? (needCore && !p.record ? core!.recordUsage : undefined),
     // Soxta plan berilgan bo'lsa standart probe lock ishlatilmaydi (aralash deps — kutilmagan holat).
     claim: p.claim ?? (needCore ? core!.claim : undefined),
+    // Soxta plan (testlar) — standart byudjet guard'i ulanmaydi (Supabase/Upstash'ga bormaydi).
+    paidRestricted: p.paidRestricted ?? (needCore ? core!.paidRestricted : undefined),
     fetch: p.fetch ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args)),
     sleep: p.sleep ?? defaultSleep,
     rng: p.rng ?? Math.random,
@@ -817,7 +830,23 @@ async function prepare(input: CommonInput, deps: MeshDeps) {
     console.error("[mesh] sog'liq surati o'qilmadi:", errText(err));
   }
   const exclude = input.req.exclude ?? [];
-  const candidates = deps.plan(input.req, adapters, health).filter((c) => !exclude.includes(c.provider));
+  const planFor = (req: RouteRequest) => deps.plan(req, adapters, health).filter((c) => !exclude.includes(c.provider));
+  let candidates: Candidate[] | null = null;
+  if (deps.paidRestricted && !input.req.costCeiling) {
+    let restricted = false;
+    try {
+      restricted = await deps.paidRestricted();
+    } catch {
+      restricted = false;
+    }
+    if (restricted) {
+      // Byudjet guard'i: API sarfi daromadning cap ulushiga yetdi — faqat tekin takliflar.
+      const free = planFor({ ...input.req, costCeiling: "free" });
+      if (free.length) candidates = free;
+      else console.warn("[mesh] budget guard: tekin nomzod yo'q — so'rov buzilmasligi uchun pullik reja ishlatildi");
+    }
+  }
+  candidates ??= planFor(input.req);
   const byId = new Map(adapters.map((a) => [a.id, a] as const));
   return { adapters, health, candidates, chain: new Chain(deps, candidates, byId, health) };
 }

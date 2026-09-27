@@ -29,6 +29,7 @@ import { EASE } from "@/lib/motion";
 import { plural } from "@/lib/plural";
 import { useLang, useT } from "@/store/chat";
 import type { EconRange, UnitEconomics } from "@/lib/econ/unit-economics";
+import type { BudgetSnapshot } from "@/lib/econ/budget";
 import { UnitEconomicsCard } from "./UnitEconomicsCard";
 
 interface DailyStat {
@@ -107,6 +108,8 @@ interface AdminDashboardProps {
   /** Unit economics (service role, faqat admin sahifasida — is_admin tekshiruvidan keyin — hisoblanadi). */
   economics?: UnitEconomics | null;
   econDays?: EconRange;
+  /** API byudjeti (joriy oy daromad/sarf, guard holati, OpenRouter balansi). */
+  budget?: BudgetSnapshot | null;
 }
 
 const AGE_LABEL: Record<string, string> = {
@@ -174,6 +177,7 @@ export function AdminDashboard({
   models,
   economics,
   econDays = 30,
+  budget,
 }: AdminDashboardProps) {
   const t = useT();
   const lang = useLang();
@@ -572,7 +576,7 @@ export function AdminDashboard({
         </section>
 
         {/* Unit economics: javob narxi bizda va bitta vendor flagmanida */}
-        <UnitEconomicsCard data={economics ?? null} days={econDays} />
+        <UnitEconomicsCard data={economics ?? null} days={econDays} budget={budget ?? null} />
 
         {/* Oxirgi to'lovlar jadvali */}
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">

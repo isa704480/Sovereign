@@ -42,6 +42,9 @@ export type PlanTier = "free" | "starter" | "pro" | "ultra";
 /** Tarif tartibi: offer.minTier <= plan bo'lsa ruxsat. */
 export const TIER_RANK: Record<PlanTier, number> = { free: 0, starter: 1, pro: 2, ultra: 3 };
 
+/** Narx tartibi (RouteRequest.costCeiling): offer.cost <= shift bo'lsa ruxsat. */
+export const COST_RANK: Record<"free" | "cheap" | "paid", number> = { free: 0, cheap: 1, paid: 2 };
+
 /* ------------------------------------------------------------------ */
 /* Model takliflari (offers)                                           */
 /* ------------------------------------------------------------------ */
@@ -329,6 +332,12 @@ export interface RouteRequest {
   sameModelOnly?: boolean;
   /** false — rescue adapterlar (LLM7 va h.k.) ishlatilmaydi (StreamOptions.freeRescue). Standart: true. */
   allowRescue?: boolean;
+  /**
+   * Narx shifti: shundan qimmat takliflar (free < cheap < paid) tanlanmaydi. Byudjet guard'i
+   * (econ/budget.ts — API sarfi daromadning BUDGET_CAP_RATIO ulushiga yetdi) "free" qo'yadi.
+   * Berilmasa — cheklov yo'q.
+   */
+  costCeiling?: OfferCost;
 }
 
 export interface Candidate {

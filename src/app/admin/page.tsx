@@ -3,6 +3,7 @@ import { AdminDashboard, type OnboardingStats, type ModelStats } from "@/compone
 import { createClient } from "@/lib/supabase/server";
 import { parseEconRange } from "@/lib/econ/unit-economics";
 import { getUnitEconomics } from "@/lib/econ/unit-economics.server";
+import { getBudgetSnapshot } from "@/lib/econ/budget.server";
 
 export const metadata = { title: "Admin · SOVEREIGN" };
 
@@ -26,7 +27,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   }
 
   // Barcha analytics'larni parallel yuklaymiz
-  const [summary, daily, plans, recent, onboarding, models, economics] = await Promise.all([
+  const [summary, daily, plans, recent, onboarding, models, economics, budget] = await Promise.all([
     supabase.rpc("admin_users_summary"),
     supabase.rpc("admin_daily_stats", { p_days: 30 }),
     supabase.rpc("admin_plan_distribution"),
@@ -37,6 +38,8 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     supabase.rpc("admin_model_stats"),
     // Unit economics — service role FAQAT shu yerda, is_admin tekshiruvidan keyin (serverda).
     getUnitEconomics(econDays),
+    // API byudjeti (50% qoidasi) — guard holati va OpenRouter balansi; hech qachon otmaydi.
+    getBudgetSnapshot(),
   ]);
 
   return (
@@ -50,6 +53,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
       models={(models.data as ModelStats | null) ?? null}
       economics={economics}
       econDays={econDays}
+      budget={budget}
     />
   );
 }

@@ -155,4 +155,158 @@ export const P13E = {
     ru: "Прайсы на {date} (источники: src/config/model-prices.ts)",
     en: "List prices as of {date} (sources: src/config/model-prices.ts)",
   },
+
+  /* ---- API byudjeti (50% qoidasi) — admin kartasi ---- */
+  p13eBudgetTitle: {
+    uz: "API byudjeti — joriy oy (sarf daromadning ulushi sifatida)",
+    "uz-cyrl": "API бюджети — жорий ой (сарф даромаднинг улуши сифатида)",
+    ru: "Бюджет API — текущий месяц (расход как доля выручки)",
+    en: "API budget — this month (spend as a share of revenue)",
+  },
+  p13eBudgetUnavailable: {
+    uz: "Byudjet ma'lumoti yo'q (Supabase service role kaliti sozlanmagan yoki xato).",
+    "uz-cyrl": "Бюджет маълумоти йўқ (Supabase сервис калити созланмаган ёки хато).",
+    ru: "Нет данных бюджета (не настроен сервисный ключ Supabase или ошибка).",
+    en: "Budget data unavailable (Supabase service role key missing or error).",
+  },
+  p13eBudgetRevenue: {
+    uz: "Daromad (to'langan buyurtmalar)",
+    "uz-cyrl": "Даромад (тўланган буюртмалар)",
+    ru: "Выручка (оплаченные заказы)",
+    en: "Revenue (paid orders)",
+  },
+  p13eBudgetSpend: {
+    uz: "API sarfi (taxmin)",
+    "uz-cyrl": "API сарфи (тахмин)",
+    ru: "Расход на API (оценка)",
+    en: "API spend (estimate)",
+  },
+  p13eBudgetFreeTier: {
+    uz: "Tekin tarif ro'yxat narxida: {cost} (hisobga kirmaydi)",
+    "uz-cyrl": "Текин тариф рўйхат нархида: {cost} (ҳисобга кирмайди)",
+    ru: "Бесплатные тарифы по прайсу: {cost} (не учитываются)",
+    en: "Free tier at list price: {cost} (not counted)",
+  },
+  p13eBudgetRatio: {
+    uz: "Sarf / daromad",
+    "uz-cyrl": "Сарф / даромад",
+    ru: "Расход / выручка",
+    en: "Spend / revenue",
+  },
+  p13eBudgetRatioSub: {
+    uz: "ogohlantirish {warn} · chegara {cap}",
+    "uz-cyrl": "огоҳлантириш {warn} · чегара {cap}",
+    ru: "предупреждение {warn} · лимит {cap}",
+    en: "warn {warn} · cap {cap}",
+  },
+  p13eBudgetGuard: {
+    uz: "Byudjet himoyasi",
+    "uz-cyrl": "Бюджет ҳимояси",
+    ru: "Защита бюджета",
+    en: "Budget guard",
+  },
+  p13eBudgetGuardOn: {
+    uz: "Faqat tekin modellar",
+    "uz-cyrl": "Фақат текин моделлар",
+    ru: "Только бесплатные модели",
+    en: "Free models only",
+  },
+  p13eBudgetGuardWarn: {
+    uz: "Chegaraga yaqin",
+    "uz-cyrl": "Чегарага яқин",
+    ru: "Близко к лимиту",
+    en: "Near the cap",
+  },
+  p13eBudgetGuardOff: {
+    uz: "O'chiq",
+    "uz-cyrl": "Ўчиқ",
+    ru: "Выключена",
+    en: "Off",
+  },
+  p13eBudgetOpenrouter: {
+    uz: "OpenRouter balansi",
+    "uz-cyrl": "OpenRouter баланси",
+    ru: "Баланс OpenRouter",
+    en: "OpenRouter balance",
+  },
+  p13eBudgetOpenrouterNa: {
+    uz: "noma'lum",
+    "uz-cyrl": "номаълум",
+    ru: "нет данных",
+    en: "unknown",
+  },
+  p13eBudgetOpenrouterMonth: {
+    uz: "shu oy sarf: {usd}",
+    "uz-cyrl": "шу ой сарф: {usd}",
+    ru: "расход за месяц: {usd}",
+    en: "spent this month: {usd}",
+  },
+  p13eBudgetAllowance: {
+    uz: "Ruxsat: {allowance} = max(minimum {floor}, daromad × {cap}). Undan oshsa — faqat tekin provayderlar (Groq, Cloudflare va h.k.).",
+    "uz-cyrl": "Рухсат: {allowance} = МАКС(минимум {floor}, даромад × {cap}). Ундан ошса — фақат текин провайдерлар (Groq, Cloudflare ва ҳ.к.).",
+    ru: "Лимит: {allowance} = max(минимум {floor}, выручка × {cap}). Выше — только бесплатные провайдеры (Groq, Cloudflare и т. д.).",
+    en: "Allowance: {allowance} = max(floor {floor}, revenue × {cap}). Above it — free providers only (Groq, Cloudflare, etc.).",
+  },
+  p13eBudgetOrders: {
+    uz: "Buyurtmalar: {n} (yillik — oyiga 1/12 dan: {yearly})",
+    "uz-cyrl": "Буюртмалар: {n} (йиллик — ойига 1/12 дан: {yearly})",
+    ru: "Заказы: {n} (годовые — по 1/12 в месяц: {yearly})",
+    en: "Orders: {n} (yearly counted at 1/12 per month: {yearly})",
+  },
+  p13eBudgetRubRate: {
+    uz: "RUB kursi: {rate} ({source})",
+    "uz-cyrl": "RUB курси: {rate} ({source})",
+    ru: "Курс RUB: {rate} ({source})",
+    en: "RUB rate: {rate} ({source})",
+  },
+  p13eBudgetRubNone: {
+    uz: "Kurs yo'qligi sababli hisoblanmagan RUB buyurtmalar: {n} (BUDGET_RUB_PER_USD ni qo'ying)",
+    "uz-cyrl": "Курс йўқлиги сабабли ҳисобланмаган RUB буюртмалар: {n} (BUDGET_RUB_PER_USD ни қўйинг)",
+    ru: "RUB-заказы без курса (не учтены): {n} (задайте BUDGET_RUB_PER_USD)",
+    en: "RUB orders not counted (no rate): {n} (set BUDGET_RUB_PER_USD)",
+  },
+  p13eBudgetAsOf: {
+    uz: "Hisoblangan: {time} UTC (5 daqiqa keshlanadi)",
+    "uz-cyrl": "Ҳисобланган: {time} UTC (5 дақиқа кешланади)",
+    ru: "Рассчитано: {time} UTC (кеш 5 минут)",
+    en: "Computed: {time} UTC (cached for 5 minutes)",
+  },
+
+  /* ---- Byudjet alertlari (Telegram / email, ALERT_LANG tilida) ---- */
+  p13eAlertTitle: {
+    uz: "SOVEREIGN — API byudjeti",
+    "uz-cyrl": "SOVEREIGN — API бюджети",
+    ru: "SOVEREIGN — бюджет API",
+    en: "SOVEREIGN — API budget",
+  },
+  p13eAlertOpenrouterLow: {
+    uz: "OpenRouter balansi kam: {balance} (chegara {min}). Kreditni to'ldiring.",
+    "uz-cyrl": "OpenRouter баланси кам: {balance} (чегара {min}). Кредитни тўлдиринг.",
+    ru: "Мало средств на OpenRouter: {balance} (порог {min}). Пополните баланс.",
+    en: "OpenRouter balance is low: {balance} (threshold {min}). Please top up.",
+  },
+  p13eAlertWarn: {
+    uz: "{month}: API sarfi {spend} — daromad {revenue} ning {ratio} i (ogohlantirish {warn}, ruxsat {allowance}).",
+    "uz-cyrl": "{month}: API сарфи {spend} — даромад {revenue} нинг {ratio} и (огоҳлантириш {warn}, рухсат {allowance}).",
+    ru: "{month}: расход на API {spend} — {ratio} от выручки {revenue} (предупреждение {warn}, лимит {allowance}).",
+    en: "{month}: API spend {spend} is {ratio} of revenue {revenue} (warning at {warn}, allowance {allowance}).",
+  },
+  p13eAlertCap: {
+    uz: "{month}: API sarfi {spend} ruxsatga ({allowance}, daromad {revenue} × {cap}) yetdi. Pullik modellar to'xtatildi — faqat tekin provayderlar ishlaydi.",
+    "uz-cyrl": "{month}: API сарфи {spend} рухсатга ({allowance}, даромад {revenue} × {cap}) етди. Пуллик моделлар тўхтатилди — фақат текин провайдерлар ишлайди.",
+    ru: "{month}: расход на API {spend} достиг лимита ({allowance}, выручка {revenue} × {cap}). Платные модели приостановлены — работают только бесплатные провайдеры.",
+    en: "{month}: API spend {spend} reached the allowance ({allowance}, revenue {revenue} × {cap}). Paid models are paused — free providers only.",
+  },
+  p13eAlertGuardOn: {
+    uz: "Byudjet himoyasi YOQILDI: sarf {spend} ≥ ruxsat {allowance}. Daromad oshsa yoki yangi oy boshlansa o'zi o'chadi.",
+    "uz-cyrl": "Бюджет ҳимояси ЁҚИЛДИ: сарф {spend} ≥ рухсат {allowance}. Даромад ошса ёки янги ой бошланса ўзи ўчади.",
+    ru: "Защита бюджета ВКЛЮЧЕНА: расход {spend} ≥ лимит {allowance}. Выключится сама при росте выручки или в новом месяце.",
+    en: "Budget guard ON: spend {spend} ≥ allowance {allowance}. It turns off by itself when revenue grows or a new month starts.",
+  },
+  p13eAlertGuardOff: {
+    uz: "Byudjet himoyasi O'CHDI: sarf {spend}, ruxsat {allowance}. Pullik modellar yana ishlaydi.",
+    "uz-cyrl": "Бюджет ҳимояси ЎЧДИ: сарф {spend}, рухсат {allowance}. Пуллик моделлар яна ишлайди.",
+    ru: "Защита бюджета ВЫКЛЮЧЕНА: расход {spend}, лимит {allowance}. Платные модели снова доступны.",
+    en: "Budget guard OFF: spend {spend}, allowance {allowance}. Paid models are available again.",
+  },
 } satisfies Dict;
