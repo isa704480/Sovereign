@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { UPDATES } from "@/content/updates";
 import { LEGAL_UPDATED } from "@/lib/locales/legal";
+import MODEL_COMPARE from "@/data/model-compare.json";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://soveregn.xyz").replace(/\/$/, "");
 
@@ -16,6 +17,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/register`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${SITE_URL}/login`, changeFrequency: "monthly", priority: 0.5 },
     { url: `${SITE_URL}/updates`, lastModified: product, changeFrequency: "weekly", priority: 0.6 },
+    { url: `${SITE_URL}/compare`, lastModified: MODEL_COMPARE.runDate, changeFrequency: "monthly", priority: 0.6 },
     { url: `${SITE_URL}/terms`, lastModified: LEGAL_UPDATED, changeFrequency: "yearly", priority: 0.3 },
     { url: `${SITE_URL}/privacy`, lastModified: LEGAL_UPDATED, changeFrequency: "yearly", priority: 0.3 },
     { url: `${SITE_URL}/refund`, lastModified: LEGAL_UPDATED, changeFrequency: "yearly", priority: 0.3 },
