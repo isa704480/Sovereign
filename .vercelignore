@@ -4,6 +4,7 @@ node_modules
 .env
 /docs
 /cli
+/vscode
 /supabase
 /db
 tsconfig.tsbuildinfo

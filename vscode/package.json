@@ -1,0 +1,261 @@
+{
+  "name": "sovereign",
+  "displayName": "SOVEREIGN",
+  "description": "%ext.description%",
+  "version": "0.1.0",
+  "publisher": "sovereign",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "homepage": "https://soveregn.xyz",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/isa704480/Sovereign.git",
+    "directory": "vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/isa704480/Sovereign/issues"
+  },
+  "engines": {
+    "vscode": "^1.85.0",
+    "node": ">=20"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Programming Languages",
+    "Education",
+    "Other"
+  ],
+  "keywords": [
+    "sovereign",
+    "ai",
+    "chat",
+    "assistant",
+    "explain code"
+  ],
+  "galleryBanner": {
+    "color": "#060812",
+    "theme": "dark"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onView:sovereign.chatView"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "sovereign",
+          "title": "%view.container.title%",
+          "icon": "media/activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "sovereign": [
+        {
+          "id": "sovereign.chatView",
+          "name": "%view.chat.name%",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "sovereign.openChat",
+        "title": "%cmd.openChat%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.explainSelection",
+        "title": "%cmd.explainSelection%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.fixError",
+        "title": "%cmd.fixError%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.writeTest",
+        "title": "%cmd.writeTest%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.askAboutFile",
+        "title": "%cmd.askAboutFile%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.login",
+        "title": "%cmd.login%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.useCliLogin",
+        "title": "%cmd.useCliLogin%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.logout",
+        "title": "%cmd.logout%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.pickModel",
+        "title": "%cmd.pickModel%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.openSettings",
+        "title": "%cmd.openSettings%",
+        "category": "SOVEREIGN"
+      },
+      {
+        "command": "sovereign.statusMenu",
+        "title": "%cmd.statusMenu%",
+        "category": "SOVEREIGN"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "submenu": "sovereign.editorContext",
+          "group": "navigation@9"
+        }
+      ],
+      "sovereign.editorContext": [
+        {
+          "command": "sovereign.explainSelection",
+          "group": "1_ask@1"
+        },
+        {
+          "command": "sovereign.fixError",
+          "group": "1_ask@2"
+        },
+        {
+          "command": "sovereign.writeTest",
+          "group": "1_ask@3"
+        },
+        {
+          "command": "sovereign.askAboutFile",
+          "group": "1_ask@4"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "sovereign.pickModel",
+          "when": "view == sovereign.chatView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "sovereign.openSettings",
+          "when": "view == sovereign.chatView",
+          "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "sovereign.statusMenu",
+          "when": "false"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "sovereign.editorContext",
+        "label": "%menu.submenu%"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "sovereign.openChat",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s"
+      },
+      {
+        "command": "sovereign.explainSelection",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "sovereign.fixError",
+        "key": "ctrl+alt+x",
+        "mac": "cmd+alt+x",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "sovereign.writeTest",
+        "key": "ctrl+alt+t",
+        "mac": "cmd+alt+t",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "SOVEREIGN",
+      "properties": {
+        "sovereign.baseUrl": {
+          "type": "string",
+          "default": "https://soveregn.xyz",
+          "markdownDescription": "%cfg.baseUrl%",
+          "scope": "machine"
+        },
+        "sovereign.model": {
+          "type": "string",
+          "default": "auto",
+          "markdownDescription": "%cfg.model%",
+          "scope": "machine-overridable"
+        },
+        "sovereign.maxContextLines": {
+          "type": "integer",
+          "default": 120,
+          "minimum": 0,
+          "maximum": 600,
+          "markdownDescription": "%cfg.maxContextLines%"
+        },
+        "sovereign.language": {
+          "type": "string",
+          "default": "auto",
+          "enum": [
+            "auto",
+            "uz",
+            "uz-cyrl",
+            "ru",
+            "en"
+          ],
+          "enumDescriptions": [
+            "%cfg.language.auto%",
+            "O‘zbekcha (lotin)",
+            "Ўзбекча (кирилл)",
+            "Русский",
+            "English"
+          ],
+          "markdownDescription": "%cfg.language%"
+        },
+        "sovereign.telemetry": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%cfg.telemetry%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "npm run typecheck && node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build:test": "tsc -p tsconfig.test.json",
+    "pretest": "npm run build:test",
+    "test": "node --test \"out/test/*.test.js\"",
+    "vscode:prepublish": "npm run compile",
+    "package": "vsce package --out sovereign.vsix"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.9",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.6.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.2"
+  }
+}

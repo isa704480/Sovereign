@@ -1,0 +1,23 @@
+{
+  "ext.description": "SOVEREIGN muharririnigizda — joriy fayl yoki belgilangan kod haqida so‘rang, kodni tushuntiring, xatolarni tuzating va test yozing.",
+  "view.container.title": "SOVEREIGN",
+  "view.chat.name": "Suhbat",
+  "menu.submenu": "SOVEREIGN",
+  "cmd.openChat": "Suhbatni ochish",
+  "cmd.explainSelection": "Belgilanganini tushuntirish",
+  "cmd.fixError": "Bu xatoni tuzatish",
+  "cmd.writeTest": "Bu funksiyaga test yozish",
+  "cmd.askAboutFile": "Shu fayl haqida so‘rash",
+  "cmd.login": "Kirish",
+  "cmd.useCliLogin": "CLI’dagi kirishdan foydalanish",
+  "cmd.logout": "Chiqish",
+  "cmd.pickModel": "Model tanlash",
+  "cmd.openSettings": "Sozlamalar",
+  "cmd.statusMenu": "Holat menyusi",
+  "cfg.baseUrl": "SOVEREIGN server manzili. Faqat `https://` qabul qilinadi (ishlab chiqish uchun `http://localhost` ham).",
+  "cfg.model": "SOVEREIGN katalogidagi model id’si yoki `auto` — serverning o‘zi tanlaydi.",
+  "cfg.maxContextLines": "Belgilangan joy atrofidan yuboriladigan qatorlarning eng ko‘p soni. Butun loyiha hech qachon yuborilmaydi.",
+  "cfg.language": "SOVEREIGN panelining tili. `auto` — muharrir tiliga ergashadi.",
+  "cfg.language.auto": "Muharrir tiliga ergashish",
+  "cfg.telemetry": "Standart holatda o‘chiq. Kengaytma telemetriya yig‘maydi; bu tugma javob aniq bo‘lishi uchun qoldirilgan."
+}
