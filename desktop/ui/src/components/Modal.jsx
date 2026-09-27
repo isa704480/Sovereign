@@ -1,27 +1,74 @@
 import React, { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useT } from "../lib/i18n.js";
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
+ * Modal qatlamlari steki (modul darajasida). Bir nechta dialog/popover ochiq bo'lsa, Esc va Tab'ni
+ * faqat ENG USTIDAGI qatlam boshqaradi: pastdagi dialog Esc'da birga yopilmaydi, fokus tuzog'i
+ * ustma-ust kurashmaydi. trap:false — popover (ModelPicker): Esc'ni oladi, Tab'ni tuzoqqa solmaydi.
+ */
+const layers = [];
+let layerSeq = 0;
+const listeners = new Set();
+const emit = () => listeners.forEach((fn) => fn(layers.length));
+
+/** Hozir biror modal/popover ochiqmi (global tezkor tugmalar uchun: Ctrl+K va boshqalar). */
+export const hasOpenLayer = () => layers.length > 0;
+const isTop = (id) => layers.length > 0 && layers[layers.length - 1].id === id;
+const isTopTrap = (id) => {
+  for (let i = layers.length - 1; i >= 0; i--) if (layers[i].trap) return layers[i].id === id;
+  return false;
+};
+
+/**
+ * Qatlamni stekka qo'shadi (active bo'lganda). onEscape — faqat shu qatlam eng ustida bo'lganda chaqiriladi;
+ * hodisa stopImmediatePropagation bilan to'xtatiladi (pastdagi qatlam va App tugmalari ko'rmaydi).
+ * Qaytaradi: { isTop, isTopTrap } tekshiruvchilari.
+ */
+export function useModalLayer(active, { onEscape, trap = true } = {}) {
+  const escRef = useRef(onEscape);
+  escRef.current = onEscape;
+  const idRef = useRef(0);
+  useEffect(() => {
+    if (!active) return undefined;
+    const id = ++layerSeq;
+    idRef.current = id;
+    layers.push({ id, trap });
+    emit();
+    const onKey = (e) => {
+      if (e.key !== "Escape" || !isTop(id) || !escRef.current) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      escRef.current();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      const i = layers.findIndex((l) => l.id === id);
+      if (i >= 0) layers.splice(i, 1);
+      emit();
+    };
+  }, [active, trap]);
+  return { isTop: () => isTop(idRef.current), isTopTrap: () => isTopTrap(idRef.current) };
+}
+
+/**
  * Fokus tuzog'i: Tab/Shift+Tab dialog ichida aylanadi; yopilganda fokus
  * avvalgi elementga qaytadi. initialFocus — birinchi fokus oladigan element ref'i.
+ * Modal stekiga qo'shiladi: Esc/Tab faqat eng ustki dialogda ishlaydi.
  */
 export function useFocusTrap(ref, { initialFocus, onEscape } = {}) {
+  const layer = useModalLayer(true, { onEscape, trap: true });
   useEffect(() => {
     const prev = document.activeElement;
     const root = ref.current;
     const first = initialFocus?.current ?? root?.querySelector("[data-autofocus]") ?? root?.querySelector(FOCUSABLE);
     (first ?? root)?.focus();
     const onKey = (e) => {
-      if (e.key === "Escape" && onEscape) {
-        e.preventDefault();
-        e.stopPropagation();
-        onEscape();
-        return;
-      }
-      if (e.key !== "Tab" || !root) return;
-      const els = [...root.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      if (e.key !== "Tab" || !root || !layer.isTopTrap()) return;
+      const els = [...root.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null && el.tabIndex >= 0);
       if (!els.length) return;
       const a = els[0];
       const z = els[els.length - 1];
@@ -50,7 +97,8 @@ export default function Modal({ title, onClose, children, width = 640, className
   const hid = useId();
   const t = useT();
   useFocusTrap(ref, { onEscape: onClose });
-  return (
+  // Portal: ota element (masalan, suzuvchi .rpanel) transform/stacking konteksti dialogni qirqmasin.
+  return createPortal(
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div
         ref={ref}
@@ -75,6 +123,7 @@ export default function Modal({ title, onClose, children, width = 640, className
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -1,6 +1,7 @@
 import React from "react";
 import Icon, { Logo } from "./Icon.jsx";
 import { useT } from "../lib/i18n.js";
+import { kbd } from "../lib/keys.js";
 import { useLocalMode } from "../lib/localMode.js";
 
 /**
@@ -38,11 +39,11 @@ export function TitleBar({ info, onToggleSidebar, onTogglePanel, onPalette, side
         <span className="brand">SOVEREIGN <span className="brand-sub">Cowork</span></span>
         {!minimal && (
           <>
-            <button type="button" className={`icon-btn nodrag ${sidebar ? "on" : ""}`} aria-label={t("tb.sidebar")} aria-pressed={sidebar} title={`${t("tb.sidebar")} (Ctrl+B)`} onClick={onToggleSidebar}>
+            <button type="button" className={`icon-btn nodrag ${sidebar ? "on" : ""}`} aria-label={t("tb.sidebar")} aria-pressed={sidebar} title={`${t("tb.sidebar")} (${kbd("Ctrl+B")})`} onClick={onToggleSidebar}>
               <Icon name="sidebar" size={15} />
             </button>
             {crumbs.length > 0 && (
-              <span className="crumbs trunc" title={info.cwd}>
+              <span className="crumbs trunc nodrag" title={info.cwd}>
                 <Icon name="folder" size={13} />
                 {crumbs.map((c, i) => <React.Fragment key={i}>{i > 0 && <span className="faint">/</span>}<span className={i === crumbs.length - 1 ? "strong" : "faint"}>{c}</span></React.Fragment>)}
               </span>
@@ -54,13 +55,13 @@ export function TitleBar({ info, onToggleSidebar, onTogglePanel, onPalette, side
         <button type="button" className="tb-search nodrag" onClick={onPalette} aria-label={t("palette.open")}>
           <Icon name="search" size={13} />
           <span className="grow">{t("palette.placeholderShort")}</span>
-          <kbd>Ctrl K</kbd>
+          <kbd>{kbd("Ctrl K")}</kbd>
         </button>
       )}
       <div className="tb-right">
         {!minimal && <LocalBadge local={local} onClick={onLocal} />}
         {!minimal && (
-          <button type="button" className={`icon-btn nodrag ${panel ? "on" : ""}`} aria-label={t("tb.panel")} aria-pressed={panel} title={`${t("tb.panel")} (Ctrl+J)`} onClick={onTogglePanel}>
+          <button type="button" className={`icon-btn nodrag ${panel ? "on" : ""}`} aria-label={t("tb.panel")} aria-pressed={panel} title={`${t("tb.panel")} (${kbd("Ctrl+J")})`} onClick={onTogglePanel}>
             <Icon name="panel" size={15} />
           </button>
         )}
@@ -85,9 +86,9 @@ export function StatusBar({ info, mode, model, busy, onShortcuts, update, onUpda
       {local ? (
         <span className="sb-item sb-ok" title={t("local.badgeTitle", { model: local.model })}><Icon name="monitor" size={12} /> {t("local.marker", { model: local.model })}</span>
       ) : (
-        <span className="sb-item"><Icon name="sparkle" size={12} /> {model}</span>
+        <span className="sb-item"><Icon name="sparkle" size={12} /> {!model || model === "Auto" ? t("model.auto") : model}</span>
       )}
-      <button type="button" className="sb-item sb-link" onClick={onShortcuts} title={t("sc.title")} aria-label={`${t("sc.title")} (Ctrl /)`}><Icon name="keyboard" size={12} /> Ctrl /</button>
+      <button type="button" className="sb-item sb-link" onClick={onShortcuts} title={t("sc.title")} aria-label={`${t("sc.title")} (${kbd("Ctrl /")})`}><Icon name="keyboard" size={12} /> {kbd("Ctrl /")}</button>
       <span className="sb-item faint">v{info.version}</span>
     </footer>
   );

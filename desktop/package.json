@@ -39,7 +39,8 @@
     "wait-on": "^8.0.0"
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "electron-updater": "^6.8.9",
+    "pdf-parse": "^2.4.5"
   },
   "build": {
     "appId": "app.sovereign.cowork",
@@ -54,7 +55,14 @@
       "preload.cjs",
       "electron/**",
       "ui-dist/**",
-      "package.json"
+      "package.json",
+      "!**/node_modules/{pdfjs-dist,pdf-parse}/**/*.map",
+      "!**/node_modules/{pdfjs-dist,pdf-parse}/**/*.d.{ts,cts,mts}",
+      "!**/node_modules/pdfjs-dist/{build,web,types,image_decoders}/**",
+      "!**/node_modules/pdfjs-dist/legacy/{web,image_decoders}/**",
+      "!**/node_modules/pdf-parse/dist/{worker,node}/**",
+      "!**/node_modules/pdf-parse/dist/pdf-parse/{web,cjs}/**",
+      "!**/node_modules/pdf-parse/bin/**"
     ],
     "extraResources": [
       {

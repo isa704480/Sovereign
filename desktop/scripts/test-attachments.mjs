@@ -13,6 +13,7 @@ import {
   validThumb,
   checkPickedPath,
   readPicked,
+  desktopPdfText,
   AttachmentStore,
   publicItem,
   buildUserContent,
@@ -184,6 +185,68 @@ test("readPicked: ikkilik / qo'llab-quvvatlanmaydigan / bo'sh / buzuq rasm / buz
   assert.equal((await readPicked(p(".env"))).error, "protected");
   const e = await readPicked(p("app.exe"));
   assert.equal(e.name, "app.exe");
+});
+
+// ---- PDF: pdf-parse Cowork'ning o'z bog'liqligidan (o'rnatilgan ilovada cli/src yonida node_modules yo'q) ----
+/** Kichik, haqiqiy PDF (1 sahifa, Helvetica, xref ofsetlari to'g'ri) — tashqi faylsiz. */
+function makePdf(lines, height = 842) {
+  const esc = (s) => s.replace(/[\\()]/g, (c) => `\\${c}`);
+  const content = `BT /F1 10 Tf 14 TL 40 ${height - 42} Td ${lines.map((l) => `(${esc(l)}) Tj T*`).join(" ")} ET`;
+  const objs = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${height}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`,
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    `<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream`,
+  ];
+  let out = "%PDF-1.4\n";
+  const offs = [];
+  objs.forEach((o, i) => {
+    offs.push(Buffer.byteLength(out, "latin1"));
+    out += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = Buffer.byteLength(out, "latin1");
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offs.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("")}`;
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, "latin1");
+}
+writeFileSync(p("hello.pdf"), makePdf(["Hello Cowork PDF", "Second line 42"]));
+writeFileSync(p("long.pdf"), makePdf(Array.from({ length: 420 }, (_, i) => `Line ${String(i).padStart(3, "0")} ${"lorem ipsum dolor ".repeat(5)}`), 6000));
+writeFileSync(p("huge.pdf"), Buffer.concat([Buffer.from("%PDF-1.4\n"), Buffer.alloc(20 * 1024 * 1024 + 16)]));
+
+test("desktopPdfText: pdf-parse desktop bog'liqligidan yuklanadi va matn ajratadi", async () => {
+  const r = await desktopPdfText(makePdf(["Direct extractor check"]));
+  assert.equal(r.missing, undefined);
+  assert.match(r.text, /Direct extractor check/);
+});
+
+test("readPicked: PDF → matn qismi (tarkib main'da, renderer'ga faqat meta)", async () => {
+  const r = await readPicked(p("hello.pdf"));
+  assert.equal(r.error, undefined, `xato: ${r.error}`);
+  assert.equal(r.item.kind, "file");
+  assert.equal(r.item.sub, "pdf");
+  assert.match(r.item.part.text, /^\[PDF: hello\.pdf\]\n/);
+  assert.match(r.item.part.text, /Hello Cowork PDF/);
+  assert.match(r.item.part.text, /Second line 42/);
+  assert.equal(r.item.truncated, false);
+  const pub = publicItem("id2", r.item);
+  assert.equal(JSON.stringify(pub).includes("Hello Cowork"), false);
+});
+
+test("readPicked: uzun PDF 30 000 belgida qisqartiriladi", async () => {
+  const r = await readPicked(p("long.pdf"));
+  assert.equal(r.item.sub, "pdf");
+  assert.equal(r.item.truncated, true);
+  assert.ok(r.item.part.text.length <= LIMITS.fileTextChars + 40, `${r.item.part.text.length}`);
+});
+
+test("readPicked: PDF chegaralari — 20 MB, magic bayt, ajratuvchi yo'q / xato", async () => {
+  assert.equal((await readPicked(p("huge.pdf"))).error, "too-large");
+  assert.equal((await readPicked(p("bad.pdf"))).error, "bad-pdf");
+  // Modul topilmasa — "pdf-unavailable"; parser xato bersa (buzilgan/parolli) — "pdf-unreadable".
+  assert.equal((await readPicked(p("hello.pdf"), { pdfText: async () => ({ missing: true }) })).error, "pdf-unavailable");
+  assert.equal((await readPicked(p("hello.pdf"), { pdfText: async () => { throw new Error("PasswordException"); } })).error, "pdf-unreadable");
+  assert.equal((await readPicked(p("hello.pdf"), { pdfText: async () => ({ text: "   \n " }) })).error, "pdf-empty");
 });
 
 test("readPicked: rasm → sniff qilingan MIME bilan data URL", async () => {
@@ -358,7 +421,7 @@ test("renderer checkAdd/checkSend/toSendPayload", () => {
 });
 
 test("renderer: har bir xato kodi uchun 4 tilda matn bor", () => {
-  const codes = ["unsupported", "too-large", "protected", "not-found", "not-file", "binary", "bad-image", "bad-pdf", "pdf-unavailable", "pdf-empty", "empty", "unc", "too-many", "too-large-total", "expired", "processing", "io", "whatever"];
+  const codes = ["unsupported", "too-large", "protected", "not-found", "not-file", "binary", "bad-image", "bad-pdf", "pdf-unavailable", "pdf-unreadable", "pdf-empty", "empty", "unc", "too-many", "too-large-total", "expired", "processing", "io", "whatever"];
   for (const c of codes) {
     const key = attachErrKey(c);
     for (const lang of ["uz", "en", "ru"]) assert.ok(KEYS[lang][key], `${lang}: ${key}`);

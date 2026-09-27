@@ -4,6 +4,7 @@ import Icon, { Logo } from "./Icon.jsx";
 import SignIn from "./SignIn.jsx";
 import ModelPicker, { LocalRecommend, LocalCaps, loadLocal } from "./ModelPicker.jsx";
 import { useT, LANGS } from "../lib/i18n.js";
+import { tabKeyDown } from "../lib/tabs.js";
 import { formatTokens } from "../lib/agent.js";
 import { useLocalMode, setLocalMode, refreshLocal } from "../lib/localMode.js";
 import { SKILLS, MAX_ACTIVE_SKILLS, skillName } from "../lib/skills.js";
@@ -58,13 +59,15 @@ function SandboxSection({ settings, setSetting }) {
   const t = useT();
   const [st, setSt] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false); // tekshiruv xatosi — abadiy "tekshirilmoqda" emas
   const mode = settings.sandbox ?? "auto";
   const load = (force = false) => {
-    if (!window.sovereign?.sandboxStatus) return;
+    if (!window.sovereign?.sandboxStatus) { setFailed(true); return; }
     setBusy(true);
+    setFailed(false);
     Promise.resolve(window.sovereign.sandboxStatus(force))
-      .then((s) => setSt(s ?? null))
-      .catch(() => setSt(null))
+      .then((s) => { if (s?.level) setSt(s); else { setSt(null); setFailed(true); } })
+      .catch(() => { setSt(null); setFailed(true); })
       .finally(() => setBusy(false));
   };
   useEffect(() => { load(false); }, [mode]);
@@ -75,7 +78,9 @@ function SandboxSection({ settings, setSetting }) {
     <div className="field">
       <span className="label-sm">{t("settings.sandbox")}</span>
       <div className="row gap-sm" role="status" aria-live="polite">
-        {busy || !st ? (
+        {!busy && failed ? (
+          <span className="grow small err"><Icon name="alert" size={12} /> {t("settings.sandboxError")}</span>
+        ) : busy || !st ? (
           <span className="grow small muted"><span className="spinner sm" aria-hidden="true" /> {t("settings.sandboxChecking")}</span>
         ) : (
           <>
@@ -365,12 +370,16 @@ export default function Settings({ initial = "general", onClose, info, settings,
       <div className="settings-grid">
         <nav className="settings-nav" role="tablist" aria-orientation="vertical" aria-label={t("settings.title")}>
           {SECTIONS.map(([k, icon]) => (
-            <button key={k} type="button" role="tab" aria-selected={sec === k} className={`settings-tab ${sec === k ? "on" : ""}`} onClick={() => setSec(k)}>
+            <button
+              key={k} id={`set-tab-${k}`} type="button" role="tab" aria-selected={sec === k} aria-controls="set-panel" tabIndex={sec === k ? 0 : -1}
+              className={`settings-tab ${sec === k ? "on" : ""}`} onClick={() => setSec(k)}
+              onKeyDown={(e) => tabKeyDown(e, SECTIONS.map(([x]) => x), sec, setSec, { vertical: true, idOf: (x) => `set-tab-${x}` })}
+            >
               <Icon name={icon} size={15} /> {t(`settings.${k}`)}
             </button>
           ))}
         </nav>
-        <div className="settings-pane" role="tabpanel">
+        <div className="settings-pane" id="set-panel" role="tabpanel" aria-labelledby={`set-tab-${sec}`} tabIndex={0}>
           {sec === "general" && (
             <>
               <h3>{t("settings.general")}</h3>
@@ -488,7 +497,9 @@ export default function Settings({ initial = "general", onClose, info, settings,
               <div className="field mt">
                 <span className="label-sm">{t("update.title")}</span>
                 <div className="row gap-sm">
-                  <span className="grow small muted" role="status">{t(`update.state.${update?.state ?? "idle"}`, { v: update?.version ?? "", p: update?.percent ?? 0 })}</span>
+                  <span className="grow small muted tnum" aria-hidden={update?.state === "downloading" ? "true" : undefined}>{t(`update.state.${update?.state ?? "idle"}`, { v: update?.version ?? "", p: update?.percent ?? 0 })}</span>
+                  {/* Holat e'loni: yuklash paytida har foiz emas — bosqich bir marta aytiladi. */}
+                  <span className="sr-only" role="status">{update?.state === "downloading" ? t("updCard.downloadingSr") : t(`update.state.${update?.state ?? "idle"}`, { v: update?.version ?? "", p: 0 })}</span>
                   {update?.state === "available" && <button type="button" className="btn btn-sm btn-primary" onClick={() => onUpdateAction("download")}><Icon name="download" size={13} /> {t("update.download")}</button>}
                   {update?.state === "ready" && <button type="button" className="btn btn-sm btn-primary" onClick={() => onUpdateAction("install")}>{t("update.restart")}</button>}
                   {!["disabled", "checking", "downloading", "ready", "available"].includes(update?.state) && <button type="button" className="btn btn-sm" onClick={() => onUpdateAction("check")}><Icon name="refresh" size={13} /> {t("update.check")}</button>}

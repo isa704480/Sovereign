@@ -2,6 +2,8 @@ import React from "react";
 import Icon from "./Icon.jsx";
 import FileTree from "./FileTree.jsx";
 import { useT, relTime } from "../lib/i18n.js";
+import { kbd } from "../lib/keys.js";
+import { tabKeyDown } from "../lib/tabs.js";
 
 const STATUS_DOT = { running: "dot-warn pulse", done: "dot-ok", error: "dot-err", stopped: "dot-muted" };
 
@@ -37,7 +39,12 @@ function TaskList({ history, activeId, onOpen, onRemove, busy }) {
                   </span>
                 </span>
               </button>
-              <button type="button" className="icon-btn task-del" aria-label={t("tasks.remove")} title={t("tasks.remove")} onClick={() => onRemove(h.id)}>
+              <button
+                type="button" className="icon-btn task-del" onClick={() => onRemove(h.id)}
+                disabled={busy && activeId === h.id}
+                aria-label={`${t("tasks.remove")}: ${h.title}`}
+                title={busy && activeId === h.id ? t("tasks.removeRunning") : t("tasks.remove")}
+              >
                 <Icon name="trash" size={13} />
               </button>
             </div>
@@ -65,10 +72,12 @@ function UpdateCard({ update, platform, onAction }) {
   if (s === "downloading") {
     const p = Math.max(0, Math.min(100, Number(update?.percent) || 0));
     return (
-      <div className="update-card busy" role="status">
+      <div className="update-card busy">
+        {/* Ekran o'quvchisi bosqichni bir marta eshitadi (har foizni emas); foiz — progressbar'da. */}
+        <span className="sr-only" role="status">{t("updCard.downloadingSr")}</span>
         <Icon name="download" size={16} className="accent" />
         <span className="grow" style={{ minWidth: 0 }}>
-          <span className="trunc block strong small">{t("update.state.downloading", { p })}</span>
+          <span className="trunc block strong small tnum" aria-hidden="true">{t("update.state.downloading", { p })}</span>
           <span className="update-bar" role="progressbar" aria-label={t("updCard.progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={p}>
             <span style={{ width: `${p}%` }} />
           </span>
@@ -105,7 +114,7 @@ export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree
       <div className="side-top">
         <button type="button" className="btn btn-primary btn-block" onClick={onNewTask}>
           <Icon name="plus" size={15} stroke={2} /> {t("tasks.new")}
-          <kbd className="kbd-inline">Ctrl N</kbd>
+          <kbd className="kbd-inline">{kbd("Ctrl N")}</kbd>
         </button>
       </div>
 
@@ -118,12 +127,18 @@ export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree
         <Icon name="chevronDown" size={13} className="faint" />
       </button>
 
-      <div className="tabs" role="tablist" aria-label={t("sidebar.label")}>
-        {[["tasks", t("tasks.title"), history.length], ["files", t("files.title"), null]].map(([k, l, n]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} className={`tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
-            {l}{n ? <span className="count">{n}</span> : null}
-          </button>
-        ))}
+      <div className="tabs">
+        <div className="tabs-list" role="tablist" aria-label={t("sidebar.label")}>
+          {[["tasks", t("tasks.title"), history.length], ["files", t("files.title"), null]].map(([k, l, n]) => (
+            <button
+              key={k} id={`side-tab-${k}`} type="button" role="tab" aria-selected={tab === k} aria-controls="side-panel" tabIndex={tab === k ? 0 : -1}
+              className={`tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}
+              onKeyDown={(e) => tabKeyDown(e, ["tasks", "files"], tab, setTab, { idOf: (x) => `side-tab-${x}` })}
+            >
+              {l}{n ? <span className="count">{n}</span> : null}
+            </button>
+          ))}
+        </div>
         {tab === "files" && info.cwd && (
           <span className="tab-actions">
             <button type="button" className="icon-btn" aria-label={t("files.refresh")} title={t("files.refresh")} onClick={onRefresh}><Icon name="refresh" size={13} /></button>
@@ -132,7 +147,7 @@ export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree
         )}
       </div>
 
-      <div className="side-scroll">
+      <div className="side-scroll" id="side-panel" role="tabpanel" aria-labelledby={`side-tab-${tab}`}>
         {tab === "tasks" ? (
           <TaskList history={history} activeId={activeTaskId} onOpen={onOpenTask} onRemove={onRemoveTask} busy={busy} />
         ) : !info.cwd ? (
@@ -164,7 +179,7 @@ export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree
             <span className="trunc block faint small">{info.authed ? t("account.synced") : t("account.signInHint")}</span>
           </span>
         </button>
-        <button type="button" className="icon-btn" aria-label={t("settings.title")} title={`${t("settings.title")} (Ctrl+,)`} onClick={onSettings}>
+        <button type="button" className="icon-btn" aria-label={t("settings.title")} title={`${t("settings.title")} (${kbd("Ctrl+,")})`} onClick={onSettings}>
           <Icon name="settings" size={16} />
         </button>
       </div>

@@ -4,6 +4,7 @@
 // Har yangi matn 4 tilda qo'shiladi; tekshiruv: `npm run i18n:check`.
 import { createContext, useContext } from "react";
 import { toCyrillic } from "./translit.js";
+import { kbd } from "./keys.js";
 
 export const LANGS = [
   { id: "uz", label: "O‘zbekcha" },
@@ -140,7 +141,7 @@ const uz = {
   "term.empty": "Hali buyruq bajarilmagan", "term.emptyHint": "Agent ishga tushirgan buyruqlar va ularning natijasi shu yerda.", "term.count": "{n} buyruq", "term.clear": "Tozalash", "term.noOutput": "(chiqish yo‘q)",
 
   "model.pick": "Modelni tanlash", "model.search": "Model qidirish… (claude, gemini, deepseek)", "model.featured": "Tekin — tavsiya", "model.none": "Hech narsa topilmadi",
-  "model.error": "Model katalogini yuklab bo‘lmadi.", "model.offline": "Oflayn — katalog mavjud emas.", "model.useAuto": "Auto’dan foydalanish", "model.foot": "oila → model · Esc — yopish",
+  "model.error": "Model katalogini yuklab bo‘lmadi.", "model.offline": "Oflayn — katalog mavjud emas.", "model.useAuto": "Avto’dan foydalanish", "model.foot": "oila → model · Esc — yopish",
 
   "palette.title": "Buyruqlar", "palette.open": "Buyruqlar palitrasini ochish", "palette.placeholder": "Buyruq yoki sozlama qidiring…", "palette.placeholderShort": "Buyruqlar va qidiruv",
   "palette.none": "Mos buyruq yo‘q", "palette.gTask": "Vazifa", "palette.gView": "Ko‘rinish", "palette.gApp": "Ilova",
@@ -458,6 +459,19 @@ const uz = {
   "skill.no-ai-slop.desc": "Jonli, aniq matn: sun’iy intellekt qoliplarisiz yozish va tahrir",
   "skill.data-viz.desc": "Grafik, jadval va ma’lumot vizualizatsiyasi tamoyillari",
   "skill.focus-mode.desc": "Avval harakat, raqamlangan qadamlar, bitta keyingi qadam — kirish va xulosa so‘zlarisiz",
+  "common.undo": "Qaytarish",
+  "tasks.removed": "«{title}» o‘chirildi",
+  "tasks.removeRunning": "Bajarilayotgan vazifani o‘chirishdan oldin to‘xtating",
+  "update.deferred": "Agent ishlayapti — yangilanish vazifa tugagach o‘rnatiladi.",
+  "update.restartingSoon": "Vazifa tugadi — yangilanishni o‘rnatish uchun ilova bir necha soniyada qayta ishga tushadi.",
+  "updCard.downloadingSr": "Yangilanish yuklab olinmoqda…",
+  "changes.undoAllConfirm.title": "Barcha o‘zgarishlar qaytarilsinmi?",
+  "changes.undoAllConfirm.body": "{n} ta o‘zgarish qaytariladi: fayllar agent tahrirlashidan oldingi holatiga keladi. Bu amalni ortga qaytarib bo‘lmaydi.",
+  "project.loadError": "Loyiha xotirasini (SOVEREIGN.md) o‘qib bo‘lmadi",
+  "project.loadErrorHint": "Fayl o‘zgartirilmadi. Papkaga kirish huquqini tekshirib, qayta urinib ko‘ring.",
+  "settings.sandboxError": "Sandbox holatini tekshirib bo‘lmadi.",
+  "model.auto": "Avto",
+  "attach.err.pdf-unreadable": "«{name}» — PDF’ni o‘qib bo‘lmadi (fayl shikastlangan yoki parol bilan himoyalangan).",
 };
 
 const en = {
@@ -888,6 +902,19 @@ const en = {
   "skill.no-ai-slop.desc": "Sharp, human writing and editing without AI patterns",
   "skill.data-viz.desc": "Principles of charts, tables and data visualization",
   "skill.focus-mode.desc": "Action first, numbered steps, one next action — no preamble or closers",
+  "common.undo": "Undo",
+  "tasks.removed": "“{title}” deleted",
+  "tasks.removeRunning": "Stop the running task before deleting it",
+  "update.deferred": "The agent is working — the update will install when the task finishes.",
+  "update.restartingSoon": "Task finished — the app will restart in a few seconds to install the update.",
+  "updCard.downloadingSr": "Downloading the update…",
+  "changes.undoAllConfirm.title": "Undo all changes?",
+  "changes.undoAllConfirm.body": "{n} changes will be reverted: files return to how they were before the agent edited them. This can’t be undone.",
+  "project.loadError": "Couldn’t read project memory (SOVEREIGN.md)",
+  "project.loadErrorHint": "Nothing was changed. Check that the folder is accessible and try again.",
+  "settings.sandboxError": "Couldn’t check the sandbox status.",
+  "model.auto": "Auto",
+  "attach.err.pdf-unreadable": "“{name}” — couldn’t read the PDF (the file is damaged or password-protected).",
 };
 
 const ru = {
@@ -1006,7 +1033,7 @@ const ru = {
   "changes.deleted": "удалён", "changes.lost": "не восстановить",
   "term.empty": "Команд пока нет", "term.emptyHint": "Здесь появятся команды агента и их вывод.", "term.count": "Команд: {n}", "term.clear": "Очистить", "term.noOutput": "(нет вывода)",
   "model.pick": "Выбрать модель", "model.search": "Поиск моделей… (claude, gemini, deepseek)", "model.featured": "Бесплатные — рекомендуем", "model.none": "Ничего не найдено",
-  "model.error": "Не удалось загрузить каталог моделей.", "model.offline": "Офлайн — каталог недоступен.", "model.useAuto": "Использовать Auto", "model.foot": "семейство → модель · Esc — закрыть",
+  "model.error": "Не удалось загрузить каталог моделей.", "model.offline": "Офлайн — каталог недоступен.", "model.useAuto": "Использовать Авто", "model.foot": "семейство → модель · Esc — закрыть",
   "palette.title": "Команды", "palette.open": "Открыть палитру команд", "palette.placeholder": "Поиск команд и настроек…", "palette.placeholderShort": "Команды и поиск",
   "palette.none": "Нет подходящих команд", "palette.gTask": "Задача", "palette.gView": "Вид", "palette.gApp": "Приложение",
   "palette.toChat": "Перейти в режим «Чат»", "palette.toCode": "Перейти в режим «Код»", "palette.showChanges": "Показать изменения", "palette.showTerminal": "Показать терминал",
@@ -1318,6 +1345,19 @@ const ru = {
   "skill.no-ai-slop.desc": "Живой, точный текст: письмо и редактура без шаблонов ИИ",
   "skill.data-viz.desc": "Принципы графиков, таблиц и визуализации данных",
   "skill.focus-mode.desc": "Сначала действие, нумерованные шаги, один следующий шаг — без вступлений и дежурных фраз",
+  "common.undo": "Отменить",
+  "tasks.removed": "«{title}» удалена",
+  "tasks.removeRunning": "Остановите задачу, прежде чем удалять её",
+  "update.deferred": "Агент работает — обновление установится, когда задача завершится.",
+  "update.restartingSoon": "Задача завершена — через несколько секунд приложение перезапустится, чтобы установить обновление.",
+  "updCard.downloadingSr": "Загружается обновление…",
+  "changes.undoAllConfirm.title": "Отменить все изменения?",
+  "changes.undoAllConfirm.body": "Будет отменено изменений: {n}. Файлы вернутся к состоянию до правок агента. Это действие нельзя отменить.",
+  "project.loadError": "Не удалось прочитать память проекта (SOVEREIGN.md)",
+  "project.loadErrorHint": "Файл не изменён. Проверьте доступ к папке и попробуйте снова.",
+  "settings.sandboxError": "Не удалось проверить состояние песочницы.",
+  "model.auto": "Авто",
+  "attach.err.pdf-unreadable": "«{name}» — не удалось прочитать PDF (файл повреждён или защищён паролем).",
 };
 
 /**
@@ -1635,6 +1675,20 @@ const uzCyrl = {
   "skill.no-ai-slop.desc": "Жонли, аниқ матн: сунъий интеллект қолипларисиз ёзиш ва таҳрир",
   "skill.data-viz.desc": "График, жадвал ва маълумот визуализацияси тамойиллари",
   "skill.focus-mode.desc": "Аввал ҳаракат, рақамланган қадамлар, битта кейинги қадам — кириш ва хулоса сўзларисиз",
+  "common.undo": "Қайтариш",
+  "tasks.removed": "«{title}» ўчирилди",
+  "tasks.removeRunning": "Бажарилаётган вазифани ўчиришдан олдин тўхтатинг",
+  "update.deferred": "Агент ишлаяпти — янгиланиш вазифа тугагач ўрнатилади.",
+  "update.restartingSoon": "Вазифа тугади — янгиланишни ўрнатиш учун илова бир неча сонияда қайта ишга тушади.",
+  "updCard.downloadingSr": "Янгиланиш юклаб олинмоқда…",
+  "changes.undoAllConfirm.title": "Барча ўзгаришлар қайтарилсинми?",
+  "changes.undoAllConfirm.body": "{n} та ўзгариш қайтарилади: файллар агент таҳрирлашидан олдинги ҳолатига келади. Бу амални ортга қайтариб бўлмайди.",
+  "project.loadError": "Лойиҳа хотирасини (SOVEREIGN.md) ўқиб бўлмади",
+  "project.loadErrorHint": "Файл ўзгартирилмади. Папкага кириш ҳуқуқини текшириб, қайта уриниб кўринг.",
+  "settings.sandboxError": "Ҳимояланган муҳит ҳолатини текшириб бўлмади.",
+  "model.auto": "Авто",
+  "model.useAuto": "Автодан фойдаланиш",
+  "attach.err.pdf-unreadable": "«{name}» — PDF’ни ўқиб бўлмади (файл шикастланган ёки пароль билан ҳимояланган).",
 };
 
 const DICTS = { uz, en, ru };
@@ -1652,7 +1706,7 @@ export function makeT(lang) {
   return (key, vars, fallback) => {
     let s = d[key] ?? en[key] ?? uz[key] ?? fallback ?? key;
     if (vars) s = s.replace(/\{(\w+)\}/g, (_, v) => (vars[v] ?? ""));
-    return s;
+    return kbd(s);
   };
 }
 

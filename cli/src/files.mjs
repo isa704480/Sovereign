@@ -58,9 +58,19 @@ async function extractPdfText(buf) {
   } catch {
     return { missing: true };
   }
-  const PDFParse = mod.PDFParse ?? mod.default?.PDFParse;
+  return pdfTextFromModule(mod, buf, () => import("pdf-parse/lib/pdf-parse.js"));
+}
+
+/**
+ * Yuklangan pdf-parse moduli bilan matn ajratish (2.x yoki 1.x). Boshqa joydan import qilingan
+ * modul uchun ham ishlaydi — masalan, Cowork (desktop) pdf-parse'ni o'zining app.asar'idan yuklaydi,
+ * chunki resources/cli/src yonida node_modules yo'q. loadLegacy — 1.x lib/pdf-parse.js yuklovchisi.
+ * PDF ishonchsiz kirish: pdf.js'da eval o'chiq (isEvalSupported: false), shriftlar yuklanmaydi.
+ */
+export async function pdfTextFromModule(mod, buf, loadLegacy) {
+  const PDFParse = mod?.PDFParse ?? mod?.default?.PDFParse;
   if (typeof PDFParse === "function") {
-    const parser = new PDFParse({ data: buf });
+    const parser = new PDFParse({ data: buf, isEvalSupported: false, disableFontFace: true, useSystemFonts: false });
     try {
       const r = await parser.getText();
       return { text: r?.text ?? "" };
@@ -74,8 +84,8 @@ async function extractPdfText(buf) {
   }
   let fn = null;
   try {
-    const lib = await import("pdf-parse/lib/pdf-parse.js");
-    fn = lib.default ?? lib;
+    const lib = await loadLegacy?.();
+    fn = lib?.default ?? lib;
   } catch {
     fn = null;
   }
@@ -126,8 +136,10 @@ export function mimeOf(ext) {
  * completions. Images become image_url data URLs; text files become inline
  * text blocks. PDFs are read as text via pdf-parse if available; otherwise
  * their bytes are wrapped in a data URL and left for the model to skip.
+ * pdfText (ixtiyoriy): (buf) => Promise<{text} | {missing: true}> — tashqaridan berilgan PDF
+ * ajratuvchi (Cowork: pdf-parse app.asar'dan). Berilmasa — CLI o'zi pdf-parse'ni import qiladi.
  */
-export async function readAttachment(path, { maxChars = 40_000 } = {}) {
+export async function readAttachment(path, { maxChars = 40_000, pdfText } = {}) {
   if (!existsSync(path)) throw new Error(`Fayl topilmadi: ${path}`);
   const st = statSync(path);
   if (!st.isFile()) throw new Error(`Fayl emas: ${path}`);
@@ -166,7 +178,7 @@ export async function readAttachment(path, { maxChars = 40_000 } = {}) {
     // Ixtiyoriy pdf-parse; o'rnatilmagan yoki xato bo'lsa — modelga va foydalanuvchiga aniq sabab.
     let note;
     try {
-      const r = await extractPdfText(readFileSync(path));
+      const r = await (typeof pdfText === "function" ? pdfText : extractPdfText)(readFileSync(path));
       if (!r.missing) {
         const text = (r.text || "").slice(0, maxChars);
         return {
