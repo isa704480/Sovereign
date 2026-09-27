@@ -1,14 +1,19 @@
 /**
- * Provayder zanjiri — soxta fetch bilan (tarmoqsiz, kalitsiz):
+ * Web chat provayder yo'li — Provider Mesh orqali, soxta fetch bilan (tarmoqsiz, kalitsiz):
  *   npx tsx --conditions=react-server src/lib/ai/providers-chain.test.ts
- * Groq → Cloudflare, OpenRouter 402 → Cloudflare, neuron limiti (4006), oqimsiz gpt-oss,
- * "served" (badge) va mintaqa qoidalari tekshiriladi. Haqiqiy kalitlar ishlatilmaydi.
+ * Aynan shu model birinchi (G0), kvota/429/402 da keyingi provayder, umumiy sog'liq (keyingi
+ * so'rov yiqilgan provayderni chetlab o'tadi), yukni yoyish, Cloudflare neuron limiti (4006),
+ * oqimsiz gpt-oss, "served" (badge) halolligi, mintaqa, Tella (o'z modelimiz) va
+ * SOVEREIGN_MESH=off (eski zanjir) tekshiriladi. Haqiqiy kalitlar ishlatilmaydi.
  */
 import assert from "node:assert/strict";
 
-// Env — faqat soxta qiymatlar; haqiqiy .env.local o'qilmaydi.
+// Env — faqat soxta qiymatlar; haqiqiy .env.local o'qilmaydi. Sog'liq — faqat xotirada (Upstash yo'q).
 for (const k of Object.keys(process.env)) {
-  if (/^(OPENROUTER|GROQ|CLOUDFLARE|OMNIROUTE|RSI|CEREBRAS|SAMBANOVA|MISTRAL|NVIDIA|OPENAI|TELLA|EXPERIENTIAL|GATEWAY|LLM7|PERPLEXITY)_/.test(k)) {
+  if (
+    /^(OPENROUTER|GROQ|CLOUDFLARE|OMNIROUTE|RSI|CEREBRAS|SAMBANOVA|MISTRAL|NVIDIA|OPENAI|TELLA|EXPERIENTIAL|GATEWAY|LLM7|PERPLEXITY|UPSTASH)_/.test(k) ||
+    k === "SOVEREIGN_MESH"
+  ) {
     delete process.env[k];
   }
 }
@@ -41,6 +46,10 @@ globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) =>
   return reply(call);
 }) as typeof fetch;
 
+// Yukni yoyish tasodifiy — testda deterministik (0 → band ichida eng yuqori skorli birinchi).
+let rand = 0;
+Math.random = () => rand;
+
 const host = (u: string) =>
   u.includes("api.groq.com")
     ? "groq"
@@ -50,13 +59,22 @@ const host = (u: string) =>
         ? "openrouter"
         : u.includes("llm7")
           ? "llm7"
-          : u;
+          : u.includes("tella.test")
+            ? "tella"
+            : u.includes("omni.test")
+              ? "omniroute"
+              : u;
 
 let passed = 0;
 let failed = 0;
+let resetHealth: () => void = () => {};
 async function test(name: string, fn: () => Promise<void>) {
   calls = [];
   replies = [];
+  rand = 0;
+  // Oldingi testning fire-and-forget sog'liq yozuvlari tugasin, keyin xotira tozalanadi.
+  await new Promise((r) => setTimeout(r, 5));
+  resetHealth();
   try {
     await fn();
     passed++;
@@ -69,6 +87,8 @@ async function test(name: string, fn: () => Promise<void>) {
 async function main() {
   const { streamCompletion, hostIdAvailable, hasKeyFor } = await import("./providers");
   const { MODEL_BY_ID } = await import("@/config/models");
+  const health = await import("./mesh/health");
+  resetHealth = health.__resetHealthForTests;
 
   async function run(modelId: string, extra: { country?: string; freeRescue?: boolean } = {}) {
     const events: { type: string; [k: string]: unknown }[] = [];
@@ -81,6 +101,8 @@ async function main() {
     })) {
       events.push(ev as { type: string });
     }
+    // Sog'liq yozuvi fire-and-forget — keyingi so'rov uni ko'rishi uchun bir lahza.
+    await new Promise((r) => setTimeout(r, 5));
     const served = events.find((e) => e.type === "served") as { model: string; substituted: boolean; rescue?: boolean } | undefined;
     const text = events.filter((e) => e.type === "text").map((e) => e.text).join("");
     const error = events.find((e) => e.type === "error") as { message: string } | undefined;
@@ -98,34 +120,46 @@ async function main() {
     put("CLOUDFLARE_AI_TOKEN", keys.cf && "test-cf");
     put("OPENROUTER_API_KEY", keys.or && "test-or");
   };
+  const cfQuota = () =>
+    json(429, { errors: [{ code: 4006, message: "you have used up your daily free allocation of 10,000 neurons" }], success: false });
 
-  await test("Cloudflare faqat ikkala env bo'lsa yoqiladi", async () => {
+  await test("mavjudlik: Cloudflare faqat ikkala env bo'lsa; bir xil og'irliklar boshqa hostda ham hisoblanadi", async () => {
     setKeys({ groq: true });
     env.CLOUDFLARE_ACCOUNT_ID = "acc123";
-    assert.equal(hostIdAvailable("cloudflare/@cf/qwen/qwen3.8-27b"), false);
-    setKeys({ groq: true, cf: true });
+    // Groq'da ham aynan shu Qwen bor — cloudflare/ id Groq orqali ham beriladi.
     assert.equal(hostIdAvailable("cloudflare/@cf/qwen/qwen3.8-27b"), true);
+    assert.equal(hostIdAvailable("cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813"), false, "CF token yo'q");
+    setKeys({ groq: true, cf: true });
+    assert.equal(hostIdAvailable("cloudflare/@cf/deepseek-ai/deepseek-v4-pro-0813"), true);
     assert.equal(hostIdAvailable("groq/qwen/qwen3.8-27b"), true);
+    setKeys({});
+    assert.equal(hostIdAvailable("groq/qwen/qwen3.8-27b"), false, "hech qanday kalit yo'q (LLM7 rescue sanalmaydi)");
     setKeys({ cf: true });
-    assert.equal(hostIdAvailable("groq/qwen/qwen3.8-27b"), false, "Groq kaliti yo'q, OmniRoute yo'q");
     // OpenRouter kaliti yo'q: Cloudflare'da aynan shu model bor → mavjud; Claude — yo'q.
     assert.equal(hasKeyFor(MODEL_BY_ID["deepseek-v4-pro"]), true);
     assert.equal(hasKeyFor(MODEL_BY_ID["claude-sonnet-5"]), false);
+    assert.equal(hasKeyFor(MODEL_BY_ID["llama-3.3-free"]), true);
   });
 
-  await test("tekin: Groq 429 → Cloudflare (Llama 3.3 70B), badge haqiqiy modelni ko'rsatadi", async () => {
+  await test("tekin: Llama 3.3 — aynan shu model (Cloudflare) birinchi, badge haqiqiy modelni ko'rsatadi", async () => {
     setKeys({ groq: true, cf: true });
-    replies = [
-      () => json(429, { error: { message: "Rate limit reached for model openai/gpt-oss-120b" } }),
-      (c) => sse(String(c.body.model), "Salom!"),
-    ];
+    replies = [(c) => sse(String(c.body.model), "Salom!")];
     const r = await run("llama-3.3-free");
-    assert.deepEqual(calls.map((c) => host(c.url)), ["groq", "cloudflare"]);
-    assert.equal(calls[1].url, "https://api.cloudflare.com/client/v4/accounts/acc123/ai/v1/chat/completions");
-    assert.equal(calls[1].body.model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
-    assert.equal(calls[1].body.stream, true);
+    assert.deepEqual(calls.map((c) => host(c.url)), ["cloudflare"]);
+    assert.equal(calls[0].url, "https://api.cloudflare.com/client/v4/accounts/acc123/ai/v1/chat/completions");
+    assert.equal(calls[0].body.model, "@cf/meta/llama-3.3-70b-instruct-fp8-fast");
+    assert.equal(calls[0].body.stream, true);
     assert.equal(r.text, "Salom!");
     assert.deepEqual(r.served, { type: "served", model: "cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast", substituted: false });
+  });
+
+  await test("tekin: Cloudflare neuron limiti → Groq o'rinbosari, almashtirish ochiq belgilanadi", async () => {
+    setKeys({ groq: true, cf: true });
+    replies = [cfQuota, (c) => sse(String(c.body.model), "ok")];
+    const r = await run("llama-3.3-free");
+    assert.deepEqual(calls.map((c) => host(c.url)), ["cloudflare", "groq"]);
+    assert.equal(calls[1].body.model, "qwen/qwen3.8-27b");
+    assert.deepEqual(r.served, { type: "served", model: "groq/qwen/qwen3.8-27b", substituted: true });
   });
 
   await test("host id: groq/qwen 429 → Cloudflare'dagi aynan shu Qwen", async () => {
@@ -138,7 +172,29 @@ async function main() {
     assert.equal(r.served?.substituted, false);
   });
 
-  await test("pullik: DeepSeek V4 Pro — Cloudflare birinchi (OpenRouter chaqirilmaydi)", async () => {
+  await test("umumiy sog'liq: Groq 429 dan keyin keyingi so'rov Groq'ni chetlab o'tadi", async () => {
+    setKeys({ groq: true, cf: true });
+    replies = [() => json(429, { error: { message: "rate limit" } }), (c) => sse("x", `ok:${c.body.model}`)];
+    await run("groq/qwen/qwen3.8-27b");
+    calls = [];
+    replies = [(c) => sse("x", `ok:${c.body.model}`)];
+    const r = await run("groq/qwen/qwen3.8-27b");
+    assert.deepEqual(calls.map((c) => host(c.url)), ["cloudflare"], "Groq Retry-After tugaguncha yopiq");
+    assert.equal(r.text, "ok:@cf/qwen/qwen3.8-27b");
+  });
+
+  await test("yukni yoyish: teng sog'lom provayderlar navbatma-navbat (rand bo'yicha)", async () => {
+    setKeys({ groq: true, cf: true });
+    rand = 0;
+    replies = [(c) => sse("x", String(c.body.model))];
+    await run("groq/qwen/qwen3.8-27b");
+    rand = 0.99;
+    replies = [(c) => sse("x", String(c.body.model))];
+    await run("groq/qwen/qwen3.8-27b");
+    assert.deepEqual(calls.map((c) => host(c.url)), ["groq", "cloudflare"]);
+  });
+
+  await test("pullik: DeepSeek V4 Pro — Cloudflare birinchi (tekin kvota; OpenRouter chaqirilmaydi)", async () => {
     setKeys({ groq: true, cf: true, or: true });
     replies = [(c) => sse(String(c.body.model), "javob")];
     const r = await run("deepseek-v4-pro");
@@ -149,14 +205,12 @@ async function main() {
 
   await test("Cloudflare neuron limiti (4006) → shu model OpenRouter orqali", async () => {
     setKeys({ cf: true, or: true });
-    replies = [
-      () => json(429, { errors: [{ code: 4006, message: "you have used up your daily free allocation of 10,000 neurons" }], success: false }),
-      () => sse("deepseek/deepseek-v4-pro", "javob"),
-    ];
+    replies = [cfQuota, () => sse("deepseek/deepseek-v4-pro", "javob")];
     const r = await run("deepseek-v4-pro");
     assert.deepEqual(calls.map((c) => host(c.url)), ["cloudflare", "openrouter"]);
     assert.equal(r.text, "javob");
     assert.equal(r.served?.model, "deepseek/deepseek-v4-pro");
+    assert.equal(r.served?.substituted, false);
   });
 
   await test("pullik: Claude + OpenRouter 402 → Cloudflare flagship ekvivalenti, almashtirish ochiq belgilanadi", async () => {
@@ -186,7 +240,6 @@ async function main() {
         }),
       (c) => sse(String(c.body.model), "ok"),
     ];
-    // Cloudflare'da yo'q model (Claude) — avval OpenRouter, u "200 + kredit xatosi" bersa Cloudflare ekvivalenti.
     const r = await run("claude-sonnet-5");
     assert.deepEqual(calls.map((c) => host(c.url)), ["openrouter", "cloudflare"]);
     assert.equal(calls[1]?.body.model, "@cf/deepseek-ai/deepseek-v4-pro-0813");
@@ -195,26 +248,22 @@ async function main() {
     assert.equal(r.text, "ok");
   });
 
-  await test("Cloudflare neuron limiti (429/4006) — yumshoq xato, qayta Cloudflare'ga bormaydi", async () => {
+  await test("Cloudflare neuron limiti — yumshoq xato, qayta Cloudflare'ga bormaydi", async () => {
     setKeys({ cf: true });
-    replies = [
-      () => json(429, { errors: [{ code: 4006, message: "you have used up your daily free allocation of 10,000 neurons" }], success: false }),
-    ];
+    replies = [cfQuota];
     const r = await run("cloudflare/@cf/qwen/qwen3.8-27b");
     assert.equal(calls.length, 1);
     assert.ok(r.error, "chat route keyingi nomzodga o'tishi uchun error");
     assert.match(r.error!.message, /busy|band|занят/i);
   });
 
-  await test("neuron limiti + oxirgi nomzod: Cloudflare rescue o'tkazib yuboriladi, LLM7 ishlaydi", async () => {
+  await test("neuron limiti + oxirgi nomzod: LLM7 rescue ishlaydi va belgilanadi", async () => {
     setKeys({ cf: true });
-    replies = [
-      () => json(429, { errors: [{ code: 4006, message: "daily free allocation of 10,000 neurons" }] }),
-      (c) => sse("mistral-nemo", `llm7:${c.body.model}`),
-    ];
+    replies = [cfQuota, (c) => sse("mistral-nemo", `llm7:${c.body.model}`)];
     const r = await run("cloudflare/@cf/qwen/qwen3.8-27b", { freeRescue: true });
     assert.deepEqual(calls.map((c) => host(c.url)), ["cloudflare", "llm7"]);
     assert.equal(r.served?.rescue, true);
+    assert.equal(r.served?.substituted, true);
   });
 
   await test("gpt-oss: stream=false, JSON javob bitta matn bo'lib chiqadi (reasoning alohida)", async () => {
@@ -241,6 +290,17 @@ async function main() {
     assert.ok(r.error);
   });
 
+  await test("Groq tekin TPM 413 (faqat shu nomzod cheklovi) → keyingi provayder", async () => {
+    setKeys({ groq: true, cf: true });
+    replies = [
+      () => json(413, { error: { message: "Request too large for model qwen/qwen3.8-27b on tokens per minute (TPM): Limit 8000", type: "tokens", code: "rate_limit_exceeded" } }),
+      (c) => sse("x", `ok:${c.body.model}`),
+    ];
+    const r = await run("groq/qwen/qwen3.8-27b");
+    assert.deepEqual(calls.map((c) => host(c.url)), ["groq", "cloudflare"]);
+    assert.equal(r.text, "ok:@cf/qwen/qwen3.8-27b");
+  });
+
   await test("mintaqa: RU — Cloudflare DeepSeek ochiq; IR — Cloudflare yopiq, so'rov yuborilmaydi", async () => {
     setKeys({ cf: true });
     replies = [(c) => sse(String(c.body.model), "ok")];
@@ -252,15 +312,80 @@ async function main() {
     assert.ok(ir.error);
   });
 
-  await test("Cloudflare kaliti yo'q — cloudflare/ id xato beradi (OmniRoute'ga yuborilmaydi)", async () => {
+  await test("mintaqa: RU — tekin rescue (LLM7) chaqirilmaydi", async () => {
+    setKeys({ cf: true });
+    replies = [cfQuota];
+    const r = await run("cloudflare/@cf/qwen/qwen3.8-27b", { country: "RU", freeRescue: true });
+    assert.deepEqual(calls.map((c) => host(c.url)), ["cloudflare"]);
+    assert.ok(r.error);
+  });
+
+  await test("Cloudflare kaliti yo'q — cloudflare/ id OmniRoute'ga ketmaydi, Groq'dagi aynan shu Qwen javob beradi", async () => {
     setKeys({ groq: true });
     env.OMNIROUTE_BASE_URL = "https://omni.test";
     env.OMNIROUTE_API_KEY = "x";
+    replies = [(c) => sse(String(c.body.model), "ok")];
     const r = await run("cloudflare/@cf/qwen/qwen3.8-27b");
     delete env.OMNIROUTE_BASE_URL;
     delete env.OMNIROUTE_API_KEY;
-    assert.equal(calls.length, 0);
+    assert.ok(!calls.some((c) => host(c.url) === "omniroute"), "OmniRoute chaqirilmadi");
+    assert.deepEqual(calls.map((c) => host(c.url)), ["groq"]);
+    assert.equal(r.served?.model, "groq/qwen/qwen3.8-27b");
+    assert.equal(r.served?.substituted, false);
+  });
+
+  await test("Tella (o'z modelimiz): yiqilsa boshqa provayder ham, LLM7 ham javob bermaydi", async () => {
+    setKeys({ groq: true, cf: true });
+    env.TELLA_BASE_URL = "https://tella.test/v1";
+    replies = [() => json(500, { error: "runner terminated" }), () => json(500, { error: "runner terminated" })];
+    const r = await run("tella-2", { freeRescue: true });
+    delete env.TELLA_BASE_URL;
+    assert.ok(calls.length >= 1);
+    assert.ok(calls.every((c) => host(c.url) === "tella"), `faqat Tella: ${calls.map((c) => host(c.url)).join(",")}`);
     assert.ok(r.error);
+    assert.equal(r.served, undefined);
+  });
+
+  await test("chat route exclude (regress #3): yiqilgan provayder keyingi streamCompletion chaqiruvida qayta sinalmaydi", async () => {
+    setKeys({ groq: true });
+    env.GROQ_API_KEY = "test-groq-exclude";
+    const failedProviders: string[] = [];
+    replies = [() => json(401, { error: { message: "Invalid API Key", code: "invalid_api_key" } })];
+    const first: { type: string }[] = [];
+    for await (const ev of streamCompletion({
+      modelId: "cloudflare/@cf/qwen/qwen3.8-27b",
+      messages: [{ role: "user", content: "salom" }],
+      lang: "en",
+      freeRescue: false,
+      country: null,
+      planTier: "free",
+      onProviderFailed: (p) => failedProviders.push(p),
+    })) first.push(ev);
+    assert.deepEqual(failedProviders, ["groq"]);
+    calls = [];
+    replies = [(c) => sse(String(c.body.model), "never")];
+    const second: { type: string }[] = [];
+    for await (const ev of streamCompletion({
+      modelId: "groq/qwen/qwen3.8-27b",
+      messages: [{ role: "user", content: "salom" }],
+      lang: "en",
+      freeRescue: false,
+      country: null,
+      planTier: "free",
+      exclude: failedProviders,
+    })) second.push(ev);
+    assert.equal(calls.length, 0, "groq exclude qilingan");
+    assert.ok(second.some((e) => e.type === "error"));
+  });
+
+  await test("SOVEREIGN_MESH=off — eski zanjir (favqulodda qaytarish) ishlaydi", async () => {
+    setKeys({ groq: true, cf: true });
+    env.SOVEREIGN_MESH = "off";
+    replies = [(c) => sse(String(c.body.model), "legacy")];
+    const r = await run("llama-3.3-free");
+    delete env.SOVEREIGN_MESH;
+    assert.deepEqual(calls.map((c) => host(c.url)), ["groq"], "eski DIRECT_ROUTES tartibi");
+    assert.equal(r.text, "legacy");
   });
 
   console.log(`${passed} o'tdi, ${failed} yiqildi`);

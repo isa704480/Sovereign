@@ -1,7 +1,7 @@
 {
   "version": 1,
   "runDate": "2026-09-27",
-  "runId": "2026-09-27T07-28-11",
+  "runId": "2026-09-27T07-57-25",
   "referenceModel": "claude-opus-4-8",
   "stoppedEarly": null,
   "estimatedCostUsd": 0.1906,
@@ -179,7 +179,7 @@
       "label": "DeepSeek V4 Pro",
       "family": "deepseek",
       "measured": false,
-      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford | omniroute: HTTP 402: {\"error\":{\"message\":\"[openrouter/deepseek/deepseek-v4-pro-0813] [402]: This request requires more credits, or fewer max_tokens. Yo | omniroute: HTTP 503: {\"error\":{\"message\":\"Service temporarily unavailable due to resource pressure. Retry shortly.\",\"type\":\"server_error\",\"code\":\"resou",
+      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford | omniroute: HTTP 402: {\"error\":{\"message\":\"[openrouter/deepseek/deepseek-v4-pro-0813] [402]: This request requires more credits, or fewer max_tokens. Yo | omniroute: HTTP 503: {\"error\":{\"message\":\"Service temporarily unavailable due to resource pressure. Retry shortly.\",\"type\":\"server_error\",\"code\":\"resou | cloudflare: env key missing",
       "route": null,
       "completed": 0,
       "errors": 0,
@@ -200,10 +200,11 @@
       "tokens": null,
       "costUsd": null,
       "costPerTaskUsd": null,
+      "neurons": null,
+      "runId": "2026-09-27T07-57-25",
+      "runDate": "2026-09-27",
       "reference": false,
-      "vsReference": null,
-      "runId": "2026-09-27T05-53-09",
-      "runDate": "2026-09-27"
+      "vsReference": null
     },
     {
       "key": "deepseek-v4-1-flash",
@@ -368,7 +369,7 @@
       "costUsd": null,
       "costPerTaskUsd": null,
       "neurons": null,
-      "runId": "2026-09-27T07-28-11",
+      "runId": "2026-09-27T07-57-25",
       "runDate": "2026-09-27",
       "reference": false,
       "vsReference": null
@@ -401,7 +402,7 @@
       "costUsd": null,
       "costPerTaskUsd": null,
       "neurons": null,
-      "runId": "2026-09-27T07-28-11",
+      "runId": "2026-09-27T07-57-25",
       "runDate": "2026-09-27",
       "reference": false,
       "vsReference": null
@@ -434,7 +435,7 @@
       "costUsd": null,
       "costPerTaskUsd": null,
       "neurons": null,
-      "runId": "2026-09-27T07-28-11",
+      "runId": "2026-09-27T07-57-25",
       "runDate": "2026-09-27",
       "reference": false,
       "vsReference": null

@@ -9,6 +9,10 @@ import { fmt } from "@/lib/i18n";
 import { hostAllowedIn, modelAllowedIn, REGION_SAFE, REGION_SAFE_CF } from "@/lib/ai/region";
 import { CF, cfId, cfSameModel } from "@/lib/ai/cloudflare";
 import { resolveUserRegion } from "@/lib/ai/region-server";
+import { meshComplete } from "@/lib/ai/mesh/execute";
+import { enabledAdapters } from "@/lib/ai/mesh/registry";
+import { plan as meshPlan } from "@/lib/ai/mesh/scheduler";
+import { cliRouteRequest, isGeneralAdapter, meshMode, requiredPlanTier } from "@/lib/ai/mesh/request";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,6 +47,13 @@ function cloudflareCand(model: string): Cand | null {
     auth: token,
   };
 }
+
+/*
+ * Yo'l tanlash — Provider Mesh (SOVEREIGN_MESH=on, standart): web chat bilan BIR XIL algoritm
+ * (umumiy sog'liq, kvota, tool/mintaqa/tarif filtri, yukni yoyish) — mesh/execute.ts meshComplete.
+ * Quyidagi candidates()/regionCandidates()/legacyComplete() — SOVEREIGN_MESH=off (favqulodda
+ * qaytarish) uchun saqlangan eski zanjir.
+ */
 
 /**
  * Fallback zanjiri: bittasi band bo'lsa (rate-limit/5xx/kalit xatosi) —
@@ -238,8 +249,18 @@ export async function POST(req: Request) {
     return Response.json({ error: `${t("chBadRequest")} (${where})` }, { status: 400 });
   }
 
-  // Kamida bitta provider kaliti kerak.
-  if (!process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY && !process.env.MISTRAL_API_KEY && !process.env.OMNIROUTE_API_KEY) {
+  // Kamida bitta provider kaliti kerak (mesh: umumiy chatga yaraydigan, rescue bo'lmagan adapter).
+  const mesh = meshMode() === "on";
+  const hasProvider = mesh
+    ? enabledAdapters().some(isGeneralAdapter)
+    : !!(
+        process.env.GROQ_API_KEY ||
+        process.env.OPENAI_API_KEY ||
+        process.env.OPENROUTER_API_KEY ||
+        process.env.MISTRAL_API_KEY ||
+        process.env.OMNIROUTE_API_KEY
+      );
+  if (!hasProvider) {
     return Response.json({ error: t("p7cCliNoProvider") }, { status: 503 });
   }
 
@@ -287,10 +308,16 @@ export async function POST(req: Request) {
     console.error("[cli/chat] token usage:", e instanceof Error ? e.message : e);
   }
 
-  // Katalogdan tanlangan aniq model — faqat Pro+ tarifda. "auto/*" kombolari
-  // (tekin yo'naltirish) hammaga ochiq. Ruxsat yo'q bo'lsa tanlov e'tiborsiz.
+  // Katalogdan tanlangan aniq model — faqat Pro+ tarifda VA model tarifi ruxsat bergan bo'lsa
+  // (web chat route bilan bir xil funksiya — requiredPlanTier: upstream nomi bilan so'ralgan Ultra
+  // model Pro'ga berilmaydi). "auto/*" kombolari (tekin yo'naltirish) hammaga ochiq.
+  // Ruxsat yo'q bo'lsa tanlov e'tiborsiz (standart kod-agent zanjiri).
   const reqModel = parsed.data.model;
-  const chosen = reqModel && (reqModel.startsWith("auto/") || planAllowsTier(plan, "pro")) ? reqModel : undefined;
+  const chosen =
+    reqModel &&
+    (reqModel.startsWith("auto/") || (planAllowsTier(plan, "pro") && planAllowsTier(plan, requiredPlanTier(reqModel))))
+      ? reqModel
+      : undefined;
 
   // Mintaqa (IP + SBP to'lovi + onboarding mamlakati) — serverda; CLI/Cowork ham shu yo'ldan.
   let country: string | null = null;
@@ -306,12 +333,17 @@ export async function POST(req: Request) {
     country = region.restricted ? region.country : null;
   }
   const regionSwapped = Boolean(country && chosen && !modelAllowedIn(chosen, country));
-  const cands = regionCandidates(
-    candidates(planId, chosen, Boolean(parsed.data.tools?.length)),
-    country,
-    planId === "pro" || planId === "ultra",
-  );
-  if (!cands.length) return Response.json({ error: t("p10RegionNoModels") }, { status: 451 });
+  const needsTools = Boolean(parsed.data.tools?.length);
+  const routeReq = cliRouteRequest({ chosen, planTier: planId, country, tools: needsTools, messages: parsed.data.messages });
+  const cands = mesh ? [] : regionCandidates(candidates(planId, chosen, needsTools), country, planId === "pro" || planId === "ultra");
+  // Mintaqa/tarif/imkoniyat bo'yicha birorta ham nomzod yo'q — kunlik hisob yoqilmasdan rad etiladi.
+  // (Mesh: sog'liq hisobga olinmaydi — vaqtincha yopiq provayder bu yerda "bor" deb sanaladi.)
+  const routable = mesh ? meshPlan(routeReq, { adapters: enabledAdapters(), health: new Map() }).length > 0 : cands.length > 0;
+  if (!routable) {
+    return country
+      ? Response.json({ error: t("p10RegionNoModels") }, { status: 451 })
+      : Response.json({ error: t("p7cCliNoProvider") }, { status: 503 });
+  }
 
   // CLI ham veb chat bilan bir xil kunlik chegaraga bo'ysunadi. Har bir model
   // chaqiruvi server tomonida atomik hisoblanadi (0027 consume_message_for —
@@ -349,19 +381,110 @@ export async function POST(req: Request) {
   }
 
   const maxTokens = Math.min(plan.limits.maxTokens, 4096);
+  const outcome = mesh
+    ? await meshCliComplete(routeReq, parsed.data.messages, parsed.data.tools, maxTokens, req.signal)
+    : await legacyComplete(cands, parsed.data.messages, parsed.data.tools, maxTokens);
+
+  if (!outcome.ok) {
+    if (outcome.status === 400) return Response.json({ error: t("chBadRequest") }, { status: 400 });
+    if (outcome.status === 413) return Response.json({ error: t("p7cCliTooLarge") }, { status: 413 });
+    if (outcome.status === 499) return new Response(null, { status: 499 }); // mijoz uzildi
+    // Provayder/model zanjiri tafsiloti faqat server logida — mijozga umumiy xabar.
+    console.error(`[cli/chat] barcha providerlar xato:\n  - ${outcome.failures.join("\n  - ")}`);
+    return Response.json({ error: t("secAllProvidersBusy") }, { status: 502 });
+  }
+
+  const message = outcome.message ?? { role: "assistant", content: "" };
+  await recordCliUsage(userId, outcome.model, outcome.usage, raw.length, message);
+  // `usage` — mijoz (CLI/Cowork) har vazifa qancha token sarflaganini ko'rsatadi va
+  // --budget'ni tekshiradi. Qo'shimcha maydon: eski mijozlar e'tiborsiz qoldiradi.
+  const pt = Number(outcome.usage?.prompt_tokens);
+  const ct = Number(outcome.usage?.completion_tokens);
+  const usage =
+    Number.isFinite(pt) && Number.isFinite(ct) ? { prompt_tokens: pt, completion_tokens: ct, total_tokens: pt + ct } : undefined;
+  return Response.json({
+    message,
+    plan: planId,
+    model: outcome.model,
+    provider: outcome.provider,
+    ...(usage ? { usage } : {}),
+    // Shaffoflik: tanlangan model mintaqada yopiq edi — boshqa model javob berdi (eski mijozlar e'tiborsiz qoldiradi).
+    ...(regionSwapped && chosen ? { requested: chosen, region: country, notice: t("p10RegionUnavailable") } : {}),
+  });
+}
+
+type CliMessages = z.infer<typeof schema>["messages"];
+type CliTools = z.infer<typeof schema>["tools"];
+type CliUsage = { prompt_tokens?: number; completion_tokens?: number };
+
+/** Bitta model chaqiruvi natijasi (mesh yoki eski zanjir). `status` — 400 / 413 / 499 / 502. */
+type CliOutcome =
+  | { ok: true; message: unknown; usage?: CliUsage; model: string; provider: string }
+  | { ok: false; status: number; failures: string[] };
+
+const short = (m: string) => m.replace(/\s+/g, " ").slice(0, 90);
+
+/** Mesh zanjirining umumiy muddati — maxDuration (60 s) dan oldin tugaydi (hisob yozuvi uchun zaxira). */
+const CLI_DEADLINE_MS = 55_000;
+
+/**
+ * Provider Mesh: web chat bilan bir xil algoritm (docs/MESH.md §10). `model` — halol served model
+ * (aggregator ichida almashtirgan bo'lsa ham haqiqiysi), `provider` — javob bergan mesh provayder.
+ * Kunlik birlik va sog'liq (circuit breaker) mesh ichida yoziladi.
+ */
+async function meshCliComplete(
+  routeReq: ReturnType<typeof cliRouteRequest>,
+  messages: CliMessages,
+  tools: CliTools,
+  maxTokens: number,
+  signal: AbortSignal,
+): Promise<CliOutcome> {
+  // Funksiya maxDuration (60 s) ichida javob qaytsin: umumiy muddat tugasa — 502, osilib qolmaydi.
+  // Mesh ham shu muddatni biladi: har urinish taymauti = min(taymaut, qolgan vaqt), muddat tugagach yangi urinish yo'q.
+  const deadlineAt = Date.now() + CLI_DEADLINE_MS;
+  const deadline = AbortSignal.timeout(CLI_DEADLINE_MS);
+  let result: Awaited<ReturnType<typeof meshComplete>>;
+  try {
+    result = await meshComplete({
+      req: routeReq,
+      body: {
+        messages,
+        ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
+        temperature: 0.4,
+        max_tokens: maxTokens,
+      },
+      signal: AbortSignal.any([signal, deadline]),
+      deadline: deadlineAt,
+    });
+  } catch (e) {
+    // Mijoz ulanishni uzdi (AbortSignal) — xato emas, sog'liq yozilmagan.
+    if (signal.aborted) return { ok: false, status: 499, failures: [] };
+    if (deadline.aborted) return { ok: false, status: 502, failures: [`umumiy muddat (${CLI_DEADLINE_MS} ms) tugadi`] };
+    throw e;
+  }
+  if (result.ok) {
+    return { ok: true, message: result.message, usage: result.usage, model: result.model, provider: result.provider };
+  }
+  const failures = result.attempts.map((a) => `${a.provider}/${a.wire}: ${a.error?.kind ?? "?"} ${short(a.error?.message ?? "")}`);
+  if (!failures.length) failures.push("nomzod yo'q (hammasi sog'liq bo'yicha yopiq)");
+  const status = result.status === 400 || result.status === 413 ? result.status : 502;
+  return { ok: false, status, failures };
+}
+
+/** SOVEREIGN_MESH=off: eski qattiq zanjir (candidates → regionCandidates → ketma-ket fetch). */
+async function legacyComplete(cands: Cand[], messages: CliMessages, tools: CliTools, maxTokens: number): Promise<CliOutcome> {
   const body = (model: string) =>
     JSON.stringify({
       model,
-      messages: parsed.data.messages,
-      tools: parsed.data.tools,
-      tool_choice: parsed.data.tools?.length ? "auto" : undefined,
+      messages,
+      tools,
+      tool_choice: tools?.length ? "auto" : undefined,
       temperature: 0.4,
       max_tokens: maxTokens,
     });
 
   // Har provayder xatosi yig'iladi — butun zanjir server logiga yoziladi.
   const failures: string[] = [];
-  const short = (m: string) => m.replace(/\s+/g, " ").slice(0, 90);
   for (const cand of cands) {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -382,29 +505,8 @@ export async function POST(req: Request) {
     }
 
     if (res.ok) {
-      const data = (await res.json()) as {
-        choices?: { message?: unknown }[];
-        usage?: { prompt_tokens?: number; completion_tokens?: number };
-      };
-      const message = data.choices?.[0]?.message ?? { role: "assistant", content: "" };
-      await recordCliUsage(userId, cand.model, data.usage, raw.length, message);
-      // `usage` — mijoz (CLI/Cowork) har vazifa qancha token sarflaganini ko'rsatadi va
-      // --budget'ni tekshiradi. Qo'shimcha maydon: eski mijozlar e'tiborsiz qoldiradi.
-      const pt = Number(data.usage?.prompt_tokens);
-      const ct = Number(data.usage?.completion_tokens);
-      const usage =
-        Number.isFinite(pt) && Number.isFinite(ct)
-          ? { prompt_tokens: pt, completion_tokens: ct, total_tokens: pt + ct }
-          : undefined;
-      return Response.json({
-        message,
-        plan: planId,
-        model: cand.model,
-        provider: cand.provider,
-        ...(usage ? { usage } : {}),
-        // Shaffoflik: tanlangan model mintaqada yopiq edi — boshqa model javob berdi (eski mijozlar e'tiborsiz qoldiradi).
-        ...(regionSwapped && chosen ? { requested: chosen, region: country, notice: t("p10RegionUnavailable") } : {}),
-      });
+      const data = (await res.json()) as { choices?: { message?: unknown }[]; usage?: CliUsage };
+      return { ok: true, message: data.choices?.[0]?.message, usage: data.usage, model: cand.model, provider: cand.provider };
     }
 
     let message = `${res.status}`;
@@ -417,10 +519,7 @@ export async function POST(req: Request) {
     if (cand.provider === "omniroute") healOmniRouteIfStuck(res.status, message);
     failures.push(`${cand.provider}/${cand.model}: ${res.status} ${short(message)}`);
     // Xato bo'lsa (429 TPM, 5xx, kalit) — keyingi providerga o'tamiz; maqsad: ish
-    // to'xtamasin. Zanjir oxirigacha muvaffaqiyat bo'lmasa, quyida xato qaytadi.
+    // to'xtamasin. Zanjir oxirigacha muvaffaqiyat bo'lmasa, 502 qaytadi.
   }
-
-  // Provayder/model zanjiri tafsiloti faqat server logida — mijozga umumiy xabar.
-  console.error(`[cli/chat] barcha providerlar xato:\n  - ${failures.join("\n  - ")}`);
-  return Response.json({ error: t("secAllProvidersBusy") }, { status: 502 });
+  return { ok: false, status: 502, failures };
 }

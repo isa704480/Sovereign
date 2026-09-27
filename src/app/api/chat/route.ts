@@ -16,6 +16,8 @@ import { isCodeRequest, planRouteLLM, type RouteStep } from "@/lib/ai/router";
 import { modelAllowedIn, regionDecision } from "@/lib/ai/region";
 import { resolveUserRegion } from "@/lib/ai/region-server";
 import { freePlanCandidates } from "@/lib/ai/chain";
+import { requiredPlanTier } from "@/lib/ai/mesh/tier";
+import { MESH_TUNING } from "@/lib/ai/mesh/types";
 import { AUTO_MODEL_ID, MODEL_BY_ID, RESEARCH_MODEL_ID } from "@/config/models";
 import { PLAN_BY_ID, planAllowsTier, planForTier, TIER_LABEL, type Plan } from "@/config/plans";
 import { resolveActiveSkills, skillsPrompt } from "@/config/skills";
@@ -219,6 +221,9 @@ function textOf(content: string | unknown[]): string {
 }
 
 export async function POST(req: Request) {
+  // Butun so'rovning umumiy muddati (maxDuration 120 s dan oldin): mesh har urinish taymautini
+  // qolgan vaqtga moslaydi, route esa muddat tugagach keyingi nomzodga o'tmaydi.
+  const requestDeadline = Date.now() + MESH_TUNING.webDeadlineMs;
   // IP-bazasidagi umumiy anti-abuse — auth kelib chiqishidan qat'i nazar
   // burst hujumni to'sadi. Auth foydalanuvchilarga alohida tokened bucket.
   const ip = clientIp(req);
@@ -336,10 +341,19 @@ export async function POST(req: Request) {
     return refuse(`${UPGRADE} ${fmt(t("secMonthlyTokenLimit"), { plan: plan.name })}`);
   }
 
-  // OmniRoute katalog gating: aniq modellar (mas. "dva/claude-opus-5-high") Pro+
-  // tarifda ochiladi. "auto/*" kombolari (tekin yo'naltirish) barcha tarifda ochiq.
-  if (isOmni && !regionSwapFrom && !modelId.startsWith("auto/") && !planAllowsTier(plan, "pro")) {
-    return refuse(`${UPGRADE} ${t("chOmniProOnly")}`);
+  // OmniRoute/upstream katalog gating (CLI route bilan bir xil funksiya — requiredPlanTier): aniq
+  // modellar (mas. "dva/claude-opus-5-high") kamida Pro'da; katalogdagi Ultra modelning upstream
+  // nomi ("anthropic/claude-opus-5") — Ultra'da. "auto/*" kombolari (tekin yo'naltirish) hammaga ochiq.
+  if (isOmni && !regionSwapFrom && !modelId.startsWith("auto/")) {
+    const need = requiredPlanTier(modelId);
+    if (!planAllowsTier(plan, need)) {
+      if (need === "pro") return refuse(`${UPGRADE} ${t("chOmniProOnly")}`);
+      const upPlan = planForTier(need);
+      const tierText = pick(lang, TIER_TEXT[need]) || TIER_LABEL[need];
+      return refuse(
+        `${UPGRADE} ${fmt(t("chModelTierUpgrade"), { model: modelId, tier: tierText, plan: upPlan.name, price: upPlan.price })}`,
+      );
+    }
   }
 
   // Research (Perplexity) — Starter/Free'da yopiq. Aniq model tekshiruvidan tashqari
@@ -479,6 +493,9 @@ export async function POST(req: Request) {
       let billedOutChars = 0;
       // Modelga haqiqatan yuborilgan qadam/nomzod chaqiruvlari soni (kirish har safar qayta yuboriladi).
       let modelCalls = 0;
+      // Shu so'rovda butunlay yiqilgan mesh provayderlari (auth, 5xx, provayder limiti) — keyingi
+      // nomzodlar (streamCompletion chaqiruvlari) ularni qayta sinamaydi.
+      const meshFailed = new Set<string>();
 
       // Shaffoflik: javob qadamini haqiqatda qaysi nomzod va qaysi upstream model bergani.
       const answerStep = steps.find((s) => s.kind === "answer") ?? steps[steps.length - 1];
@@ -691,6 +708,10 @@ ${connectorContext}`
               // Bepul "rescue" gateway faqat oxirgi nomzodda — avval o'z zaxiralarimiz.
               freeRescue: ci === candidates.length - 1,
               country,
+              planTier: plan.id,
+              deadline: requestDeadline,
+              exclude: [...meshFailed],
+              onProviderFailed: (p) => meshFailed.add(p),
             })) {
               if (ev.type === "done") break;
               if (ev.type === "served") {
@@ -723,8 +744,8 @@ ${connectorContext}`
             }
             if (!failure) break;
             const next = candidates[ci + 1];
-            if (!next || stepText) {
-              // Nothing left to try (or we already showed part of an answer).
+            if (!next || stepText || Date.now() >= requestDeadline) {
+              // Nothing left to try (or we already showed part of an answer, or the overall deadline passed).
               send({ type: "error", message: failure });
               break;
             }

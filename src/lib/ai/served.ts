@@ -13,6 +13,11 @@ const NOISE = new Set(["instruct", "latest", "chat", "preview", "versatile", "fr
 /** Boshida kelsa tashlab yuboriladigan tashkilot nomlari. */
 const VENDORS = new Set(["meta", "anthropic", "openai", "google", "mistralai", "microsoft", "nvidia"]);
 
+/** Model id'ning ma'noli tokenlari (sameModel shu bilan solishtiradi) — mesh/tier.ts prefiks moslashi uchun ham. */
+export function modelTokens(id: string): string[] {
+  return tokens(id);
+}
+
 function tokens(id: string): string[] {
   let s = id.toLowerCase().trim();
   s = s.split("/").pop() ?? s; // "vendor/model" → "model"

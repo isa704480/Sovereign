@@ -16,6 +16,11 @@ import {
   jsonCompletionToChunk,
 } from "./cloudflare";
 import { providerSideFailure } from "./chain";
+import { meshStream, providerWideFailure } from "./mesh/execute";
+import { enabledAdapters } from "./mesh/registry";
+import { explain, formatExplain, plan as meshPlan } from "./mesh/scheduler";
+import { meshMode, modelTierFor, webRouteRequest } from "./mesh/request";
+import { PROVIDER_IDS, type HealthSnapshot, type PlanTier, type ProviderId } from "./mesh/types";
 
 /**
  * O'z serverimizdagi modellar (providerModel). Ular faqat o'z serverimizda
@@ -248,6 +253,9 @@ function hostPrefixedRoute(id: string): DirectRoute | null {
 /** Katalogda yo'q "host/..." id chaqirilishi mumkinmi (to'g'ridan-to'g'ri kalit yoki OmniRoute). */
 export function hostIdAvailable(id: string): boolean {
   if (!id.includes("/")) return false;
+  // Mesh: "groq/qwen/..." ni Cloudflare/Cerebras'dagi AYNAN shu og'irliklar ham bera oladi;
+  // "cloudflare/..." OmniRoute'ga hech qachon ketmaydi (OmniRoute adapteri uni resolve qilmaydi).
+  if (meshMode() === "on") return meshServes(id);
   if (hostPrefixedRoute(id)) return true;
   // cloudflare/... faqat Cloudflare kaliti bilan (OmniRoute'da bunday provayder yo'q).
   if (id.startsWith(CF_PREFIX)) return false;
@@ -368,8 +376,61 @@ function textOf(content: string | unknown[]): string {
     .join(" ");
 }
 
+/* ------------------------------------------------------------------ */
+/* Provider Mesh (SOVEREIGN_MESH=on — standart): bitta algoritm         */
+/* ------------------------------------------------------------------ */
+
+const NO_HEALTH: HealthSnapshot = new Map();
+
+/**
+ * Mesh'da aynan shu modelni (bir xil og'irliklar) beradigan kalitli provayder bormi. Sog'liq
+ * hisobga olinmaydi ("kalit bor" ma'nosi — vaqtincha yopiq provayder ham "ulangan"), rescue
+ * shlyuzlar (LLM7 ...) va o'rinbosarlar sanalmaydi.
+ */
+function meshServes(id: string): boolean {
+  try {
+    const adapters = enabledAdapters();
+    // Kesh: fallbackModelIds / Auto navbati har so'rovda o'nlab modelni tekshiradi. Kalitlar
+    // to'plami o'zgarsa (env) — kesh tozalanadi.
+    const sig = adapters.map((a) => a.id).join(",");
+    if (sig !== serveCacheSig) {
+      serveCache.clear();
+      serveCacheSig = sig;
+    }
+    const hit = serveCache.get(id);
+    if (hit && Date.now() - hit.at < SERVE_CACHE_MS) return hit.ok;
+    // Faqat "kalit bor" ma'nosi — tarif bu yerda tekshirilmaydi (route darvozasi va so'rovdagi
+    // planTier tekshiradi), shuning uchun planTier eng yuqori.
+    const tier = modelTierFor(id);
+    const ok =
+      meshPlan(
+        {
+          sovereignModelId: id,
+          ...(tier ? { modelTier: tier } : {}),
+          planTier: "ultra",
+          needs: {},
+          country: null,
+          sameModelOnly: true,
+          allowRescue: false,
+        },
+        { adapters, health: NO_HEALTH },
+      ).length > 0;
+    serveCache.set(id, { at: Date.now(), ok });
+    return ok;
+  } catch (err) {
+    console.error("[mesh] meshServes:", err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
+const SERVE_CACHE_MS = 60_000;
+const serveCache = new Map<string, { at: number; ok: boolean }>();
+let serveCacheSig = "";
+
 export function hasKeyFor(model: SovereignModel): boolean {
   if (isResearchModel(model)) return !!process.env.PERPLEXITY_API_KEY;
+  // Mesh: Tella (o'z serverimiz) ham, boshqa modellar ham — aynan shu modelni beradigan adapter.
+  if (meshMode() === "on") return meshServes(model.id);
   // Tella 2 faqat o'z serverimizda: TELLA_BASE_URL yo'q bo'lsa "ulanmagan" —
   // OpenRouter'ga "tella-2" id bilan borib, begona model javob bermasin.
   if (isOwnModel(model.providerModel)) return providerAvailable("tella");
@@ -1289,6 +1350,28 @@ export interface StreamOptions {
    * provayderi shu mintaqaga xizmat ko'rsatmaydigan model/host HECH QACHON chaqirilmaydi.
    */
   country?: string | null;
+  /**
+   * Foydalanuvchi tarifi (chat route: plan.id). Mesh aynan so'ralgan modelning har bir yo'li
+   * (offer) tarifini shu bilan solishtiradi: ":free" modelning pullik varianti Free'ga, upstream
+   * nomi bilan so'ralgan Ultra model Pro'ga berilmaydi. Berilmasa — model tarifi.
+   */
+  planTier?: PlanTier;
+  /**
+   * Butun so'rovning umumiy muddati (epoch ms). Chat route bir nechta nomzodni ketma-ket
+   * chaqirganda ham maxDuration (120 s) dan oshmasin — har urinish taymauti = min(taymaut, qolgan).
+   */
+  deadline?: number;
+  /** Shu so'rovda oldingi nomzodlarda butunlay yiqilgan mesh provayderlari — qayta chaqirilmaydi. */
+  exclude?: readonly string[];
+  /** Mesh provayderi butunlay yiqildi (auth, 5xx, provayder limiti) — chaqiruvchi keyingi nomzodlarga `exclude` qiladi. */
+  onProviderFailed?: (provider: string) => void;
+}
+
+/** Tashqi (chat route) exclude ro'yxati → mesh ProviderId'lari. */
+function meshExclude(list: readonly string[] | undefined): ProviderId[] {
+  if (!list?.length) return [];
+  const known = new Set<string>(PROVIDER_IDS);
+  return [...new Set(list.filter((p) => known.has(p)))] as ProviderId[];
 }
 
 /** Streams a completion from OpenRouter (or Perplexity for research models). */
@@ -1329,6 +1412,86 @@ function syntheticOmniModel(id: string, provider = "OmniRoute"): SovereignModel 
   };
 }
 
+/** Katalogda yo'q id uchun sintetik model provayder yorlig'i (system prompt'da). */
+function hostLabel(id: string): string {
+  if (id.startsWith(CF_PREFIX)) return "Cloudflare";
+  if (id.startsWith("groq/")) return "Groq";
+  return "OmniRoute";
+}
+
+/**
+ * Web chat — Provider Mesh orqali (docs/MESH.md): yo'l tanlash, sog'liq (circuit breaker, kvota),
+ * yukni yoyish, failover, halol "served" — hammasi mesh/execute.ts meshStream'da. Bu yerda faqat
+ * katalog/sintetik model, system prompt, research (Perplexity) va mock qoladi.
+ */
+async function* streamViaMesh(opts: StreamOptions): AsyncGenerator<StreamEvent> {
+  const lang = opts.lang ?? DEFAULT_LANG;
+  const catalog = MODEL_BY_ID[opts.modelId];
+  if (!catalog && !isOmniCatalogId(opts.modelId)) {
+    yield { type: "error", message: fmt(translate(lang, "chErrUnknownModelId"), { id: opts.modelId }) };
+    return;
+  }
+  if (catalog && !hasKeyFor(catalog)) {
+    // Production'da soxta javob berib bo'lmaydi — xato, chat route boshqa (sozlangan) modelga o'tadi.
+    if (process.env.NODE_ENV === "production") {
+      yield { type: "error", message: fmt(translate(lang, "chErrModelNotConnected"), { model: catalog.name }) };
+      return;
+    }
+    yield* mockStream(catalog, opts.messages);
+    return;
+  }
+  const model = catalog ?? syntheticOmniModel(opts.modelId, hostLabel(opts.modelId));
+  const messages: ChatMessageInput[] = [
+    { role: "system", content: buildSystemPrompt(model, !!opts.research, opts.extraSystem) },
+    ...opts.messages.filter((m) => m.role !== "system"),
+  ];
+  // Research (Perplexity /v1/responses) — o'z protokoli, citations bilan (mesh execute qo'llamaydi).
+  if (catalog && isResearchModel(catalog)) {
+    yield* streamPerplexity(catalog, messages, opts);
+    return;
+  }
+  yield* meshStream({
+    req: webRouteRequest({
+      modelId: opts.modelId,
+      messages,
+      country: opts.country,
+      freeRescue: opts.freeRescue,
+      ownModel: isOwnModel(model.providerModel),
+      planTier: opts.planTier,
+      exclude: meshExclude(opts.exclude),
+    }),
+    body: { messages, temperature: opts.temperature ?? 0.7, max_tokens: opts.maxTokens ?? 2048 },
+    signal: opts.signal,
+    lang,
+    ...(opts.deadline ? { deadline: opts.deadline } : {}),
+    onAttempt: (a) => {
+      if (!a.ok && a.error && providerWideFailure(a.error)) opts.onProviderFailed?.(a.provider);
+    },
+  });
+}
+
+/** SOVEREIGN_MESH=shadow: eski zanjir ishlaydi, mesh qaysi nomzodlarni tanlardi — faqat logga. */
+function logShadowPlan(opts: StreamOptions): void {
+  try {
+    const catalog = MODEL_BY_ID[opts.modelId];
+    if (catalog && isResearchModel(catalog)) return;
+    const req = webRouteRequest({
+      modelId: opts.modelId,
+      messages: opts.messages,
+      country: opts.country,
+      freeRescue: opts.freeRescue,
+      ownModel: catalog ? isOwnModel(catalog.providerModel) : false,
+      planTier: opts.planTier,
+    });
+    const kept = formatExplain(explain(req, { adapters: enabledAdapters(), health: NO_HEALTH }))
+      .filter((l) => l.startsWith("#"))
+      .slice(0, 5);
+    console.info(`[mesh:shadow] ${opts.modelId} → ${kept.join(" | ") || "nomzod yo'q"}`);
+  } catch {
+    /* shadow log hech qachon so'rovni yiqitmaydi */
+  }
+}
+
 export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<StreamEvent> {
   // Mintaqa siyosati — oxirgi himoya chizig'i: route almashtirishni o'tkazib yuborsa
   // ham cheklangan provayder chaqirilmaydi (xato → route keyingi nomzodga o'tadi).
@@ -1337,6 +1500,13 @@ export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<Str
     yield { type: "error", message: fmt(translate(opts.lang ?? DEFAULT_LANG, "p10RegionModelBlocked"), { model: name }) };
     return;
   }
+  const mode = meshMode();
+  if (mode === "on") {
+    yield* streamViaMesh(opts);
+    return;
+  }
+  // SOVEREIGN_MESH=off|shadow — eski zanjir (favqulodda qaytarish uchun saqlangan).
+  if (mode === "shadow") logShadowPlan(opts);
   // Host prefiksli id (Auto / tekin zanjir: "groq/...", "cloudflare/@cf/...") — kalit bo'lsa
   // OmniRoute'siz to'g'ridan-to'g'ri o'sha provayderga.
   const hostRoute = isOmniCatalogId(opts.modelId) ? hostPrefixedRoute(opts.modelId) : null;
