@@ -30,6 +30,14 @@ export function safeLoginUrl(url, baseUrl) {
 }
 
 /**
+ * Server qaytargan user code ("ABCD-1234") — faqat shu formatda UI'ga uzatiladi. Aks holda null.
+ * Kod URL'da yo'q: foydalanuvchi uni brauzerdagi sahifaga O'ZI teradi (RFC 8628, phishing'ga qarshi).
+ */
+export function displayUserCode(v) {
+  return typeof v === "string" && /^[0-9A-Z]{4}-[0-9A-Z]{4}$/.test(v) ? v : null;
+}
+
+/**
  * @param {{ baseUrl: string, saveConfig: Function, openExternal: (url:string)=>Promise<void>, emit: (ev:object)=>void }} deps
  * @returns {{ promise: Promise<boolean>, cancel: () => void }}
  */
@@ -38,15 +46,18 @@ export function startLogin({ baseUrl, saveConfig, openExternal, emit }) {
   let cancelled = false;
   const promise = (async () => {
     emit({ state: "starting" });
-    let code, url;
+    let code, url, userCode;
     try {
       const res = await fetch(`${base}/api/cli/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ device: `${hostname()} (${platform()}) · Cowork` }),
+        // userCode: true — server tasdiqlash kodini qaytaradi, URL'da esa device kodi bo'lmaydi.
+        body: JSON.stringify({ device: `${hostname()} (${platform()}) · Cowork`, userCode: true }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      ({ code, url } = await res.json());
+      const data = await res.json();
+      ({ code, url } = data);
+      userCode = displayUserCode(data?.userCode);
     } catch (e) {
       emit({ state: "error", message: e.message });
       return false;
@@ -55,8 +66,11 @@ export function startLogin({ baseUrl, saveConfig, openExternal, emit }) {
       emit({ state: "error", message: "unsafe-url" });
       return false;
     }
-    emit({ state: "waiting", code: String(code).slice(0, 32) });
-    openExternal(url).catch(() => emit({ state: "waiting", code: String(code).slice(0, 32), openFailed: true, url }));
+    // Yangi server: faqat user code ko'rsatiladi (device kodi maxfiy). Eski server (userCode yo'q):
+    // avvalgidek device kodining boshi — eski sahifa uni solishtirish uchun ko'rsatadi.
+    const shown = userCode ? { userCode } : { code: String(code).slice(0, 32) };
+    emit({ state: "waiting", ...shown });
+    openExternal(url).catch(() => emit({ state: "waiting", ...shown, openFailed: true, url }));
 
     const started = Date.now();
     while (!cancelled && Date.now() - started < TIMEOUT_MS) {

@@ -271,7 +271,7 @@ export function install() {
       };
     })(),
     auth: {
-      login: async () => { emit({ type: "auth", state: "waiting", code: "QX7-4KD" }); await sleep(2500); authed = true; emit({ type: "auth", state: "approved", email: "islombek@example.com" }); return { ok: true, ...state() }; },
+      login: async () => { emit({ type: "auth", state: "waiting", userCode: "QX7P-4KDM" }); await sleep(2500); authed = true; emit({ type: "auth", state: "approved", email: "islombek@example.com" }); return { ok: true, ...state() }; },
       cancel: async () => ({ ok: true }),
       logout: async () => { authed = false; return state(); },
     },
