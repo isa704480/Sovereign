@@ -202,6 +202,66 @@ async function main() {
     assert.equal(await g.paidRestricted(), false);
   });
 
+  await test("guard: 3 ketma-ket xato 30 daqiqa ichida — fail-closed (pullik yopiq), muvaffaqiyat tiklaydi", async () => {
+    let t = NOW.getTime();
+    let broken = true;
+    let computes = 0;
+    const logs: string[] = [];
+    const g = createBudgetGuard({
+      store: memStore(),
+      now: () => t,
+      compute: async () => {
+        computes++;
+        if (broken) throw new Error("db down");
+        return state({ revenueUsd: 1000, spendUsd: 10 });
+      },
+      log: (m) => void logs.push(m),
+    });
+    // 1-xato: fail-open.
+    assert.equal(await g.refresh(), null);
+    assert.equal(await g.paidRestricted(), false);
+    assert.equal(g.failingClosed(), false);
+    // Backoff (60 s) ichida fon qayta urinish yo'q — bo'ron bo'lmasin.
+    const before = computes;
+    await g.paidRestricted();
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(computes, before);
+    // 2-xato (10 daqiqadan keyin) — hali ochiq.
+    t += 10 * 60_000;
+    await g.refresh();
+    assert.equal(await g.paidRestricted(), false);
+    // 3-xato (yana 10 daqiqa, oyna 30 daqiqa ichida) — fail-closed.
+    t += 10 * 60_000;
+    await g.refresh();
+    assert.equal(g.failingClosed(), true);
+    assert.equal(await g.paidRestricted(), true);
+    assert.ok(logs.some((m) => /fail-closed/.test(m)));
+    // Tiklanish: bitta muvaffaqiyatli hisob — cheklov yo'qoladi (daromad yetarli).
+    broken = false;
+    t += 2 * 60_000;
+    assert.ok(await g.refresh());
+    assert.equal(g.failingClosed(), false);
+    assert.equal(await g.paidRestricted(), false);
+  });
+
+  await test("guard: xatolar 30 daqiqalik oynadan tashqarida — fail-open qoladi", async () => {
+    let t = NOW.getTime();
+    const g = createBudgetGuard({
+      store: memStore(),
+      now: () => t,
+      compute: async () => {
+        throw new Error("db down");
+      },
+      log: () => undefined,
+    });
+    for (let i = 0; i < 3; i++) {
+      await g.refresh();
+      t += 20 * 60_000; // xatolar orasida 20 daqiqa: oynada hech qachon 3 ta emas
+    }
+    assert.equal(g.failingClosed(), false);
+    assert.equal(await g.paidRestricted(), false);
+  });
+
   await test("guard: store o'qish xatosi — xotira keshi ishlaydi", async () => {
     const g = createBudgetGuard({
       store: {
