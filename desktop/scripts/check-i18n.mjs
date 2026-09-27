@@ -50,7 +50,7 @@ for (const k of all) {
 }
 
 // Kirill: lotin harfi qolgan so'zlar faqat ruxsat etilgan texnik atamalar bo'lsin.
-const LATIN_OK = /^(SOVEREIGN|Cowork|CLI|AI|API|SQL|VS|CI|OK|UNC|MB|PC|README|md|env|ssh|aws|sovereign|Ctrl|Shift|Enter|Esc|Explorer|Windows|SmartScreen|GitHub|Releases|Undo|Auto|diff|Diff|src|npm|pnpm|git|Git|rebase|merge|hook|hooks|tasks|Code|React|Express|preload|claude|gemini|deepseek|exit|Shell|grep|R|C|foo|O|More|info|Run|anyway|protected|your|v|Full|auto|push|publish|deploy|sudo|build|Ollama|Finder|node|python|e|c|U|vscode|install)$/; // v — versiya belgisi (v0.5.3); Ollama — brend (o‘rnatish uchun lotinda qoladi)
+const LATIN_OK = /^(SOVEREIGN|Cowork|CLI|AI|API|SQL|VS|CI|OK|UNC|MB|PC|README|md|env|ssh|aws|sovereign|Ctrl|Shift|Enter|Esc|Explorer|Windows|SmartScreen|GitHub|Releases|Undo|Auto|diff|Diff|src|npm|pnpm|git|Git|rebase|merge|hook|hooks|tasks|Code|React|Express|preload|claude|gemini|deepseek|exit|Shell|grep|R|C|foo|O|More|info|Run|anyway|protected|your|v|Full|auto|push|publish|deploy|sudo|build|Ollama|Finder|node|python|e|c|U|vscode|install|Docker|Desktop|Podman|docker|pull|bubblewrap|sandbox|exec|apt|user|namespace|Linux|Mac|HOME)$/; // v — versiya belgisi (v0.5.3); Ollama — brend (o‘rnatish uchun lotinda qoladi)
 for (const k of Object.keys(uz)) {
   const v = cyrlValue(k).replace(/\{\w+\}/g, "");
   for (const w of v.match(/[A-Za-z]+/g) ?? []) {

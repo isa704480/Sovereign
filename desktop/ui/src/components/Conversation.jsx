@@ -29,6 +29,11 @@ export function ToolStep({ it, awaiting }) {
           {t(`status.${status}`)}
         </span>
         {it.auto === "ok" && <span className="step-auto" title={t("auto.stepTitle")} aria-label={t("auto.stepTitle")}><Icon name="bolt" size={11} stroke={2} /></span>}
+        {it.auto === "ok" && it.sandbox && (
+          <span className={`pill ${it.sandbox === "limited" ? "pill-failed" : "pill-ok"}`} title={t("sandbox.stepTitle", { level: t(`sandbox.level.${it.sandbox}`) })}>
+            <Icon name={it.sandbox === "limited" ? "info" : "lock"} size={11} /> {t(`sandbox.level.${it.sandbox}`)}
+          </span>
+        )}
         {canExpand && <Icon name="chevron" size={12} className={`caret ${open ? "open" : ""}`} />}
       </button>
       {it.auto && it.auto !== "ok" && <div className="step-note small">{t(`auto.denied.${it.auto}`)}</div>}

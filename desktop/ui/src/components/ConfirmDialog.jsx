@@ -64,7 +64,8 @@ export default function ConfirmDialog({ req, onReply }) {
 
   // Ogohlantirishlar: runTool meta'dagi outside/autoRun/risky belgilari aniq ko'rsatiladi.
   const warnings = [];
-  if (meta.fullAutoAsk) warnings.push({ tone: "warn", text: t("confirm.fullAutoAsk") });
+  if (meta.fullAutoAsk === "sandbox") warnings.push({ tone: "danger", text: t("confirm.sandboxRequired") });
+  else if (meta.fullAutoAsk) warnings.push({ tone: "warn", text: t("confirm.fullAutoAsk") });
   if (meta.hiddenChars) warnings.push({ tone: "danger", text: t("confirm.hiddenChars") });
   if (meta.outside) warnings.push({ tone: "danger", text: <>{t("confirm.outside")} <span className="mono">{revealHidden(meta.path)}</span></> });
   if (meta.autoRun) warnings.push({ tone: "danger", text: t("confirm.autoRun") });

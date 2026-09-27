@@ -27,6 +27,8 @@ const DEFAULTS = {
   fullAutoLocal: false, // Full auto + mahalliy model — alohida tasdiq (aks holda mahalliy rejimda Full auto pauza)
   // Chuqur so'rash (Deep Inquiry) — §A.7: auto | always | off
   inquiryMode: "auto",
+  // Buyruqlar sandbox'i (cli/src/sandbox.mjs): auto | required | off
+  sandbox: "auto",
   lastFolder: "",
   recent: [], // oxirgi ish papkalari (main o'zi yozadi)
   window: null, // { x, y, width, height, maximized }
@@ -49,6 +51,7 @@ const VALID = {
   localModel: (v) => v === "" || isValidModelName(v),
   fullAutoLocal: (v) => typeof v === "boolean",
   inquiryMode: (v) => ["auto", "always", "off"].includes(v),
+  sandbox: (v) => ["auto", "required", "off"].includes(v),
 };
 /** Rozilik ro'yxati chegarasi (eng eskilari tushib qoladi — keyin qayta so'raladi). */
 export const FULL_AUTO_CONSENT_MAX = 100;

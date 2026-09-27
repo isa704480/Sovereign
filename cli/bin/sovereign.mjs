@@ -15,6 +15,7 @@ import { banner, c, clearScreen, configureUi, gutter, hintBar, logo, skillsList,
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
 import { contextSummary, fullAutoDenyReason, isTrustableDir, resolvePath as resolveWs, visible } from "../src/tools.mjs";
 import { fullAutoMustAsk } from "../src/full-auto.mjs";
+import { detectSandbox, planSandbox, describeSandbox, levelLabel } from "../src/sandbox.mjs";
 import { confirmFullAutoTrust } from "../src/trust.mjs";
 import { cliSnapshotStore, describeCounts } from "../src/snapshot.mjs";
 import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
@@ -62,8 +63,9 @@ const vibe = { on: !flags.noVibe && (invokedAs === "sov" || Boolean(flags.vibe))
  * test, build) tasdiqsiz bajariladi. So'ralmasdan RAD ETILADI: tashqi yo'llar,
  * himoyalangan/bloklangan narsalar (tools.mjs), push/publish/deploy/sudo, git config
  * va sessiyadan keyin o'zi ishga tushadigan fayllar (CI/hook/.vscode/SOVEREIGN.md).
- * DIQQAT: bu rad etish faqat buyruq MATNI filtri, sandbox EMAS — agent yozgan skript
- * foydalanuvchi huquqlari bilan ishlaydi. Shuning uchun har papkada bir martalik
+ * DIQQAT: bu rad etish faqat buyruq MATNI filtri, sandbox EMAS. Buyruqlarning o'zi
+ * src/sandbox.mjs orqali bajariladi (to'liq / konteyner / cheklangan — `sov doctor`);
+ * "cheklangan" darajada agent yozgan skript foydalanuvchi huquqlari bilan ishlaydi. Shuning uchun har papkada bir martalik
  * ogohlantirishli tasdiq (src/trust.mjs), flag orqali yoqilganda ham.
  */
 const fullAuto = { on: Boolean(flags.fullAuto) };
@@ -117,8 +119,25 @@ function fullAutoDecision(question, meta) {
     console.log(`  ${c.red("⊘")} ${c.dim(q)} ${c.red(`full auto: ${deny} — rad etildi (qo'lda bajaring)`)}`);
     return false;
   }
-  console.log(`  ${c.emerald("⚡")} ${c.dim(q)} ${c.emerald("full auto")}`);
+  const sb = meta?.tool === "run_command" && meta.sandboxLevel && meta.sandboxLevel !== "none" ? meta.sandboxLevel : "";
+  const tag = sb ? (sb === "limited" ? c.amber(` [sandbox: ${levelLabel(sb)}]`) : c.dim(` [sandbox: ${levelLabel(sb)}]`)) : "";
+  console.log(`  ${c.emerald("⚡")} ${c.dim(q)} ${c.emerald("full auto")}${tag}`);
   return true;
+}
+
+/** Full auto yoqilganda: buyruqlar qaysi sandbox darajasida bajarilishi (halol, `sov doctor` bilan bir xil). */
+async function sandboxStatusLine(config) {
+  try {
+    const mode = config?.sandbox ?? "auto";
+    const info = mode === "off" ? null : await detectSandbox({ image: config?.sandboxImage });
+    const plan = planSandbox({ mode, fullAuto: true, info });
+    const real = plan.level === "full" || plan.level === "container";
+    const head = real ? c.emerald(`🔒 sandbox: ${levelLabel(plan.level)}`) : c.amber(`◐ sandbox: ${levelLabel(plan.level)}`);
+    const req = mode === "required" && !real ? c.amber(" — sandbox=required: har buyruq qo'lda tasdiqlanadi") : "";
+    return `  ${head} ${c.dim(describeSandbox(plan, mode))}${req}`;
+  } catch {
+    return "";
+  }
 }
 
 // -f <path> / --file <path> — birinchi xabarga biriktiriladigan fayllar.
@@ -164,6 +183,10 @@ async function applyLocalStartup(config, { interactive, rl, log }) {
 /** --full-auto flag: shu papkada bir martalik ogohlantirishli tasdiq (interaktivsiz — faqat ogohlantirish). */
 async function applyFullAutoStartup({ interactive, rl, log }) {
   if (fullAuto.on && !(await confirmFullAutoTrust({ interactive, ask: (q) => ask(rl, q), log, c }))) fullAuto.on = false;
+  if (fullAuto.on) {
+    const line = await sandboxStatusLine(loadConfig());
+    if (line) log(line);
+  }
 }
 
 /** applyLocalStartup xatosi — terminalga (qizil xabar + ko'rsatma). */
@@ -316,7 +339,8 @@ async function confirmer(rl) {
         return ok;
       }
       // Full auto'da ham majburiy tasdiq ("a" taklif qilinmaydi).
-      console.log(`  ${c.amber("⚡")} ${c.dim("full auto: bu amal qo'lda tasdiqlanadi")} ${c.dim(`(${fullAutoAsk})`)}`);
+      const why = fullAutoAsk === "sandbox" ? "sandbox=required, lekin haqiqiy sandbox yo'q — buyruq sandbox'siz bajariladi" : fullAutoAsk;
+      console.log(`  ${c.amber("⚡")} ${c.dim("full auto: bu amal qo'lda tasdiqlanadi")} ${c.dim(`(${why})`)}`);
     }
     const mustAsk = Boolean(fullAutoAsk || forcePrompt || meta?.risky || meta?.outside);
     if (!mustAsk && (trust.all || inTrustedDir(meta?.path))) {
@@ -467,7 +491,7 @@ function handleHelp(topic) {
       `    -m, --model <id>         shu ish uchun model (saqlanmaydi)`,
       `    -y, --yes                ish papkasi ichidagi oddiy amallarni avtomatik tasdiqlash`,
       `        --vibe, --no-vibe    vibe rejimni yoqish / o'chirish (sov nomi bilan yoqiq)`,
-      `        --full-auto, --auto  FULL AUTO: hech narsa so'ralmaydi (sandbox emas — faqat ishonchli papkada)`,
+      `        --full-auto, --auto  FULL AUTO: hech narsa so'ralmaydi (buyruqlar sandbox'da, daraja: sov doctor)`,
       `        --no-verify          AI hakam (halollik tekshiruvi)ni o'chirish`,
       `        --budget <token>     bitta vazifa uchun token byudjeti (mas. 50k) — oshsa navbat to'xtaydi`,
       `        --no-ask             vazifa boshida aniqlashtiruvchi savollar berilmasin (chuqur so'rash)`,
@@ -507,6 +531,11 @@ function handleHelp(topic) {
       `    publish, deploy, sudo, git config va CI/hook fayllari rad etiladi, LEKIN bu faqat buyruq matni`,
       `    filtri, sandbox emas: repo fayllaridagi yashirin ko'rsatma agentni ixtiyoriy kod bajarishga`,
       `    undashi mumkin. Har papkada bir marta tasdiq so'raladi — faqat ishonchli papkada yoqing.`,
+      `    Sandbox (buyruqlar): to'liq — Linux bubblewrap / macOS sandbox-exec (yozish faqat ish papkasiga,`,
+      `    tarmoq o'chiq, uy papkasi yashirin); konteyner — Docker/Podman (--network none); cheklangan —`,
+      `    haqiqiy sandbox yo'q (odatda Windows Docker'siz): faqat env tozalanadi va HOME yo'naltiriladi.`,
+      `    Paket o'rnatish (npm/pip install) sandbox ichida tarmoq oladi. Daraja: sov doctor.`,
+      `    sov config sandbox=auto|required|off — required: haqiqiy sandbox bo'lmasa buyruq so'raladi.`,
       "",
       `  ${w("Chiqish kodlari:")} 0 muvaffaqiyat · 1 xato · 2 noto'g'ri foydalanish · 3 login kerak · 130 Ctrl+C`,
       `  ${w("Muhit:")} SOVEREIGN_URL, SOVEREIGN_TOKEN, OPENROUTER_API_KEY, SOVEREIGN_MODEL, NO_COLOR, SOV_VERIFY=0`,
@@ -585,7 +614,7 @@ function handleConfigArgs(args) {
   }
   if (errors.length) {
     for (const e of errors) process.stderr.write(`sov: ${e}\n`);
-    process.stderr.write("Foydalanish: sov config inquiry=auto|always|off localFallback=off|ask|auto localModel=<nom>\n");
+    process.stderr.write("Foydalanish: sov config inquiry=auto|always|off localFallback=off|ask|auto localModel=<nom> sandbox=auto|required|off sandboxImage=<image>\n");
     return EXIT.USAGE;
   }
   const path = saveConfig(patch);
@@ -1201,11 +1230,13 @@ async function repl() {
         rewritePrompt();
         continue;
       }
+      const sbLine = fullAuto.on ? await sandboxStatusLine(config) : "";
       say(
         fullAuto.on
           ? `${c.emerald("⚡ FULL AUTO")} ${c.dim("yoqildi — hech narsa so'ralmaydi: fayl yozish, paket o'rnatish, test va build darhol bajariladi.")}
 ` +
-              G + c.amber("  ⚠ Faqat ishonchli papkada ishlating. ") + c.dim("Push/publish/deploy/sudo rad etish ro'yxati faqat matn filtri — sandbox emas. /auto — o'chirish.")
+              G + c.amber("  ⚠ Faqat ishonchli papkada ishlating. ") + c.dim("Push/publish/deploy/sudo rad etish ro'yxati faqat matn filtri — o'zi sandbox emas. /auto — o'chirish.") +
+              (sbLine ? `\n${G}${sbLine}` : "")
           : `${c.amber("○ FULL AUTO")} ${c.dim("o'chirildi — amallar yana tasdiqlanadi.")}`,
       );
       rewritePrompt();

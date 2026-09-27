@@ -30,6 +30,8 @@ contextBridge.exposeInMainWorld("sovereign", {
   settings: {
     set: (patch) => invoke("settings:set", patch),
   },
+  // Full auto buyruqlari sandbox'i: {mode, level: full|container|limited, method, image, reason}.
+  sandboxStatus: (force) => invoke("sandbox:status", force === true),
   // Chuqur so'rash kartasi: javob {q1: "…", q2: ["a","b"]} yoki "Taxmin bilan javob ber" (skip).
   inquiry: {
     answer: (id, answers) => invoke("inquiry:answer", { id, answers }),

@@ -7,8 +7,10 @@
 //    - Cowork'dan tashqarida keyinroq bajariladigan fayllar (CI, IDE task, git hook
 //      menejerlari, agent sozlamalari) — sessiyadan keyin qoladigan "orqa eshik";
 //    - bidi/nol-kenglik belgilari bor buyruq yoki yo'l — ko'rinadigan matn soxtalashtirilishi mumkin;
-//    - interpretatorga satr ichida kod (`node -e`, `python -c` ...) — bu SANDBOX EMAS,
-//      faqat eng oson prompt-injection yo'lini sekinlatadi (agent faylga yozib ishga tushira oladi).
+//    - interpretatorga satr ichida kod (`node -e`, `python -c` ...) — bu o'zi SANDBOX EMAS,
+//      faqat eng oson prompt-injection yo'lini sekinlatadi (agent faylga yozib ishga tushira oladi);
+//    - sandbox="required", lekin haqiqiy OS/konteyner sandbox yo'q (sandbox.mjs "limited").
+//    Buyruqlarning o'zi mavjud bo'lsa OS sandbox'ida bajariladi — cli/src/sandbox.mjs.
 
 import { realpathSync } from "node:fs";
 import { resolve } from "node:path";
@@ -73,7 +75,7 @@ export function inlineEval(command) {
 }
 
 /**
- * Full auto'da ham oddiy tasdiq kerakmi. Qaytaradi: null | "autoRun" | "hidden" | "inline".
+ * Full auto'da ham oddiy tasdiq kerakmi. Qaytaradi: null | "autoRun" | "hidden" | "inline" | "sandbox".
  * @param {object|null} meta runTool tasdiq meta'si
  * @param {string} [rel] write_file uchun ish papkasiga nisbatan haqiqiy yo'l
  */
@@ -82,6 +84,8 @@ export function fullAutoMustAsk(meta, rel = "") {
   if (meta.tool === "run_command") {
     if (hasHiddenFormat(meta.command)) return "hidden";
     if (inlineEval(meta.command)) return "inline";
+    // sandbox="required", lekin haqiqiy (OS/konteyner) sandbox yo'q — buyruq faqat qo'lda tasdiq bilan.
+    if (meta.sandboxRequired) return "sandbox";
     return null;
   }
   if (meta.tool === "write_file" || meta.tool === "make_dir") {

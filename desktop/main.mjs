@@ -38,6 +38,7 @@ import { SnapshotStore, withCommandSnapshots } from "../cli/src/snapshot.mjs";
 import * as projectMemory from "../cli/src/project-memory.mjs";
 import { registerProjectIpc } from "./electron/project.mjs";
 import { runAudit, auditPrompt, AUDIT_LANGS } from "../cli/src/audit.mjs";
+import { detectSandbox, planSandbox, sandboxRule } from "../cli/src/sandbox.mjs";
 
 import { OFFLINE, netAllowed, installOfflineGuard } from "./electron/net.mjs";
 import { loadSettings, updateFromRenderer, updateInternal, rememberFolder, isDir, FULL_AUTO_CONSENT_MAX } from "./electron/settings.mjs";
@@ -631,9 +632,12 @@ async function agentTurn(messages, config, turn) {
   const localName = () => turn.local?.model ?? null;
   // signal: "To'xtatish" / yangi vazifa / papka almashtirish ishlayotgan buyruqni ham
   // (butun jarayon daraxti bilan) to'xtatadi — 120 s kutib qolmaydi.
-  // fullAuto: runTool buni bolaga egress to'sig'i (proxy=127.0.0.1:9) va token env'larini olib tashlash
-  // uchun ishlatadi (cli/src/tools.mjs qo'llab-quvvatlasa; aks holda e'tiborsiz — zararsiz).
-  const tracker = createTurnTracker((name, args) => runToolWithUndo(name, args, confirm, { signal: turn.controller.signal, fullAuto: fullAutoActive() }));
+  // fullAuto: runTool buyruqni sandbox'da bajaradi (cli/src/sandbox.mjs: full / container / limited);
+  // sandbox — Sozlamalar rejimi (auto | required | off); required + sandbox yo'q — tasdiq so'raladi.
+  const sandboxOpts = () => ({ sandbox: loadSettings().sandbox, sandboxImage: session.config?.sandboxImage || "" });
+  const tracker = createTurnTracker((name, args) => runToolWithUndo(name, args, confirm, { signal: turn.controller.signal, fullAuto: fullAutoActive(), ...sandboxOpts() }));
+  // Model buyruqlar qaysi sandbox darajasida bajarilishini bilsin (tarmoq o'chiq, Linux sh ...).
+  if (fullAutoActive()) turn.sandboxNote = await sandboxNote();
   // Vazifa narxi (token + qadam) va ixtiyoriy token byudjeti (Sozlamalar → 0 = cheklovsiz).
   const meter = createUsageMeter(tokenBudget());
   for (let step = 0; step < maxSteps; step++) {
@@ -752,7 +756,7 @@ const CHAT_MODE_NOTE =
 function withTurnSystem(messages, turn, { fullAuto = false, chat = false } = {}) {
   const extra = [];
   if (chat || (turn.local && turn.local.tools !== true)) extra.push({ role: "system", content: CHAT_MODE_NOTE });
-  if (fullAuto && !chat) extra.push({ role: "system", content: FULL_AUTO_RULE });
+  if (fullAuto && !chat) extra.push({ role: "system", content: turn.sandboxNote ? `${FULL_AUTO_RULE} ${turn.sandboxNote}` : FULL_AUTO_RULE });
   if (turn.addendum) extra.push({ role: "system", content: turn.addendum });
   return extra.length ? [...messages, ...extra] : messages;
 }
@@ -841,6 +845,38 @@ function publicLocal() {
   };
 }
 
+// ---- Sandbox (cli/src/sandbox.mjs) -------------------------------------------
+/**
+ * Joriy papka uchun sandbox holati (Sozlamalar qatori). Aniqlash keshlanadi; `force` — qayta tekshirish.
+ * level — Full auto'da buyruqlar HAQIQATDA qaysi darajada bajariladi (ish papkasi uy papkasi bo'lsa — limited).
+ */
+async function sandboxStatus(force = false) {
+  const mode = loadSettings().sandbox;
+  const image = session.config?.sandboxImage || "";
+  const info = mode === "off" ? null : await detectSandbox({ image, force });
+  const plan = planSandbox({ mode, fullAuto: true, info, cwd: workspace || process.cwd() });
+  return {
+    mode,
+    level: plan.level,
+    method: info?.method ?? "env",
+    image: info?.image ?? "",
+    reason: plan.reason ?? info?.reason ?? "",
+    containerReason: info?.containerReason ?? "",
+    platform: process.platform,
+  };
+}
+
+/** Full auto qoidasiga qo'shiladigan sandbox izohi (model uchun, o'zbekcha — CLI bilan bir xil). */
+async function sandboxNote() {
+  try {
+    const mode = loadSettings().sandbox;
+    const info = mode === "off" ? null : await detectSandbox({ image: session.config?.sandboxImage || "" });
+    return sandboxRule(planSandbox({ mode, fullAuto: true, info }));
+  } catch {
+    return "";
+  }
+}
+
 function publicSettings() {
   const { window: _w, recent: _r, lastFolder: _l, fullAutoFolder: _f, fullAutoConsent: consent, ...rest } = loadSettings();
   // Renderer faqat joriy papka uchun rozilik bor-yo'qligini biladi (ro'yxat main'da qoladi).
@@ -910,6 +946,7 @@ handle("app:init", async () => {
 });
 
 handle("app:state", async () => stateInfo());
+handle("sandbox:status", async (_e, force) => sandboxStatus(force === true));
 
 async function switchFolder(dir) {
   // Avval ishlayotgan navbatni to'xtatamiz — aks holda u nisbiy yo'llarni YANGI papkada yozadi.

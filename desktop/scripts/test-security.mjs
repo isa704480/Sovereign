@@ -69,6 +69,11 @@ test("interpretator -e/-c — so'raladi (tezlik to'sig'i)", () => {
     assert.equal(inlineEval(c), false, c);
   }
 });
+test("sandbox=required, haqiqiy sandbox yo'q — Full auto'da ham so'raladi", () => {
+  assert.equal(fullAutoMustAsk({ tool: "run_command", command: "npm test", sandboxLevel: "limited", sandboxRequired: true }), "sandbox");
+  assert.equal(fullAutoMustAsk({ tool: "run_command", command: "npm test", sandboxLevel: "full", sandboxRequired: false }), null);
+  assert.equal(fullAutoMustAsk({ tool: "run_command", command: "npm test", sandboxLevel: "limited", sandboxRequired: false }), null);
+});
 
 // ---- Yangilanish imzosi (desktop-3) ----
 const { privateKey, publicKey } = generateKeyPairSync("ed25519");

@@ -27,6 +27,7 @@ import { projectMemoryMessage } from "./project-memory.mjs";
 import { shouldVerify, verifyClaims } from "./verify.mjs";
 import { withCommandSnapshots, cliSnapshotStore } from "./snapshot.mjs";
 import { chat as ollamaChat, capabilities as ollamaCapabilities, classifyServerError, isValidModelName } from "./ollama.mjs";
+import { detectSandbox, planSandbox, sandboxRule } from "./sandbox.mjs";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -49,10 +50,22 @@ const SYSTEM = [
   "Ish tugagach, vosita natijalari TASDIQLAGAN ishni 1-2 gapda xulosala.",
 ].join(" ");
 
-function withFullAuto(messages) {
+function withFullAuto(messages, sandboxNote = "") {
   const system = messages.filter((m) => m.role === "system");
   const rest = messages.filter((m) => m.role !== "system");
-  return [...system, { role: "system", content: FULL_AUTO_RULE }, ...rest];
+  const rule = sandboxNote ? `${FULL_AUTO_RULE} ${sandboxNote}` : FULL_AUTO_RULE;
+  return [...system, { role: "system", content: rule }, ...rest];
+}
+
+/** Full auto: model buyruqlar qaysi sandbox darajasida bajarilishini bilsin (tarmoq o'chiq, Linux sh ...). */
+async function sandboxNoteFor(config) {
+  try {
+    const mode = config?.sandbox;
+    const info = mode === "off" ? null : await detectSandbox({ image: config?.sandboxImage });
+    return sandboxRule(planSandbox({ mode, fullAuto: true, info }));
+  } catch {
+    return "";
+  }
 }
 
 /** Human, Uzbek description of a tool call — printed as a step line. */
@@ -466,9 +479,10 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
         if (ok && name === "run_command" && print) toolSpin = spinner("buyruq bajarilyapti...");
         return ok;
       },
-      // fullAuto: run_command bolasiga egress to'sig'i (proxy) — tools.mjs (sandbox emas).
-      { signal, fullAuto },
+      // fullAuto: run_command sandbox'da (sandbox.mjs: full / container / limited); config.sandbox — rejim.
+      { signal, fullAuto, sandbox: config?.sandbox, sandboxImage: config?.sandboxImage },
     );
+  const sandboxNote = fullAuto ? await sandboxNoteFor(config) : "";
   const tracker = createTurnTracker(exec);
   const honestyOut = (h) => ({
     regex: h.regexWarn ?? null,
@@ -534,7 +548,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
             md.push(t);
           }
         : () => {};
-      const sent = fullAuto ? withFullAuto(messages) : messages;
+      const sent = fullAuto ? withFullAuto(messages, sandboxNote) : messages;
       round = await runRound(sent, config, onText, signal);
       meter.add(round.usage, sent, round.message);
     } catch (err) {
