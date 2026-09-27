@@ -1,6 +1,5 @@
 import type { AgentMode } from "@/config/agent-modes";
 import type { SovereignModel } from "@/config/models";
-import type { ModelThemeSpec } from "@/config/model-themes";
 import { pick, type Lang, type L10n, type TKey } from "@/lib/i18n";
 
 /**
@@ -137,7 +136,7 @@ export function featuredNote(lang: Lang, id: string, fallback: string): string {
   return l ? pick(lang, l) : fallback;
 }
 
-// ---- Welcome takliflari (faqat SOVEREIGN temasi ishlatiladi) ----
+// ---- Welcome takliflari (har model uchun bir xil, 4 tilda) ----
 const SOVEREIGN_SUGGESTIONS: L10n[] = [
   {
     uz: "Bugungi vazifalarimni rejalashtir",
@@ -165,8 +164,8 @@ const SOVEREIGN_SUGGESTIONS: L10n[] = [
   },
 ];
 
-export function themeSuggestions(lang: Lang, theme: ModelThemeSpec): string[] {
-  return theme.id === "sovereign" ? SOVEREIGN_SUGGESTIONS.map((s) => pick(lang, s)) : theme.suggestions;
+export function welcomeSuggestions(lang: Lang): string[] {
+  return SOVEREIGN_SUGGESTIONS.map((s) => pick(lang, s));
 }
 
 // ---- Suhbat sarlavhasi ----

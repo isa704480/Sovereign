@@ -36,6 +36,7 @@ import { P16C } from "@/lib/locales/p16-confirm";
 import { P17D } from "@/lib/locales/p17-device";
 import { P18S } from "@/lib/locales/p18-skills";
 import { P19R } from "@/lib/locales/p19-reality";
+import { P21A } from "@/lib/locales/p21-app-design";
 
 export type Lang = "uz" | "uz-cyrl" | "ru" | "en";
 
@@ -528,7 +529,7 @@ const CORE = {
   onbEnter: { uz: "SOVEREIGN'ga kirish", "uz-cyrl": "SOVEREIGN'га кириш", ru: "Войти в SOVEREIGN", en: "Enter SOVEREIGN" },
 } as const;
 
-const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D, ...P9W, ...P10R, ...P11C, ...P12J, ...P13E, ...P14I, ...P15A, ...P16C, ...P17D, ...P18S, ...P19R };
+const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D, ...P9W, ...P10R, ...P11C, ...P12J, ...P13E, ...P14I, ...P15A, ...P16C, ...P17D, ...P18S, ...P19R, ...P21A };
 
 export type TKey = keyof typeof DICT;
 

@@ -168,7 +168,3 @@ export function buildUserContent(text: string, attachments: Attachment[], lang: 
     ...images.map((img) => ({ type: "image_url", image_url: { url: img.dataUrl } })),
   ];
 }
-
-export function attachmentGlyph(kind: AttachmentKind): string {
-  return kind === "image" ? "🖼️" : kind === "pdf" ? "📄" : kind === "audio" ? "🎵" : kind === "video" ? "🎬" : "📎";
-}

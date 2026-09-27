@@ -4,10 +4,13 @@
  * research'ni yoqadi. 6 AI tavsiyasidagi asosiy yo'nalish shu.
  */
 
+export type AgentModeIconName = "sparkles" | "code" | "microscope" | "chart" | "pen";
+
 export interface AgentMode {
   id: string;
   name: string;
-  glyph: string;
+  /** lucide ikon nomi (UI'da AgentModeIcon orqali chiziladi; emoji emas). */
+  icon: AgentModeIconName;
   description: string;
   /** Modelga qo'shiladigan ko'rsatma (bo'sh — umumiy rejim). */
   prompt: string;
@@ -19,14 +22,14 @@ export const AGENT_MODES: AgentMode[] = [
   {
     id: "general",
     name: "Umumiy",
-    glyph: "✦",
+    icon: "sparkles",
     description: "Oddiy suhbat va yordam.",
     prompt: "",
   },
   {
     id: "developer",
     name: "Dasturchi",
-    glyph: "⌨",
+    icon: "code",
     description: "Kod yozadi, tuzatadi, test rejasini beradi.",
     prompt:
       "Sen tajribali dasturchi-agentsan. Vazifani boshdan-oxir bajar: reja tuz, to'liq ishlaydigan kod yoz " +
@@ -36,7 +39,7 @@ export const AGENT_MODES: AgentMode[] = [
   {
     id: "researcher",
     name: "Tadqiqotchi",
-    glyph: "🔬",
+    icon: "microscope",
     description: "Internetdan qidiradi, manba bilan javob beradi.",
     prompt:
       "Sen puxta tadqiqotchi-agentsan. Savolni bir necha manbadan tekshir, faktlarni solishtir va har da'voni " +
@@ -46,7 +49,7 @@ export const AGENT_MODES: AgentMode[] = [
   {
     id: "business",
     name: "Biznes tahlil",
-    glyph: "📊",
+    icon: "chart",
     description: "Bozor tahlili, raqobat, hisobot va jadval.",
     prompt:
       "Sen biznes-tahlilchi agentsan. Bozor, raqobatchilar va imkoniyatlarni tuzilgan holda tahlil qil: " +
@@ -56,7 +59,7 @@ export const AGENT_MODES: AgentMode[] = [
   {
     id: "writer",
     name: "Yozuvchi",
-    glyph: "✍",
+    icon: "pen",
     description: "Matn yozadi va tahrirlaydi.",
     prompt:
       "Sen professional matn muallifi-muharrirsan. Aniq, ravon va maqsadga mos yoz. Ohang va uslubni vazifaga moslashtir; " +

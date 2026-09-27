@@ -1,71 +1,23 @@
 "use client";
 
-import { motion } from "motion/react";
+import { motion, useReducedMotionConfig } from "motion/react";
 import { useT } from "@/store/chat";
-import { useTheme } from "./theme-context";
 
-/** Model-specific "thinking" indicator (DESIGN.md Ekran 5/6). */
+/** Neytral "javob yozilmoqda" belgisi — uch nuqta, bir rangli, har model uchun bir xil. */
 export function TypingIndicator() {
-  const { theme, model } = useTheme();
   const t = useT();
-
-  if (theme.id === "chatgpt") {
-    return (
-      <motion.span
-        className="inline-block size-3 rounded-full"
-        style={{ background: "var(--t-text)" }}
-        animate={{ opacity: [1, 0.2, 1] }}
-        transition={{ duration: 1, repeat: Infinity }}
-        role="status"
-        aria-live="polite"
-        aria-label={t("typing")}
-      />
-    );
-  }
-
-  if (theme.id === "perplexity") {
-    return (
-      <span className="inline-flex items-center gap-2.5 text-sm" style={{ color: "var(--t-text-muted)" }} role="status" aria-live="polite">
-        <motion.span
-          className="size-4 rounded-full border-2 border-transparent"
-          style={{ borderTopColor: "var(--t-primary)", borderRightColor: "var(--t-primary)" }}
-          aria-hidden
-          animate={{ rotate: 360 }}
-          transition={{ duration: 0.9, repeat: Infinity, ease: "linear" }}
-        />
-        🌐 {t("searchingWeb")}
-      </span>
-    );
-  }
-
-  if (theme.id === "claude") {
-    return (
-      <motion.span
-        className="inline-block text-lg"
-        style={{ color: model.primary }}
-        animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.05, 0.9] }}
-        transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
-        role="status"
-        aria-live="polite"
-        aria-label={t("typing")}
-      >
-        ✦
-      </motion.span>
-    );
-  }
-
-  const colors =
-    theme.id === "gemini" ? ["#4285F4", "#9B72CB", "#D96570"] : [model.primary, model.primary, model.primary];
+  const still = useReducedMotionConfig() === true;
 
   return (
     <span className="inline-flex items-center gap-1.5" role="status" aria-live="polite" aria-label={t("typing")}>
-      {colors.map((c, i) => (
+      {[0, 1, 2].map((i) => (
         <motion.span
           key={i}
-          className="block size-2 rounded-full"
-          style={{ background: c }}
-          animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+          aria-hidden
+          className="block size-1.5 rounded-full"
+          style={{ background: "var(--t-text-muted)", opacity: still ? 0.7 : undefined }}
+          animate={still ? undefined : { opacity: [0.3, 1, 0.3] }}
+          transition={still ? undefined : { duration: 1.2, repeat: Infinity, delay: i * 0.18, ease: "easeInOut" }}
         />
       ))}
     </span>
