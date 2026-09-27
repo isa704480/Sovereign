@@ -23,6 +23,7 @@ import {
   testClaimIssue,
   createUsageMeter,
   statusTag,
+  createPlan,
   classifyCommand,
   fullAutoDenyReason,
   fullAutoNudge,
@@ -31,6 +32,7 @@ import {
   FULL_AUTO_RULE,
   HONESTY_RULE,
   FAILURE_EXPLAIN_RULE,
+  PLAN_RULE,
 } from "../cli/src/tools.mjs";
 import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mjs";
 import { shouldVerify, verifyClaims } from "../cli/src/verify.mjs";
@@ -124,6 +126,7 @@ const SYSTEM = [
   "Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (asosan o'zbek).",
   "Vazifa tushunarli bo'lsa DARHOL bajar: aytilmagan tafsilotlarga (uslub, tuzilma, nom) oqilona standart tanla va oxirida qanday taxmin qilganingni 1 qatorda ayt. Faqat natija foydalanuvchiga xos ma'lumotga bog'liq bo'lsa (uning ismi, aniq raqamlari, kalit, qaysi fayl yoki yo'l) 1-3 ta qisqa savol ber — bir vazifaga bir marta; foydalanuvchi javob bergan yoki \"qil/davom et\" degan bo'lsa, qayta so'ramay bajar.",
   "Har qadamda nima qilayotganingni QISQA tushuntir; avval reja, keyin vositani chaqir.",
+  PLAN_RULE,
   "Foydalanuvchidan 'davom et' deb yozishni SO'RAMA — vazifa berilgan bo'lsa, shu javobning o'zida vositani chaqir. Ism o'ylab topma: foydalanuvchiga faqat u o'zi aytgan ism bilan murojaat qil.",
   "Kod toza, ishlaydigan va xavfsiz bo'lsin. Ish tugagach vosita natijalari TASDIQLAGAN ishni 1-2 gapda xulosala.",
   HONESTY_RULE,
@@ -143,7 +146,8 @@ const pendingChoices = new Map();
 // ---- Vazifa (task) va hodisalar --------------------------------------------
 // Joriy vazifaning UI hodisalari tarixga yoziladi — keyin ekranni qayta tiklash uchun.
 // inquiry / inquiry-state — savol kartasi va uning holati; local — "Mahalliy model · <nom>" belgisi (halollik).
-const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped", "inquiry", "inquiry-state", "local"]);
+// plan — reja kartasi (chek-ro'yxat): tarixdan qayta tiklanadi.
+const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped", "inquiry", "inquiry-state", "local", "plan"]);
 let currentTask = null;
 
 function send(type, payload = {}) {
@@ -596,12 +600,13 @@ async function judgeTurn(entries, finalText, config, turn, answerModel) {
  * judge: mustaqil hakam natijasi — {unsupported: string[], vendor: "Alibaba (Qwen)" | null, vendorId} yoki null.
  * local: mahalliy model nomi (mustaqil tekshiruv o'tkazilmadi — "mahalliy model") yoki null.
  */
-function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0, loop = null, budget = null, judge = null, local = null } = {}) {
+function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0, loop = null, budget = null, judge = null, local = null, plan = null } = {}) {
   const warn = unsupportedClaim(finalText, entries);
   const testWarning = testClaimIssue(finalText, entries);
   const show = ledgerWorthShowing(entries);
-  if (!show && !warn && !testWarning && !noteCode && !judge?.unsupported?.length) return;
-  send("ledger", { entries: show ? entries : [], warning: warn ?? null, testWarning, noteCode, maxSteps, loop, budget, judge, local });
+  if (!show && !warn && !testWarning && !noteCode && !judge?.unsupported?.length && !plan) return;
+  // plan — model `plan` vositasi bilan O'ZI belgilagan holat (tugallanmagan qadamlar ochiq ko'rsatiladi).
+  send("ledger", { entries: show ? entries : [], warning: warn ?? null, testWarning, noteCode, maxSteps, loop, budget, judge, local, plan });
 }
 
 /** Vazifa narxi: token va qadamlar (UI jurnal ostida ko'rsatadi). Mahalliy model — "server tokeni sarflanmadi". */
@@ -640,14 +645,16 @@ async function agentTurn(messages, config, turn) {
   // (butun jarayon daraxti bilan) to'xtatadi — 120 s kutib qolmaydi.
   // fullAuto: runTool buni bolaga egress to'sig'i (proxy=127.0.0.1:9) va token env'larini olib tashlash
   // uchun ishlatadi (cli/src/tools.mjs qo'llab-quvvatlasa; aks holda e'tiborsiz — zararsiz).
-  const tracker = createTurnTracker((name, args) => runToolWithUndo(name, args, confirm, { signal: turn.controller.signal, fullAuto: fullAutoActive() }));
+  // Shu navbatning rejasi (`plan` vositasi) — xotirada; hodisa sifatida UI'ga va tarixga boradi.
+  const plan = createPlan();
+  const tracker = createTurnTracker((name, args) => runToolWithUndo(name, args, confirm, { signal: turn.controller.signal, fullAuto: fullAutoActive(), plan }), { plan });
   // Vazifa narxi (token + qadam) va ixtiyoriy token byudjeti (Sozlamalar → 0 = cheklovsiz).
   const meter = createUsageMeter(tokenBudget());
   for (let step = 0; step < maxSteps; step++) {
     if (turn.aborted) return "stopped";
     // Byudjet — keyingi model chaqiruvidan OLDIN (bajarilgan vositalar javobsiz qolmaydi).
     if (meter.over()) {
-      sendLedger(tracker.entries, { noteCode: "budget", budget: { used: meter.tokens, limit: meter.budget }, local: localName() });
+      sendLedger(tracker.entries, { noteCode: "budget", budget: { used: meter.tokens, limit: meter.budget }, local: localName(), plan: tracker.planSnapshot() });
       sendUsage(meter, turn);
       send("done");
       return "done";
@@ -668,7 +675,7 @@ async function agentTurn(messages, config, turn) {
         step--; // shu qadam qayta bajariladi (bajarilgan vositalar takrorlanmaydi)
         continue;
       }
-      sendLedger(tracker.entries, { noteCode: tracker.entries.length ? "error" : null, local: localName() });
+      sendLedger(tracker.entries, { noteCode: tracker.entries.length ? "error" : null, local: localName(), plan: tracker.planSnapshot() });
       sendUsage(meter, turn);
       send("error", errorPayload(e));
       return "error";
@@ -697,7 +704,7 @@ async function agentTurn(messages, config, turn) {
       const finalText = round.message.content ?? "";
       const judge = await judgeTurn(tracker.entries, finalText, config, turn, round.model);
       if (turn.aborted) return "stopped";
-      sendLedger(tracker.entries, { finalText, judge, local: localName() });
+      sendLedger(tracker.entries, { finalText, judge, local: localName(), plan: tracker.planSnapshot() });
       sendUsage(meter, turn);
       send("done");
       return "done";
@@ -717,9 +724,17 @@ async function agentTurn(messages, config, turn) {
         /* ignore */
       }
       const callId = String(call.id ?? randomUUID());
-      send("tool", { callId, name: call.function.name, args: uiArgs(args) });
+      // Reja — vosita qadami emas, alohida chek-ro'yxat kartasi (bir karta, joyida yangilanadi).
+      const isPlan = call.function.name === "plan";
+      if (!isPlan) send("tool", { callId, name: call.function.name, args: uiArgs(args) });
       const r = await tracker.run(call.function.name, args);
       if (turn.aborted) return "stopped";
+      if (isPlan) {
+        if (r.status === "ok") send("plan", plan.snapshot());
+        lastTool = { role: "tool", tool_call_id: call.id, content: r.content.slice(0, 24_000) };
+        messages.push(lastTool);
+        continue;
+      }
       if (call.function.name === "run_command" && r.status !== "skipped" && r.status !== "declined") {
         send("terminal", { callId, command: String(args.command ?? ""), output: r.result.slice(0, 20_000), status: r.status });
       }
@@ -734,14 +749,14 @@ async function agentTurn(messages, config, turn) {
     // DOOM LOOP: bir xil buyruq 3 marta yiqildi / bir xil fayl bir xil tarkib bilan qayta-qayta
     // yozildi — qadamlarni behuda yoqmasdan, halol izoh bilan to'xtaymiz.
     if (tracker.loop) {
-      sendLedger(tracker.entries, { noteCode: "loop", loop: tracker.loop, local: localName() });
+      sendLedger(tracker.entries, { noteCode: "loop", loop: tracker.loop, local: localName(), plan: tracker.planSnapshot() });
       sendUsage(meter, turn);
       send("done");
       return "done";
     }
   }
   if (turn.aborted) return "stopped";
-  sendLedger(tracker.entries, { noteCode: "steps", maxSteps, local: localName() });
+  sendLedger(tracker.entries, { noteCode: "steps", maxSteps, local: localName(), plan: tracker.planSnapshot() });
   sendUsage(meter, turn);
   send("done");
   return "done";

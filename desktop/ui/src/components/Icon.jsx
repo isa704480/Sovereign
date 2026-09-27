@@ -46,6 +46,11 @@ const P = {
   lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>,
   bolt: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
+  // Reja (chek-ro'yxat): bo'sh katak · faol katak (nuqta) · belgilangan katak · sarlavha ikoni.
+  square: <rect x="4" y="4" width="16" height="16" rx="3.5" />,
+  squareDot: <><rect x="4" y="4" width="16" height="16" rx="3.5" /><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" /></>,
+  checkSquare: <><path d="M20 11.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" /><path d="M8.5 11.5l3 3 8-8.5" /></>,
+  listCheck: <><path d="M10 6h11M10 12h11M10 18h11" /><path d="M3 6.5l1.6 1.6L7.5 5" /><path d="M3 12.5l1.6 1.6L7.5 11" /><path d="M3 18.5l1.6 1.6L7.5 17" /></>,
   wifiOff: <><path d="M2 2l20 20" /><path d="M8.5 16.5a5 5 0 0 1 7 0" /><path d="M5 12.9a10 10 0 0 1 5.2-2.8M14.8 10.1A10 10 0 0 1 19 12.9" /><path d="M12 20h.01" /></>,
 };
 

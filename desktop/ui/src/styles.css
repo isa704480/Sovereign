@@ -315,6 +315,25 @@ button.update-card:hover { border-color: var(--accent-soft); filter: brightness(
 .step-ok .step-icon { color: var(--ok); background: var(--ok-bg); }
 .step-result { margin: 0; padding: 8px 12px; border-top: 1px solid var(--border); max-height: 220px; overflow: auto; font: 11.5px/1.6 var(--mono); color: var(--muted); white-space: pre-wrap; word-break: break-word; background: var(--code-bg); }
 
+/* reja (plan) — ko'p qadamli vazifa chek-ro'yxati */
+.plan { margin-left: 40px; border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border)); border-radius: var(--r-lg); background: linear-gradient(180deg, var(--accent-bg), var(--surface)); overflow: hidden; animation: rise 0.2s ease-out; }
+.plan-complete { border-color: color-mix(in srgb, var(--ok) 28%, var(--border)); background: linear-gradient(180deg, color-mix(in srgb, var(--ok) 7%, var(--surface)), var(--surface)); }
+.plan-head { width: 100%; display: flex; align-items: center; gap: 9px; padding: 9px 12px; text-align: left; font-size: 12.5px; }
+.plan-head:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.plan-mark { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--accent-bg); color: var(--accent-soft); flex: none; }
+.plan-complete .plan-mark { background: var(--ok-bg); color: var(--ok); }
+.plan-title { font-weight: 650; font-size: 13px; }
+.plan-list { list-style: none; margin: 0; padding: 2px 12px 11px 12px; display: flex; flex-direction: column; gap: 2px; }
+.plan-item { display: flex; align-items: flex-start; gap: 9px; padding: 4px 6px; border-radius: var(--r-sm); font-size: 12.5px; line-height: 1.5; color: var(--muted); }
+.plan-item > svg { margin-top: 2px; }
+.plan-text { word-break: break-word; }
+.plan-item.is-todo > svg { color: var(--faint); }
+.plan-item.is-done { color: var(--text-2); }
+.plan-item.is-done > svg { color: var(--ok); }
+.plan-item.is-done .plan-text { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ok) 55%, transparent); opacity: 0.75; }
+.plan-item.is-active { color: var(--text); font-weight: 600; background: var(--accent-bg); }
+.plan-item.is-active > svg { color: var(--accent-soft); }
+
 /* ledger */
 .ledger { margin-left: 40px; border: 1px solid color-mix(in srgb, var(--ok) 28%, var(--border)); border-radius: var(--r-lg); background: linear-gradient(180deg, color-mix(in srgb, var(--ok) 6%, var(--surface)), var(--surface)); padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; animation: rise 0.2s ease-out; }
 .ledger-warn { border-color: color-mix(in srgb, var(--warn) 38%, var(--border)); background: linear-gradient(180deg, color-mix(in srgb, var(--warn) 6%, var(--surface)), var(--surface)); }
