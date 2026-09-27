@@ -35,6 +35,7 @@ import {
   type InquiryQuestion,
   type QuestionKind,
 } from "@/lib/ai/inquiry/types";
+import { normalizeConfirmEvent, type ConnectorConfirmCard } from "@/lib/ai/connector-confirm-types";
 
 /** Cowork papka ro'yxati + loyiha ko'rsatmasi — bitta kontekst matni (server 6000 belgi qabul qiladi). */
 function buildContext(cowork: string | null, project?: Project): string | undefined {
@@ -456,6 +457,16 @@ export function useSendMessage(opts?: { memoryEnabled?: boolean }) {
               followup = { ...inq, phase: "followup", questions: inq.questions.slice(0, INQUIRY_TUNING.maxFollowups) };
               s.updateMessage(conversationId, assistant.id, { inquiry: followup, inquiryState: "open" });
             }
+          } else if (ev.type === "connector_confirm") {
+            // Yozish amali bajarilmagan — tasdiqlash kartasi (himoyaviy normalizatsiya, faqat oddiy matn).
+            const cc = normalizeConfirmEvent(ev);
+            if (!cc) return;
+            const prev = s.conversations[conversationId]?.messages.find((m) => m.id === assistant.id)?.connectorConfirms ?? [];
+            if (prev.some((c) => c.id === cc.id) || prev.length >= 5) return;
+            const { type: _ct, ...card } = cc;
+            void _ct;
+            const next: ConnectorConfirmCard = { ...card, state: "pending" };
+            s.updateMessage(conversationId, assistant.id, { connectorConfirms: [...prev, next] });
           } else if (ev.type === "error") {
             // Boshidagi "[limit]" / "[upgrade]" / "[upgrade:ultra]" belgilari (limit-codes.ts):
             // upgrade — tarif oynasi; limit — foydalanuvchi tarifi tugagan (Cowork/mahalliy model CTA).

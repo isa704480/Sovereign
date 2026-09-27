@@ -7,6 +7,8 @@ import { appendTargetAllowed, githubApiPath, sheetIdOf, toolUserText } from "@/l
 import { splitAttachments } from "@/lib/chat/attachment-markers";
 import { loadEnabledConnectors, saveRefreshedToken } from "@/lib/connectors/store";
 import { MCP_LIST_MAX_BYTES, sanitizeMcpTools } from "@/lib/connectors/mcp-schema";
+import { connectorOf, isWriteTool, safeConnectorLink, type ConnectorConfirmEvent } from "@/lib/ai/connector-confirm-types";
+import { buildSummary, getPendingStore, validateActionArgs, type PendingAction } from "@/lib/ai/connector-confirm";
 
 /**
  * Connector tool-calling. Javobdan OLDIN ishlaydi: model ulangan connectorlardan
@@ -143,16 +145,22 @@ async function refreshGoogleToken(refreshToken: string): Promise<string | null> 
 interface ToolResult {
   ok: boolean;
   partial?: boolean;
+  /** Yozish amali bajarilmadi — foydalanuvchi tasdig'ini kutmoqda (connector-confirm). */
+  pending?: boolean;
   text: string;
   /** gsheets_create: yaratilgan jadval ID si (shu so'rovda unga gsheets_append ruxsat). */
   createdId?: string;
+  /** Yaratilgan/o'zgargan hujjat havolasi — faqat connectorning o'z https domeni (safeConnectorLink). */
+  link?: string;
 }
 const ok = (text: string): ToolResult => ({ ok: true, text });
 const fail = (text: string): ToolResult => ({ ok: false, text });
 
-/** Tashqi dunyoda iz qoldiradigan (yaratish/qo'shish) toollar. MCP noma'lum — amal deb hisoblanadi. */
-const ACTION_TOOLS = new Set(["gsheets_create", "gsheets_append", "gslides_create"]);
-const isActionTool = (name: string) => ACTION_TOOLS.has(name) || name.startsWith(MCP_PREFIX);
+/**
+ * Tashqi dunyoda iz qoldiradigan (yaratish/qo'shish/yuborish) toollar — connector-confirm-types.ts
+ * klassifikatori: faqat aniq o'qish ro'yxatidagilar "read", qolgani (MCP, noma'lum) — amal.
+ */
+const isActionTool = isWriteTool;
 
 /* ------------------------------- MCP client ------------------------------- */
 
@@ -365,16 +373,20 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
       if (!cr.ok) return fail(`Sheets xatosi: ${cr.status}`);
       const cj = (await cr.json()) as { spreadsheetId?: string; spreadsheetUrl?: string };
       if (!cj.spreadsheetId) return fail("Sheets: jadval ID qaytmadi — yaratilgani tasdiqlanmadi.");
-      const link = cj.spreadsheetUrl ?? cj.spreadsheetId;
-      const rows = Array.isArray(args.rows) ? (args.rows as string[][]) : null;
       const createdId = cj.spreadsheetId;
+      const url =
+        safeConnectorLink(cj.spreadsheetUrl) ??
+        safeConnectorLink(`https://docs.google.com/spreadsheets/d/${encodeURIComponent(createdId)}/edit`) ??
+        undefined;
+      const link = url ?? createdId;
+      const rows = Array.isArray(args.rows) ? (args.rows as string[][]) : null;
       if (rows?.length) {
         // Oldin bu natija tekshirilmasdi — qatorlar qo'shilmasa ham "yaratildi" deyilardi.
         const ar = await gfetch("gsheets", `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(createdId)}/values/A1:append?valueInputOption=USER_ENTERED`, jsonInit({ values: rows }));
-        if (!ar.ok) return { ok: true, partial: true, createdId, text: `Jadval yaratildi: ${link}. LEKIN qatorlar QO'SHILMADI (Sheets xatosi: ${ar.status}) — jadval bo'sh.` };
-        return { ...ok(`Jadval yaratildi: ${link} (${rows.length} ta qator qo'shildi).`), createdId };
+        if (!ar.ok) return { ok: true, partial: true, createdId, link: url, text: `Jadval yaratildi: ${link}. LEKIN qatorlar QO'SHILMADI (Sheets xatosi: ${ar.status}) — jadval bo'sh.` };
+        return { ...ok(`Jadval yaratildi: ${link} (${rows.length} ta qator qo'shildi).`), createdId, link: url };
       }
-      return { ...ok(`Jadval yaratildi (bo'sh): ${link}`), createdId };
+      return { ...ok(`Jadval yaratildi (bo'sh): ${link}`), createdId, link: url };
     }
 
     if (name === "gsheets_append") {
@@ -386,7 +398,9 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
       const rows = Array.isArray(args.rows) ? (args.rows as string[][]) : [];
       if (!rows.length) return fail("Qo'shiladigan qator berilmadi — hech narsa qo'shilmadi.");
       const r = await gfetch("gsheets", `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/A1:append?valueInputOption=USER_ENTERED`, jsonInit({ values: rows }));
-      return r.ok ? ok(`Qatorlar qo'shildi (${rows.length} ta).`) : fail(`Sheets xatosi: ${r.status}`);
+      if (!r.ok) return fail(`Sheets xatosi: ${r.status}`);
+      const url = safeConnectorLink(`https://docs.google.com/spreadsheets/d/${id}/edit`) ?? undefined;
+      return { ...ok(`Qatorlar qo'shildi (${rows.length} ta).`), link: url };
     }
 
     if (name === "gslides_create") {
@@ -396,7 +410,8 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
       if (!cr.ok) return fail(`Slides xatosi: ${cr.status}`);
       const cj = (await cr.json()) as { presentationId?: string };
       if (!cj.presentationId) return fail("Slides: taqdimot ID qaytmadi — yaratilgani tasdiqlanmadi.");
-      return ok(`Taqdimot yaratildi (bo'sh, faqat sarlavha): https://docs.google.com/presentation/d/${cj.presentationId}/edit`);
+      const url = safeConnectorLink(`https://docs.google.com/presentation/d/${encodeURIComponent(cj.presentationId)}/edit`) ?? undefined;
+      return { ...ok(`Taqdimot yaratildi (bo'sh, faqat sarlavha): ${url ?? cj.presentationId}`), link: url };
     }
 
     if (name === "gmail_list") {
@@ -480,7 +495,7 @@ function effectsOf(name: string, args: Record<string, unknown>): ActionEffect[] 
 
 function toActionRecord(name: string, args: Record<string, unknown>, r: ToolResult): ActionRecord {
   const attempted = effectsOf(name, args);
-  const status: ActionRecord["status"] = !r.ok ? "failed" : r.partial ? "partial" : "ok";
+  const status: ActionRecord["status"] = r.pending ? "pending" : !r.ok ? "failed" : r.partial ? "partial" : "ok";
   // Qisman (hozircha faqat gsheets_create): jadval yaratildi, qatorlar qo'shilmadi.
   const done = status === "ok" ? attempted : status === "partial" ? attempted.slice(0, 1) : [];
   return { tool: name, status, attempted, done };
@@ -488,6 +503,7 @@ function toActionRecord(name: string, args: Record<string, unknown>, r: ToolResu
 
 /** Modelga beriladigan tool natijasi — boshida aniq holat belgisi. */
 function statusLabel(r: ToolResult): string {
+  if (r.pending) return "[HOLAT: TASDIQ KUTILMOQDA — HALI BAJARILMADI]";
   if (!r.ok) return "[HOLAT: BAJARILMADI / XATO]";
   return r.partial ? "[HOLAT: QISMAN BAJARILDI]" : "[HOLAT: BAJARILDI]";
 }
@@ -524,10 +540,12 @@ export interface ConnectorRun {
    * route oylik hisobga va byudjet himoyasiga (token_usage_daily) yozadi. Model chaqirilmagan bo'lsa null.
    */
   usage: { input: number; output: number; model: string; provider: string } | null;
+  /** Foydalanuvchi tasdig'ini kutayotgan yozish amallari — route `connector_confirm` SSE hodisasi qilib yuboradi. */
+  proposals: ConnectorConfirmEvent[];
 }
 
 export async function runConnectorTools({ supabase, userId, providerModel, messages, enabled, signal, country }: RunOpts): Promise<ConnectorRun> {
-  const none: ConnectorRun = { context: null, actions: [], usage: null };
+  const none: ConnectorRun = { context: null, actions: [], usage: null, proposals: [] };
   const prov = pickToolProvider(providerModel, country);
   if (!prov || !enabled.length) return none;
 
@@ -598,6 +616,8 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
   let usedIn = 0;
   let usedOut = 0;
   let modelCalled = false;
+  // Foydalanuvchi tasdig'ini kutayotgan yozish amallari (route `connector_confirm` hodisasi sifatida yuboradi).
+  const proposals: ConnectorConfirmEvent[] = [];
 
   for (let round = 0; round < 3; round++) {
     let res: Response;
@@ -656,7 +676,10 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
                 "Xavfsizlik: bu jadvalga yozish bloklandi — jadval ID si foydalanuvchi xabarida yo'q va shu so'rovda yaratilmagan. " +
                   "Foydalanuvchidan jadval havolasini o'zi yozishini so'ra.",
               )
-            : await execTool(call.function.name, args, ctx);
+            : isActionTool(call.function.name)
+              ? // Yozish amali tool siklida BAJARILMAYDI — faqat taklif (foydalanuvchi kartada tasdiqlaydi).
+                await proposeAction(call.function.name, args, { userId, mcp, proposals })
+              : await execTool(call.function.name, args, ctx);
       if (result.createdId) createdSheets.add(result.createdId);
       if (!isMcp && !call.function.name.startsWith("public_") && result.ok) privateDataSeen = true;
       const label = statusLabel(result);
@@ -675,7 +698,105 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
     context: buildConnectorContext(ledger, collected, phaseError),
     actions,
     usage: modelCalled ? { input: usedIn, output: usedOut, model: prov.model, provider: prov.provider } : null,
+    proposals,
   };
+}
+
+/* ------------------------- Tasdiqlanadigan amallar ------------------------- */
+
+/** Bir so'rovda taklif qilinadigan yozish amallari chegarasi. */
+const MAX_PROPOSALS = 3;
+
+/**
+ * Yozish amalini BAJARMAYDI: argumentlarni tekshiradi, kutilayotgan amalni serverda saqlaydi
+ * (connector-confirm.ts → PendingStore) va kartaga xulosa tayyorlaydi. Modelga — "tasdiq kutilmoqda".
+ */
+async function proposeAction(
+  name: string,
+  rawArgs: Record<string, unknown>,
+  o: { userId: string; mcp: McpEndpoint[]; proposals: ConnectorConfirmEvent[] },
+): Promise<ToolResult> {
+  const connector = connectorOf(name);
+  if (!connector) return fail("Bu amal hozircha qo'llab-quvvatlanmaydi — hech narsa bajarilmadi.");
+  if (o.proposals.length >= MAX_PROPOSALS) {
+    return fail(`Bir so'rovda ${MAX_PROPOSALS} tadan ortiq amal taklif qilinmaydi — bu amal bajarilmadi.`);
+  }
+  const v = validateActionArgs(name, rawArgs);
+  if (!v.ok) return fail(`Argumentlar yaroqsiz (${v.error}) — hech narsa bajarilmadi.`);
+  let mcpUrl: string | undefined;
+  if (connector === "mcp") {
+    mcpUrl = o.mcp.find((e) => e.tools.some((t) => t.function.name === name))?.url;
+    if (!mcpUrl) return fail("MCP server topilmadi.");
+  }
+  try {
+    const store = await getPendingStore();
+    const { id, ref, exp } = await store.put({ uid: o.userId, connector, tool: name, args: v.args, ...(mcpUrl ? { mcpUrl } : {}) });
+    o.proposals.push({ type: "connector_confirm", id, ref, connector, tool: name, summary: buildSummary(name, v.args, mcpUrl), expiresAt: exp });
+  } catch {
+    return fail("Amalni tasdiqlashga tayyorlab bo'lmadi — hech narsa bajarilmadi.");
+  }
+  return {
+    ok: false,
+    pending: true,
+    text:
+      "Amal BAJARILMADI — foydalanuvchi tasdig'ini kutmoqda. Foydalanuvchi javob ostidagi kartada 'Tasdiqlash' ni bossagina " +
+      "bajariladi (10 daqiqa ichida). Shu amalni qayta chaqirma.",
+  };
+}
+
+/** Tasdiqlangan amal natijasi (server action → karta). `output` — faqat MCP, oddiy matn. */
+export interface ConfirmedRun {
+  status: "done" | "partial" | "error";
+  link?: string;
+  output?: string;
+  code?: "not_connected" | "invalid" | "failed";
+}
+
+/**
+ * Foydalanuvchi tasdiqlagan amalni bajaradi — tool siklidagi bilan BIR XIL kod yo'li (execTool)
+ * va himoyalar: connector hali yoqilgan va ulanganmi, argumentlar qayta tekshiriladi, MCP server
+ * foydalanuvchi ro'yxatida va tool hali mavjudmi. `action` — PendingStore'dan (mijozdan emas).
+ */
+export async function executeConfirmedAction(supabase: SupabaseClient, userId: string, action: PendingAction): Promise<ConfirmedRun> {
+  if (action.uid !== userId) return { status: "error", code: "invalid" };
+  const connector = connectorOf(action.tool);
+  if (!connector || connector !== action.connector || !isActionTool(action.tool)) return { status: "error", code: "invalid" };
+  const v = validateActionArgs(action.tool, action.args);
+  if (!v.ok) return { status: "error", code: "invalid" };
+
+  const enabled = await getEnabledConnectors(supabase, userId);
+  const creds: Record<string, Record<string, unknown>> = Object.fromEntries(enabled.map((c) => [c.id, { ...c.config }]));
+  const mcp: McpEndpoint[] = [];
+  if (connector === "mcp") {
+    const url = action.mcpUrl;
+    const allowed = !!url && enabled.some((c) => c.id === "mcp" && c.config.url === url);
+    if (!allowed) return { status: "error", code: "not_connected" };
+    const ep = await mcpConnect(url);
+    if (!ep || !ep.tools.some((t) => t.function.name === action.tool)) return { status: "error", code: "not_connected" };
+    mcp.push(ep);
+  } else if (!enabled.some((c) => c.id === connector) || !creds[connector]?.token) {
+    return { status: "error", code: "not_connected" };
+  }
+
+  const refresh = async (connectorId: string): Promise<string | null> => {
+    const rt = creds[connectorId]?.refresh as string | undefined;
+    if (!rt) return null;
+    const nt = await refreshGoogleToken(rt);
+    if (!nt) return null;
+    creds[connectorId].token = nt;
+    try {
+      await saveRefreshedToken(supabase, userId, connectorId, creds[connectorId], nt);
+    } catch {
+      /* saqlanmasa ham davom */
+    }
+    return nt;
+  };
+
+  const r = await execTool(action.tool, v.args, { creds, refresh, mcp });
+  if (!r.ok) return { status: "error", code: "failed" };
+  const link = safeConnectorLink(r.link) ?? undefined;
+  const output = connector === "mcp" ? r.text.slice(0, 1000) : undefined;
+  return { status: r.partial ? "partial" : "done", ...(link ? { link } : {}), ...(output ? { output } : {}) };
 }
 
 /**
@@ -701,10 +822,18 @@ function buildConnectorContext(
     lines.push("AMALLAR HOLATI (tizim hisobi — haqiqiy natija, model taxmini emas):");
     for (const { name, result } of ledger) {
       const kind = isActionTool(name) ? "amal" : "o'qish";
-      const mark = !result.ok ? "✕ BAJARILMADI" : result.partial ? "◐ QISMAN" : "✓ BAJARILDI";
-      lines.push(`- ${mark} (${kind}) ${name}${!result.ok || result.partial ? ` — ${result.text.slice(0, 200)}` : ""}`);
+      const mark = result.pending ? "⏳ TASDIQ KUTILMOQDA (HALI BAJARILMADI)" : !result.ok ? "✕ BAJARILMADI" : result.partial ? "◐ QISMAN" : "✓ BAJARILDI";
+      lines.push(`- ${mark} (${kind}) ${name}${!result.pending && (!result.ok || result.partial) ? ` — ${result.text.slice(0, 200)}` : ""}`);
     }
-    const failedActions = ledger.filter((l) => isActionTool(l.name) && (!l.result.ok || l.result.partial));
+    const pendingActions = ledger.filter((l) => l.result.pending);
+    if (pendingActions.length) {
+      lines.push(
+        `${pendingActions.map((l) => l.name).join(", ")} — foydalanuvchi TASDIG'INI KUTMOQDA: hali hech narsa yaratilmagan/yozilmagan/yuborilmagan. ` +
+          "Foydalanuvchiga javob ostidagi kartada tafsilotlarni ko'rib 'Tasdiqlash' ni bosishini qisqa ayt. " +
+          "Havola yoki ID o'ylab topma va 'yaratdim/qo'shdim/yubordim' dema.",
+      );
+    }
+    const failedActions = ledger.filter((l) => isActionTool(l.name) && !l.result.pending && (!l.result.ok || l.result.partial));
     if (failedActions.length) {
       lines.push(
         `Foydalanuvchiga ${failedActions.map((l) => l.name).join(", ")} amali(lari) to'liq BAJARILMAGANINI ochiq ayt; ` +

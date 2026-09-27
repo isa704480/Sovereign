@@ -14,6 +14,7 @@ import { skillText } from "@/lib/locales/panels-data";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { AnswerMetaBadge } from "./AnswerMetaBadge";
+import { ConnectorConfirmList } from "./ConnectorConfirmCard";
 import { InquiryCard, InquiryFollowups, type InquiryActions } from "./InquiryCard";
 import { Markdown } from "./Markdown";
 import { ModelAvatar } from "./ModelAvatar";
@@ -456,6 +457,10 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
 
         {followups && inquiry && (
           <InquiryFollowups messageId={message.id} inquiry={followups} state={message.inquiryState ?? "open"} actions={inquiry} />
+        )}
+
+        {message.connectorConfirms && message.connectorConfirms.length > 0 && (
+          <ConnectorConfirmList messageId={message.id} cards={message.connectorConfirms} />
         )}
 
         {message.verifier && message.verifier.length > 0 && <ClaimsWarning issues={message.verifier} />}
