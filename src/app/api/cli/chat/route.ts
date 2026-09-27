@@ -14,6 +14,7 @@ import { meshComplete } from "@/lib/ai/mesh/execute";
 import { enabledAdapters } from "@/lib/ai/mesh/registry";
 import { plan as meshPlan } from "@/lib/ai/mesh/scheduler";
 import { cliRouteRequest, isGeneralAdapter, meshMode, requiredPlanTier } from "@/lib/ai/mesh/request";
+import { sanitizeHistory } from "@/lib/cli/sanitize-history";
 import { limitErrorResponse } from "@/lib/ai/inquiry/limit-codes";
 
 export const runtime = "nodejs";
@@ -256,6 +257,8 @@ export async function POST(req: Request) {
     const where = issue?.path.join(".") || "body";
     return Response.json({ error: `${t("chBadRequest")} (${where})` }, { status: 400 });
   }
+  // Zaif modellar qoldirgan buzuq tarix (id'siz / bo'sh chaqiruvlar, egasiz tool) provayderda 400 bermasin.
+  const history = sanitizeHistory(parsed.data.messages);
 
   // Kamida bitta provider kaliti kerak (mesh: umumiy chatga yaraydigan, rescue bo'lmagan adapter).
   const mesh = meshMode() === "on";
@@ -342,7 +345,7 @@ export async function POST(req: Request) {
   }
   const regionSwapped = Boolean(country && chosen && !modelAllowedIn(chosen, country));
   const needsTools = Boolean(parsed.data.tools?.length);
-  const routeReq = cliRouteRequest({ chosen, planTier: planId, country, tools: needsTools, messages: parsed.data.messages });
+  const routeReq = cliRouteRequest({ chosen, planTier: planId, country, tools: needsTools, messages: history });
   const cands = mesh ? [] : regionCandidates(candidates(planId, chosen, needsTools), country, planId === "pro" || planId === "ultra");
   // Mintaqa/tarif/imkoniyat bo'yicha birorta ham nomzod yo'q — kunlik hisob yoqilmasdan rad etiladi.
   // (Mesh: sog'liq hisobga olinmaydi — vaqtincha yopiq provayder bu yerda "bor" deb sanaladi.)
@@ -390,8 +393,8 @@ export async function POST(req: Request) {
 
   const maxTokens = Math.min(plan.limits.maxTokens, 4096);
   const outcome = mesh
-    ? await meshCliComplete(routeReq, parsed.data.messages, parsed.data.tools, maxTokens, req.signal)
-    : await legacyComplete(cands, parsed.data.messages, parsed.data.tools, maxTokens);
+    ? await meshCliComplete(routeReq, history, parsed.data.tools, maxTokens, req.signal)
+    : await legacyComplete(cands, history, parsed.data.tools, maxTokens);
 
   if (!outcome.ok) {
     if (outcome.status === 400) return Response.json({ error: t("chBadRequest") }, { status: 400 });

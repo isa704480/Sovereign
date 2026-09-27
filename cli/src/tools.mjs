@@ -719,15 +719,32 @@ export function visible(s) {
  * vositalar (npm, curl, pip, git https) tarmoqqa chiqa olmaydi. Bu SANDBOX EMAS (to'g'ridan-to'g'ri
  * socket ochadigan dastur to'xtamaydi) — faqat tezlikni pasaytiruvchi to'siq (§8.8 #1).
  */
+/**
+ * Paket o'rnatish buyrug'i (tarmoq kerak): bitta buyruq, zanjirsiz, global/registry o'zgartirishsiz.
+ * Full auto'da faqat shularga proxy to'sig'i qo'yilmaydi (aks holda `npm install` ishlamasdi).
+ */
+export function isPackageInstall(command) {
+  const c = String(command ?? "").trim();
+  if (!c || /[;&|$<>%\n\r`]/.test(c)) return false;
+  if (/(^|\s)(-g|--global|--location[= ]global|--registry|--index-url|--extra-index-url|--target|--prefix)(\s|=|$)/i.test(c)) return false;
+  if (/(^|\s)-i\s+https?:/i.test(c)) return false;
+  return (
+    /^(npm|pnpm|yarn|bun)(\.cmd|\.exe)?\s+(install|i|add|ci)(\s|$)/i.test(c) ||
+    /^(pip3?|python3?\s+-m\s+pip|py\s+-m\s+pip)(\.exe)?\s+install(\s|$)/i.test(c)
+  );
+}
+
 export function childEnv(opts = {}) {
   const env = { ...process.env };
   delete env.SOVEREIGN_TOKEN;
   if (opts.fullAuto) {
     delete env.OPENROUTER_API_KEY;
     delete env.PERPLEXITY_API_KEY;
-    for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) env[k] = "http://127.0.0.1:9";
-    // Faqat mahalliy manzillar proxy'siz (dev server / testlar ishlashi uchun).
-    env.NO_PROXY = env.no_proxy = "localhost,127.0.0.1,::1";
+    if (!isPackageInstall(opts.command)) {
+      for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) env[k] = "http://127.0.0.1:9";
+      // Faqat mahalliy manzillar proxy'siz (dev server / testlar ishlashi uchun).
+      env.NO_PROXY = env.no_proxy = "localhost,127.0.0.1,::1";
+    }
   }
   // Windows cmd.exe buyruqni avval JORIY papkadan qidiradi — agent yaratgan git.bat
   // "xavfsiz" git status o'rniga ishga tushmasin.
@@ -838,7 +855,7 @@ export async function runTool(name, args, confirm, opts = {}) {
               // POSIX: alohida jarayon guruhi — bekor qilinganda butun daraxt to'xtaydi.
               detached: !IS_WIN,
               // Kalitlarsiz muhit (+ Full auto'da proxy to'sig'i, Windows'da joriy papka qidiruvi o'chiq).
-              env: childEnv(opts),
+              env: childEnv({ ...opts, command: args.command }),
             },
             (err, stdout, stderr) => {
               clearTimeout(timer);
