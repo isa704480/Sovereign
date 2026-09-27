@@ -276,5 +276,31 @@ await test("takroriy plan chaqiruvi 'takror' deb o'tkazib yuborilmaydi va siklni
   assert.equal(tracker.loop, null);
 });
 
+// ---- Mustaqil hakam reja holatini ko'radi --------------------------------
+await test("verifyClaims: tugallanmagan reja jurnal qatori sifatida hakamga yuboriladi", async () => {
+  const { verifyClaims } = await import("../src/verify.mjs");
+  const real = globalThis.fetch;
+  let body = null;
+  globalThis.fetch = async (_url, init) => {
+    body = JSON.parse(init.body);
+    return { ok: true, json: async () => ({ unsupported: [] }) };
+  };
+  try {
+    await verifyClaims(
+      { token: "t", baseUrl: "https://example.invalid" },
+      {
+        answer: "Hammasini bajardim.",
+        entries: [{ tool: "write_file", target: "a.js", status: "ok" }],
+        plan: { total: 3, done: 1, active: 2, steps: [{ text: "a", done: true }, { text: "b", done: false }, { text: "c", done: false }] },
+      },
+    );
+  } finally {
+    globalThis.fetch = real;
+  }
+  const line = body.ledger.at(-1);
+  assert.equal(line.status, "failed", "bajarilmagan reja — 'failed' (bu amal bo'lmagan)");
+  assert.match(line.text, /Reja: 1\/3 bajarildi — qolgani: b; c\./);
+});
+
 console.log(`\n${passed} ta test o'tdi${failed ? `, ${failed} ta yiqildi` : ""}`);
 process.exit(failed ? 1 : 0);

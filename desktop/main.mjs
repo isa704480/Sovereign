@@ -580,13 +580,13 @@ function progressFor(turn) {
  * kompaniyasidan BOSHQA kompaniya. Faqat kerak bo'lganda (regex shubha / yozish amali);
  * offline, xato yoki timeout — null (jurnal kartasi regex natijasi bilan qoladi).
  */
-async function judgeTurn(entries, finalText, config, turn, answerModel) {
+async function judgeTurn(entries, finalText, config, turn, answerModel, plan = null) {
   const text = String(finalText ?? "").trim();
   // Mahalliy rejimda hakam yo'q (serverga hech narsa ketmaydi) — ledger'da `local` bilan ochiq aytiladi.
   if (!text || turn.local || !config?.token || !config?.baseUrl || !netAllowed(config.baseUrl) || turn.aborted) return null;
   const regexWarn = unsupportedClaim(text, entries) || testClaimIssue(text, entries);
-  if (!shouldVerify(entries, regexWarn)) return null;
-  const r = await verifyClaims(config, { answer: text, entries, signal: turn.controller.signal, answerModel: answerModel ?? undefined });
+  if (!shouldVerify(entries, regexWarn) && !plan) return null;
+  const r = await verifyClaims(config, { answer: text, entries, plan, signal: turn.controller.signal, answerModel: answerModel ?? undefined });
   if (!r) return null;
   return { unsupported: r.unsupported, vendor: r.judgeVendorLabel || r.judgeVendor || null, vendorId: r.judgeVendor ?? null };
 }
@@ -702,7 +702,7 @@ async function agentTurn(messages, config, turn) {
         continue;
       }
       const finalText = round.message.content ?? "";
-      const judge = await judgeTurn(tracker.entries, finalText, config, turn, round.model);
+      const judge = await judgeTurn(tracker.entries, finalText, config, turn, round.model, tracker.planSnapshot());
       if (turn.aborted) return "stopped";
       sendLedger(tracker.entries, { finalText, judge, local: localName(), plan: tracker.planSnapshot() });
       sendUsage(meter, turn);

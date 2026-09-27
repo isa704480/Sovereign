@@ -421,15 +421,15 @@ function usageLine(u) {
  * ogohlantirishni u bekor qila olmaydi (javob matnidagi prompt-injection hakamni
  * "hammasi joyida" deyishga majburlasa ham regex ogohlantirishi qoladi).
  */
-async function checkHonesty(entries, finalText, { config, signal, verify, print, answerModel = null }) {
+async function checkHonesty(entries, finalText, { config, signal, verify, print, answerModel = null, plan = null }) {
   // Har rejimda: "bajardim" da'vosi + "testlar o'tdi" da'vosi (test yo'q / eskirgan / yiqilgan).
   const tests = finalText ? testClaimIssue(finalText, entries) : null;
   const regexWarn = finalText ? [unsupportedClaim(finalText, entries), testClaimText(tests)].filter(Boolean).join(" ") || null : null;
   let judge = null;
   // Mahalliy rejimda hakam (server) chaqirilmaydi — javob matni kompyuterdan chiqmasin.
-  if (verify && finalText && config?.token && !config?.local && !signal?.aborted && shouldVerify(entries, regexWarn)) {
+  if (verify && finalText && config?.token && !config?.local && !signal?.aborted && (shouldVerify(entries, regexWarn) || plan)) {
     const spin = print ? spinner("javob jurnal bilan solishtirilyapti...") : null;
-    judge = await verifyClaims(config, { answer: finalText, entries, signal, answerModel: answerModel ?? undefined });
+    judge = await verifyClaims(config, { answer: finalText, entries, plan, signal, answerModel: answerModel ?? undefined });
     spin?.stop();
   }
   return { regexWarn, judge, tests };
@@ -629,7 +629,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
         continue;
       }
       if (print) process.stdout.write("\n");
-      const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print, answerModel: finalModel });
+      const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print, answerModel: finalModel, plan: tracker.planSnapshot() });
       printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge, usage: usage(), plan: tracker.planSnapshot() });
       return { done: true, ledger: tracker.entries, final: text, plan: tracker.planSnapshot(), usage: usage(), honesty: honestyOut(h), local: localName() };
     }
@@ -687,7 +687,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
       return { done: true, loop: tracker.loop, ledger: tracker.entries, final, plan: tracker.planSnapshot(), usage: usage(), honesty: noHonesty, local: localName() };
     }
   }
-  const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print, answerModel: finalModel });
+  const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print, answerModel: finalModel, plan: tracker.planSnapshot() });
   printLedger(tracker.entries, {
     note: `Qadamlar chegarasi (${maxSteps}) tugadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin. "davom et" deb yozing.`,
     regexWarn: h.regexWarn,
