@@ -10,8 +10,8 @@ const TOKEN = /\*\*(.+?)\*\*|`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)/g;
 const codeClass =
   "rounded-md border border-border bg-bg-elevated px-1.5 py-0.5 font-mono text-[0.85em] text-text-primary [overflow-wrap:anywhere]";
 const extLinkClass =
-  "font-medium text-primary-soft underline decoration-primary-soft/40 underline-offset-[3px] hover:text-text-primary";
-const anchorClass = "text-primary-soft hover:text-text-primary";
+  "font-medium text-accent-text underline decoration-accent-text/40 underline-offset-[3px] hover:text-text-primary";
+const anchorClass = "text-accent-text hover:text-text-primary";
 
 export function rich(text: string, keyPrefix = "r"): ReactNode[] {
   const out: ReactNode[] = [];

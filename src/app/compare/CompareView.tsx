@@ -1,6 +1,8 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import raw from "@/data/model-compare.json";
+import { ctaPrimarySm } from "@/components/landing/cta";
 import { fmt, type TKey } from "@/lib/i18n";
 import { LocalizedTitle } from "@/components/LocalizedTitle";
 import { localeOf } from "@/lib/locales/chat-data";
@@ -69,7 +71,13 @@ const FAMILY_COLOR: Record<string, string> = {
   kimi: "#3FB6C9",
   glm: "#5FC8A0",
 };
-const RESULT_COLOR = { pass: "#5FC8A0", fail: "#E86A6A", error: "#E8B75A", "not-run": "#6B7280" } as const;
+/** Status tokenlari (globals.css) — qorong'i fonda matn sifatida o'qiladi. */
+const RESULT_COLOR = {
+  pass: "var(--t-success)",
+  fail: "var(--t-danger)",
+  error: "var(--t-warning)",
+  "not-run": "var(--text-muted)",
+} as const;
 
 const usd = (x: number) => `$${x < 0.1 ? x.toFixed(3) : x.toFixed(2)}`;
 const secs = (ms: number) => (ms / 1000).toFixed(1);
@@ -118,12 +126,9 @@ export function CompareView() {
       <h1 className="font-display mt-3 text-3xl font-extrabold tracking-tight text-text-primary md:text-4xl">{fmt(t("p11cTitle"), headVars)}</h1>
       <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-text-secondary">{fmt(t("p11cLead"), headVars)}</p>
       <p className="mt-3 font-mono text-xs text-text-muted">{fmt(t("p11cRunDate"), { date: DATA.runDate })}</p>
-      <a
-        href="/app"
-        className="mt-6 inline-flex min-h-10 items-center rounded-xl px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        style={{ background: "#5B50F0" }}
-      >
-        {t("p11cCta")} →
+      <a href="/app" className={`mt-6 ${ctaPrimarySm}`}>
+        {t("p11cCta")}
+        <ArrowRight className="size-4" aria-hidden="true" />
       </a>
 
       {/* ---------------- Measured headline ---------------- */}
@@ -168,7 +173,7 @@ export function CompareView() {
       <SectionTitle>{t("p11cEvalTitle")}</SectionTitle>
       <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-text-secondary">{t("p11cEvalLead")}</p>
 
-      <div role="region" aria-label={t("p11cTableAria")} tabIndex={0} className="mt-6 overflow-x-auto rounded-xl border border-border">
+      <div role="region" aria-label={t("p11cTableAria")} tabIndex={0} className="mt-6 overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-[860px] border-collapse text-left text-sm">
           <caption className="sr-only">{t("p11cTableAria")}</caption>
           <thead className="bg-bg-elevated text-xs uppercase tracking-wider text-text-secondary">
@@ -190,12 +195,12 @@ export function CompareView() {
           </thead>
           <tbody className="nums divide-y divide-border">
             {models.map((m) => (
-              <tr key={m.key} className={m.measured ? "" : "opacity-60"}>
-                <th scope="row" className="px-3 py-2.5 font-semibold text-text-primary">
+              <tr key={m.key} className={m.measured ? "" : "text-text-muted"}>
+                <th scope="row" className={`px-3 py-2.5 font-semibold ${m.measured ? "text-text-primary" : "text-text-secondary"}`}>
                   <span className="mr-2 inline-block h-2 w-2 rounded-full align-middle" style={{ background: FAMILY_COLOR[m.family] ?? "#888" }} aria-hidden />
                   {m.label}
                   {m.reference && (
-                    <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-secondary">
+                    <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">
                       {t("p11cReference")}
                     </span>
                   )}
@@ -227,7 +232,7 @@ export function CompareView() {
         </p>
       )}
 
-      <details className="mt-6 rounded-xl border border-border bg-bg-elevated/40 px-4 py-3">
+      <details className="mt-6 rounded-lg border border-border bg-bg-elevated/40 px-4 py-3">
         <summary className="cursor-pointer text-sm font-semibold text-text-primary">{t("p11cPerTaskTitle")}</summary>
         <div role="region" aria-label={t("p11cPerTaskAria")} tabIndex={0} className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[520px] border-collapse text-left text-xs">
@@ -270,14 +275,14 @@ export function CompareView() {
           </p>
           <div className="mt-6 grid gap-4 md:grid-cols-2" role="region" aria-label={t("p11cPublicAria")}>
             {DATA.public.benchmarks.map((b) => (
-              <section key={b.key} className="rounded-xl border border-border bg-bg-elevated/60 p-4">
+              <section key={b.key} className="rounded-lg border border-border bg-bg-elevated/60 p-4">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-display text-base font-bold text-text-primary">{b.name}</h3>
                   <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                    className="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
                     style={{
-                      color: b.type === "independent" ? "#5FC8A0" : "#E8B75A",
-                      background: `color-mix(in srgb, ${b.type === "independent" ? "#5FC8A0" : "#E8B75A"} 14%, transparent)`,
+                      color: b.type === "independent" ? "var(--t-success)" : "var(--t-warning)",
+                      background: `color-mix(in srgb, ${b.type === "independent" ? "var(--t-success)" : "var(--t-warning)"} 14%, transparent)`,
                     }}
                   >
                     {t(b.type === "independent" ? "p11cIndependent" : "p11cVendor")}
@@ -341,7 +346,7 @@ export function CompareView() {
             ["p11cFaq4Q", "p11cFaq4A"],
           ] as const
         ).map(([q, a]) => (
-          <details key={q} className="rounded-xl border border-border bg-bg-elevated/40 px-4 py-3">
+          <details key={q} className="rounded-lg border border-border bg-bg-elevated/40 px-4 py-3">
             <summary className="cursor-pointer text-[15px] font-semibold text-text-primary">{t(q)}</summary>
             <p className="mt-2 text-[15px] leading-relaxed text-text-secondary">{t(a)}</p>
           </details>
