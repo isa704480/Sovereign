@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { DocsContent, type DocsData } from "@/components/docs/DocsContent";
-import { isModelVisible, MODELS } from "@/config/models";
+import { isModelVisible, MODELS, TOTAL_MODELS_CLAIM } from "@/config/models";
 import { formatPrice, formatRub, PLANS, planPrice, planPriceRub, TIER_ORDER, type ModelTier } from "@/config/plans";
 
 /*
@@ -39,7 +39,8 @@ function buildDocsData(): DocsData {
     models: visible.filter((m) => m.tier === tier).map((m) => m.name),
   }));
   return {
-    modelCountRounded: Math.floor(visible.length / 10) * 10,
+    // Boshqa sahifalar bilan bir xil son (landing, OG: "1750+") — faqat tanlangan katalog emas.
+    modelCountRounded: TOTAL_MODELS_CLAIM,
     freeModelCount: tiers.find((x) => x.tier === "free")?.models.length ?? 0,
     tiers,
     plans: PLANS.map((p) => ({

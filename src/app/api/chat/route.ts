@@ -11,6 +11,7 @@ import {
 } from "@/lib/ai/providers";
 import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
 import { confirmActionClaims, formatSearchSources, verifyAnswer, type JudgeInfo, type VerifierIssue } from "@/lib/ai/verifier";
+import { answerModelsFor } from "@/lib/ai/judge";
 import { checkClaims, detectActionClaims, unsourcedMarkers, type ActionRecord, type ClaimReason, type UnsupportedClaim } from "@/lib/ai/claims";
 import { isCodeRequest, planRouteLLM, type RouteStep } from "@/lib/ai/router";
 import { modelAllowedIn, regionDecision } from "@/lib/ai/region";
@@ -58,6 +59,7 @@ import {
   type InquiryGate,
 } from "@/lib/ai/inquiry/types";
 import { createServiceClient } from "@/lib/supabase/service";
+import { createServerMaskSession, mask } from "@/lib/ai/blind-prompting";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -119,6 +121,8 @@ const bodySchema = z.object({
     .default([]),
   /** Cowork folder outline (file names only) so the model knows what it may ask for. */
   context: z.string().max(6000).optional().default(""),
+  /** Blind Prompting yoqilgan — server qo'shadigan xotira/bilim bazasi/Cowork matni ham maskalanadi. */
+  blind: z.boolean().optional().default(false),
   /** Interfeys tili — javob shu tilda (foydalanuvchi boshqa tilda yozmasa). */
   lang: z.enum(["uz", "uz-cyrl", "ru", "en"]).optional().default("uz"),
   agentMode: z.string().max(40).optional().default("general"),
@@ -388,10 +392,11 @@ export async function POST(req: Request) {
     messages: rawMessages,
     docIds,
     customSkills,
-    context: coworkContext,
+    context: rawCoworkContext,
     lang,
     agentMode,
     inquiry: inquiryReq,
+    blind,
   } = parsed.data;
   // Foydalanuvchiga ko'rinadigan xabarlar — interfeys tilida.
   const t = (key: TKey) => translate(lang, key);
@@ -424,8 +429,14 @@ export async function POST(req: Request) {
   // Suhbatda biriktirilgan fayl/transkript/rasm bormi (mijoz fayl matnini user xabariga "[Fayl: …]"
   // bilan qo'shadi — attachments.ts). Bunday suhbat trening bazasiga va umumiy keshga YOZILMAYDI.
   const hasAttachment = messages.some((m) => m.role === "user" && contentHasAttachment(m.content));
-  const { authed, userId, plan, usedToday, tokensUsedMonth, memoryText, loadKnowledge, trainingOptIn, onboarding } =
+  const { authed, userId, plan, usedToday, tokensUsedMonth, memoryText: rawMemoryText, loadKnowledge, trainingOptIn, onboarding } =
     await resolveEntitlement(lastText, docIds);
+  // Blind Prompting: server qo'shadigan kontekst (xotira, bilim bazasi, Cowork ro'yxati) ham mijoz
+  // bilan bir xil qoidalar bilan maskalanadi ([CTX_…] tokenlari); xaritasi faqat mijozga ("blind-map").
+  const ctxMask = blind ? createServerMaskSession() : null;
+  const blindCtx = (s: string) => (ctxMask && s ? mask(s, ctxMask).masked : s);
+  const memoryText = blindCtx(rawMemoryText);
+  const coworkContext = blindCtx(rawCoworkContext);
   const activeSkills = resolveActiveSkills(enabledSkills, lastText);
   const customText = customSkills
     .filter((s) => s.name.trim() && s.instructions.trim())
@@ -619,7 +630,7 @@ export async function POST(req: Request) {
 
   // Bilim bazasi (embedding) — kvota o'tgandan keyin.
   // Mintaqa cheklangan bo'lsa embedding (OpenAI) chaqirilmaydi — faqat "@hujjat".
-  const knowledgeText = await loadKnowledge(!region.restricted);
+  const knowledgeText = blindCtx(await loadKnowledge(!region.restricted));
 
   // ---- Build the execution plan (single model, or Auto orchestration) ----
   const routePlan = isAuto ? await planRouteLLM(lastUser ?? "", plan, lang, req.signal, country) : null;
@@ -918,6 +929,7 @@ export async function POST(req: Request) {
           }
         }
 
+        if (ctxMask && Object.keys(ctxMask.tokenMap).length) send({ type: "blind-map", tokens: ctxMask.tokenMap });
         if (activeSkills.length) send({ type: "skills", skills: activeSkills.map((s) => s.id) });
         if (isAuto) send({ type: "route", reason: routeReason, steps });
         // Mintaqa almashtiruvi darhol ko'rinsin (javob ostidagi belgi ham "so'ralgan → javob" deydi).
@@ -1205,10 +1217,12 @@ ${connectorContext}`
             const shouldVerify = verifyText.length >= minChars && isFactualProse(verifyText);
             // Javob muallifi: upstream qaytargan haqiqiy model + nomzod id + reja qadamlari
             // (research — Perplexity). Hammasining kompaniyasi hakamlikdan chiqariladi.
-            const answerModels = [
-              ...(cacheableAnswer ? [servedUpstream, cachedFrom ?? servedId] : []),
-              ...steps.map((s) => s.modelId),
-            ].filter((m): m is string => !!m);
+            // Aralash auto/* (auto/best-free ...) served model ma'lum bo'lsa unga yechiladi, aks holda
+            // hakam u yo'naltira oladigan barcha kompaniyalardan tanlanmaydi (judge.ts answerModelsFor).
+            const answerModels = answerModelsFor(
+              cacheableAnswer ? [servedUpstream, cachedFrom ?? servedId] : [],
+              steps.map((s) => s.modelId),
+            );
             await postChecks({
               text: modelText,
               ledger: actionLedger,

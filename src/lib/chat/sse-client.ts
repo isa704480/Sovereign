@@ -30,7 +30,13 @@ export interface InquiryRequest {
  * Mijoz qabul qiladigan hodisalar. T3 `InquiryEvent` ni `StreamEvent` union'iga qo'shgach bu
  * ortiqcha bo'ladi (union takrorni birlashtiradi), lekin shungacha ham tiplar to'g'ri.
  */
-export type ClientStreamEvent = StreamEvent | InquiryEvent | ConnectorConfirmEvent;
+export type ClientStreamEvent = StreamEvent | InquiryEvent | ConnectorConfirmEvent | BlindMapEvent;
+
+/** Blind Prompting: server maskalagan kontekst tokenlari ([CTX_…]) → asl qiymat (faqat mijozda ochiladi). */
+export interface BlindMapEvent {
+  type: "blind-map";
+  tokens: Record<string, string>;
+}
 
 export interface StreamChatOptions {
   modelId: string;
@@ -48,6 +54,8 @@ export interface StreamChatOptions {
   agentMode?: string;
   /** Chuqur so'rash sozlamasi va javob navbati (yo'q bo'lsa server inquiry'ni ishlatmaydi). */
   inquiry?: InquiryRequest;
+  /** Blind Prompting — server qo'shadigan xotira/bilim bazasi/Cowork matnini ham maskalaydi. */
+  blind?: boolean;
   /** content is a string, or a multimodal array (text + image parts). */
   messages: { role: "user" | "assistant" | "system"; content: unknown }[];
   signal?: AbortSignal;
@@ -65,6 +73,7 @@ export async function streamChat({
   lang,
   agentMode,
   inquiry,
+  blind,
   messages,
   signal,
   onEvent,
@@ -82,6 +91,7 @@ export async function streamChat({
       lang: lang ?? DEFAULT_LANG,
       agentMode: agentMode ?? "general",
       ...(inquiry ? { inquiry } : {}),
+      ...(blind ? { blind: true } : {}),
       messages,
     }),
     signal,

@@ -13,7 +13,7 @@ import { CF_IDS, GROQ_OSS, GROQ_QWEN } from "@/lib/ai/chain";
  * murakkab ishga — tarif ruxsat bergan eng kuchlisi. Ro'yxat tartibi =
  * afzallik; birinchisi band bo'lsa keyingisiga o'tiladi (chat route).
  *
- * "provider/model" — OmniRoute katalogi id'lari (1700+ model); oxiridagi
+ * "provider/model" — OmniRoute katalogi id'lari (1750+ model); oxiridagi
  * statik id'lar (MODEL_BY_ID) — OmniRoute tushib qolsa ham to'g'ridan-to'g'ri
  * kalit (Groq/Mistral/Gemini) orqali javob beradigan zaxira.
  */

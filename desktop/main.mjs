@@ -39,6 +39,7 @@ import { fetchMe, pushSettings } from "../cli/src/sync.mjs";
 import { normalizeSkillIds, responseSkills } from "../cli/src/skills.mjs";
 import { shouldVerify, verifyClaims } from "../cli/src/verify.mjs";
 import { SnapshotStore, withCommandSnapshots } from "../cli/src/snapshot.mjs";
+import { FileBackupStore, FILE_BACKUP_LIMITS } from "./electron/file-backups.mjs";
 import * as projectMemory from "../cli/src/project-memory.mjs";
 import { projectCheckStatus, projectClaimIssue, projectJudgeLines } from "../cli/src/project-rules.mjs";
 import { registerProjectIpc } from "./electron/project.mjs";
@@ -175,16 +176,20 @@ function send(type, payload = {}) {
 
 // ---- Undo zaxirasi ------------------------------------------------------
 // write_file tasdig'idan oldin asl fayl (to'liq baytlar yoki "yo'q edi" belgisi)
-// main jarayonda saqlanadi; Undo faqat shu yozuv orqali tiklaydi — renderer'dagi
-// qisqartirilgan matn yoki ish papkasidan tashqaridagi yo'l muammosi yo'q.
-const BACKUP_MAX = 20 * 1024 * 1024; // bundan katta faylni zaxiralamaymiz (Undo yo'q)
+// main jarayonda saqlanadi — baytlar DISKDA (userData/file-backups, hajm/yosh chegarasi,
+// vazifa tugaganda o'chiriladi; electron/file-backups.mjs), xotirada faqat indeks.
+// Undo faqat shu yozuv orqali tiklaydi — renderer'dagi qisqartirilgan matn yoki ish
+// papkasidan tashqaridagi yo'l muammosi yo'q.
+const BACKUP_MAX = FILE_BACKUP_LIMITS.maxFileBytes; // bundan katta faylni zaxiralamaymiz (Undo yo'q)
 const DIFF_BEFORE_MAX = 2 * 1024 * 1024; // diff uchun renderer'ga yuboriladigan eski matn chegarasi
-const backupsById = new Map(); // id -> { real, existed, data }
-const backupIdByReal = new Map(); // real -> id (bir fayl uchun ENG BIRINCHI asl holat)
+let fileBackupStore = null;
+function fileBackups() {
+  if (!fileBackupStore) fileBackupStore = new FileBackupStore({ dir: join(app.getPath("userData"), "file-backups") });
+  return fileBackupStore;
+}
 
 function clearBackups() {
-  backupsById.clear();
-  backupIdByReal.clear();
+  fileBackupStore?.clear();
   snapshotStore?.clear().catch(() => {});
 }
 
@@ -229,22 +234,17 @@ function prepareWriteMeta(meta) {
   const before = data && data.length <= DIFF_BEFORE_MAX ? data.toString("utf8") : "";
   const beforeUnknown = existed && (tooLarge || !data || data.length > DIFF_BEFORE_MAX);
 
-  let backupId = backupIdByReal.get(real) ?? null;
+  let backupId = fileBackups().idFor(real);
   let createdId = null;
-  if (!backupId && !tooLarge) {
-    backupId = randomUUID();
+  if (!backupId && !tooLarge && (!existed || data)) {
+    backupId = fileBackups().add(real, existed, data);
     createdId = backupId;
-    backupsById.set(backupId, { real, existed, data });
-    backupIdByReal.set(real, backupId);
   }
   return { meta: { ...meta, before, beforeUnknown, existed, backupId }, createdId };
 }
 
 function dropBackup(id) {
-  const b = backupsById.get(id);
-  if (!b) return;
-  backupsById.delete(id);
-  if (backupIdByReal.get(b.real) === id) backupIdByReal.delete(b.real);
+  fileBackupStore?.drop(id);
 }
 
 /** Renderer'dan tasdiq so'raydi. meta (write_file/make_dir/run_command) — diff uchun. */
@@ -1651,12 +1651,13 @@ handle("auth:cancel", async () => {
 
 handle("auth:logout", async () => {
   abortTurn();
-  // Token serverda ham bekor qilinadi (best-effort, ~3s; offline rejimda fetch baribir rad etiladi).
-  await revokeStoredToken().catch(() => false);
+  // Token serverda ham bekor qilinadi (~3s; offline rejimda fetch baribir rad etiladi).
+  // Bekor qilib bo'lmasa (false) — UI ogohlantiradi: tokenni /cli/sessions'da bekor qilsin.
+  const revoked = await revokeStoredToken().catch(() => false);
   clearAuth();
   session.config = applyModelOverride(loadConfig());
   session.messages = initialMessages(session.config);
-  return stateInfo();
+  return { ...stateInfo(), revokeFailed: revoked === false };
 });
 
 // ---- Yangilanish ------------------------------------------------------------
@@ -1731,12 +1732,14 @@ handle("audit:run", async () => {
 // Undo — faqat main jarayondagi zaxira orqali: asl baytlar qaytariladi yoki
 // avval yo'q bo'lgan fayl o'chiriladi. Renderer ixtiyoriy yo'l bera olmaydi.
 handle("fs:restore", async (_e, id) => {
-  const b = typeof id === "string" ? backupsById.get(id) : null;
+  const b = fileBackupStore?.get(id) ?? null;
   if (!b) return { error: "no-backup" };
   try {
     if (b.existed) {
+      const data = fileBackupStore.read(id);
+      if (!data) return { error: "no-backup" };
       mkdirSync(dirname(b.real), { recursive: true });
-      writeFileSync(b.real, b.data);
+      writeFileSync(b.real, data);
     } else if (existsSync(b.real)) {
       rmSync(b.real, { force: true });
     }

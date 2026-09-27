@@ -83,6 +83,12 @@ function subdomainRouting(request: NextRequest, host: string, canonical: URL | n
 
   if (process.env.SUBDOMAINS !== "on" || !isRead || ROOT_FILES.has(pathname)) return null;
 
+  // /cli (sahifa emas — faqat /cli/connect, /cli/sessions) va /pricing (landing bo'limi) —
+  // bitta sakrash bilan yakuniy manzilga (app. → apex → docs. zanjirisiz).
+  const isSite = host === apex || host === `www.${apex}` || host === `app.${apex}`;
+  if (isSite && (pathname === "/cli" || pathname === "/cli/")) return redirect(origin("docs"), "/#cli", "");
+  if (isSite && (pathname === "/pricing" || pathname === "/pricing/")) return redirect(origin(""), "/#pricing", "");
+
   if (host === apex || host === `www.${apex}`) {
     if (hasPrefix(pathname, APP_PREFIXES)) return redirect(origin("app"), pathname, search);
     if (hasPrefix(pathname, ["/docs"])) return redirect(origin("docs"), pathname.slice(5) || "/", search);

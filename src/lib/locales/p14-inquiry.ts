@@ -259,10 +259,10 @@ export const P14I = {
     en: "Out of quota? Continue with a local model",
   },
   p14iLocalCtaDesc: {
-    uz: "SOVEREIGN Cowork kompyuteringizdagi Ollama modeli bilan ishlay oladi: so'rovlar kompyuteringizda bajariladi va tarif limitidan sarflanmaydi. Mahalliy modellar odatda bulutdagilardan zaifroq.",
-    "uz-cyrl": "SOVEREIGN Cowork компьютерингиздаги Ollama модели билан ишлай олади: сўровлар компьютерингизда бажарилади ва тариф лимитидан сарфланмайди. Маҳаллий моделлар одатда булутдагилардан заифроқ.",
-    ru: "SOVEREIGN Cowork умеет работать с моделью Ollama на вашем компьютере: запросы выполняются локально и не расходуют лимит тарифа. Локальные модели обычно слабее облачных.",
-    en: "SOVEREIGN Cowork can run an Ollama model on your computer: requests are processed locally and don't use your plan quota. Local models are usually weaker than cloud ones.",
+    uz: "Faqat Cowork va CLI (veb-chatda emas): SOVEREIGN Cowork va `sov` CLI kompyuteringizdagi Ollama modeli bilan ishlay oladi — so'rovlar kompyuteringizda bajariladi va tarif limitidan sarflanmaydi. Mahalliy modellar odatda bulutdagilardan zaifroq.",
+    "uz-cyrl": "Фақат Cowork ва CLI (веб-чатда эмас): SOVEREIGN Cowork ва `sov` CLI компьютерингиздаги Ollama модели билан ишлай олади — сўровлар компьютерингизда бажарилади ва тариф лимитидан сарфланмайди. Маҳаллий моделлар одатда булутдагилардан заифроқ.",
+    ru: "Только Cowork и CLI (не веб-чат): SOVEREIGN Cowork и CLI `sov` умеют работать с моделью Ollama на вашем компьютере — запросы выполняются локально и не расходуют лимит тарифа. Локальные модели обычно слабее облачных.",
+    en: "Cowork and CLI only (not the web chat): SOVEREIGN Cowork and the `sov` CLI can run an Ollama model on your computer — requests are processed locally and don't use your plan quota. Local models are usually weaker than cloud ones.",
   },
   p14iLocalCtaBtn: {
     uz: "Cowork'ni yuklab olish",

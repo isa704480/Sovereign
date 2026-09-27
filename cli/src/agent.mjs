@@ -503,7 +503,8 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
   // Shell Undo (faqat interaktiv REPL'da — /undo shu sessiyada mavjud): "risky" buyruqdan
   // oldin ish papkasi nusxasi olinadi, o'zgarish bo'lsa buyruqdan keyin eslatma chiqadi.
   let snapNote = null;
-  const run = snapshots ? withCommandSnapshots(runTool, cliSnapshotStore, { onChange: (s) => (snapNote = s) }) : runTool;
+  // write_file ham /undo ro'yxatiga tushadi (files: true); uning izohi "✎ o'zgartirildi" qatorining o'zi.
+  const run = snapshots ? withCommandSnapshots(runTool, cliSnapshotStore, { files: true, onChange: (s) => (snapNote = s.kind === "file" ? null : s) }) : runTool;
   const exec = (name, args) =>
     run(
       name,

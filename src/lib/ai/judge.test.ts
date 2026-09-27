@@ -5,7 +5,7 @@
  * (RU — OpenAI/Anthropic/Google hakami yo'q), kaliti yo'q yo'llar, timeout → keyingi hakam.
  */
 import assert from "node:assert/strict";
-import { callJudge, judgeCandidates, vendorOf, extractJson, JUDGE_POOL, type Vendor } from "./judge";
+import { answerModelsFor, callJudge, isOpaqueAuto, judgeCandidates, vendorOf, extractJson, JUDGE_POOL, type Vendor } from "./judge";
 
 let passed = 0;
 let failed = 0;
@@ -138,6 +138,37 @@ test("bir nechta id (upstream + katalog): ikkala kompaniya ham chiqariladi", () 
   const list = judgeCandidates({ answerModel: ["gpt-oss-120b", "llama-3.3-free"], env: ALL_KEYS });
   assert.ok(list.length > 0);
   for (const c of list) assert.ok(c.vendor !== "openai" && c.vendor !== "meta", c.id);
+});
+
+test("aralash auto/* kombo: served noma'lum — hech bir kompaniya hakam bo'lmaydi", async () => {
+  for (const m of ["auto/best-free", "omniroute/auto/best-free", "auto/coding:free", "auto/best-coding", "auto"]) {
+    assert.equal(isOpaqueAuto(m), true, m);
+    assert.equal(judgeCandidates({ answerModel: m, env: ALL_KEYS }).length, 0, m);
+  }
+  // Oila kombolari (auto/glm, auto/claude-sonnet) aralash emas — kompaniyasi ma'lum.
+  for (const m of ["auto/glm", "auto/minimax", "auto/claude-sonnet", "auto/gemini", "groq/qwen/qwen3.8-27b", "mystery-model-9"]) {
+    assert.equal(isOpaqueAuto(m), false, m);
+  }
+  const r = await callJudge({ system: "s", user: "u", answerModel: "auto/best-free", env: ALL_KEYS, fetchImpl: (async () => ok("{}")) as typeof fetch });
+  assert.equal(r, null);
+});
+
+test("aralash auto/*: served upstream ma'lum bo'lsa unga yechiladi (o'sha kompaniya chiqariladi)", () => {
+  // OmniRoute auto/best-free → X-OmniRoute-Model: groq/openai/gpt-oss-120b
+  const models = answerModelsFor(["openai/gpt-oss-120b", "auto/best-free"], ["auto/best-free"]);
+  assert.deepEqual(models, ["openai/gpt-oss-120b"]);
+  const list = judgeCandidates({ answerModel: models, env: ALL_KEYS });
+  assert.ok(list.length > 0);
+  for (const c of list) assert.notEqual(c.vendor, "openai", c.id);
+  // Served ham noma'lum (header yo'q) — auto qoladi va hakam tanlanmaydi.
+  const unresolved = answerModelsFor(["auto/best-free"], ["auto"]);
+  assert.deepEqual(unresolved, ["auto/best-free", "auto"]);
+  assert.equal(judgeCandidates({ answerModel: unresolved, env: ALL_KEYS }).length, 0);
+  // Tadqiqot qadami (Perplexity) + auto javob, served ma'lum: ikkala kompaniya ham chiqariladi.
+  const withResearch = answerModelsFor(["deepseek/deepseek-v4-flash"], ["sonar-online", "auto/best-free"]);
+  const vendors = new Set(judgeCandidates({ answerModel: withResearch, env: ALL_KEYS }).map((c) => c.vendor));
+  assert.ok(!vendors.has("deepseek") && !vendors.has("perplexity"));
+  assert.ok(vendors.size > 0);
 });
 
 test("javob kompaniyasi noma'lum: hakam baribir ma'lum kompaniyadan", async () => {

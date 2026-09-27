@@ -1,4 +1,4 @@
-// OmniRoute model katalogi — dinamik. 1700+ modelni qo'lda yozmaymiz;
+// OmniRoute model katalogi — dinamik. 1750+ modelni qo'lda yozmaymiz;
 // OmniRoute /v1/models dan olib, keshda saqlaymiz (server tomon, kalit oshkor bo'lmaydi).
 // CLI, veb va Cowork shu manbadan foydalanadi.
 

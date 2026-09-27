@@ -52,7 +52,7 @@ export default function Image() {
         </div>
 
         <div style={{ display: "flex", marginTop: 48, fontSize: 30, color: "#9BA3CC" }}>
-          Claude · GPT · Gemini · DeepSeek · 1700+ models
+          Claude · GPT · Gemini · DeepSeek · 1750+ models
         </div>
       </div>
     ),

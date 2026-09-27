@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { assertPublicUrl } from "@/lib/ai/web-read";
 import { getServerT } from "@/lib/i18n-server";
-import { hasPlaintextSecret, sealConnectorConfig, tokenCryptoEnabled, unsealField } from "@/lib/connectors/secret";
+import { CONNECTOR_KEY_MISSING, connectorSaveErrorCode, hasPlaintextSecret, isConnectorKeyMissing, sealConnectorConfig, tokenCryptoEnabled, unsealField } from "@/lib/connectors/secret";
 import { revokeGoogleToken } from "@/lib/connectors/store";
 
 async function session() {
@@ -63,21 +63,41 @@ export async function listConnectors(): Promise<ConnectorState[]> {
   });
 }
 
-type Result = { ok: true; meta?: string | null } | { ok: false; error: string };
+/** `code` — barqaror xato kodi (UI/testlar uchun); `error` — lokalizatsiya qilingan matn. */
+type Result = { ok: true; meta?: string | null } | { ok: false; error: string; code?: string };
 
-async function upsert(userId: string, connectorId: string, patch: { enabled?: boolean; config?: Record<string, unknown> }, supabase: Awaited<ReturnType<typeof createClient>>): Promise<boolean> {
+/** upsert natijasi: saqlandi / server sozlanmagan (CONNECTOR_TOKEN_KEY yo'q) / boshqa xato. */
+type UpsertResult = true | typeof CONNECTOR_KEY_MISSING | "failed";
+
+/** upsert xatosini foydalanuvchiga ko'rsatiladigan natijaga aylantiradi. */
+function upsertError(r: Exclude<UpsertResult, true>, t: Awaited<ReturnType<typeof getServerT>>): Result {
+  return r === CONNECTOR_KEY_MISSING
+    ? { ok: false, error: t("p19ConnKeyMissing"), code: CONNECTOR_KEY_MISSING }
+    : { ok: false, error: t("chUnknownError"), code: "save_failed" };
+}
+
+async function upsert(userId: string, connectorId: string, patch: { enabled?: boolean; config?: Record<string, unknown> }, supabase: Awaited<ReturnType<typeof createClient>>): Promise<UpsertResult> {
   const { data: existing } = await supabase
     .from("connector_accounts")
     .select("id, config")
     .eq("user_id", userId)
     .eq("connector_id", connectorId)
     .maybeSingle();
-  // Maxfiy maydonlar (token/refresh) DB'ga faqat shifrlangan holda yoziladi
-  // (CONNECTOR_TOKEN_KEY sozlangan bo'lsa); eski ochiq qiymatlar ham shu yerda shifrlanadi.
-  const config = sealConnectorConfig(userId, connectorId, {
-    ...((existing?.config as Record<string, unknown>) ?? {}),
-    ...(patch.config ?? {}),
-  });
+  // Maxfiy maydonlar (token/refresh) DB'ga faqat shifrlangan holda yoziladi.
+  // Yangi qiymatlar (patch) albatta shifrlanadi — kalit yo'q bo'lsa aniq xato
+  // (ochiq token yozilmaydi). Mavjud eski ochiq qiymatlar kalit bo'lsa shifrlanadi,
+  // bo'lmasa o'zgarishsiz qoladi (0040 trigger o'zgarmagan qiymatni o'tkazadi).
+  let config: Record<string, unknown>;
+  try {
+    const merged = {
+      ...((existing?.config as Record<string, unknown>) ?? {}),
+      ...sealConnectorConfig(userId, connectorId, patch.config ?? {}),
+    };
+    config = tokenCryptoEnabled() ? sealConnectorConfig(userId, connectorId, merged) : merged;
+  } catch (e) {
+    if (isConnectorKeyMissing(e)) return CONNECTOR_KEY_MISSING;
+    throw e;
+  }
   const row = { user_id: userId, connector_id: connectorId, enabled: patch.enabled ?? true, config };
   // config.url (MCP) ni foydalanuvchi REST orqali yozolmaydi (0028 trigger) —
   // URL tekshiruvdan o'tgach, faqat server (service role) yozadi. user_id sessiyadan.
@@ -87,13 +107,14 @@ async function upsert(userId: string, connectorId: string, patch: { enabled?: bo
       db = createServiceClient();
     } catch (e) {
       console.error("[connectors] service client:", e);
-      return false;
+      return "failed";
     }
   }
   const { error } = await db.from("connector_accounts").upsert(row, { onConflict: "user_id,connector_id" });
   if (error) {
     console.error("[connectors] upsert:", error.message);
-    return false;
+    // 0040 trigger: ochiq token rad etildi — server shifrlash kaliti sozlanmagan.
+    return connectorSaveErrorCode(error) === CONNECTOR_KEY_MISSING ? CONNECTOR_KEY_MISSING : "failed";
   }
   return true;
 }
@@ -135,6 +156,7 @@ export async function connectToken(input: unknown): Promise<Result> {
   let { token } = parsed.data;
   const spec = CONNECTOR_BY_ID[connectorId];
   if (!spec) return { ok: false, error: t("pnErrNoConnector") };
+  if (spec.comingSoon) return { ok: false, error: t("p19ConnComingSoon") };
   const s = await session();
   if (!s) return { ok: false, error: t("pnErrLoginFirst") };
 
@@ -164,7 +186,7 @@ export async function connectToken(input: unknown): Promise<Result> {
     { enabled: true, config: spec.auth === "mcp" ? { url: token, meta } : { token, meta } },
     s.supabase,
   );
-  if (!saved) return { ok: false, error: t("chUnknownError") };
+  if (saved !== true) return upsertError(saved, t);
   return { ok: true, meta };
 }
 
@@ -183,7 +205,7 @@ export async function setConnectorEnabled(input: unknown): Promise<Result> {
   // Builtin (CLI/brauzer) — kalitsiz, faqat yoqish belgisi.
   const config = spec.auth === "builtin" ? { builtin: true } : {};
   const saved = await upsert(s.user.id, connectorId, { enabled, config }, s.supabase);
-  if (!saved) return { ok: false, error: t("chUnknownError") };
+  if (saved !== true) return upsertError(saved, t);
   return { ok: true };
 }
 
@@ -243,6 +265,8 @@ export async function connectGoogle(connectorId: string): Promise<{ ok: false; e
   const t = await getServerT();
   const spec = CONNECTOR_BY_ID[connectorId];
   if (!spec || spec.auth !== "oauth-google") return { ok: false, error: t("pnErrNotGoogle") };
+  // Vositasi hali yo'q (Drive/Docs) — ulanmaydi, scope so'ralmaydi.
+  if (spec.comingSoon) return { ok: false, error: t("p19ConnComingSoon") };
   const s = await session();
   if (!s) return { ok: false, error: t("pnErrLoginFirst") };
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";

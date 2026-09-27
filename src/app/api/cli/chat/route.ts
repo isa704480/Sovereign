@@ -83,7 +83,7 @@ function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
 
   const mistral = process.env.MISTRAL_API_KEY;
 
-  // OmniRoute — 1700+ model, o'zi kvotaga qarab provayder almashtiradi.
+  // OmniRoute — 1750+ model, o'zi kvotaga qarab provayder almashtiradi.
   // Kod-agent uchun kod/tool'ga kuchli "auto" to'plami.
   if (OMNIROUTE && omniKey) {
     const auto = process.env.OMNIROUTE_MODEL ?? "auto/coding:free"; // sinovda: gpt-oss-120b, tool-calling

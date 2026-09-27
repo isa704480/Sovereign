@@ -13,9 +13,11 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:
  * Kalit: env CONNECTOR_TOKEN_KEY (32 bayt: base64 yoki 64 belgili hex).
  * Rotatsiya: eski kalit CONNECTOR_TOKEN_KEY_PREV ga qo'yiladi — faqat o'qish uchun.
  *
- * Orqaga moslik: kalit sozlanmagan bo'lsa sealField qiymatni o'zgartirmaydi
- * (eski xatti-harakat), unsealField esa prefiksiz (eski, ochiq) qiymatni
- * o'zgarishsiz qaytaradi — mavjud qatorlar keyingi yozuvda shifrlanadi.
+ * Kalit sozlanmagan bo'lsa sealField ochiq qiymat YOZMAYDI —
+ * ConnectorKeyMissingError tashlaydi (0040 trigger ochiq tokenni baribir rad etadi;
+ * chaqiruvchi foydalanuvchiga "server sozlanmagan" xatosini ko'rsatadi).
+ * unsealField prefiksiz (eski, ochiq) qiymatni o'zgarishsiz qaytaradi — mavjud
+ * qatorlar keyingi server yozuvida shifrlanadi.
  */
 
 export const SEALED_PREFIX = "enc:v1:";
@@ -50,6 +52,39 @@ function parseKey(raw: string | undefined): Key | null {
   return { kid, key };
 }
 
+/** Barqaror xato kodi — actions/callback uni lokalizatsiya qilingan xabarga aylantiradi. */
+export const CONNECTOR_KEY_MISSING = "connector_key_missing" as const;
+
+/** CONNECTOR_TOKEN_KEY sozlanmagan — maxfiy maydonni saqlab bo'lmaydi. */
+export class ConnectorKeyMissingError extends Error {
+  readonly code = CONNECTOR_KEY_MISSING;
+  constructor() {
+    super("CONNECTOR_TOKEN_KEY is not configured — connector secrets cannot be stored");
+    this.name = "ConnectorKeyMissingError";
+  }
+}
+
+export function isConnectorKeyMissing(e: unknown): e is ConnectorKeyMissingError {
+  return e instanceof ConnectorKeyMissingError || (e as { code?: unknown } | null)?.code === CONNECTOR_KEY_MISSING;
+}
+
+/**
+ * Connector saqlash xatosini barqaror kodga aylantiradi: ConnectorKeyMissingError yoki
+ * 0040 trigger rad etishi ("must be sealed") → connector_key_missing; qolgani → save_failed.
+ */
+export function connectorSaveErrorCode(err: unknown): typeof CONNECTOR_KEY_MISSING | "save_failed" {
+  if (isConnectorKeyMissing(err)) return CONNECTOR_KEY_MISSING;
+  const msg = (err as { message?: unknown } | null)?.message;
+  return typeof msg === "string" && /must be sealed/i.test(msg) ? CONNECTOR_KEY_MISSING : "save_failed";
+}
+
+let keyMissingLogged = false;
+function logKeyMissingOnce() {
+  if (keyMissingLogged) return;
+  keyMissingLogged = true;
+  console.error("[connectors/secret] CONNECTOR_TOKEN_KEY sozlanmagan — connector tokenlari saqlanmaydi (server not configured)");
+}
+
 /** Joriy (shifrlash) kaliti; env har chaqiruvda o'qiladi (testlar va rotatsiya uchun). */
 function currentKey(): Key | null {
   return parseKey(process.env.CONNECTOR_TOKEN_KEY);
@@ -73,13 +108,16 @@ const b64u = (b: Buffer) => b.toString("base64url");
 const aadOf = (userId: string, connectorId: string, field: string) => Buffer.from(`${userId}:${connectorId}:${field}`, "utf8");
 
 /**
- * Qiymatni shifrlaydi. Kalit yo'q bo'lsa — o'zgarishsiz (orqaga moslik).
- * Allaqachon shifrlangan qiymat qayta shifrlanmaydi.
+ * Qiymatni shifrlaydi. Kalit yo'q bo'lsa — ConnectorKeyMissingError (ochiq
+ * qiymat hech qachon qaytarilmaydi). Allaqachon shifrlangan qiymat qayta shifrlanmaydi.
  */
 export function sealField(value: string, userId: string, connectorId: string, field: SecretField): string {
   if (isSealed(value)) return value;
   const k = currentKey();
-  if (!k) return value;
+  if (!k) {
+    logKeyMissingOnce();
+    throw new ConnectorKeyMissingError();
+  }
   const iv = randomBytes(12);
   const c = createCipheriv("aes-256-gcm", k.key, iv);
   c.setAAD(aadOf(userId, connectorId, field));
@@ -112,7 +150,10 @@ export function unsealField(value: string, userId: string, connectorId: string, 
   }
 }
 
-/** config ichidagi token/refresh'ni shifrlaydi (qolgan maydonlar o'zgarmaydi). */
+/**
+ * config ichidagi token/refresh'ni shifrlaydi (qolgan maydonlar o'zgarmaydi).
+ * Kalit yo'q va ochiq maxfiy maydon bo'lsa — ConnectorKeyMissingError.
+ */
 export function sealConnectorConfig(
   userId: string,
   connectorId: string,

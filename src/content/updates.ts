@@ -24,6 +24,23 @@ export interface ProductUpdate {
 
 export const UPDATES: readonly ProductUpdate[] = [
   {
+    id: "2026-09-27-judge-inquiry-mesh",
+    date: "2026-09-27",
+    tag: "new",
+    title: {
+      uz: "Mustaqil hakam, Chuqur so'rash, Provider Mesh va mahalliy model",
+      "uz-cyrl": "Мустақил ҳакам, Чуқур сўраш, Provider Mesh ва маҳаллий модел",
+      ru: "Независимый судья, Глубокое уточнение, Provider Mesh и локальная модель",
+      en: "Independent judge, Deep Inquiry, Provider Mesh and local models",
+    },
+    body: {
+      uz: "Faktlarni tekshirishda endi har doim javobni yozgan kompaniyadan boshqa kompaniyaning modeli ishlatiladi. Chuqur so'rash: so'rov noaniq bo'lsa, javobdan oldin bir nechta aniqlashtiruvchi savol beriladi (sozlamalarda: Avto / Doim / O'chiq). Cowork va CLI tarif limiti tugaganda yoki internet bo'lmaganda kompyuterdagi Ollama modeli bilan davom eta oladi (veb-chatda emas). Provider Mesh so'rovlarni barcha ulangan provayderlar orasida umumiy holat kuzatuvi bilan taqsimlaydi; har javobda uni haqiqatda bergan model ko'rsatiladi. Provayder xarajati daromadning 50% iga yetsa, pullik yo'llar to'xtatiladi, tekin modellar ishlashda davom etadi. Cowork 0.7.x: To'liq avto har papka uchun alohida rozilik so'raydi, keyin o'zi ishga tushadigan fayllarni (CI, git hook) rad etadi, akkauntdan chiqish tokenni serverda ham bekor qiladi.",
+      "uz-cyrl": "Фактларни текширишда энди ҳар доим жавобни ёзган компаниядан бошқа компаниянинг модели ишлатилади. Чуқур сўраш: сўров ноаниқ бўлса, жавобдан олдин бир нечта аниқлаштирувчи савол берилади (созламаларда: Авто / Доим / Ўчиқ). Cowork ва CLI тариф лимити тугаганда ёки интернет бўлмаганда компьютердаги Ollama модели билан давом эта олади (веб-чатда эмас). Provider Mesh сўровларни барча уланган провайдерлар орасида умумий ҳолат кузатуви билан тақсимлайди; ҳар жавобда уни ҳақиқатда берган модел кўрсатилади. Провайдер харажати даромаднинг 50% ига етса, пуллик йўллар тўхтатилади, текин моделлар ишлашда давом этади. Cowork 0.7.x: Тўлиқ авто ҳар папка учун алоҳида розилик сўрайди, кейин ўзи ишга тушадиган файлларни (CI, git ҳуклари) рад этади, аккаунтдан чиқиш токенни серверда ҳам бекор қилади.",
+      ru: "Проверка фактов теперь всегда выполняется моделью другой компании, чем та, что написала ответ. Глубокое уточнение: если запрос неоднозначен, перед ответом задаётся несколько уточняющих вопросов (в настройках: Авто / Всегда / Выкл.). Cowork и CLI могут продолжить работу с моделью Ollama на вашем компьютере, когда закончился лимит тарифа или нет интернета (в веб-чате — нет). Provider Mesh распределяет запросы между всеми подключёнными провайдерами с общим отслеживанием их состояния; у каждого ответа указана модель, которая его действительно сгенерировала. Когда расходы на провайдеров достигают 50% выручки, платные маршруты приостанавливаются, бесплатные модели продолжают работать. Cowork 0.7.x: полный авто запрашивает согласие отдельно для каждой папки, отклоняет файлы, которые запускаются автоматически позже (CI, git hook), а выход из аккаунта отзывает токен и на сервере.",
+      en: "Fact checks now always use a model from a different company than the one that wrote the answer. Deep Inquiry asks a few clarifying questions before answering when a request is ambiguous (in settings: Auto / Always / Off). Cowork and the CLI can continue with an Ollama model on your computer when your plan limit is reached or you are offline (not in the web chat). Provider Mesh spreads requests across all connected providers with shared health tracking, and every answer shows the model that actually served it. When provider spending reaches 50% of revenue, paid routes pause and free models keep working. Cowork 0.7.x: Full auto asks for consent per folder, refuses files that run automatically later (CI, git hooks), and signing out also revokes the token on the server.",
+    },
+  },
+  {
     id: "2026-09-26-plan-reminders",
     date: "2026-09-26",
     tag: "new",

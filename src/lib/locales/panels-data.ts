@@ -31,10 +31,10 @@ export const CONNECTOR_TEXT: Record<string, { name?: L10n; description: L10n }> 
   gdrive: {
     name: { uz: "Google Disk", "uz-cyrl": "Google Диск", ru: "Google Диск", en: "Google Drive" },
     description: {
-      uz: "Fayllarni ko'rish va yuklash.",
-      "uz-cyrl": "Файлларни кўриш ва юклаш.",
-      ru: "Просмотр и загрузка файлов.",
-      en: "View and upload files.",
+      uz: "Fayllarni ko'rish.",
+      "uz-cyrl": "Файлларни кўриш.",
+      ru: "Просмотр файлов.",
+      en: "View files.",
     },
   },
   gsheets: {
@@ -47,18 +47,18 @@ export const CONNECTOR_TEXT: Record<string, { name?: L10n; description: L10n }> 
   },
   gslides: {
     description: {
-      uz: "Taqdimotlarni o'qish va yaratish.",
-      "uz-cyrl": "Тақдимотларни ўқиш ва яратиш.",
-      ru: "Чтение и создание презентаций.",
-      en: "Read and create presentations.",
+      uz: "Taqdimot yaratish.",
+      "uz-cyrl": "Тақдимот яратиш.",
+      ru: "Создание презентаций.",
+      en: "Create presentations.",
     },
   },
   gdocs: {
     description: {
-      uz: "Hujjatlarni o'qish va yozish.",
-      "uz-cyrl": "Ҳужжатларни ўқиш ва ёзиш.",
-      ru: "Чтение и написание документов.",
-      en: "Read and write documents.",
+      uz: "Hujjatlarni o'qish.",
+      "uz-cyrl": "Ҳужжатларни ўқиш.",
+      ru: "Чтение документов.",
+      en: "Read documents.",
     },
   },
   gcalendar: {
@@ -80,19 +80,19 @@ export const CONNECTOR_TEXT: Record<string, { name?: L10n; description: L10n }> 
   },
   github: {
     description: {
-      uz: "Repozitoriy, issue va PR'lar bilan ishlash.",
-      "uz-cyrl": "Репозиторий, Issue ва PR'лар билан ишлаш.",
-      ru: "Работа с репозиториями, issue и PR.",
-      en: "Work with repositories, issues and PRs.",
+      uz: "Repozitoriy va fayllarni o'qish.",
+      "uz-cyrl": "Репозиторий ва файлларни ўқиш.",
+      ru: "Чтение репозиториев и файлов.",
+      en: "Read repositories and files.",
     },
   },
   mcp: {
     name: { uz: "MCP server", "uz-cyrl": "MCP сервер", ru: "MCP-сервер", en: "MCP server" },
     description: {
-      uz: "Ixtiyoriy MCP serverni ulash (URL + ixtiyoriy token).",
-      "uz-cyrl": "Ихтиёрий MCP серверни улаш (URL + ихтиёрий токен).",
-      ru: "Подключение любого MCP-сервера (URL + необязательный токен).",
-      en: "Connect any MCP server (URL + optional token).",
+      uz: "Istalgan MCP serverni URL orqali ulash.",
+      "uz-cyrl": "Исталган MCP серверни URL орқали улаш.",
+      ru: "Подключение любого MCP-сервера по URL.",
+      en: "Connect any MCP server by URL.",
     },
   },
   "cli-terminal": {

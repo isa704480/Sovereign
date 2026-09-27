@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { LANG_FOR_AI, type Lang } from "@/lib/i18n";
 import { getServerLang } from "@/lib/i18n-server";
 import { isNearDuplicate, isSmallTalk, memoryPrompt } from "@/lib/ai/memory-prompt";
+import { hasMaskToken } from "@/lib/ai/blind-prompting";
 
 export interface MemoryNode {
   id: string;
@@ -67,6 +68,7 @@ export async function rememberFromExchange(
     "A project must be kind \"project\" and start with the word 'Project:' in the target language",
     "(e.g. 'Loyiha: …', 'Проект: …', 'Project: …').",
     "Return JSON: {\"memories\":[{\"content\":\"...\",\"kind\":\"fact|preference|project|person\"}]}.",
+    "Placeholders like [PERSON_A], [EMAIL_B] or [CTX_ORG_A] are masked private values: never copy them into a memory.",
     `If nothing is worth remembering, return an empty list. Each content: short, one sentence. Target language: ${langRule}.`,
   ].join(" ");
   const user = `Foydalanuvchi: ${userText.slice(0, 2000)}\n\nAI javobi (kontekst): ${assistantText.slice(0, 1000)}`;
@@ -104,7 +106,8 @@ export async function rememberFromExchange(
   const rows: { content: string; kind: string }[] = [];
   for (const m of parsed.memories ?? []) {
     const content = String(m.content ?? "").trim().slice(0, 300);
-    if (content.length <= 3 || kept.some((k) => isNearDuplicate(k, content))) continue;
+    // Blind Prompting tokeni ([PERSON_A]) — boshqa suhbatda ma'nosiz (xaritasi shu so'rovniki): saqlanmaydi.
+    if (content.length <= 3 || hasMaskToken(content) || kept.some((k) => isNearDuplicate(k, content))) continue;
     kept.push(content);
     rows.push({ content, kind: kinds.has(String(m.kind)) ? (m.kind as string) : "fact" });
     if (rows.length >= 4) break;

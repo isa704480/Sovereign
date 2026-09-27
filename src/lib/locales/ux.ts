@@ -32,10 +32,10 @@ export const UX = {
 
   // ModelSwitcher
   uxFreePlanBanner: {
-    uz: "Free: Auto + tekin modellar · Pro 1700+ modelni ochadi",
-    "uz-cyrl": "Free: Auto + текин моделлар · Pro 1700+ моделни очади",
-    ru: "Free: Auto + бесплатные модели · Pro открывает 1700+ моделей",
-    en: "Free: Auto + free models · Pro unlocks 1700+ models",
+    uz: "Free: Auto + tekin modellar · Pro 1750+ modelni ochadi",
+    "uz-cyrl": "Free: Auto + текин моделлар · Pro 1750+ моделни очади",
+    ru: "Free: Auto + бесплатные модели · Pro открывает 1750+ моделей",
+    en: "Free: Auto + free models · Pro unlocks 1750+ models",
   },
   uxCapTools: { uz: "Asboblarni chaqiradi", "uz-cyrl": "Асбобларни чақиради", ru: "Вызывает инструменты", en: "Tool calling" },
   uxCapVision: { uz: "Rasmni tushunadi", "uz-cyrl": "Расмни тушунади", ru: "Понимает изображения", en: "Understands images" },
@@ -61,10 +61,10 @@ export const UX = {
 
   // Metadata (layout)
   uxMetaDescription: {
-    uz: "Claude, GPT, Gemini, DeepSeek va 1700+ AI model bitta oynada. Suhbatlaringiz sizniki.",
-    "uz-cyrl": "Claude, GPT, Gemini, DeepSeek ва 1700+ AI модел битта ойнада. Суҳбатларингиз сизники.",
-    ru: "Claude, GPT, Gemini, DeepSeek и 1700+ моделей ИИ в одном окне. Ваши чаты принадлежат вам.",
-    en: "Claude, GPT, Gemini, DeepSeek and 1700+ AI models in one window. Your chats stay yours.",
+    uz: "Claude, GPT, Gemini, DeepSeek va 1750+ AI model bitta oynada. Suhbatlaringiz sizniki.",
+    "uz-cyrl": "Claude, GPT, Gemini, DeepSeek ва 1750+ AI модел битта ойнада. Суҳбатларингиз сизники.",
+    ru: "Claude, GPT, Gemini, DeepSeek и 1750+ моделей ИИ в одном окне. Ваши чаты принадлежат вам.",
+    en: "Claude, GPT, Gemini, DeepSeek and 1750+ AI models in one window. Your chats stay yours.",
   },
   uxCreateImage: { uz: "Rasm yaratish", "uz-cyrl": "Расм яратиш", ru: "Создать изображение", en: "Create image" },
   uxCreateImageHint: { uz: "Matndan rasm · ~30 soniya", "uz-cyrl": "Матндан расм · ~30 сония", ru: "Картинка по тексту · ~30 с", en: "Image from text · ~30s" },

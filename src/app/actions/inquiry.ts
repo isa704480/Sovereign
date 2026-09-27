@@ -21,6 +21,7 @@ import { isNearDuplicate } from "@/lib/ai/memory-prompt";
 import { cleanText } from "@/lib/ai/inquiry/sanitize";
 import { normalizeSlot } from "@/lib/ai/inquiry/known-facts";
 import { containsPii } from "@/lib/ai/inquiry/pii";
+import { hasMaskToken } from "@/lib/ai/blind-prompting";
 import { INQUIRY_DOMAINS, type InquiryDomain, type InquiryOutcome } from "@/lib/ai/inquiry/types";
 import { INQUIRY_OUTCOMES, setInquiryOutcome } from "@/lib/ai/inquiry/telemetry";
 
@@ -109,7 +110,8 @@ export async function rememberInquiryFacts(facts: InquiryFactInput[], domain: In
   for (const f of parsed.data.facts) {
     // PII tekshiruvi tozalashdan OLDIN (cleanText URL/domenlarni olib tashlaydi — email yarim qolardi)
     // va KEYIN ham (ko'rinmas belgilar bilan bo'lingan raqamlar).
-    if (containsPii(`${f.label ?? ""} ${f.value}`)) {
+    // Blind Prompting tokeni ([PERSON_A]) ham saqlanmaydi — boshqa suhbatda ma'nosiz.
+    if (containsPii(`${f.label ?? ""} ${f.value}`) || hasMaskToken(`${f.label ?? ""} ${f.value}`)) {
       dropped++;
       continue;
     }

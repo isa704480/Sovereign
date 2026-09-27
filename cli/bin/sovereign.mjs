@@ -43,6 +43,7 @@ import {
   runInquiry,
   splitUserContent,
 } from "../src/inquiry.mjs";
+import { invokedName } from "../src/invoked.mjs";
 
 const parsed = parseArgs(process.argv.slice(2));
 const flags = parsed.flags;
@@ -56,7 +57,8 @@ const AUTO_YES = Boolean(flags.yes);
  * menejeri, tarmoq, fayl o'zgartiruvchi...) va ish papkasidan tashqaridagi yo'llar
  * baribir tasdiq so'raydi — bu chegara hech qachon ochilmaydi. --no-vibe o'chiradi.
  */
-const invokedAs = (process.argv[1] ?? "").split(/[\\/]/).pop()?.replace(/\.(mjs|js|exe|cmd)$/i, "").toLowerCase() ?? "";
+// Windows npm shim (sov.cmd) argv[1]'ga skript faylini beradi — `sov` bin/sov.mjs orqali belgilanadi.
+const invokedAs = invokedName();
 const vibe = { on: !flags.noVibe && (invokedAs === "sov" || Boolean(flags.vibe)) };
 
 /**
@@ -1502,10 +1504,11 @@ async function repl() {
       continue;
     }
     if (input === "/logout") {
-      await revokeStoredToken(); // token serverda ham bekor qilinadi (best-effort, ~3s)
+      const revoked = await revokeStoredToken(); // token serverda ham bekor qilinadi (~3s)
       const base = clearAuth();
       config = loadConfig();
       say(`${c.amber("Chiqdingiz.")} ${base ? c.dim(base) : ""}`);
+      if (revoked === false) say(c.amber(REVOKE_FAILED_MSG));
       rewritePrompt();
       continue;
     }
@@ -1822,10 +1825,16 @@ async function handleLogin() {
   return ok ? EXIT.OK : EXIT.ERROR;
 }
 
+/** Server tokenni bekor qila olmadi (tarmoq/HTTP xato) — mahalliy chiqish baribir bajarildi. */
+const REVOKE_FAILED_MSG =
+  "Mahalliy chiqish bajarildi, lekin serverdagi tokenni bekor qilib bo'lmadi — uni soveregn.xyz/cli/sessions sahifasida bekor qiling.";
+
 async function handleLogout() {
-  await revokeStoredToken(); // token serverda ham bekor qilinadi (best-effort, ~3s)
+  const revoked = await revokeStoredToken(); // token serverda ham bekor qilinadi (~3s)
   const base = clearAuth();
-  console.log(`\n  ${c.green("Chiqdingiz.")} ${base ? c.dim(base) : ""}\n`);
+  console.log(`\n  ${c.green("Chiqdingiz.")} ${base ? c.dim(base) : ""}`);
+  if (revoked === false) console.log(`  ${c.amber(REVOKE_FAILED_MSG)}`);
+  console.log("");
   return EXIT.OK;
 }
 

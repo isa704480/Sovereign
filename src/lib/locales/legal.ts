@@ -258,7 +258,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Sizning huquqlaringiz (GDPR)",
-          body: "Ma'lumotingizga kirish, tuzatish, eksport qilish va o'chirishni so'rash huquqiga egasiz. Xotira grafi to'liq eksport qilinadi va istalgan vaqtda o'chiriladi.",
+          body: "Ma'lumotingizga kirish, tuzatish, eksport qilish va o'chirishni so'rash huquqiga egasiz. Xotira (saqlangan faktlar) to'liq eksport qilinadi va istalgan vaqtda o'chiriladi.",
         },
         {
           h: "Cookie va mahalliy saqlash",
@@ -318,7 +318,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Сизнинг ҳуқуқларингиз (GDPR)",
-          body: "Маълумотингизга кириш, тузатиш, экспорт қилиш ва ўчиришни сўраш ҳуқуқига эгасиз. Хотира графи тўлиқ экспорт қилинади ва исталган вақтда ўчирилади.",
+          body: "Маълумотингизга кириш, тузатиш, экспорт қилиш ва ўчиришни сўраш ҳуқуқига эгасиз. Хотира (сақланган фактлар) тўлиқ экспорт қилинади ва исталган вақтда ўчирилади.",
         },
         {
           h: "Cookie ва маҳаллий сақлаш",
@@ -378,7 +378,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Ваши права (GDPR)",
-          body: "Вы вправе запросить доступ к своим данным, их исправление, экспорт и удаление. Граф памяти экспортируется полностью и может быть удалён в любое время.",
+          body: "Вы вправе запросить доступ к своим данным, их исправление, экспорт и удаление. Память (сохранённые факты) экспортируется полностью и может быть удалена в любое время.",
         },
         {
           h: "Cookie и локальное хранилище",
@@ -438,7 +438,7 @@ export const LEGAL: Record<LegalDocId, Record<Lang, LegalContent>> = {
         },
         {
           h: "Your rights (GDPR)",
-          body: "You have the right to request access to, correction, export and deletion of your data. The memory graph can be exported in full and deleted at any time.",
+          body: "You have the right to request access to, correction, export and deletion of your data. Your memory (saved facts) can be exported in full and deleted at any time.",
         },
         {
           h: "Cookies and local storage",

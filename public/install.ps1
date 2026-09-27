@@ -11,6 +11,7 @@
 #   $env:SOV_VERSION = 'cli-v0.10.0'   aniq reliz (standart: eng so'nggi cli-v*)
 #   $env:SOV_NO_MODIFY_PATH = '1'      PATH'ni o'zgartirmaslik
 #   $env:SOV_DOWNLOAD_BASE = 'https://...'  binary manzili (mirror/test; <base>/sov-win-x64.exe)
+#   $env:SOV_SITE = 'https://soveregn.xyz'  GitHub API ishlamasa reliz shu saytning /api/download/cli orqali topiladi
 # `iex` ichida `exit` oynani yopib yuboradi - shuning uchun hamma joyda `return`.
 
 & {
@@ -89,7 +90,27 @@
     return $list
   }
 
-  function Get-ReleaseBase {
+  # GitHub API ishlamasa (rate limit) - sayt redirect'i orqali eng so'nggi cli-v* reliz:
+  # /api/download/cli?os=win&arch=x64 -> 302 github.com/<repo>/releases/download/cli-vX/<name>.
+  # ("releases/latest/download" ishlatilmaydi: "latest" - desktop-v* relizi, unda sov-* yo'q.)
+  function Get-SiteReleaseBase([string]$name) {
+    $site = if ($env:SOV_SITE) { $env:SOV_SITE.TrimEnd('/') } else { 'https://soveregn.xyz' }
+    try {
+      $req = [System.Net.HttpWebRequest]::Create("$site/api/download/cli?os=win&arch=x64")
+      $req.AllowAutoRedirect = $false
+      $req.UserAgent = 'sov-installer'
+      $req.Timeout = 15000
+      $resp = $req.GetResponse()
+      try { $loc = [string]$resp.Headers['Location'] } finally { $resp.Close() }
+      $prefix = "https://github.com/$repo/releases/download/cli-v"
+      if ($loc -and $loc.StartsWith($prefix) -and $loc.EndsWith("/$name")) {
+        return $loc.Substring(0, $loc.Length - $name.Length - 1)
+      }
+    } catch { }
+    return $null
+  }
+
+  function Get-ReleaseBase([string]$name) {
     if ($env:SOV_DOWNLOAD_BASE) { return $env:SOV_DOWNLOAD_BASE.TrimEnd('/') }
     if ($env:SOV_VERSION) { return "https://github.com/$repo/releases/download/$($env:SOV_VERSION)" }
     try {
@@ -97,7 +118,7 @@
       $cli = $rels | Where-Object { $_.tag_name -like 'cli-v*' -and -not $_.draft } | Select-Object -First 1
       if ($cli) { return "https://github.com/$repo/releases/download/$($cli.tag_name)" }
     } catch { }
-    return "https://github.com/$repo/releases/latest/download"
+    return Get-SiteReleaseBase $name
   }
 
   # Foydalanuvchi (HKCU) PATH - REG_EXPAND_SZ turini va %VAR% larni saqlagan holda.
@@ -128,7 +149,11 @@
       return $false
     }
     $name = 'sov-win-x64.exe'
-    $base = Get-ReleaseBase
+    $base = Get-ReleaseBase $name
+    if (-not $base) {
+      Write-Host 'Could not find the latest CLI release (GitHub API unavailable). Retry later or set $env:SOV_VERSION = ''cli-vX.Y.Z''.' -ForegroundColor Red
+      return $false
+    }
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ("sov-" + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     try {
@@ -142,8 +167,6 @@
         if ($sumsPubKeyXml) {
           Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS" -OutFile $sums
           Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS.sig" -OutFile $sigFile
-        } else {
-          Invoke-WebRequest -UseBasicParsing -Uri "$base/$name.sha256" -OutFile $sumFile
         }
       } catch {
         Write-Host "Download failed: $($_.Exception.Message)" -ForegroundColor Red
@@ -173,7 +196,23 @@
           if ($cols.Count -ge 2 -and ($cols[1] -replace '^\*', '') -eq $name) { $expected = $cols[0].ToLower(); break }
         }
       } else {
-        $expected = ((Get-Content -Raw $sumFile).Trim() -split '\s+')[0].ToLower()
+        # Checksum: <name>.sha256, bo'lmasa shu relizning umumiy SHA256SUMS fayli.
+        $expected = ''
+        try {
+          Invoke-WebRequest -UseBasicParsing -Uri "$base/$name.sha256" -OutFile $sumFile
+          $expected = ((Get-Content -Raw $sumFile).Trim() -split '\s+')[0].ToLower()
+        } catch {
+          try {
+            Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS" -OutFile $sumFile
+            foreach ($line in (Get-Content $sumFile)) {
+              $parts = "$line".Trim() -split '\s+'
+              if ($parts.Count -ge 2 -and $parts[1].TrimStart('*') -eq $name) { $expected = $parts[0].ToLower(); break }
+            }
+          } catch {
+            Write-Host "Checksum file missing: $base/$name.sha256 (and SHA256SUMS)" -ForegroundColor Red
+            return $false
+          }
+        }
       }
       $actual = (Get-FileHash -Algorithm SHA256 -Path $exe).Hash.ToLower()
       if (-not $expected -or $expected -ne $actual) {

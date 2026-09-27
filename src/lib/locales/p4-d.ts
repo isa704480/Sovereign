@@ -124,11 +124,11 @@ export const P4D = {
   },
   p4dAudDevsTitle: { uz: "Dasturchilar", "uz-cyrl": "Дастурчилар", ru: "Разработчики", en: "Developers" },
   p4dAudDevsBody: {
-    uz: "Terminal kod-agenti, desktop ilova va bitta hisob ortida 1700+ model — bitta vazifada modellarni soniyalarda solishtiring.",
+    uz: "Terminal kod-agenti, desktop ilova va bitta hisob ortida 1750+ model — bitta vazifada modellarni soniyalarda solishtiring.",
     "uz-cyrl":
-      "Терминал код-агенти, десктоп илова ва битта ҳисоб ортида 1700+ модел — битта вазифада моделларни сонияларда солиштиринг.",
-    ru: "Терминальный код-агент, десктоп-приложение и 1700+ моделей за одним аккаунтом — сравнивайте модели на одной задаче за секунды.",
-    en: "A terminal code agent, a desktop app and 1700+ models behind one account — compare models on the same task in seconds.",
+      "Терминал код-агенти, десктоп илова ва битта ҳисоб ортида 1750+ модел — битта вазифада моделларни сонияларда солиштиринг.",
+    ru: "Терминальный код-агент, десктоп-приложение и 1750+ моделей за одним аккаунтом — сравнивайте модели на одной задаче за секунды.",
+    en: "A terminal code agent, a desktop app and 1750+ models behind one account — compare models on the same task in seconds.",
   },
   p4dAudBizTitle: { uz: "Bizneslar", "uz-cyrl": "Бизнеслар", ru: "Бизнес", en: "Businesses" },
   p4dAudBizBody: {

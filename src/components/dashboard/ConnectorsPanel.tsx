@@ -180,6 +180,8 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                           const isGoogle = spec.auth === "oauth-google";
                           const isBuiltin = spec.auth === "builtin";
                           const isTokenish = spec.auth === "token" || spec.auth === "mcp";
+                          // Vositasi hali yo'q (Drive/Docs): "Tez orada", ulash tugmasi yo'q (faqat eski ulanishni uzish).
+                          const soon = !!spec.comingSoon;
                           const tx = connectorText(lang, spec);
                           // config'dagi inglizcha tokenLabel o'rniga tarjima qilingan matn.
                           const tokenHint =
@@ -195,7 +197,12 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm font-semibold">{tx.name}</span>
-                                    {st.connected && (
+                                    {soon && (
+                                      <span className="rounded-full px-1.5 py-0.5 text-[10px]" style={{ background: "color-mix(in srgb, var(--t-text, #fff) 8%, transparent)", color: "var(--t-text-muted, #9BA3CC)" }}>
+                                        {t("p19ConnSoonBadge")}
+                                      </span>
+                                    )}
+                                    {st.connected && !soon && (
                                       <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]" style={{ background: "color-mix(in srgb, var(--t-primary) 20%, transparent)", color: "var(--t-accent)" }}>
                                         <Check className="size-3" /> {st.meta || t("pnConnected")}
                                       </span>
@@ -203,7 +210,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                   </div>
                                   <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{tx.description}</div>
                                 </div>
-                                {(st.connected || isBuiltin) && (
+                                {(st.connected || isBuiltin) && !soon && (
                                   <Toggle on={st.enabled} onChange={(v) => toggle(spec, v)} label={tx.name} />
                                 )}
                               </div>
@@ -247,7 +254,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                               )}
 
                               {/* Google — OAuth bilan ulash (Google Cloud sozlangan bo'lishi kerak) */}
-                              {isGoogle && !st.connected && (
+                              {isGoogle && !st.connected && !soon && (
                                 <div className="mt-2 flex flex-col gap-1.5">
                                   <button
                                     type="button"

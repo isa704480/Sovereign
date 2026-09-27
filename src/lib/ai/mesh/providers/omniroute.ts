@@ -3,7 +3,7 @@ import type { ClassifiedError, Limits, ModelOffer, OfferClass, OfferCost, PlanTi
 
 /**
  * OmniRoute adapteri — o'z serverimizdagi (Railway) OpenAI-mos shlyuz
- * (github.com/diegosouzapw/OmniRoute). Ichida o'zi 1700+ katalog modelini turli upstream
+ * (github.com/diegosouzapw/OmniRoute). Ichida o'zi 1750+ katalog modelini turli upstream
  * provayderlarga (Groq, OpenRouter, Mistral, NVIDIA ...) yo'naltiradi va "auto/*" kombolarini
  * beradi — shuning uchun `aggregator: true` va served model `readServedModel` bilan tekshiriladi.
  *

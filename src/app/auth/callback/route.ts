@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { sealConnectorConfig } from "@/lib/connectors/secret";
+import { CONNECTOR_KEY_MISSING, connectorSaveErrorCode, sealConnectorConfig } from "@/lib/connectors/secret";
 import { getProfile, postAuthPath } from "@/lib/auth/profile";
 import { authErrorKey } from "@/lib/locales/auth";
 import { CONNECTOR_BY_ID } from "@/config/connectors";
@@ -66,13 +66,17 @@ export async function GET(request: Request) {
         }
       }
       if (connect && data.session?.provider_token) {
+        // Ulash saqlanmasa ham kirishga xalaqit bermaymiz — lekin foydalanuvchiga
+        // aniq sababni ko'rsatamiz (/app?connect_error=server|failed → Dashboard xabari).
+        let connectError: "server" | "failed" | null = null;
         try {
-          await supabase.from("connector_accounts").upsert(
+          const { error: saveError } = await supabase.from("connector_accounts").upsert(
             {
               user_id: data.user.id,
               connector_id: connect,
               enabled: true,
-              // Token/refresh shifrlab saqlanadi (connectors-1; CONNECTOR_TOKEN_KEY yo'q bo'lsa — o'zgarishsiz).
+              // Token/refresh shifrlab saqlanadi (connectors-1). Kalit yo'q bo'lsa —
+              // ConnectorKeyMissingError (ochiq token yozilmaydi; 0040 trigger baribir rad etadi).
               config: sealConnectorConfig(data.user.id, connect, {
                 oauth: true,
                 token: data.session.provider_token,
@@ -82,10 +86,15 @@ export async function GET(request: Request) {
             },
             { onConflict: "user_id,connector_id" },
           );
-        } catch {
-          // Ulash saqlanmasa ham kirishga xalaqit bermaymiz.
+          if (saveError) {
+            console.error("[auth/callback] connector saqlanmadi:", saveError.message);
+            connectError = connectorSaveErrorCode(saveError) === CONNECTOR_KEY_MISSING ? "server" : "failed";
+          }
+        } catch (e) {
+          connectError = connectorSaveErrorCode(e) === CONNECTOR_KEY_MISSING ? "server" : "failed";
+          if (connectError === "failed") console.error("[auth/callback] connector saqlanmadi:", e instanceof Error ? e.message : "unknown");
         }
-        return NextResponse.redirect(`${base}/app`);
+        return NextResponse.redirect(`${base}/app${connectError ? `?connect_error=${connectError}` : ""}`);
       }
       if (recovery) {
         // Parolni tiklash: yangi parol sahifasiga. Qisqa muddatli httpOnly belgi —

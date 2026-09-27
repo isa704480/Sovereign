@@ -51,7 +51,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
   const [open, setOpen] = useState(false);
   const focusOnOpen = useRef(false);
 
-  // OmniRoute katalog (1700+ model) — Cursor uslubi: oila → ichida modellar.
+  // OmniRoute katalog (1750+ model) — Cursor uslubi: oila → ichida modellar.
   const [q, setQ] = useState("");
   const [families, setFamilies] = useState<ModelFamily[] | null>(null);
   const [featured, setFeatured] = useState<{ id: string; label: string; note: string }[]>([]);

@@ -2,7 +2,7 @@ import "server-only";
 import { MODEL_BY_ID } from "@/config/models";
 import { CF, CF_PREFIX, jsonCompletionToChunk } from "./cloudflare";
 import { modelAllowedIn, PROVIDER_POLICY, restrictedRegion, normalizeCountry } from "./region";
-import { vendorOfId, VENDOR_LABEL, type Vendor } from "./vendor";
+import { isOpaqueAuto, OPAQUE_AUTO_VENDORS, vendorOfId, VENDOR_LABEL, type Vendor } from "./vendor";
 
 /**
  * Mustaqil hakam (independent judge) — SOVEREIGN'ning asosiy va'dasi:
@@ -21,7 +21,7 @@ import { vendorOfId, VENDOR_LABEL, type Vendor } from "./vendor";
  * providers.ts ichki qismlariga bog'lanmaydi (u alohida qayta yozilmoqda) — kichik fetch.
  */
 
-export { vendorOfId, VENDOR_LABEL, type Vendor } from "./vendor";
+export { isOpaqueAuto, OPAQUE_AUTO_VENDORS, vendorOfId, VENDOR_LABEL, type Vendor } from "./vendor";
 
 /**
  * Katalog id ("gpt-5-6-sol", "llama-3.3-free") → providerModel orqali; qolganlari
@@ -44,6 +44,26 @@ export function answerVendorOf(ids: AnswerModels): Vendor {
     if (v !== "unknown") return v;
   }
   return "unknown";
+}
+
+/** Id kompaniyasi noma'lum aralash kombo (auto/best-free ...) — haqiqiy upstream id'dan ko'rinmaydi. */
+function opaque(id: string): boolean {
+  return vendorOf(id) === "unknown" && isOpaqueAuto(id);
+}
+
+/**
+ * Hakam uchun javob mualliflari ro'yxati. `served` — upstream haqiqatda qaytargan model(lar)
+ * (mesh "served" hodisasi: OmniRoute X-OmniRoute-Model, katalog nomzodi). Ulardan biri aniq
+ * kompaniyaga tegishli bo'lsa, so'ralgan aralash auto/* id'lari ro'yxatdan chiqariladi — ular
+ * shu served modelga yechilgan. Aks holda auto/* qoladi va judgeCandidates u yo'naltira oladigan
+ * barcha kompaniyalarni chiqaradi.
+ */
+export function answerModelsFor(served: AnswerModels, requested: AnswerModels): string[] {
+  const s = toList(served);
+  const r = toList(requested);
+  const resolved = s.some((id) => vendorOf(id) !== "unknown");
+  const all = [...s, ...r];
+  return resolved ? all.filter((id) => !opaque(id)) : all;
 }
 
 type Route = "groq" | "cloudflare" | "omniroute" | "mistral" | "openrouter";
@@ -132,7 +152,11 @@ export function judgeCandidates(opts: {
   pool?: readonly JudgeCandidate[];
 }): (JudgeCandidate & { vendor: Vendor })[] {
   const env = opts.env ?? (process.env as Env);
-  const excluded = new Set<Vendor>(toList(opts.answerModel).map(vendorOf).filter((v) => v !== "unknown"));
+  const ids = toList(opts.answerModel);
+  const excluded = new Set<Vendor>(ids.map(vendorOf).filter((v) => v !== "unknown"));
+  // Aralash auto/* kombo va served model noma'lum: javob istalgan kompaniyadan bo'lishi mumkin —
+  // u yo'naltira oladigan barcha kompaniyalar chiqariladi (bir kompaniya o'zini tekshirmasin).
+  if (ids.some(opaque)) for (const v of OPAQUE_AUTO_VENDORS) excluded.add(v);
   const out: (JudgeCandidate & { vendor: Vendor })[] = [];
   for (const c of opts.pool ?? JUDGE_POOL) {
     const vendor = vendorOfId(c.id);

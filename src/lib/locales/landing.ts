@@ -60,9 +60,9 @@ export const LANDING = {
     ru: "Ответы с поиском приходят с настоящими ссылками на источники. Второй ИИ сверяет ключевые утверждения с источниками и помечает неподтверждённые.",
     en: "Search answers come with real source links. A second AI checks key claims against those sources and flags anything it can't confirm.",
   },
-  ldFeat2Tag: { uz: "Xotira grafi", "uz-cyrl": "Хотира графи", ru: "Граф памяти", en: "Memory Graph" },
+  ldFeat2Tag: { uz: "Xotira", "uz-cyrl": "Хотира", ru: "Память", en: "Memory" },
   ldFeat3Tag: { uz: "Tekshirilgan", "uz-cyrl": "Текширилган", ru: "Проверено", en: "Verified" },
-  ldFeat4Tag: { uz: "1700+ model", "uz-cyrl": "1700+ модел", ru: "1700+ моделей", en: "1700+ models" },
+  ldFeat4Tag: { uz: "1750+ model", "uz-cyrl": "1750+ модел", ru: "1750+ моделей", en: "1750+ models" },
   ldFeat4Title: { uz: "Barchasi bitta oynada", "uz-cyrl": "Барчаси битта ойнада", ru: "Всё в одном окне", en: "All in one window" },
   ldFeat4Body: {
     uz: "Claude, GPT, Gemini, DeepSeek — modelni bir zumda almashtiring, suhbat davom etadi.",

@@ -37,7 +37,7 @@ export function ModelCompare() {
   const max = families?.[0]?.count ?? 1;
   const shown = (families ?? []).slice(0, 12);
   // "{n} model." — son alohida rangda, shuning uchun gapni {n} atrofida bo'lamiz.
-  // Son hali yo'q bo'lsa "1700+" — ko'plik shakli (many/other) bilan.
+  // Son hali yo'q bo'lsa "1750+" — ko'plik shakli (many/other) bilan.
   const [modelsPre, modelsPost = ""] = t(total ? modelsKey(total, locale) : "ldCompareModels").split("{n}");
 
   return (
@@ -46,7 +46,7 @@ export function ModelCompare() {
         <span className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("ldCompareEyebrow")}</span>
         <h2 id="compare-title" className="font-display mt-3 text-[1.85rem] font-extrabold tracking-tight [overflow-wrap:anywhere] sm:text-3xl text-text-primary md:text-5xl">
           {modelsPre}
-          <span className="tabular-nums text-gradient-brand">{total ? total.toLocaleString(locale) : "1700+"}</span>
+          <span className="tabular-nums text-gradient-brand">{total ? total.toLocaleString(locale) : "1750+"}</span>
           {modelsPost}
           <br />
           {t("ldCompareFamilies")}
