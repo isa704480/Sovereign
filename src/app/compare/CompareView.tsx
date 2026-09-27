@@ -40,7 +40,7 @@ interface CompareData {
   runDate: string;
   /** Cloudflare Workers AI yo'lida sarflangan neuron (usage × pricing jadvali); yo'q bo'lsa null. */
   cloudflareNeurons?: number | null;
-  methodology: { tasks: number; categories: Record<Category, number> };
+  methodology: { tasks: number; runsPerTask?: number; categories: Record<Category, number> };
   models: ModelRow[];
   tasks: { id: string; category: Category; lang: string; results: Record<string, "pass" | "fail" | "error" | "not-run"> }[];
   public: { collectedOn: string; benchmarks: PublicBenchmark[] } | null;
@@ -86,6 +86,13 @@ export function CompareView() {
   const ref = models.find((m) => m.reference && m.measured) ?? null;
   const challengers = models.filter((m) => m.measured && m.family !== "claude");
   const notMeasured = models.filter((m) => !m.measured);
+  // Sarlavha faqat haqiqatan o'lchangan modellarni aytadi (model-compare.json).
+  const headVars = {
+    challengers: challengers.map((m) => m.label).join(", ") || "—",
+    reference: ref?.label ?? "Claude",
+    tasks: DATA.methodology.tasks,
+    runs: DATA.methodology.runsPerTask ?? 1,
+  };
 
   /** Claude qaysi toifalarda eng yaxshi o'lchangan raqibdan oldinda (faqat o'lchangan). */
   const aheadCats = ref
@@ -106,10 +113,10 @@ export function CompareView() {
 
   return (
     <article className="mx-auto max-w-5xl px-5 pb-24 pt-32 md:px-8">
-      <LocalizedTitle title={t("p11cTitle")} />
+      <LocalizedTitle title={fmt(t("p11cTitle"), headVars)} />
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("p11cEyebrow")}</p>
-      <h1 className="font-display mt-3 text-3xl font-extrabold tracking-tight text-text-primary md:text-4xl">{t("p11cTitle")}</h1>
-      <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-text-secondary">{t("p11cLead")}</p>
+      <h1 className="font-display mt-3 text-3xl font-extrabold tracking-tight text-text-primary md:text-4xl">{fmt(t("p11cTitle"), headVars)}</h1>
+      <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-text-secondary">{fmt(t("p11cLead"), headVars)}</p>
       <p className="mt-3 font-mono text-xs text-text-muted">{fmt(t("p11cRunDate"), { date: DATA.runDate })}</p>
       <a
         href="/app"

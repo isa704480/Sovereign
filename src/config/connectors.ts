@@ -23,6 +23,11 @@ export interface ConnectorSpec {
   sensitive?: boolean;
   /** oauth-google uchun so'raladigan scope'lar. */
   scopes?: string[];
+  /**
+   * Hali vositasi (tool) yo'q — panelda "Tez orada" deb ko'rsatiladi, ulab bo'lmaydi va
+   * hech qanday scope so'ralmaydi. Avval ulanganlar uzilishi mumkin.
+   */
+  comingSoon?: boolean;
 }
 
 export const CONNECTOR_CATEGORIES: { id: ConnectorCategory; label: string }[] = [
@@ -53,9 +58,9 @@ export const CONNECTORS: ConnectorSpec[] = [
     category: "google",
     glyph: "📁",
     auth: "oauth-google",
-    description: "Fayllarni ko'rish va yuklash.",
-    sensitive: true,
-    scopes: [G + "drive.readonly"],
+    description: "Fayllarni ko'rish.",
+    // Chatda Drive vositasi hali yo'q — scope so'ralmaydi (tez orada).
+    comingSoon: true,
   },
   {
     id: "gsheets",
@@ -72,7 +77,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     category: "google",
     glyph: "📽️",
     auth: "oauth-google",
-    description: "Taqdimotlarni o'qish va yaratish.",
+    description: "Taqdimot yaratish.",
     scopes: [G + "presentations"],
   },
   {
@@ -81,8 +86,9 @@ export const CONNECTORS: ConnectorSpec[] = [
     category: "google",
     glyph: "📄",
     auth: "oauth-google",
-    description: "Hujjatlarni o'qish va yozish.",
-    scopes: [G + "documents"],
+    description: "Hujjatlarni o'qish.",
+    // Chatda Docs vositasi hali yo'q — scope so'ralmaydi (tez orada).
+    comingSoon: true,
   },
   {
     id: "gcalendar",
@@ -112,7 +118,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     category: "dev",
     glyph: "🐙",
     auth: "token",
-    description: "Repozitoriy, issue va PR'lar bilan ishlash.",
+    description: "Repozitoriy va fayllarni o'qish.",
     tokenLabel: "GitHub Personal Access Token",
     docsUrl: "https://github.com/settings/tokens",
   },
@@ -122,7 +128,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     category: "dev",
     glyph: "🔌",
     auth: "mcp",
-    description: "Ixtiyoriy MCP serverni ulash (URL + ixtiyoriy token).",
+    description: "Istalgan MCP serverni URL orqali ulash.",
     tokenLabel: "MCP server URL",
   },
   // ---- Ichki (kalitsiz) ----

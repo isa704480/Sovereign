@@ -29,7 +29,7 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
         en: "Medium-length code and answers (3K tokens)",
       },
       { uz: "Suhbat tarixi", "uz-cyrl": "Суҳбат тарихи", ru: "История чатов", en: "Chat history" },
-      { uz: "Xotira grafi", "uz-cyrl": "Хотира графи", ru: "Граф памяти", en: "Memory graph" },
+      { uz: "Xotira", "uz-cyrl": "Хотира", ru: "Память", en: "Memory" },
     ],
   },
   starter: {

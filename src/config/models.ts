@@ -530,6 +530,12 @@ export const DEFAULT_MODEL_ID = "auto";
 export const RESEARCH_MODEL_ID = "sonar-online";
 export const AUTO_MODEL_ID = "auto";
 
+/**
+ * Ommaviy matnlardagi model soni ("1750+"): OmniRoute katalogi + statik katalog. Jonli
+ * /api/models jami 2026-09-27 da 1756. Landing/OG/lokal matnlar ham "1750+" deydi — o'zgarsa birga yangilang.
+ */
+export const TOTAL_MODELS_CLAIM = 1750;
+
 /** Virtual "Auto" model — the server picks the real model(s) per request. */
 export const AUTO_MODEL: SovereignModel = {
   id: AUTO_MODEL_ID,

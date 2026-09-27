@@ -71,10 +71,10 @@ export const P6A = {
     en: "Windows SmartScreen: click “More info” → “Run anyway”.",
   },
   dlUnsignedMac: {
-    uz: "macOS: ilovani o'ng tugma bilan bosing → Open.",
-    "uz-cyrl": "macOS: иловани ўнг тугма билан босинг → Open.",
-    ru: "macOS: правый клик по приложению → «Открыть».",
-    en: "macOS: right-click the app → Open.",
+    uz: "macOS: ilovani bir marta ochib ko'ring, so'ng System Settings → Privacy & Security → “Open Anyway” ni bosing.",
+    "uz-cyrl": "macOS: иловани бир марта очиб кўринг, сўнг System Settings → Privacy & Security → “Open Anyway” ни босинг.",
+    ru: "macOS: попробуйте один раз открыть приложение, затем «Системные настройки» → «Конфиденциальность и безопасность» → «Всё равно открыть».",
+    en: "macOS: try to open the app once, then go to System Settings → Privacy & Security → “Open Anyway”.",
   },
   dlUnsignedLinux: {
     uz: "Linux: .AppImage faylga chmod +x bering va ishga tushiring.",

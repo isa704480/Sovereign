@@ -110,7 +110,7 @@ export const PLANS: Plan[] = [
       "Kunlik chegara bilan",
       "O'rtacha kod va javoblar (3K token)",
       "Suhbat tarixi",
-      "Xotira grafi",
+      "Xotira",
     ],
     color: "#9BA3CC",
   },

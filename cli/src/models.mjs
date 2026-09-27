@@ -117,7 +117,7 @@ export function isOmniId(id) {
   return typeof id === "string" && id.includes("/") && !id.endsWith(":free");
 }
 
-/** Serverdan OmniRoute katalogini (1700+ model) qidirib oladi (oila yoki qidiruv). */
+/** Serverdan OmniRoute katalogini (1750+ model) qidirib oladi (oila yoki qidiruv). */
 export async function fetchCatalog(config, q = "", limit = 40, family = "") {
   const base = (config.baseUrl || "https://soveregn.xyz").replace(/\/$/, "");
   const params = new URLSearchParams({ limit: String(limit) });

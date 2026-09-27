@@ -28,7 +28,7 @@ npm run dev
 |---|---|---|
 | 1 | Landing, Auth (email / Google / GitHub), Onboarding, dizayn tizimi, 3D/motion | ✅ |
 | 2 | Chat dashboard, model switcher, 7 model temasi, OpenRouter/Perplexity streaming | ✅ |
-| 3 | Perplexity Research, Blind Prompting SDK, Memory Graph, Verification | ⏳ |
+| 3 | Perplexity Research, Blind Prompting SDK, Memory, Verification | ⏳ |
 | 4 | Sozlamalar, Knowledge Base, billing, light mode, mobil polish | ⏳ |
 
 © 2026 FayzInc

@@ -9,9 +9,9 @@ import { useT } from "@/store/chat";
 /** tag — texnik atama (tarjima qilinmaydi) yoki tarjima kaliti. */
 const FEATURES: { icon: typeof ShieldCheck; tag: string; tagKey?: TKey; title: TKey; body: TKey }[] = [
   { icon: ShieldCheck, tag: "Blind Prompting", title: "ldFeat1Title", body: "ldFeat1Body" },
-  { icon: BrainCircuit, tag: "Memory Graph", tagKey: "ldFeat2Tag", title: "ldFeat2Title", body: "ldFeat2Body" },
+  { icon: BrainCircuit, tag: "Memory", tagKey: "ldFeat2Tag", title: "ldFeat2Title", body: "ldFeat2Body" },
   { icon: BadgeCheck, tag: "Verified", tagKey: "ldFeat3Tag", title: "ldFeat3Title", body: "ldFeat3Body" },
-  { icon: Layers, tag: "1700+ model", tagKey: "ldFeat4Tag", title: "ldFeat4Title", body: "ldFeat4Body" },
+  { icon: Layers, tag: "1750+ model", tagKey: "ldFeat4Tag", title: "ldFeat4Title", body: "ldFeat4Body" },
   { icon: Zap, tag: "Auto", title: "ldFeat5Title", body: "ldFeat5Body" },
   { icon: Lock, tag: "Blind Prompting", title: "ldFeat6Title", body: "ldFeat6Body" },
 ];

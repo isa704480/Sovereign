@@ -4,10 +4,10 @@ import type { Dict } from "@/lib/i18n";
 export const P7C = {
   // ---- Landing: hero (qisqa matn) ----
   p7cHeroSub: {
-    uz: "Claude, GPT, Gemini va yana 1700+ model — bitta joyda, maxfiy.",
-    "uz-cyrl": "Claude, GPT, Gemini ва яна 1700+ модел — битта жойда, махфий.",
-    ru: "Claude, GPT, Gemini и ещё 1700+ моделей — в одном месте, приватно.",
-    en: "Claude, GPT, Gemini and 1700+ more models — private, in one place.",
+    uz: "Claude, GPT, Gemini va yana 1750+ model — bitta joyda, maxfiy.",
+    "uz-cyrl": "Claude, GPT, Gemini ва яна 1750+ модел — битта жойда, махфий.",
+    ru: "Claude, GPT, Gemini и ещё 1750+ моделей — в одном месте, приватно.",
+    en: "Claude, GPT, Gemini and 1750+ more models — private, in one place.",
   },
 
   // ---- Landing: yuklab olish (Cowork | CLI) ----

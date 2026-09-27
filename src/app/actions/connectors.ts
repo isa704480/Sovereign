@@ -156,6 +156,7 @@ export async function connectToken(input: unknown): Promise<Result> {
   let { token } = parsed.data;
   const spec = CONNECTOR_BY_ID[connectorId];
   if (!spec) return { ok: false, error: t("pnErrNoConnector") };
+  if (spec.comingSoon) return { ok: false, error: t("p19ConnComingSoon") };
   const s = await session();
   if (!s) return { ok: false, error: t("pnErrLoginFirst") };
 
@@ -264,6 +265,8 @@ export async function connectGoogle(connectorId: string): Promise<{ ok: false; e
   const t = await getServerT();
   const spec = CONNECTOR_BY_ID[connectorId];
   if (!spec || spec.auth !== "oauth-google") return { ok: false, error: t("pnErrNotGoogle") };
+  // Vositasi hali yo'q (Drive/Docs) — ulanmaydi, scope so'ralmaydi.
+  if (spec.comingSoon) return { ok: false, error: t("p19ConnComingSoon") };
   const s = await session();
   if (!s) return { ok: false, error: t("pnErrLoginFirst") };
   const site = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";

@@ -13,16 +13,16 @@ export const P11C = {
     en: "Model comparison",
   },
   p11cTitle: {
-    uz: "DeepSeek va Qwen Claude'ga qanchalik yaqin?",
-    "uz-cyrl": "DeepSeek ва Qwen Claude'га қанчалик яқин?",
-    ru: "Насколько DeepSeek и Qwen близки к Claude?",
-    en: "How close are DeepSeek and Qwen to Claude?",
+    uz: "{challengers} va {reference}: {tasks} ta vazifada o'lchov",
+    "uz-cyrl": "{challengers} ва {reference}: {tasks} та вазифада ўлчов",
+    ru: "{challengers} против {reference}: замер на {tasks} задачах",
+    en: "{challengers} vs {reference}: measured on {tasks} tasks",
   },
   p11cLead: {
-    uz: "Claude, GPT va Gemini mavjud bo'lmagan hududlarda SOVEREIGN DeepSeek va Qwen kabi modellarni taklif qiladi. Quyida — avtomatik tekshiriladigan 40 ta vazifada o'zimiz o'lchagan natijalar va ochiq benchmarklar, jumladan Claude hali ham kuchliroq bo'lgan joylar ham.",
-    "uz-cyrl": "Claude, GPT ва Gemini мавжуд бўлмаган ҳудудларда SOVEREIGN DeepSeek ва Qwen каби моделларни таклиф қилади. Қуйида — автоматик текшириладиган 40 та вазифада ўзимиз ўлчаган натижалар ва очиқ бенчмарклар, жумладан Claude ҳали ҳам кучлироқ бўлган жойлар ҳам.",
-    ru: "В регионах, где Claude, GPT и Gemini недоступны, SOVEREIGN предлагает такие модели, как DeepSeek и Qwen. Ниже — наши собственные измерения на 40 автоматически проверяемых задачах и публичные бенчмарки, включая то, в чём Claude пока сильнее.",
-    en: "In regions where Claude, GPT and Gemini are unavailable, SOVEREIGN offers models such as DeepSeek and Qwen. Below are our own measurements on 40 automatically graded tasks and public benchmarks — including where Claude is still stronger.",
+    uz: "Claude, GPT va Gemini mavjud bo'lmagan hududlarda SOVEREIGN DeepSeek va Qwen kabi modellarni taklif qiladi. Hozircha o'zimiz faqat {challengers} modelini {reference} bilan solishtirdik: avtomatik tekshiriladigan {tasks} ta vazifa, har biri {runs} marta. Boshqa modellar hali o'lchanmagan — ular quyida alohida belgilangan. Ochiq benchmarklar ham keltirilgan, jumladan Claude hali ham kuchliroq bo'lgan joylar.",
+    "uz-cyrl": "Claude, GPT ва Gemini мавжуд бўлмаган ҳудудларда SOVEREIGN DeepSeek ва Qwen каби моделларни таклиф қилади. Ҳозирча ўзимиз фақат {challengers} моделини {reference} билан солиштирдик: автоматик текшириладиган {tasks} та вазифа, ҳар бири {runs} марта. Бошқа моделлар ҳали ўлчанмаган — улар қуйида алоҳида белгиланган. Очиқ бенчмарклар ҳам келтирилган, жумладан Claude ҳали ҳам кучлироқ бўлган жойлар.",
+    ru: "В регионах, где Claude, GPT и Gemini недоступны, SOVEREIGN предлагает такие модели, как DeepSeek и Qwen. Пока мы сами измерили только {challengers} против {reference}: {tasks} автоматически проверяемых задач, прогонов на задачу: {runs}. Остальные модели ещё не измерены — они отмечены ниже отдельно. Также приведены публичные бенчмарки, включая то, в чём Claude пока сильнее.",
+    en: "In regions where Claude, GPT and Gemini are unavailable, SOVEREIGN offers models such as DeepSeek and Qwen. So far we have measured only {challengers} against {reference}: {tasks} automatically graded tasks, {runs} run per task. Other models are not measured yet and are marked separately below. Public benchmarks are cited too — including where Claude is still stronger.",
   },
   p11cRunDate: {
     uz: "O'lchov sanasi: {date}",
@@ -320,9 +320,9 @@ export const P11C = {
     en: "Model comparison",
   },
   p11cDocsLink: {
-    uz: "DeepSeek va Qwen Claude'ga qanchalik yaqin? O'lchangan natijalar →",
-    "uz-cyrl": "DeepSeek ва Qwen Claude'га қанчалик яқин? Ўлчанган натижалар →",
-    ru: "Насколько DeepSeek и Qwen близки к Claude? Измеренные результаты →",
-    en: "How close are DeepSeek and Qwen to Claude? Measured results →",
+    uz: "Modellar taqqoslovi: biz aslida nimani o'lchadik →",
+    "uz-cyrl": "Моделлар таққослови: биз аслида нимани ўлчадик →",
+    ru: "Сравнение моделей: что мы на самом деле измерили →",
+    en: "Model comparison: what we actually measured →",
   },
 } satisfies Dict;
