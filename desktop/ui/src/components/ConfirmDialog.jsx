@@ -68,6 +68,8 @@ export default function ConfirmDialog({ req, onReply }) {
   if (meta.hiddenChars) warnings.push({ tone: "danger", text: t("confirm.hiddenChars") });
   if (meta.outside) warnings.push({ tone: "danger", text: <>{t("confirm.outside")} <span className="mono">{revealHidden(meta.path)}</span></> });
   if (meta.autoRun) warnings.push({ tone: "danger", text: t("confirm.autoRun") });
+  // SOVEREIGN.md "Tegma" — jamoa bu yo'lni o'zgartirmaslikni so'ragan.
+  if (meta.protect?.pattern) warnings.push({ tone: "danger", text: t("confirm.protect", { pattern: revealHidden(String(meta.protect.pattern).slice(0, 200)) }) });
   if (beforeUnknown) warnings.push({ tone: "danger", text: t("confirm.beforeUnknown") });
   if (isCmd && meta.risky) {
     const why = riskReason(meta, req.question, t);

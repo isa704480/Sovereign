@@ -45,6 +45,8 @@ const WHOLE = [
   [/^OK: (.+) papkasi yaratildi\.$/s, (m, t) => t("cli.dirCreated", { path: m[1] })],
   [/^OK: (.+) yozildi\.$/s, (m, t) => t("cli.written", { path: m[1] })],
   [/^Foydalanuvchi rad etdi\b.*$/s, (_m, t) => t("cli.declined")],
+  // SOVEREIGN.md "Tegma" — Full auto'da so'ralmasdan rad (cli/src/tools.mjs tegmaDeclined).
+  [/^RAD ETILDI \(full auto\): "(.*?)" SOVEREIGN\.md "Tegma" ro.yxatiga tushadi \((.*?)\)(?: —|\.).*$/s, (m, t) => t("cli.tegmaDenied", { path: m[1], pattern: m[2] })],
   [new RegExp(`^Noma${A}lum vosita: (.+)$`, "s"), (m, t) => t("cli.unknownTool", { name: m[1] })],
   [new RegExp(`^\\(bo${A}sh\\)$`), (_m, t) => t("cli.empty")],
   [/^Bu amal shu navbatda allaqachon MUVAFFAQIYATLI\b.*$/s, (_m, t) => t("cli.skip.ok")],

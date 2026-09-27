@@ -7,6 +7,7 @@ import { loadConfig, saveConfig, clearAuth, revokeStoredToken, isAccountMode, no
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
 import { loadMemory, addMemory, removeMemory, clearMemory, syncMemory } from "../src/memory.mjs";
 import { addProjectNote, createProjectFile, projectInfo, readProjectMemory, refreshProjectMessage, PROJECT_MAX_BYTES } from "../src/project-memory.mjs";
+import { loadProjectRules } from "../src/project-rules.mjs";
 import { login } from "../src/login.mjs";
 import { printModels, printLocalModels, resolveModelId, isOmniId, fetchCatalog, printCatalog, fetchFamilies, matchFamily, fetchLocalModels, parseLocalModelId, CLI_MODELS, LOCAL_PREFIX } from "../src/models.mjs";
 import { selectMenu } from "../src/menu.mjs";
@@ -85,7 +86,7 @@ function isInitTarget(meta) {
  * Rad etiladigan holatlar (tashqi yo'l, autorun fayl, push/deploy) — null: ularni fullAutoDecision rad etadi.
  */
 function fullAutoAskReason(meta) {
-  if (!meta || meta.outside) return null;
+  if (!meta || meta.outside || meta.protect) return null;
   if (meta.fullAutoDeny && !isInitTarget(meta)) return null;
   if (meta.tool === "run_command" && fullAutoDenyReason(meta.command)) return null;
   let rel = "";
@@ -108,7 +109,8 @@ function fullAutoDecision(question, meta) {
     return false;
   }
   // Sessiyadan keyin o'zi ishga tushadigan fayl (CI, git hook, .vscode task, install-skript, SOVEREIGN.md).
-  if (meta?.fullAutoDeny && !isInitTarget(meta)) {
+  // SOVEREIGN.md "Tegma" (meta.protect) — istisnosiz (`sov init --ai` ham aylanib o'tmaydi).
+  if (meta?.protect || (meta?.fullAutoDeny && !isInitTarget(meta))) {
     console.log(`  ${c.red("⊘")} ${c.dim(q)} ${c.red(`full auto: ${meta.fullAutoDeny} — rad etildi (qo'lda tasdiqlang: /auto o'chirib qayta so'rang)`)}`);
     return false;
   }
@@ -362,7 +364,7 @@ function nonInteractiveConfirmer() {
       console.log(`  ⊘ ${stripAnsi(question)} — rad etildi (full auto: ${why} — interaktiv tasdiq talab qilinadi)`);
       return false;
     }
-    const mustAsk = Boolean((forcePrompt && !isInitTarget(meta)) || meta?.risky || meta?.outside);
+    const mustAsk = Boolean((forcePrompt && !isInitTarget(meta)) || meta?.protect || meta?.risky || meta?.outside);
     const q = stripAnsi(question);
     if (!mustAsk && (AUTO_YES || flags.vibe)) {
       console.log(`  ✓ ${q} (auto-yes)`);
@@ -403,7 +405,7 @@ const COMMAND_HELP = {
   doctor: ["sov doctor [--json]", "Diagnostika: Node/binary, versiya, config, server, login, ish papkasi, PATH. Muammo bo'lsa chiqish kodi 1.", ["sov doctor", "sov doctor --json"]],
   init: [
     "sov init [--ai]",
-    "Loyiha xotirasi: joriy papkada SOVEREIGN.md yaratadi (loyiha haqida, stek, buyruqlar, qoidalar, \"tegma\" ro'yxati, eslatmalar). Agent (CLI va Cowork) uni har suhbat boshida o'qiydi — git'ga commit qiling, jamoa bilan ulashiladi. --ai: agent loyihani o'rganib faylni o'zi to'ldiradi (yozishdan oldin tasdiq so'raladi).",
+    "Loyiha xotirasi: joriy papkada SOVEREIGN.md yaratadi (loyiha haqida, stek, buyruqlar, qoidalar, \"tegma\" ro'yxati, eslatmalar). Agent (CLI va Cowork) uni har xabarda o'qiydi; kod yozgandan keyin Test/Build/Lint buyruqlarini ishga tushirib, har qoida bo'yicha hisobot beradi; \"Tegma\" yo'llari har doim so'raladi (full auto'da rad) — git'ga commit qiling, jamoa bilan ulashiladi. --ai: agent loyihani o'rganib faylni o'zi to'ldiradi (yozishdan oldin tasdiq so'raladi).",
     ["sov init", "sov init --ai"],
   ],
   audit: [
@@ -539,7 +541,16 @@ function projectLines(info) {
   ];
   if (info.sections.length) out.push(c.dim("Bo'limlar: ") + info.sections.join(" · "));
   if (info.truncated) out.push(c.warn(`⚠ Fayl ${PROJECT_MAX_BYTES / 1024} KB dan katta — agentga faqat boshi beriladi. Qisqartiring.`));
-  out.push(c.faint("/project-remember <fakt> — qo'shish · faylni muharrirda tahrirlang · agent har suhbat boshida o'qiydi"));
+  // Majburiy qo'llanadigan qismlar (cli/src/project-rules.mjs) — foydalanuvchi nima tekshirilishini ko'rsin.
+  const rules = loadProjectRules();
+  if (rules) {
+    if (rules.checks.length) out.push(c.dim("Kod yozilgandan keyin ishga tushiriladi: ") + rules.checks.map((x) => `${visible(x.label)}: ${c.white(visible(x.command))}`).join(" · "));
+    if (rules.protect.length) out.push(c.dim("Tegma (har doim so'raladi, full auto'da rad): ") + rules.protect.map((p) => c.white(visible(p))).join(", "));
+    const n = rules.rules.length + rules.notes.length;
+    if (n) out.push(c.dim(`Qoida va eslatmalar: ${n} ta — kod yozilgandan keyin agent har biri bo'yicha hisobot beradi`));
+    if (!rules.meaningful) out.push(c.faint("Hozircha faqat shablon — to'ldirilmagan (…) buyruqlar e'tiborsiz qoldiriladi."));
+  }
+  out.push(c.faint("/project-remember <fakt> — qo'shish · faylni muharrirda tahrirlang · agent uni har xabarda diskdan qayta o'qiydi"));
   return out;
 }
 
@@ -1754,6 +1765,7 @@ async function printMode(promptArg) {
         usage: res.usage ?? null,
         ledger: res.ledger ?? [],
         honesty: res.honesty ?? null,
+        ...(res.projectCheck ? { project_check: res.projectCheck } : {}),
         exit_code: code,
         version: VERSION,
       },

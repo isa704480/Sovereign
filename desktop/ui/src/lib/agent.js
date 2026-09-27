@@ -26,6 +26,26 @@ export function plainText(v, max) {
   return v.replace(UNSAFE_CHARS, " ").replace(/\s+/g, " ").trim().slice(0, max);
 }
 
+const PROJECT_STATUSES = new Set(["ok", "failed", "declined", "stale", "notRun"]);
+const count = (v) => Math.max(0, Math.min(999, Math.floor(Number(v) || 0)));
+
+/** SOVEREIGN.md tekshiruv buyruqlari (main: projectCheckStatus) — faqat ma'lum holatlar, matn qisqartiriladi. */
+export function projectRows(list) {
+  if (!Array.isArray(list)) return null;
+  const rows = list
+    .slice(0, 8)
+    .map((r) => ({ label: plainText(r?.label, 40), command: plainText(r?.command, 200), status: PROJECT_STATUSES.has(r?.status) ? r.status : "notRun" }))
+    .filter((r) => r.command);
+  return rows.length ? rows : null;
+}
+
+/** projectClaimIssue: {code: "projectUnrun", commands: [...]} yoki null. */
+function projectWarn(w) {
+  if (!w || w.code !== "projectUnrun" || !Array.isArray(w.commands)) return null;
+  const commands = w.commands.map((c) => plainText(c, 200)).filter(Boolean).slice(0, 8);
+  return commands.length ? { commands } : null;
+}
+
 /** Model yozgan savol matni (R1): markdown belgilari va "://" li bo'laklar (havolalar) ham olib tashlanadi. */
 export function questionText(v, max) {
   if (typeof v !== "string") return "";
@@ -220,9 +240,13 @@ export function applyEvent(s, ev, { replay = false } = {}) {
         items: [
           ...s.items,
           // local — mahalliy model nomi: mustaqil tekshiruv (hakam) o'tkazilmadi.
-          { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, testWarning: ev.testWarning ?? null, noteCode: ev.noteCode, maxSteps: ev.maxSteps, loop: ev.loop ?? null, budget: ev.budget ?? null, judge: ev.judge ?? null, local: plainText(ev.local, 100) || null },
+          // project — SOVEREIGN.md tekshiruv buyruqlarining jurnal bo'yicha holati; projectWarning — "bajarildi" deb aytilgan bajarilmagan buyruqlar.
+          { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, testWarning: ev.testWarning ?? null, noteCode: ev.noteCode, maxSteps: ev.maxSteps, loop: ev.loop ?? null, budget: ev.budget ?? null, judge: ev.judge ?? null, local: plainText(ev.local, 100) || null, project: projectRows(ev.project), projectWarning: projectWarn(ev.projectWarning) },
         ],
       };
+    case "project-check":
+      // Kod yozilgandan keyin SOVEREIGN.md qoidalari tekshiruvi boshlandi (qadam izohi).
+      return { ...s, items: [...s.items, { id: nid(), kind: "project-check", commands: count(ev.commands), rules: count(ev.rules) }] };
     case "usage":
       // Vazifa narxi — token va model qadamlari (jurnal ostida kichik qator). local — server tokeni sarflanmadi.
       return { ...s, items: [...s.items, { id: nid(), kind: "usage", tokens: ev.tokens ?? 0, rounds: ev.rounds ?? 0, estimated: !!ev.estimated, budget: ev.budget ?? 0, local: plainText(ev.local, 100) || null }] };

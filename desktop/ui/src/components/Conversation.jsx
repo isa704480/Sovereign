@@ -10,6 +10,19 @@ const S = () => window.sovereign;
 
 const TOOL_ICON = { write_file: "pencil", make_dir: "folder", read_file: "file", list_dir: "list", run_command: "play" };
 const STATUS_ICON = { ok: "check", failed: "x", declined: "ban", skipped: "repeat", stopped: "stop" };
+// SOVEREIGN.md tekshiruv buyrug'i holati → belgi va rang (jurnal bo'yicha; ishga tushirilmagani "o'tdi" emas).
+const PROJECT_ICON = { ok: "check", failed: "x", declined: "ban", stale: "repeat", notRun: "alert" };
+const PROJECT_TONE = { ok: "ok", failed: "failed", declined: "declined", stale: "declined", notRun: "declined" };
+
+/** Kod yozilgandan keyin SOVEREIGN.md qoidalari tekshiruvi boshlandi — suhbatdagi qadam izohi. */
+function ProjectCheckNote({ it }) {
+  const t = useT();
+  return (
+    <div className="divider-note" role="status">
+      <Icon name="list" size={12} /> {t("project.check.step", { commands: it.commands ?? 0, rules: it.rules ?? 0 })}
+    </div>
+  );
+}
 
 export function ToolStep({ it, awaiting }) {
   const t = useT();
@@ -81,7 +94,8 @@ export function LedgerCard({ it }) {
   // Mustaqil hakam (javob bergan modelning kompaniyasidan boshqa kompaniya) — server natijasi.
   const judgeHits = Array.isArray(it.judge?.unsupported) ? it.judge.unsupported.filter((s) => typeof s === "string" && s) : [];
   const judgeVendor = typeof it.judge?.vendor === "string" && it.judge.vendor ? it.judge.vendor : null;
-  const bad = st.failed + st.declined > 0 || !!it.warning || !!it.testWarning || !!it.noteCode || judgeHits.length > 0;
+  const projectBad = (it.project ?? []).some((p) => p.status !== "ok");
+  const bad = st.failed + st.declined > 0 || !!it.warning || !!it.testWarning || !!it.noteCode || judgeHits.length > 0 || projectBad || !!it.projectWarning;
   return (
     <section className={`ledger ${bad ? "ledger-warn" : ""}`} aria-label={t("ledger.title")}>
       <header className="ledger-head">
@@ -114,6 +128,27 @@ export function LedgerCard({ it }) {
       {it.noteCode && <div className="banner banner-warn"><Icon name={it.noteCode === "loop" ? "repeat" : "alert"} size={14} /><span>{ledgerNote(it, t)}</span></div>}
       {it.warning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.claimWarn")}</b> {ledgerWarning(it.warning, t)}</span></div>}
       {it.testWarning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.testWarn")}</b> {testWarningText(it.testWarning, t)}</span></div>}
+      {it.project?.length > 0 && (
+        <div className="ledger-project">
+          <div className="faint small">{t("ledger.project.title")}</div>
+          <ul className="ledger-list">
+            {it.project.map((p, i) => (
+              <li key={i} className={`ledger-item s-${PROJECT_TONE[p.status] ?? "declined"}`}>
+                <Icon name={PROJECT_ICON[p.status] ?? "info"} size={13} stroke={2} />
+                <span className="grow">
+                  {p.label && <>{p.label}: </>}<span className="mono">{p.command}</span> <span className="faint">— {t(`ledger.project.${p.status}`)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {it.projectWarning && (
+        <div className="banner banner-danger">
+          <Icon name="alert" size={14} />
+          <span><b>{t("ledger.projectWarn")}</b> <span className="mono">{it.projectWarning.commands.join(", ")}</span></span>
+        </div>
+      )}
       {judgeHits.length > 0 && (
         <div className="banner banner-warn">
           <Icon name="alert" size={14} />
@@ -443,6 +478,8 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
                 return <ToolStep key={it.id} it={it} awaiting={!!confirm && it.id === lastRunningTool} />;
               case "ledger":
                 return <LedgerCard key={it.id} it={it} />;
+              case "project-check":
+                return <ProjectCheckNote key={it.id} it={it} />;
               case "usage":
                 return <UsageLine key={it.id} it={it} />;
               case "error":

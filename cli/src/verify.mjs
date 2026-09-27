@@ -30,11 +30,13 @@ const clean = (s, max) => (typeof s === "string" ? s.replace(/[\x00-\x1f\x7f-\x9
  * @returns {Promise<{ unsupported: string[], model?: string, judgeModel?: string,
  *   judgeVendor?: string, judgeVendorLabel?: string, answerVendor?: string } | null>}
  */
-export async function verifyClaims(config, { answer, entries, signal, answerModel } = {}) {
+export async function verifyClaims(config, { answer, entries, signal, answerModel, extraLines = [] } = {}) {
   if (!config?.token || !config?.baseUrl || verifyDisabled()) return null;
   const text = String(answer ?? "").trim();
   if (!text) return null;
-  const ledger = ledgerLines(entries)
+  // extraLines — tizim qo'shgan qo'shimcha faktlar (mas. SOVEREIGN.md buyrug'i ishga tushirilmagan), status: ok|failed|declined|skipped.
+  const extra = (Array.isArray(extraLines) ? extraLines : []).filter((l) => ["ok", "failed", "declined", "skipped"].includes(l?.status) && typeof l.text === "string");
+  const ledger = [...extra.slice(0, 10), ...ledgerLines(entries)]
     .slice(0, 60)
     .map((l) => ({ status: l.status, text: String(l.text).slice(0, 300) }));
   const timeout = AbortSignal.timeout(VERIFY_TIMEOUT_MS);
