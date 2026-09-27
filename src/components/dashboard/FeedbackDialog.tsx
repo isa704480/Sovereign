@@ -2,7 +2,7 @@
 
 import { Check, Loader2, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import type { TKey } from "@/lib/i18n";
 import { useT } from "@/store/chat";
@@ -46,6 +46,7 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
 
   // Esc, fokusni qaytarish va sarlavha bog'lanishi — umumiy hook; bu yerda faqat matn maydoniga fokus.
   const { panelRef, titleId, dialogProps } = useDialogA11y(open, close);
+  const errorId = useId();
   useEffect(() => {
     if (!open) return;
     const id = window.setTimeout(() => areaRef.current?.focus(), 60);
@@ -98,7 +99,7 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt relative w-full max-w-lg rounded-[22px] border p-6 outline-none"
+            className="tt relative max-h-[calc(100svh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl border p-5 outline-none sm:p-6"
             style={{
               background: "var(--t-surface, #0D1033)",
               borderColor: "var(--t-border, rgba(255,255,255,0.1))",
@@ -109,14 +110,14 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
             <button
               type="button"
               onClick={close}
-              className="absolute right-4 top-4 rounded-lg p-2 transition-colors hover:bg-white/10"
+              className="absolute right-3 top-3 flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-hover)]"
               aria-label={t("close")}
               style={{ color: "var(--t-text-muted, #9BA3CC)" }}
             >
-              <X className="size-5" />
+              <X className="size-5" aria-hidden />
             </button>
 
-            <h2 id={titleId} className="t-display text-xl font-extrabold tracking-[-0.02em]">
+            <h2 id={titleId} className="t-display pr-10 text-xl font-extrabold tracking-[-0.02em]">
               {t("fbTitle")}
             </h2>
             <p className="mt-1 text-sm" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
@@ -125,8 +126,8 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
 
             {state === "sent" ? (
               <div className="flex flex-col items-center gap-3 py-10 text-center" role="status">
-                <span className="grid size-12 place-items-center rounded-full" style={{ background: "rgba(34,197,94,0.15)", color: "#22C55E" }}>
-                  <Check className="size-6" />
+                <span className="grid size-12 place-items-center rounded-full" style={{ background: "color-mix(in srgb, var(--t-success, #10D4A0) 15%, transparent)", color: "var(--t-success, #10D4A0)" }}>
+                  <Check className="size-6" aria-hidden />
                 </span>
                 <p className="font-medium">{t("fbSent")}</p>
               </div>
@@ -136,7 +137,7 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
                 <div
                   role="radiogroup"
                   aria-label={t("fbTitle")}
-                  className="mt-5 grid grid-cols-4 gap-1 rounded-xl p-1"
+                  className="mt-5 grid grid-cols-2 gap-1 rounded-lg p-1 sm:grid-cols-4"
                   style={{ background: "color-mix(in srgb, var(--t-text) 6%, transparent)" }}
                 >
                   {KINDS.map((k) => (
@@ -146,7 +147,7 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
                       role="radio"
                       aria-checked={kind === k.id}
                       onClick={() => setKind(k.id)}
-                      className={cn("rounded-lg px-2 py-2 text-xs font-medium transition-colors sm:text-sm", kind !== k.id && "hover:bg-white/5")}
+                      className={cn("min-h-9 rounded-md px-2 py-2 text-xs font-medium transition-colors sm:text-sm [@media(pointer:coarse)]:min-h-11", kind !== k.id && "hover:bg-[var(--surface-hover)]")}
                       style={
                         kind === k.id
                           ? { background: "var(--t-surface, #0D1033)", color: "var(--t-text)", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }
@@ -173,22 +174,23 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
                   placeholder={t("fbPlaceholder")}
                   aria-label={t("fbPlaceholder")}
                   aria-invalid={!!error}
-                  className="mt-3 w-full resize-none rounded-xl border bg-transparent px-3.5 py-3 text-base outline-none sm:text-sm focus:border-[var(--t-primary)]"
-                  style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
+                  aria-describedby={error ? errorId : undefined}
+                  className="mt-3 w-full resize-none rounded-md border border-[var(--t-border)] bg-transparent px-3.5 py-3 text-[16px] outline-none transition-colors focus-visible:border-[var(--t-primary)] focus-visible:ring-2 focus-visible:ring-[var(--t-primary)]/40 sm:text-sm"
+                  style={{ color: "var(--t-text)" }}
                 />
 
                 <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="min-h-5 text-xs" role="alert" style={{ color: "#F87171" }}>
+                  <p id={errorId} className="min-h-5 text-xs" role="alert" style={{ color: "var(--t-danger, #EF4444)" }}>
                     {error}
                   </p>
                   <button
                     type="button"
                     onClick={() => void send()}
                     disabled={state === "sending"}
-                    className="inline-flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                    style={{ background: "var(--t-primary, #7C6FF7)" }}
+                    className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md px-5 text-sm font-semibold transition-opacity hover:opacity-90 disabled:opacity-60"
+                    style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
                   >
-                    {state === "sending" && <Loader2 className="size-4 animate-spin" />}
+                    {state === "sending" && <Loader2 className="size-4 animate-spin" aria-hidden />}
                     {t("fbSend")}
                   </button>
                 </div>

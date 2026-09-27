@@ -16,6 +16,8 @@ import { EASE_OUT_EXPO } from "@/lib/motion";
 import { LANGS, translate } from "@/lib/i18n";
 import { useChat, useT } from "@/store/chat";
 import { useDialogA11y } from "./use-dialog-a11y";
+import { Switch } from "./Switch";
+import { cn } from "@/lib/utils";
 
 interface SettingsPanelProps {
   open: boolean;
@@ -27,8 +29,8 @@ interface SettingsPanelProps {
 
 function Row({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-3">
-      <div className="min-w-0">
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+      <div className="min-w-0 flex-1 basis-48">
         <div className="text-sm font-medium" style={{ color: "var(--t-text, #F0F2FF)" }}>{title}</div>
         {desc && <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{desc}</div>}
       </div>
@@ -38,24 +40,7 @@ function Row({ title, desc, children }: { title: string; desc?: string; children
 }
 
 function Toggle({ on, onChange, label, disabled }: { on: boolean; onChange: (v: boolean) => void; label: string; disabled?: boolean }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => onChange(!on)}
-      className="relative h-6 w-11 shrink-0 rounded-full p-0 transition-colors disabled:opacity-50"
-      style={{ background: on ? "var(--t-primary, #5B50F0)" : "color-mix(in srgb, var(--t-text,#fff) 18%, transparent)" }}
-    >
-      {/* left-0.5 pins the knob to the track; without it the button's centered content box shifts it out. */}
-      <span
-        className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200"
-        style={{ transform: on ? "translateX(20px)" : "translateX(0)" }}
-      />
-    </button>
-  );
+  return <Switch on={on} onChange={onChange} label={label} disabled={disabled} />;
 }
 
 function Segmented<T extends string>({
@@ -70,7 +55,7 @@ function Segmented<T extends string>({
   label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg border p-0.5" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
+    <div role="radiogroup" aria-label={label} className="inline-flex shrink-0 rounded-lg border p-0.5" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
       {options.map((o) => (
         <button
           key={o.value}
@@ -80,10 +65,13 @@ function Segmented<T extends string>({
           aria-label={o.aria}
           lang={o.lang}
           onClick={() => onChange(o.value)}
-          className="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          className={cn(
+            "min-h-8 rounded-md px-2.5 py-1 text-xs font-medium transition-colors [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11",
+            value !== o.value && "hover:bg-[var(--surface-hover)]",
+          )}
           style={{
-            background: value === o.value ? "var(--t-primary, #5B50F0)" : "transparent",
-            color: value === o.value ? "#fff" : "var(--t-text-muted, #9BA3CC)",
+            background: value === o.value ? "var(--t-primary-fill, #5B50F0)" : "transparent",
+            color: value === o.value ? "var(--t-on-primary, #fff)" : "var(--t-text-muted, #9BA3CC)",
           }}
         >
           {o.label}
@@ -245,16 +233,21 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-lg flex-col rounded-3xl border shadow-lg outline-none md:max-h-[88vh]"
-            style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-lg flex-col rounded-xl border outline-none md:max-h-[88vh]"
+            style={{
+              background: "var(--t-surface, #0D1033)",
+              borderColor: "var(--t-border, rgba(255,255,255,0.1))",
+              color: "var(--t-text, #F0F2FF)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.35), 0 30px 80px rgba(0,0,0,0.55)",
+            }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <div className="flex items-center gap-2">
-                <Settings className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
+                <Settings className="size-5" style={{ color: "var(--t-text-muted, #9BA3CC)" }} aria-hidden />
                 <h2 id={titleId} className="font-display text-lg font-bold">{t("settings")}</h2>
               </div>
-              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                <X className="size-5" />
+              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-[var(--surface-hover)] md:size-9 [@media(pointer:coarse)]:md:size-11" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                <X className="size-5" aria-hidden />
               </button>
             </div>
 
@@ -265,21 +258,21 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={user.avatarUrl} alt="" className="size-12 rounded-full object-cover" />
                 ) : (
-                  <span className="flex size-12 items-center justify-center rounded-full text-base font-bold text-white" style={{ background: "var(--t-primary, #5B50F0)" }}>{initials || "S"}</span>
+                  <span className="flex size-12 items-center justify-center rounded-full text-base font-bold" style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}>{initials || "S"}</span>
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold">{user.name}</div>
                   <div className="truncate text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{user.email}</div>
                 </div>
-                <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: "color-mix(in srgb, var(--t-primary,#5B50F0) 18%, transparent)", color: "var(--t-accent,#7C6FF7)" }}>{planName}</span>
+                <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: "color-mix(in srgb, var(--t-primary,#5B50F0) 18%, transparent)", color: "var(--t-accent-text,#978FFB)" }}>{planName}</span>
               </div>
 
               <div className="border-t py-1" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
                 <div className="pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{t("plan")}</div>
                 <Row title={`${planName} ${t("planWord")}`} desc={t("planUpgradeDesc")}>
                   {plan !== "ultra" && (
-                    <button type="button" onClick={onUpgrade} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white" style={{ background: "var(--t-primary, #5B50F0)" }}>
-                      <Sparkles className="size-3.5" /> {t("upgrade")}
+                    <button type="button" onClick={onUpgrade} className="inline-flex min-h-9 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold hover:opacity-90 [@media(pointer:coarse)]:min-h-11" style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}>
+                      <Sparkles className="size-3.5" aria-hidden /> {t("upgrade")}
                     </button>
                   )}
                 </Row>
@@ -287,7 +280,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
 
               <div className="border-t py-1" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  <Palette className="size-3.5" /> {t("appearance")}
+                  <Palette className="size-3.5" aria-hidden /> {t("appearance")}
                 </div>
                 <Row title={t("language")} desc={t("languageHint")}>
                   <Segmented
@@ -327,7 +320,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
 
               <div className="border-t py-1" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  <Keyboard className="size-3.5" /> {t("chatBehavior")}
+                  <Keyboard className="size-3.5" aria-hidden /> {t("chatBehavior")}
                 </div>
                 <Row title={t("enterToSendTitle")} desc={t("enterToSendDesc")}>
                   <Toggle on={enterToSend} onChange={setEnterToSend} label={t("enterToSendTitle")} />
@@ -363,7 +356,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
 
               <div className="border-t py-1" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
                 <div className="flex items-center gap-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  <ShieldAlert className="size-3.5" /> {t("dataPrivacy")}
+                  <ShieldAlert className="size-3.5" aria-hidden /> {t("dataPrivacy")}
                 </div>
                 <p className="pt-1.5 text-xs leading-relaxed" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                   {t("p9wPrivacyWhere")}{" "}
@@ -372,7 +365,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                     target="_blank"
                     rel="noopener"
                     className="font-medium underline underline-offset-2"
-                    style={{ color: "var(--t-accent, #A5B4FC)" }}
+                    style={{ color: "var(--t-accent-text, #978FFB)" }}
                   >
                     {t("p9wPrivacyLink")}
                   </a>
@@ -399,19 +392,28 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                 <Row title={t("stCliDevicesTitle")} desc={t("stCliDevicesDesc")}>
                   <a
                     href="/cli/sessions"
-                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium"
+                    className="inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
                     style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}
                   >
                     <MonitorSmartphone className="size-3.5" aria-hidden /> {t("stCliDevicesManage")}
                   </a>
                 </Row>
                 <Row title={t("exportTitle")} desc={t("exportDesc")}>
-                  <button type="button" onClick={exportData} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
-                    <Download className="size-3.5" /> {t("exportBtn")}
+                  <button type="button" onClick={exportData} className="inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
+                    <Download className="size-3.5" aria-hidden /> {t("exportBtn")}
                   </button>
                 </Row>
                 <Row title={t("deleteAllTitle")} desc={t("deleteAllDesc")}>
-                  <button type="button" onClick={deleteData} className="rounded-lg border px-3 py-1.5 text-xs font-medium" style={{ borderColor: confirmDelete ? "var(--error,#EF4444)" : "var(--t-border, rgba(255,255,255,0.1))", color: "var(--error,#EF4444)" }}>
+                  <button
+                    type="button"
+                    onClick={deleteData}
+                    className="min-h-9 rounded-md border px-3 py-1.5 text-xs font-medium [@media(pointer:coarse)]:min-h-11"
+                    style={
+                      confirmDelete
+                        ? { borderColor: "var(--t-danger-fill,#C62F2F)", background: "var(--t-danger-fill,#C62F2F)", color: "#fff" }
+                        : { borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-danger,#EF4444)" }
+                    }
+                  >
                     {confirmDelete ? t("confirmDelete") : t("delete")}
                   </button>
                 </Row>
@@ -421,8 +423,8 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
 
             <div className="border-t px-5 py-3" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <form action={signOut}>
-                <button type="submit" className="inline-flex items-center gap-2 text-sm font-medium" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                  <LogOut className="size-4" /> {t("logout")}
+                <button type="submit" className="inline-flex min-h-9 items-center gap-2 rounded-md px-1 text-sm font-medium hover:text-[var(--t-text)] [@media(pointer:coarse)]:min-h-11" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                  <LogOut className="size-4" aria-hidden /> {t("logout")}
                 </button>
               </form>
             </div>

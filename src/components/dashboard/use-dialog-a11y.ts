@@ -2,8 +2,35 @@
 
 import { useEffect, useId, useRef } from "react";
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Tab/Shift+Tab fokusni modal ichida aylantiradi (fon elementlariga chiqib ketmasin). */
+export function trapTab(e: KeyboardEvent, container: HTMLElement | null) {
+  if (!container) return;
+  const items = [...container.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((n) => n.offsetParent !== null);
+  if (!items.length) {
+    e.preventDefault();
+    container.focus();
+    return;
+  }
+  const first = items[0];
+  const last = items[items.length - 1];
+  const active = document.activeElement;
+  if (!container.contains(active)) {
+    e.preventDefault();
+    (e.shiftKey ? last : first).focus();
+  } else if (e.shiftKey && (active === first || active === container)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
 /**
- * Modal panellar uchun umumiy a11y: ochilganda fokus panel ichiga o'tadi,
+ * Modal panellar uchun umumiy a11y (Tab fokus-tuzog'i bilan): ochilganda fokus panel ichiga o'tadi,
  * Esc yopadi (preventDefault — Dashboard'ning global Esc'i oqimni to'xtatmasin),
  * yopilganda fokus ochgan tugmaga qaytadi. Sarlavha `titleId` orqali bog'lanadi.
  */
@@ -25,6 +52,10 @@ export function useDialogA11y<T extends HTMLElement = HTMLDivElement>(open: bool
       if (panel && !panel.contains(document.activeElement)) panel.focus({ preventScroll: true });
     });
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Tab") {
+        trapTab(e, panelRef.current);
+        return;
+      }
       if (e.key !== "Escape" || e.defaultPrevented) return;
       e.preventDefault();
       closeRef.current();
