@@ -352,6 +352,11 @@ a:focus-visible {
   background: var(--sov-indigo-soft);
 }
 
+/* Inline `style=` atributi CSP tufayli ishlamaydi — shu sinf bilan qilamiz. */
+#main {
+  display: contents;
+}
+
 .hidden {
   display: none !important;
 }

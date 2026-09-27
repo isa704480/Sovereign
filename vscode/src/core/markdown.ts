@@ -58,32 +58,33 @@ export function renderInline(raw: string): string {
   // 2) Hamma narsani ekranlaymiz — bundan keyin xom HTML mumkin emas.
   text = escapeHtml(text);
 
-  // 3) [matn](https://…)
-  text = text.replace(
-    /\[([^\]\n]{1,300})\]\(([^\s)]{1,600})\)/g,
-    (m, label: string, url: string) => {
-      const href = url.replace(/&amp;/g, "&");
-      if (!isSafeLink(href)) return m; // xavfsiz emas — oddiy matn bo'lib qoladi
-      return `<a href="${escapeHtml(href)}" data-ext="1">${label}</a>`;
-    },
-  );
+  // 3) [matn](https://…) — tayyor <a> ham himoyalanadi, aks holda 4-qadam uning
+  //    ichidagi URL'ni ikkinchi marta havola qilib, ichma-ich teg hosil qilardi.
+  const anchors: string[] = [];
+  const protect = (html: string) => {
+    anchors.push(html);
+    return `${PLACEHOLDER}a${anchors.length - 1}${PLACEHOLDER}`;
+  };
+  text = text.replace(/\[([^\]\n]{1,300})\]\(([^\s)]{1,600})\)/g, (m, label: string, url: string) => {
+    const href = url.replace(/&amp;/g, "&");
+    if (!isSafeLink(href)) return m; // xavfsiz emas — oddiy matn bo'lib qoladi
+    return protect(`<a href="${escapeHtml(href)}" data-ext="1">${label}</a>`);
+  });
 
-  // 4) Yalang'och https havolalar (allaqachon <a> ichiga kirganlaridan tashqari).
-  text = text.replace(
-    /(^|[\s(])(https:\/\/[^\s<>"'`)\]]{3,600})/g,
-    (m, lead: string, url: string) => {
-      const href = url.replace(/&amp;/g, "&");
-      if (!isSafeLink(href)) return m;
-      return `${lead}<a href="${escapeHtml(href)}" data-ext="1">${escapeHtml(href)}</a>`;
-    },
-  );
+  // 4) Yalang'och https havolalar.
+  text = text.replace(/(^|[\s(])(https:\/\/[^\s<>"'`)\]]{3,600})/g, (m, lead: string, url: string) => {
+    const href = url.replace(/&amp;/g, "&");
+    if (!isSafeLink(href)) return m;
+    return `${lead}${protect(`<a href="${escapeHtml(href)}" data-ext="1">${escapeHtml(href)}</a>`)}`;
+  });
 
   // 5) Qalin / kursiv.
   text = text.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
   text = text.replace(/(^|[^*\w])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
   text = text.replace(/(^|[^_\w])_([^_\n]+)_(?!_)/g, "$1<em>$2</em>");
 
-  // 6) Kodni qaytaramiz (ekranlangan holda).
+  // 6) Himoyalanganlarni qaytaramiz: havolalar o'z holicha, kod — ekranlangan holda.
+  text = text.replace(new RegExp(`${PLACEHOLDER}a(\\d+)${PLACEHOLDER}`, "g"), (_m, i: string) => anchors[Number(i)] ?? "");
   text = text.replace(new RegExp(`${PLACEHOLDER}(\\d+)${PLACEHOLDER}`, "g"), (_m, i: string) => {
     const code = codes[Number(i)] ?? "";
     return `<code>${escapeHtml(code)}</code>`;

@@ -81,7 +81,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, panel: SovereignP
   });
 
   add("sovereign.pickModel", async () => {
-    await pickModel(auth, status);
+    await pickModel(status);
   });
 
   add("sovereign.statusMenu", async () => {
@@ -104,7 +104,7 @@ export function registerCommands(ctx: vscode.ExtensionContext, panel: SovereignP
 
 const MODEL_ID = /^[\w./:@-]{1,120}$/;
 
-async function pickModel(auth: Auth, status: StatusBar): Promise<void> {
+async function pickModel(status: StatusBar): Promise<void> {
   const settings = readSettings();
   const t = makeT(settings.lang);
 
@@ -176,6 +176,5 @@ async function pickModel(auth: Auth, status: StatusBar): Promise<void> {
 
   await saveModel(id);
   await status.refresh();
-  void auth;
   vscode.window.showInformationMessage(t("model.saved", { model: id }));
 }

@@ -43,6 +43,9 @@ export class SovereignPanel implements vscode.WebviewViewProvider {
   private abort: AbortController | null = null;
   private lastCode: { code: string; url: string } | null = null;
   private readonly disposables: vscode.Disposable[] = [];
+  /** Webview `ready` dedimi; undan oldingi xabarlar `queue` da kutadi. */
+  private ready = false;
+  private readonly queue: OutboundMessage[] = [];
 
   constructor(
     private readonly ctx: vscode.ExtensionContext,
@@ -67,11 +70,13 @@ export class SovereignPanel implements vscode.WebviewViewProvider {
       localResourceRoots: [vscode.Uri.joinPath(this.ctx.extensionUri, "media")],
     };
     const settings = readSettings();
+    this.ready = false;
     view.webview.html = this.html(view.webview, settings.lang);
 
     view.webview.onDidReceiveMessage((raw) => void this.onMessage(raw), undefined, this.disposables);
     view.onDidDispose(() => {
       this.view = null;
+      this.ready = false;
     });
   }
 
@@ -86,8 +91,29 @@ export class SovereignPanel implements vscode.WebviewViewProvider {
 
   /* ───────────────────────── Webview bilan aloqa ───────────────────────── */
 
+  /**
+   * Webview hali tayyor bo'lmasa (panel endi ochilayotgan bo'lsa) xabar navbatga
+   * qo'yiladi — aks holda buyruq bilan yuborilgan birinchi savol yo'qolardi.
+   */
   private send(msg: OutboundMessage): void {
-    void this.view?.webview.postMessage(msg);
+    if (!this.ready || !this.view) {
+      if (this.queue.length < 200) this.queue.push(msg);
+      return;
+    }
+    void this.view.webview.postMessage(msg);
+  }
+
+  private flush(): void {
+    const pending = this.queue.splice(0);
+    for (const msg of pending) void this.view?.webview.postMessage(msg);
+  }
+
+  /** Panel ochilib, webview "ready" deguncha kutadi (eng ko'pi 3 soniya). */
+  private async waitReady(timeoutMs = 3_000): Promise<void> {
+    const until = Date.now() + timeoutMs;
+    while (!this.ready && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
   }
 
   private async onMessage(raw: unknown): Promise<void> {
@@ -98,7 +124,15 @@ export class SovereignPanel implements vscode.WebviewViewProvider {
 
     switch (msg.type) {
       case "ready": {
-        this.send({ type: "init", strings: bundleFor(settings.lang), lang: settings.lang, signedIn: await this.auth.signedIn(), model: settings.model });
+        this.ready = true;
+        void this.view?.webview.postMessage({
+          type: "init",
+          strings: bundleFor(settings.lang),
+          lang: settings.lang,
+          signedIn: await this.auth.signedIn(),
+          model: settings.model,
+        } satisfies OutboundMessage);
+        this.flush();
         this.pushContext();
         if (this.lastCode) this.send({ type: "authCode", ...this.lastCode });
         break;
@@ -176,6 +210,7 @@ export class SovereignPanel implements vscode.WebviewViewProvider {
     const t = makeT(settings.lang);
 
     await this.reveal();
+    await this.waitReady();
 
     if (!settings.baseUrlOk) vscode.window.showWarningMessage(t("err.badBaseUrl"));
 
@@ -319,7 +354,7 @@ export class SovereignPanel implements vscode.WebviewViewProvider {
     </div>
   </div>
 
-  <div id="main" class="hidden" style="display:contents">
+  <div id="main" class="hidden">
     <div class="topbar">
       <div id="ctx" class="ctx"></div>
       <button type="button" id="fresh" class="secondary" data-t="panel.newChat">${esc(t("panel.newChat"))}</button>

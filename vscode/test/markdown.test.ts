@@ -46,6 +46,17 @@ describe("renderInline — xom HTML o'tmaydi", () => {
     assert.ok(html.includes('<a href="https://soveregn.xyz/a?b=1&amp;c=2" data-ext="1">'));
   });
 
+  it("havola matnidagi URL ikkinchi marta havola qilinmaydi", () => {
+    const html = renderInline("[https://soveregn.xyz sahifasi](https://soveregn.xyz/docs)");
+    assert.equal((html.match(/<a /g) ?? []).length, 1);
+    assert.ok(html.startsWith('<a href="https://soveregn.xyz/docs"'));
+  });
+
+  it("havola matnidagi satr ichi kodi saqlanadi", () => {
+    const html = renderInline("[`sov login`](https://soveregn.xyz/docs)");
+    assert.equal(html, '<a href="https://soveregn.xyz/docs" data-ext="1"><code>sov login</code></a>');
+  });
+
   it("qalin va kursiv", () => {
     assert.equal(renderInline("**bold** va *kursiv*"), "<strong>bold</strong> va <em>kursiv</em>");
   });

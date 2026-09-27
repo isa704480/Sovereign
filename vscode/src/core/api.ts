@@ -222,9 +222,13 @@ export async function chat(
   const data = (await res.json()) as { message?: unknown; model?: unknown };
   const text = messageText(data.message);
   const modelName = typeof data.model === "string" ? data.model.slice(0, 120) : "";
-  for (const chunk of chunkText(text)) {
+  const chunks = chunkText(text);
+  // Tayyor javobni sekin-asta uzatamiz, lekin umumiy kechikish PACE_BUDGET_MS dan oshmaydi.
+  const pause = chunks.length ? Math.min(14, Math.floor(PACE_BUDGET_MS / chunks.length)) : 0;
+  for (const chunk of chunks) {
     if (signal?.aborted) break;
     onDelta(chunk);
+    if (pause > 0) await sleep(pause);
   }
   return { text, model: modelName };
 }
@@ -240,6 +244,11 @@ function messageText(message: unknown): string {
   }
   return "";
 }
+
+/** Oqim taqlidi uchun umumiy kechikish byudjeti (ms) — javob kechikib qolmasin. */
+const PACE_BUDGET_MS = 900;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 /** Tayyor matnni bo'laklarga bo'lish — panelda javob oqim kabi ko'rinadi. */
 export function chunkText(text: string, size = 180): string[] {

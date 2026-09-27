@@ -8,6 +8,7 @@
 import * as vscode from "vscode";
 import { Auth } from "./auth";
 import { registerCommands } from "./commands";
+import { makeT } from "./core/i18n";
 import { SovereignPanel } from "./panel";
 import { readSettings, SECTION } from "./settings";
 import { StatusBar } from "./status";
@@ -44,7 +45,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const settings = readSettings();
   if (!settings.baseUrlOk) {
-    void vscode.window.showWarningMessage(`SOVEREIGN: ${SECTION}.baseUrl — https:// only.`);
+    void vscode.window.showWarningMessage(makeT(settings.lang)("err.badBaseUrl"));
   }
 }
 

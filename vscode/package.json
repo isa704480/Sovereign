@@ -39,7 +39,8 @@
   },
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onView:sovereign.chatView"
+    "onView:sovereign.chatView",
+    "onStartupFinished"
   ],
   "contributes": {
     "viewsContainers": {
