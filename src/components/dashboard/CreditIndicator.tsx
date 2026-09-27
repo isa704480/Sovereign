@@ -2,10 +2,19 @@
 
 import { Zap } from "lucide-react";
 import { useEffect, useState } from "react";
-import {creditLevel, CREDIT_COLOR, CREDIT_LABEL, type Plan} from "@/config/plans";
+import { creditLevel, CREDIT_LABEL, type CreditLevel, type Plan } from "@/config/plans";
 import { pick } from "@/lib/i18n";
 import { CREDIT_TEXT } from "@/lib/locales/plans";
 import { useLang, useT } from "@/store/chat";
+
+/** Daraja ranglari — holat tokenlari (reja ranglari emas). */
+const LEVEL_COLOR: Record<CreditLevel, string> = {
+  full: "var(--t-success, #10D4A0)",
+  high: "var(--t-success, #10D4A0)",
+  mid: "var(--t-warning, #F59E0B)",
+  low: "var(--t-warning, #F59E0B)",
+  empty: "var(--t-danger, #EF4444)",
+};
 
 interface CreditIndicatorProps {
   plan: Plan;
@@ -53,26 +62,33 @@ export function CreditIndicator({ plan, onUpgrade }: CreditIndicatorProps) {
   const remainingRatio = Math.max(0, 1 - ratio);
   const used = Math.round(ratio * plan.limits.tokensPerMonth); // faqat funktsiyaga uzatish uchun
   const level = creditLevel(used, plan);
-  const color = CREDIT_COLOR[level];
+  const color = LEVEL_COLOR[level];
   const label = pick(lang, CREDIT_TEXT[level]) || CREDIT_LABEL[level];
 
+  const pct = Math.round(remainingRatio * 100);
   return (
     <div
-      className="tt flex items-center gap-3 rounded-full border px-3.5 py-1.5"
-      style={{
-        borderColor: `${color}33`,
-        background: `color-mix(in srgb, ${color} 6%, transparent)`,
-      }}
+      className="tt flex items-center gap-2 rounded-full border px-2 py-1.5 sm:gap-3 sm:px-3.5"
+      style={{ borderColor: "var(--t-border)" }}
     >
-      <Zap className="size-3.5" style={{ color }} />
-      <div className="hidden text-xs font-medium sm:block" style={{ color }}>
+      <Zap className="size-3.5 shrink-0" style={{ color }} aria-hidden />
+      <div className="hidden text-xs font-medium sm:block" style={{ color: "var(--t-text)" }}>
         {label}
       </div>
-      <div className="relative h-1.5 w-20 overflow-hidden rounded-full" style={{ background: `${color}22` }}>
+      <div
+        role="meter"
+        aria-label={t("p21CreditsLeft")}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={pct}
+        aria-valuetext={label}
+        className="relative h-1.5 w-10 overflow-hidden rounded-full sm:w-20"
+        style={{ background: "color-mix(in srgb, var(--t-text) 12%, transparent)" }}
+      >
         <div
           className="tt absolute inset-y-0 left-0 rounded-full"
           style={{
-            width: `${Math.max(4, remainingRatio * 100)}%`,
+            width: `${Math.max(4, pct)}%`,
             background: color,
           }}
         />
@@ -81,10 +97,10 @@ export function CreditIndicator({ plan, onUpgrade }: CreditIndicatorProps) {
         <button
           type="button"
           onClick={onUpgrade}
-          className="text-xs font-medium hover:underline"
-          style={{ color }}
+          className="hidden min-h-8 items-center text-xs font-medium hover:underline sm:inline-flex"
+          style={{ color: "var(--t-accent-text)" }}
         >
-          {t("upgrade")} →
+          {t("upgrade")}
         </button>
       )}
     </div>

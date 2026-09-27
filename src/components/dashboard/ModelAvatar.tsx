@@ -48,11 +48,19 @@ const BY_PREFIX: [RegExp, Mark][] = [
 function markFor(m: SovereignModel | undefined, modelId?: string): Mark {
   if (!m && !modelId) return { logo: true };
   if (m?.id === AUTO_MODEL_ID || m?.provider === "SOVEREIGN") return { logo: true };
+  // Katalog id'lari "cfp/deepseek-ai/deepseek-v4" yoki "auto/claude-sonnet" ko'rinishida —
+  // har bo'lakni tekshiramiz (routing prefiksi belgi bermasin).
   const keys = [m?.providerModel, m?.provider, m?.id, modelId].filter(Boolean) as string[];
+  const auto = !m && !!modelId && /^auto\//i.test(modelId);
   for (const k of keys) {
-    for (const [re, mark] of BY_PREFIX) if (re.test(k.trim())) return mark;
+    const parts = k.trim().split("/").filter((p) => !/^(auto|cfp|groq|omni.*|openrouter)$/i.test(p));
+    for (const part of parts) {
+      for (const [re, mark] of BY_PREFIX) if (re.test(part)) return mark;
+    }
   }
-  const letter = (m?.provider ?? modelId ?? "?").replace(/[^a-z0-9]/gi, "").charAt(0).toUpperCase() || "?";
+  if (auto) return { logo: true };
+  const tail = (modelId ?? m?.provider ?? "?").split("/").pop() ?? "?";
+  const letter = tail.replace(/[^a-z0-9]/gi, "").charAt(0).toUpperCase() || "?";
   return { letter };
 }
 

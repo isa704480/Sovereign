@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Globe2, Lock, Search } from "lucide-react";
+import { Boxes, Brain, Check, ChevronDown, ChevronLeft, ChevronRight, Eye, Globe2, Lock, Search, Wrench } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { AUTO_MODEL, AUTO_MODEL_ID, MODEL_BY_ID, resolveModel } from "@/config/models";
@@ -14,6 +14,9 @@ import { cn } from "@/lib/utils";
 import { useLang, useT } from "@/store/chat";
 import { featuredLabel, featuredNote, modelPrice, modelProvider } from "@/lib/locales/chat-data";
 import { useTheme } from "./theme-context";
+import { LogoMark } from "@/components/brand/Logo";
+import { ModelAvatar, ProviderMark } from "./ModelAvatar";
+import { LoadError } from "./LoadState";
 
 interface ModelSwitcherProps {
   value: string;
@@ -35,6 +38,30 @@ function prettyModelId(id: string): string {
     .replace(/[-_]+/g, " ")
     .replace(/\b\w/g, (ch) => ch.toUpperCase())
     .trim();
+}
+
+/** Ro'yxat qatoridagi kichik belgi katakchasi (provayder belgisi, bir rangli). */
+function MarkCell({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="flex size-6 shrink-0 items-center justify-center rounded-md"
+      style={{ background: "color-mix(in srgb, var(--t-text) 6%, transparent)", color: "var(--t-text)" }}
+      aria-hidden
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Imkoniyat belgilari (emoji emas): asboblar · rasm · fikrlash. */
+function CapIcons({ tools, vision, reasoning, t }: { tools?: boolean; vision?: boolean; reasoning?: boolean; t: (k: "uxCapTools" | "uxCapVision" | "uxCapReasoning") => string }) {
+  return (
+    <>
+      {tools ? <Wrench className="ml-1 inline size-3 align-[-2px]" aria-label={t("uxCapTools")} /> : null}
+      {vision ? <Eye className="ml-1 inline size-3 align-[-2px]" aria-label={t("uxCapVision")} /> : null}
+      {reasoning ? <Brain className="ml-1 inline size-3 align-[-2px]" aria-label={t("uxCapReasoning")} /> : null}
+    </>
+  );
 }
 
 /** Ichki marshrutlovchi nomini foydalanuvchidan yashiramiz. */
@@ -59,6 +86,10 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
   const [activeFamily, setActiveFamily] = useState<ModelFamily | null>(null);
   const [catalog, setCatalog] = useState<{ total: number; models: OmniModel[] } | null>(null);
   const [loading, setLoading] = useState(false);
+  // Yuklash xatolari bo'sh ro'yxat sifatida emas, sabab + "Qayta urinish" bilan ko'rsatiladi.
+  const [famError, setFamError] = useState(false);
+  const [catError, setCatError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   // Katalog (OmniRoute) modellari Pro+ tarifda ochiladi. Free/Starter — qulf.
   // Tekin ✦ tavsiya modellari va Auto barcha tariflarda ochiq.
@@ -85,11 +116,12 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
 
   // Oilalar ro'yxatini menyu ochilganda bir marta yuklaymiz.
   useEffect(() => {
-    if (!open || families) return;
+    if (!open || families || famError) return;
     let alive = true;
     (async () => {
       try {
         const res = await fetch("/api/models?families=1");
+        if (!res.ok) throw new Error(String(res.status));
         const data = await res.json();
         if (alive) {
           setFamilies(data.families ?? []);
@@ -97,13 +129,13 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
           setConfigured(data.configured !== false);
         }
       } catch {
-        if (alive) setConfigured(false);
+        if (alive) setFamError(true);
       }
     })();
     return () => {
       alive = false;
     };
-  }, [open, families]);
+  }, [open, families, famError]);
 
   // Oila tanlanganda yoki qidiruvda — modellarni yuklaymiz.
   useEffect(() => {
@@ -112,16 +144,23 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
     if (!query && !activeFamily) return; // oilalar ko'rinishi — model ro'yxati ko'rsatilmaydi
     let alive = true;
     const id = setTimeout(async () => {
-      if (alive) setLoading(true);
+      if (alive) {
+        setLoading(true);
+        setCatError(false);
+      }
       try {
         const params = new URLSearchParams({ limit: "50" });
         if (query) params.set("q", query);
         if (activeFamily && !query) params.set("family", activeFamily.key);
         const res = await fetch(`/api/models?${params.toString()}`);
+        if (!res.ok) throw new Error(String(res.status));
         const data = await res.json();
         if (alive) setCatalog(data);
       } catch {
-        if (alive) setCatalog({ total: 0, models: [] });
+        if (alive) {
+          setCatalog(null);
+          setCatError(true);
+        }
       } finally {
         if (alive) setLoading(false);
       }
@@ -130,7 +169,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
       alive = false;
       clearTimeout(id);
     };
-  }, [q, open, activeFamily]);
+  }, [q, open, activeFamily, retryKey]);
 
   // Ctrl+K (Dashboard) shu hodisani yuboradi — menyu ochiladi.
   useEffect(() => {
@@ -187,21 +226,20 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={compact ? t("selectModel") : undefined}
-        className="tt flex min-w-0 items-center gap-2.5 border px-2.5 py-1.5 text-left transition-colors hover:bg-white/5"
+        className="tt flex min-h-11 min-w-0 items-center gap-2 border px-2 py-1 text-left transition-colors hover:bg-[var(--surface-hover)] sm:gap-2.5 sm:px-2.5 sm:py-1.5"
         style={{ borderColor: "var(--t-border)", borderRadius: "var(--t-radius)", background: "var(--t-surface)" }}
       >
-        <span
-          className="flex size-7 items-center justify-center rounded-lg text-sm"
-          style={{ background: `color-mix(in srgb, ${model.primary} 20%, transparent)`, color: model.primary }}
-        >
-          {model.glyph}
-        </span>
+        {isOmniValue ? (
+          <ModelAvatar modelId={value} size={28} />
+        ) : (
+          <ModelAvatar model={model} size={28} />
+        )}
         {!compact && (
           <span className="min-w-0 leading-tight">
-            <span className="block max-w-[200px] truncate text-sm font-semibold" style={{ color: "var(--t-text)" }}>
+            <span className="block max-w-[112px] truncate text-sm font-semibold sm:max-w-[200px]" style={{ color: "var(--t-text)" }}>
               {isOmniValue ? valueLabel : model.name}
             </span>
-            <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>
+            <span className="hidden max-w-[200px] truncate text-xs sm:block" style={{ color: "var(--t-text-muted)" }}>
               {regionBlocked(value)
                 ? regionNote
                 : isOmniValue
@@ -212,7 +250,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
             </span>
           </span>
         )}
-        <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} style={{ color: "var(--t-text-muted)" }} />
+        <ChevronDown className={cn("size-4 shrink-0 transition-transform motion-reduce:transition-none", open && "rotate-180")} style={{ color: "var(--t-text-muted)" }} aria-hidden />
       </button>
 
       <AnimatePresence>
@@ -222,8 +260,13 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.98 }}
             transition={{ duration: 0.18, ease: EASE }}
-            className="tt absolute left-0 z-40 mt-2 max-h-[min(480px,calc(100svh-96px))] w-[min(340px,calc(100vw-24px))] overflow-y-auto border p-2 shadow-lg"
-            style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", borderRadius: 16 }}
+            // Telefonda ekran chetlariga yopishgan (inset-x-3), kattaroq ekranda tugma ostida.
+            className="tt fixed inset-x-3 top-14 z-40 max-h-[min(480px,calc(100svh-72px))] overflow-y-auto rounded-xl border p-2 sm:absolute sm:inset-x-auto sm:left-0 sm:top-auto sm:mt-2 sm:w-[340px] sm:max-h-[min(480px,calc(100svh-96px))]"
+            style={{
+              background: "var(--t-surface)",
+              borderColor: "var(--t-border)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.45)",
+            }}
             ref={popRef}
             role="dialog"
             aria-label={t("selectModel")}
@@ -235,27 +278,27 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
               type="button"
               aria-current={value === AUTO_MODEL_ID || undefined}
               onClick={() => choose(AUTO_MODEL_ID)}
-              className="tt mb-1 flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/5"
-              style={value === AUTO_MODEL_ID ? { background: "color-mix(in srgb, var(--t-primary) 14%, transparent)" } : undefined}
+              className="tt mb-1 flex min-h-11 w-full items-start gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
+              style={value === AUTO_MODEL_ID ? { background: "var(--surface-active)" } : undefined}
             >
-              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-base" style={{ background: "color-mix(in srgb, #5B50F0 22%, transparent)", color: "#7C6FF7" }}>
-                ✦
+              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg" style={{ background: "color-mix(in srgb, var(--t-text) 6%, transparent)" }} aria-hidden>
+                <LogoMark size={20} />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
                   <span className="text-sm font-medium" style={{ color: "var(--t-text)" }}>SOVEREIGN Auto</span>
-                  <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "rgba(91,80,240,0.2)", color: "#7C6FF7" }}>{t("autoSmart")}</span>
+                  <span className="rounded-full px-1.5 py-0.5 text-[11px] font-semibold" style={{ background: "color-mix(in srgb, var(--t-primary) 20%, transparent)", color: "var(--t-accent-text)" }}>{t("autoSmart")}</span>
                 </span>
                 <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>{t("autoModelDesc")}</span>
               </span>
-              {value === AUTO_MODEL_ID && <Check className="mt-1 size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
+              {value === AUTO_MODEL_ID && <Check className="mt-1 size-4 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />}
             </button>
 
             {/* Mintaqa: qaysi modellar ishlaydi — bitta qator tushuntirish */}
             {regionCountry && (
               <p
-                className="mb-1 flex items-start gap-2 rounded-xl px-2.5 py-2 text-xs"
-                style={{ background: "rgba(56,189,248,0.10)", color: "var(--t-text-muted)" }}
+                className="mb-1 flex items-start gap-2 rounded-lg px-2.5 py-2 text-xs"
+                style={{ background: "color-mix(in srgb, var(--t-info) 10%, transparent)", color: "var(--t-text-muted)" }}
                 data-testid="region-banner"
               >
                 <Globe2 className="mt-0.5 size-3.5 shrink-0" aria-hidden />
@@ -268,50 +311,60 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
               <button
                 type="button"
                 onClick={upgrade}
-                className="mb-1 flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-xs transition-colors hover:opacity-90"
-                style={{ background: "rgba(245,158,11,0.10)", color: "#F5B544" }}
+                className="mb-1 flex min-h-11 w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs transition-colors hover:opacity-90"
+                style={{ background: "color-mix(in srgb, var(--t-warning) 10%, transparent)", color: "var(--t-warning)" }}
               >
-                <Lock className="size-3.5 shrink-0" />
+                <Lock className="size-3.5 shrink-0" aria-hidden />
                 <span className="flex-1">{t("uxFreePlanBanner")}</span>
-                <ChevronRight className="size-3.5 shrink-0" />
+                <ChevronRight className="size-3.5 shrink-0" aria-hidden />
               </button>
             )}
 
             {/* Katalog — Cursor uslubi: oila → ichida modellar */}
-            {configured !== false && (
+            {famError && (
+              <LoadError
+                className="py-4"
+                onRetry={() => {
+                  setFamError(false);
+                  setFamilies(null);
+                }}
+              />
+            )}
+
+            {!famError && configured !== false && (
               <div className="mt-1.5">
                 <div
-                  className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+                  className="flex items-center gap-1.5 px-2 py-1.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
                   style={{ color: "var(--t-text-muted)", borderTop: "1px solid var(--t-border)" }}
                 >
                   {activeFamily && !q ? (
-                    <button type="button" onClick={() => setActiveFamily(null)} className="flex items-center gap-1 hover:opacity-80">
-                      <ChevronLeft className="size-3.5" /> {activeFamily.key === "boshqa" ? t("onbOther") : activeFamily.label}
+                    <button type="button" onClick={() => setActiveFamily(null)} className="flex min-h-8 items-center gap-1 hover:opacity-80 [@media(pointer:coarse)]:min-h-11">
+                      <ChevronLeft className="size-3.5" aria-hidden /> {activeFamily.key === "boshqa" ? t("onbOther") : activeFamily.label}
                     </button>
                   ) : (
                     <>{t("chAllModels")}</>
                   )}
-                  {/* Belgilar izohi: 🔧 asboblar · 👁 rasm · 🧠 fikrlash */}
+                  {/* Belgilar izohi: asboblar · rasm · fikrlash */}
                   <span className="ml-auto flex items-center gap-1.5 normal-case tracking-normal" aria-hidden>
-                    <span title={t("uxCapTools")}>🔧</span>
-                    <span title={t("uxCapVision")}>👁</span>
-                    <span title={t("uxCapReasoning")}>🧠</span>
+                    <span title={t("uxCapTools")}><Wrench className="size-3" /></span>
+                    <span title={t("uxCapVision")}><Eye className="size-3" /></span>
+                    <span title={t("uxCapReasoning")}><Brain className="size-3" /></span>
                   </span>
                 </div>
                 <p className="sr-only">
-                  🔧 {t("uxCapTools")} · 👁 {t("uxCapVision")} · 🧠 {t("uxCapReasoning")}
+                  {t("uxCapTools")} · {t("uxCapVision")} · {t("uxCapReasoning")}
                 </p>
 
                 {/* Qidiruv — istalgan bosqichda hamma bo'yicha qidiradi */}
                 <div className="relative mb-1 px-1">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2" style={{ color: "var(--t-text-muted)" }} />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2" style={{ color: "var(--t-text-muted)" }} aria-hidden />
                   <input
                     ref={searchRef}
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     placeholder={t("chSearchModels")}
                     aria-label={t("chSearchModels")}
-                    className="w-full rounded-lg border bg-transparent py-1.5 pl-8 pr-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-xs"
+                    className="min-h-9 w-full rounded-lg border bg-transparent py-1.5 pl-8 pr-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-xs"
                     style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                   />
                 </div>
@@ -319,9 +372,9 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                 {/* Tekin ✦ — tavsiya (saxiy, ≥20M/oy) */}
                 {!q && !activeFamily && featured.length > 0 && (
                   <>
-                    <div className="flex items-center gap-1.5 px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--t-text-muted)" }}>
+                    <div className="flex items-center gap-1.5 px-2 pb-1 pt-1 text-[11px] font-semibold uppercase tracking-[0.12em]" style={{ color: "var(--t-text-muted)" }}>
                       {t("chFreeRecommended")}
-                      <span className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold normal-case tracking-normal" style={{ background: "rgba(16,212,160,0.15)", color: "#10D4A0" }}>{t("chPerMonthTokens")}</span>
+                      <span className="rounded-full px-1.5 py-0.5 text-[11px] font-semibold normal-case tracking-normal" style={{ background: "color-mix(in srgb, var(--t-success) 14%, transparent)", color: "var(--t-success)" }}>{t("chPerMonthTokens")}</span>
                     </div>
                     {featured.map((m) => {
                       const blocked = regionBlocked(m.id);
@@ -332,16 +385,16 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                         aria-current={value === m.id || undefined}
                         disabled={blocked}
                         onClick={() => choose(m.id, featuredLabel(lang, m.id, m.label))}
-                        className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", blocked && "cursor-not-allowed opacity-50 hover:bg-transparent")}
-                        style={value === m.id ? { background: "color-mix(in srgb, #10D4A0 12%, transparent)" } : undefined}
+                        className={cn("tt flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--surface-hover)]", blocked && "cursor-not-allowed opacity-50 hover:bg-transparent")}
+                        style={value === m.id ? { background: "var(--surface-active)" } : undefined}
                         title={blocked ? regionNote : undefined}
                       >
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "rgba(16,212,160,0.18)", color: "#10D4A0" }}>✦</span>
+                        <MarkCell><ProviderMark modelId={m.id} px={14} /></MarkCell>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{featuredLabel(lang, m.id, m.label)}</span>
                           <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{blocked ? regionNote : featuredNote(lang, m.id, m.note)}</span>
                         </span>
-                        {blocked ? <Globe2 className="size-3.5 shrink-0" style={{ color: "var(--t-text-muted)" }} aria-hidden /> : value === m.id && <Check className="size-4 shrink-0" style={{ color: "#10D4A0" }} />}
+                        {blocked ? <Globe2 className="size-3.5 shrink-0" style={{ color: "var(--t-text-muted)" }} aria-hidden /> : value === m.id && <Check className="size-4 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />}
                       </button>
                       );
                     })}
@@ -352,7 +405,13 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                 {/* 1-bosqich: oilalar ro'yxati (qidiruvsiz, oila tanlanmagan) */}
                 {!q && !activeFamily && (
                   <>
-                    {!families && <div className="px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>{t("chLoading")}</div>}
+                    {!families && (
+                      <div className="space-y-1 px-1 py-1" role="status" aria-label={t("chLoading")}>
+                        {[0, 1, 2, 3].map((i) => (
+                          <div key={i} className="h-9 animate-pulse rounded-lg motion-reduce:animate-none" style={{ background: "color-mix(in srgb, var(--t-text) 6%, transparent)" }} />
+                        ))}
+                      </div>
+                    )}
                     {families?.map((f) => {
                       // Butun oila (Claude, GPT, Gemini ...) mintaqada yopiq — "boshqa" aralash, ichida tekshiriladi.
                       const famBlocked = f.key !== "boshqa" && regionBlocked(f.key);
@@ -366,18 +425,18 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                           setCatalog(null);
                           setActiveFamily(f);
                         }}
-                        className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", catalogLocked && "opacity-70", famBlocked && "cursor-not-allowed opacity-50 hover:bg-transparent")}
+                        className={cn("tt flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--surface-hover)]", catalogLocked && "opacity-70", famBlocked && "cursor-not-allowed opacity-50 hover:bg-transparent")}
                         title={famBlocked ? regionNote : catalogLocked ? t("chProUnlock") : undefined}
                       >
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "color-mix(in srgb, #7C6FF7 20%, transparent)", color: "#7C6FF7" }}>✦</span>
+                        <MarkCell>{f.key === "boshqa" ? <Boxes className="size-3.5" /> : <ProviderMark modelId={f.key} px={14} />}</MarkCell>
                         <span className="flex-1 truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{f.key === "boshqa" ? t("onbOther") : f.label}</span>
-                        <span className="text-[10px]" style={{ color: "var(--t-text-muted)" }}>{f.count}</span>
+                        <span className="text-xs tabular-nums" style={{ color: "var(--t-text-muted)" }}>{f.count}</span>
                         {famBlocked ? (
                           <Globe2 className="size-3.5" style={{ color: "var(--t-text-muted)" }} aria-label={regionNote} />
                         ) : catalogLocked ? (
-                          <Lock className="size-3.5" style={{ color: "#F59E0B" }} />
+                          <Lock className="size-3.5" style={{ color: "var(--t-warning)" }} aria-hidden />
                         ) : (
-                          <ChevronRight className="size-3.5" style={{ color: "var(--t-text-muted)" }} />
+                          <ChevronRight className="size-3.5" style={{ color: "var(--t-text-muted)" }} aria-hidden />
                         )}
                       </button>
                       );
@@ -396,18 +455,19 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                           if (catalogLocked) { upgrade(); return; }
                           choose(activeFamily.auto!, `${activeFamily.label} Auto`);
                         }}
-                        className="tt mb-0.5 flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5"
-                        style={value === activeFamily.auto ? { background: "color-mix(in srgb, #7C6FF7 14%, transparent)" } : undefined}
+                        className="tt mb-0.5 flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--surface-hover)]"
+                        style={value === activeFamily.auto ? { background: "var(--surface-active)" } : undefined}
                       >
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "rgba(91,80,240,0.22)", color: "#7C6FF7" }}>✦</span>
+                        <MarkCell><LogoMark size={14} /></MarkCell>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{activeFamily.label} — Auto</span>
                           <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>{t("chFamilyAutoDesc")}</span>
                         </span>
-                        {value === activeFamily.auto && <Check className="size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
+                        {value === activeFamily.auto && <Check className="size-4 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />}
                       </button>
                     )}
-                    {loading && <div className="px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>{t("chSearching")}</div>}
+                    {loading && <div className="px-3 py-2 text-xs" role="status" style={{ color: "var(--t-text-muted)" }}>{t("chSearching")}</div>}
+                    {!loading && catError && <LoadError className="py-4" onRetry={() => setRetryKey((k) => k + 1)} />}
                     {!loading && catalog?.models?.length === 0 && (
                       <div className="px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>{t("nothingFound")}</div>
                     )}
@@ -425,22 +485,20 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                               if (catalogLocked) { upgrade(); return; }
                               choose(m.id, prettyModelId(m.id));
                             }}
-                            className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", catalogLocked && "opacity-70", blocked && "cursor-not-allowed opacity-50 hover:bg-transparent")}
-                            style={active ? { background: "color-mix(in srgb, #7C6FF7 14%, transparent)" } : undefined}
+                            className={cn("tt flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--surface-hover)]", catalogLocked && "opacity-70", blocked && "cursor-not-allowed opacity-50 hover:bg-transparent")}
+                            style={active ? { background: "var(--surface-active)" } : undefined}
                             title={blocked ? regionNote : catalogLocked ? t("chProUnlock") : undefined}
                           >
-                            <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "color-mix(in srgb, #7C6FF7 20%, transparent)", color: "#7C6FF7" }}>✦</span>
+                            <MarkCell><ProviderMark modelId={m.id} px={14} /></MarkCell>
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{prettyModelId(m.id)}</span>
                               <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>
                                 {blocked ? `${regionNote} · ` : ""}
                                 {[publicOwner(m.owner), m.context ? `${Math.round(m.context / 1000)}k` : ""].filter(Boolean).join(" · ")}
-                                {m.tools ? <span title={t("uxCapTools")}> · 🔧</span> : null}
-                                {m.vision ? <span title={t("uxCapVision")}> · 👁</span> : null}
-                                {m.reasoning ? <span title={t("uxCapReasoning")}> · 🧠</span> : null}
+                                <CapIcons tools={m.tools} vision={m.vision} reasoning={m.reasoning} t={t} />
                               </span>
                             </span>
-                            {catalogLocked ? <Lock className="size-3.5 shrink-0" style={{ color: "#F59E0B" }} /> : active && <Check className="size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
+                            {catalogLocked ? <Lock className="size-3.5 shrink-0" style={{ color: "var(--t-warning)" }} aria-hidden /> : active && <Check className="size-4 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />}
                           </button>
                         );
                       })}
