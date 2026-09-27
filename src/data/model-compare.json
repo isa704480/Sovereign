@@ -1,10 +1,11 @@
 {
   "version": 1,
   "runDate": "2026-09-27",
-  "runId": "2026-09-27T05-53-09",
+  "runId": "2026-09-27T07-28-11",
   "referenceModel": "claude-opus-4-8",
   "stoppedEarly": null,
   "estimatedCostUsd": 0.1906,
+  "cloudflareNeurons": null,
   "methodology": {
     "tasks": 40,
     "categories": {
@@ -19,7 +20,7 @@
       "en": 3
     },
     "runsPerTask": 1,
-    "routes": "the provider routes the app itself uses (src/lib/ai/providers.ts): OpenRouter, RSI, Groq, OmniRoute; OpenAI chat-completions format, stream=true; first working route per model after a probe",
+    "routes": "the provider routes the app itself uses (src/lib/ai/providers.ts): OpenRouter, RSI, Groq, OmniRoute, Cloudflare Workers AI; OpenAI chat-completions format, stream=true (stream=false only for gpt-oss on Cloudflare); first working route per model after a probe",
     "temperature": "0 where supported, otherwise provider default",
     "maxTokens": 8000,
     "reasoning": "each model's default reasoning/thinking setting on its route; no extra effort flags",
@@ -32,7 +33,9 @@
     },
     "cost": "tokens reported by each route × OpenRouter list price for the same model (reseller/free-tier prices differ)",
     "latency": "wall-clock from request to last streamed byte on the machine running the harness; depends on the route's hardware (e.g. Groq LPUs are unusually fast), not only the model",
-    "apiErrors": "counted as failures and reported separately"
+    "apiErrors": "counted as failures and reported separately",
+    "partialRuns": "a model that did not finish all tasks (USD budget or Cloudflare neuron budget) is reported as not measured",
+    "merged": "rows from different runs may be combined (--only-unmeasured / --merge); each model carries its own runId and runDate"
   },
   "models": [
     {
@@ -63,7 +66,9 @@
       "costUsd": null,
       "costPerTaskUsd": null,
       "reference": false,
-      "vsReference": null
+      "vsReference": null,
+      "runId": "2026-09-27T05-53-09",
+      "runDate": "2026-09-27"
     },
     {
       "key": "claude-sonnet-5",
@@ -93,7 +98,9 @@
       "costUsd": null,
       "costPerTaskUsd": null,
       "reference": false,
-      "vsReference": null
+      "vsReference": null,
+      "runId": "2026-09-27T05-53-09",
+      "runDate": "2026-09-27"
     },
     {
       "key": "claude-opus-4-8",
@@ -162,7 +169,9 @@
         "scoreRatio": 1,
         "costRatio": 1,
         "latencyRatio": 1
-      }
+      },
+      "runId": "2026-09-27T05-53-09",
+      "runDate": "2026-09-27"
     },
     {
       "key": "deepseek-v4-pro",
@@ -192,7 +201,9 @@
       "costUsd": null,
       "costPerTaskUsd": null,
       "reference": false,
-      "vsReference": null
+      "vsReference": null,
+      "runId": "2026-09-27T05-53-09",
+      "runDate": "2026-09-27"
     },
     {
       "key": "deepseek-v4-1-flash",
@@ -222,7 +233,9 @@
       "costUsd": null,
       "costPerTaskUsd": null,
       "reference": false,
-      "vsReference": null
+      "vsReference": null,
+      "runId": "2026-09-27T05-53-09",
+      "runDate": "2026-09-27"
     },
     {
       "key": "qwen3-8-max",
@@ -252,7 +265,9 @@
       "costUsd": null,
       "costPerTaskUsd": null,
       "reference": false,
-      "vsReference": null
+      "vsReference": null,
+      "runId": "2026-09-27T05-53-09",
+      "runDate": "2026-09-27"
     },
     {
       "key": "qwen3-8-27b",
@@ -321,7 +336,108 @@
         "scoreRatio": 0.925,
         "costRatio": 0.1846,
         "latencyRatio": 0.152
-      }
+      },
+      "runId": "2026-09-27T05-53-09",
+      "runDate": "2026-09-27"
+    },
+    {
+      "key": "kimi-k2-6",
+      "id": "moonshotai/kimi-k2.6",
+      "label": "Kimi K2.6",
+      "family": "kimi",
+      "measured": false,
+      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford | cloudflare: env key missing",
+      "route": null,
+      "completed": 0,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 0.95,
+        "outputPerM": 4,
+        "source": "OpenRouter list price"
+      },
+      "temperature": null,
+      "overall": null,
+      "categories": {
+        "coding": null,
+        "math": null,
+        "instruction": null,
+        "writing": null
+      },
+      "latency": null,
+      "tokens": null,
+      "costUsd": null,
+      "costPerTaskUsd": null,
+      "neurons": null,
+      "runId": "2026-09-27T07-28-11",
+      "runDate": "2026-09-27",
+      "reference": false,
+      "vsReference": null
+    },
+    {
+      "key": "kimi-k2-7-code",
+      "id": "moonshotai/kimi-k2.7-code",
+      "label": "Kimi K2.7 Code",
+      "family": "kimi",
+      "measured": false,
+      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford | cloudflare: env key missing",
+      "route": null,
+      "completed": 0,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 0.656,
+        "outputPerM": 3.3,
+        "source": "OpenRouter list price"
+      },
+      "temperature": null,
+      "overall": null,
+      "categories": {
+        "coding": null,
+        "math": null,
+        "instruction": null,
+        "writing": null
+      },
+      "latency": null,
+      "tokens": null,
+      "costUsd": null,
+      "costPerTaskUsd": null,
+      "neurons": null,
+      "runId": "2026-09-27T07-28-11",
+      "runDate": "2026-09-27",
+      "reference": false,
+      "vsReference": null
+    },
+    {
+      "key": "glm-5-3",
+      "id": "z-ai/glm-5.3",
+      "label": "GLM 5.3",
+      "family": "glm",
+      "measured": false,
+      "notMeasuredReason": "openrouter: HTTP 402: {\"error\":{\"message\":\"This request requires more credits, or fewer max_tokens. You requested up to 8000 tokens, but can only afford | cloudflare: env key missing",
+      "route": null,
+      "completed": 0,
+      "errors": 0,
+      "pricing": {
+        "inputPerM": 0.274,
+        "outputPerM": 0.86,
+        "source": "OpenRouter list price"
+      },
+      "temperature": null,
+      "overall": null,
+      "categories": {
+        "coding": null,
+        "math": null,
+        "instruction": null,
+        "writing": null
+      },
+      "latency": null,
+      "tokens": null,
+      "costUsd": null,
+      "costPerTaskUsd": null,
+      "neurons": null,
+      "runId": "2026-09-27T07-28-11",
+      "runDate": "2026-09-27",
+      "reference": false,
+      "vsReference": null
     }
   ],
   "tasks": [
@@ -336,7 +452,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -350,7 +469,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -364,7 +486,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -378,7 +503,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -392,7 +520,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -406,7 +537,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -420,7 +554,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -434,7 +571,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -448,7 +588,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -462,7 +605,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "fail"
+        "qwen3-8-27b": "fail",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -476,7 +622,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -490,7 +639,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -504,7 +656,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -518,7 +673,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -532,7 +690,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -546,7 +707,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -560,7 +724,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -574,7 +741,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -588,7 +758,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -602,7 +775,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -616,7 +792,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -630,7 +809,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -644,7 +826,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -658,7 +843,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -672,7 +860,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -686,7 +877,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -700,7 +894,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -714,7 +911,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -728,7 +928,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "fail"
+        "qwen3-8-27b": "fail",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -742,7 +945,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "fail"
+        "qwen3-8-27b": "fail",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -756,7 +962,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -770,7 +979,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -784,7 +996,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -798,7 +1013,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -812,7 +1030,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -826,7 +1047,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -840,7 +1064,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -854,7 +1081,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -868,7 +1098,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     },
     {
@@ -882,7 +1115,10 @@
         "deepseek-v4-pro": "not-run",
         "deepseek-v4-1-flash": "not-run",
         "qwen3-8-max": "not-run",
-        "qwen3-8-27b": "pass"
+        "qwen3-8-27b": "pass",
+        "kimi-k2-6": "not-run",
+        "kimi-k2-7-code": "not-run",
+        "glm-5-3": "not-run"
       }
     }
   ],

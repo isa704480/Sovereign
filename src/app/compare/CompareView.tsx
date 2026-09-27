@@ -36,6 +36,8 @@ interface PublicBenchmark {
 
 interface CompareData {
   runDate: string;
+  /** Cloudflare Workers AI yo'lida sarflangan neuron (usage × pricing jadvali); yo'q bo'lsa null. */
+  cloudflareNeurons?: number | null;
   methodology: { tasks: number; categories: Record<Category, number> };
   models: ModelRow[];
   tasks: { id: string; category: Category; lang: string; results: Record<string, "pass" | "fail" | "error" | "not-run"> }[];
@@ -58,7 +60,13 @@ const BENCH_DESC: Record<string, TKey> = {
   terminal: "p11cBenchTerminal",
   swe: "p11cBenchSwe",
 };
-const FAMILY_COLOR: Record<string, string> = { claude: "#D97757", deepseek: "#4D6BFE", qwen: "#8B87F5" };
+const FAMILY_COLOR: Record<string, string> = {
+  claude: "#D97757",
+  deepseek: "#4D6BFE",
+  qwen: "#8B87F5",
+  kimi: "#3FB6C9",
+  glm: "#5FC8A0",
+};
 const RESULT_COLOR = { pass: "#5FC8A0", fail: "#E86A6A", error: "#E8B75A", "not-run": "#6B7280" } as const;
 
 const usd = (x: number) => `$${x < 0.1 ? x.toFixed(3) : x.toFixed(2)}`;
@@ -202,6 +210,11 @@ export function CompareView() {
         </table>
       </div>
       <p className="mt-3 text-sm text-text-muted">{t("p11cCostNote")}</p>
+      {!!DATA.cloudflareNeurons && models.some((m) => m.measured && m.route?.via === "cloudflare") && (
+        <p className="mt-1 text-sm text-text-muted">
+          {fmt(t("p11cCfNeurons"), { n: Math.round(DATA.cloudflareNeurons).toLocaleString("en-US") })}
+        </p>
+      )}
 
       <details className="mt-6 rounded-xl border border-border bg-bg-elevated/40 px-4 py-3">
         <summary className="cursor-pointer text-sm font-semibold text-text-primary">{t("p11cPerTaskTitle")}</summary>
