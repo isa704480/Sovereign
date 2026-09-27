@@ -157,7 +157,14 @@ const messageSchema = z.object({
   tool_call_id: z.string().max(200).optional(),
   // Model bitta javobda bir nechta faylni parallel yozishi mumkin (9+ chaqiruv) — 8 chegarasi
   // keyingi so'rovni 400 bilan buzardi. Chiqishda MAX_TOOL_CALLS_OUT ga kesiladi, kirish zaxira bilan.
-  tool_calls: z.array(z.any()).max(32).optional(),
+  // Ba'zi modellar (mas. qwen2.5-coder) `tool_calls: null` yoki [] qaytaradi — mijoz uni tarixga
+  // saqlab qayta yuboradi. Rad etmaymiz: bo'sh/null maydon olib tashlanadi (provayder ham [] ni rad etadi).
+  tool_calls: z
+    .array(z.any())
+    .max(32)
+    .nullable()
+    .optional()
+    .transform((v) => (Array.isArray(v) && v.length ? v : undefined)),
   name: z.string().max(100).optional(),
 });
 const toolSchema = z.object({
@@ -418,7 +425,14 @@ export async function POST(req: Request) {
 const MAX_TOOL_CALLS_OUT = 16;
 function capToolCalls(message: unknown): unknown {
   const m = message as { tool_calls?: unknown } | null;
-  if (!m || !Array.isArray(m.tool_calls) || m.tool_calls.length <= MAX_TOOL_CALLS_OUT) return message;
+  if (!m || typeof m !== "object" || !("tool_calls" in m)) return message;
+  // null / [] / massiv emas — maydonni olib tashlaymiz (aks holda mijoz keyingi so'rovda 400 oladi).
+  if (!Array.isArray(m.tool_calls) || m.tool_calls.length === 0) {
+    const { tool_calls: _drop, ...rest } = m;
+    void _drop;
+    return rest;
+  }
+  if (m.tool_calls.length <= MAX_TOOL_CALLS_OUT) return message;
   return { ...m, tool_calls: m.tool_calls.slice(0, MAX_TOOL_CALLS_OUT) };
 }
 
