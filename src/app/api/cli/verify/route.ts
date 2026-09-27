@@ -3,6 +3,7 @@ import { z } from "zod";
 import { PLAN_BY_ID } from "@/config/plans";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { createServiceClient } from "@/lib/supabase/service";
+import { bumpOps } from "@/lib/ops/record";
 import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
 import { callJudge, judgeCandidates, extractJson, vendorLabel, JUDGE_POOL } from "@/lib/ai/judge";
@@ -183,6 +184,8 @@ export async function POST(req: Request) {
     accept: (text) => parseVerdict(text) !== null,
   });
   const verdict = r ? parseVerdict(r.text) : null;
+  // Ops bot: hakam natijasi soni (matn yo'q).
+  bumpOps({ [!verdict ? "judge:none" : verdict.length ? "judge:issues" : "judge:clean"]: 1 });
   if (r) {
     // Hakam sarfi oylik hisobga (provayder usage qaytarmaydi — ~4 belgi = 1 token taxmini).
     const input = estimateTokens(SYSTEM.length + user.length);

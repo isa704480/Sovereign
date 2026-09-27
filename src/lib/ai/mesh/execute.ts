@@ -108,13 +108,32 @@ export interface MeshDeps {
    * buzilmaydi, cheklovsiz reja ishlatiladi (log). Berilmasa — guard yo'q.
    */
   paidRestricted?(): Promise<boolean>;
+  /**
+   * Ops bot (Telegram): so'rov birinchi nomzoddan BOSHQA provayder/model bilan javob oldi (failover).
+   * Sinxron, fire-and-forget (standart: ops/record — Upstash hisoblagichi); otsa ham e'tiborsiz.
+   */
+  onFailover?(ev: MeshFailover): void;
+  /** Ops bot: so'rov javobsiz qoldi (barcha nomzodlar yiqildi / nomzod yo'q). So'rov aybi (400/413) emas. */
+  onExhausted?(error: { kind?: string; timeout?: boolean } | null, surface: "web" | "cli"): void;
   fetch: typeof fetch;
   sleep(ms: number, signal?: AbortSignal): Promise<void>;
   rng(): number;
   now(): number;
 }
 
-type CoreDeps = Pick<MeshDeps, "adapters" | "snapshot" | "plan" | "record" | "recordUsage" | "claim" | "paidRestricted">;
+/** Failover yozuvi — faqat id'lar va xato turi (xom xabar matni yo'q). */
+export interface MeshFailover {
+  from: ProviderId;
+  error: { kind?: string; timeout?: boolean } | null;
+  to: ProviderId;
+  model: string;
+  surface: "web" | "cli";
+}
+
+type CoreDeps = Pick<
+  MeshDeps,
+  "adapters" | "snapshot" | "plan" | "record" | "recordUsage" | "claim" | "paidRestricted" | "onFailover" | "onExhausted"
+>;
 
 let defaultsPromise: Promise<CoreDeps> | null = null;
 
@@ -147,6 +166,13 @@ function loadDefaults(): Promise<CoreDeps> {
         return true;
       },
       ...(budget ? { paidRestricted: () => budget.isPaidRestricted() } : {}),
+      // Ops bot: dinamik import (birinchi chaqiruvda), hech qachon kutilmaydi.
+      onFailover: (ev) => {
+        import("@/lib/ops/record").then((m) => m.recordFailover(ev)).catch(() => undefined);
+      },
+      onExhausted: (error, surface) => {
+        import("@/lib/ops/record").then((m) => m.recordExhausted(error, surface)).catch(() => undefined);
+      },
     };
     return core;
   })();
@@ -182,6 +208,9 @@ async function resolveDeps(partial?: Partial<MeshDeps>): Promise<MeshDeps> {
     claim: p.claim ?? (needCore ? core!.claim : undefined),
     // Soxta plan (testlar) — standart byudjet guard'i ulanmaydi (Supabase/Upstash'ga bormaydi).
     paidRestricted: p.paidRestricted ?? (needCore ? core!.paidRestricted : undefined),
+    // Soxta deps (testlar) — standart ops yozuvchisi ulanmaydi (Upstash'ga bormaydi).
+    onFailover: p.onFailover ?? (needCore ? core!.onFailover : undefined),
+    onExhausted: p.onExhausted ?? (needCore ? core!.onExhausted : undefined),
     fetch: p.fetch ?? ((...args: Parameters<typeof fetch>) => globalThis.fetch(...args)),
     sleep: p.sleep ?? defaultSleep,
     rng: p.rng ?? Math.random,
@@ -710,6 +739,39 @@ function safeRecord(deps: MeshDeps, adapter: ProviderAdapter, attempt: Attempt, 
   }
 }
 
+/**
+ * Ops bot: javob bergan nomzoddan OLDIN boshqa nomzod (provayder yoki model) yiqilgan bo'lsa — failover.
+ * Shu nomzodning o'zidagi qayta urinish (transient retry) failover emas. Hech qachon otmaydi.
+ */
+function noteFailover(deps: MeshDeps, attempts: Attempt[], c: Candidate, model: string, surface: "web" | "cli"): void {
+  if (!deps.onFailover) return;
+  try {
+    const first = attempts.find((a) => !a.ok && !(a.provider === c.provider && a.wire === c.offer.wire));
+    if (!first) return;
+    const e = first.error;
+    deps.onFailover({
+      from: first.provider,
+      error: e ? { kind: e.kind, ...(e.timeout ? { timeout: true } : {}) } : null,
+      to: c.provider,
+      model,
+      surface,
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Ops bot: so'rov javobsiz qoldi. So'rov aybi (bad_request / context_length) hisoblanmaydi. */
+function noteExhausted(deps: MeshDeps, error: { kind?: string; timeout?: boolean } | null, surface: "web" | "cli"): void {
+  if (!deps.onExhausted) return;
+  if (error?.kind === "bad_request" || error?.kind === "context_length") return;
+  try {
+    deps.onExhausted(error ? { kind: error.kind, ...(error.timeout ? { timeout: true } : {}) } : null, surface);
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Kunlik birlik (oqim oxirida) — fire-and-forget. */
 function safeUsage(deps: MeshDeps, adapter: ProviderAdapter, c: Candidate, units: number | undefined, ephemeral: boolean): void {
   if (!deps.recordUsage || !units || !(units > 0)) return;
@@ -1011,6 +1073,7 @@ export async function* meshStream(input: MeshStreamInput): AsyncGenerator<Stream
   const { adapters, candidates, chain } = await prepare(input, deps);
 
   if (!candidates.length) {
+    noteExhausted(deps, null, "web");
     yield { type: "error", message: translate(lang, adapters.length ? "chErrModelBusy" : "chErrServerConfig") };
     return;
   }
@@ -1043,6 +1106,7 @@ export async function* meshStream(input: MeshStreamInput): AsyncGenerator<Stream
       const out = yield* streamOnce(deps, input, c, adapter, ep, messages, maxTokens, !announced, remaining(), firstByte);
 
       if (out.ok) {
+        if (!announced) noteFailover(deps, attempts, c, displayIdOf(adapter, c.offer.wire), "web");
         announced = true;
         answer += out.text;
         const attempt: Attempt = { provider: c.provider, wire: c.offer.wire, ok: true, ttfbMs: out.ttfbMs, ...(ephemeral ? { ephemeral: true } : {}) };
@@ -1085,6 +1149,7 @@ export async function* meshStream(input: MeshStreamInput): AsyncGenerator<Stream
           await deps.sleep(jitter(deps.rng), input.signal);
           continue;
         }
+        noteExhausted(deps, error, "web");
         yield { type: "error", message: translate(lang, friendlyKey(error.kind)) };
         return;
       }
@@ -1110,6 +1175,7 @@ export async function* meshStream(input: MeshStreamInput): AsyncGenerator<Stream
       break;
     }
   }
+  noteExhausted(deps, lastKind ? { kind: lastKind } : null, "web");
   yield { type: "error", message: translate(lang, friendlyKey(lastKind)) };
 }
 
@@ -1193,7 +1259,10 @@ export async function meshComplete(input: MeshCompleteInput): Promise<MeshComple
   const attempts: Attempt[] = [];
   const req: RouteRequest = { ...input.req, needs: { ...input.req.needs, stream: false } };
   const { candidates, chain } = await prepare({ ...input, req }, deps);
-  if (!candidates.length) return { ok: false, status: 503, error: null, attempts };
+  if (!candidates.length) {
+    noteExhausted(deps, null, "cli");
+    return { ok: false, status: 503, error: null, attempts };
+  }
 
   const badRequest = new BadRequestGate();
   let lastError: ClassifiedError | null = null;
@@ -1220,6 +1289,7 @@ export async function meshComplete(input: MeshCompleteInput): Promise<MeshComple
         safeRecord(deps, adapter, attempt);
         safeUsage(deps, adapter, c, unitsFor(adapter, c.offer, usage ?? { prompt_tokens: promptTokens, completion_tokens: 0 }), ephemeral);
         const served = servedInfo(c, adapter, req, servedModelOf(adapter, c.offer.wire, out.json, out.headers));
+        noteFailover(deps, attempts, c, served.model, "cli");
         if (!modelAllowedIn(served.model, req.country)) {
           console.warn(`[region] upstream cheklangan modelga yo'naltirdi: ${c.offer.wire} → ${served.model} (${req.country})`);
         }
@@ -1268,6 +1338,7 @@ export async function meshComplete(input: MeshCompleteInput): Promise<MeshComple
       break;
     }
   }
+  noteExhausted(deps, lastError, "cli");
   return { ok: false, status: completeStatus(lastError?.kind), error: lastError, attempts };
 }
 

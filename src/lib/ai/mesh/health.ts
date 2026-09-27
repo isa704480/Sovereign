@@ -1,5 +1,6 @@
 import "server-only";
 import { Redis } from "@upstash/redis";
+import type { BreakerTransition } from "@/lib/ops/recorder";
 import { keyFingerprint } from "./fingerprint";
 import {
   MESH_TUNING,
@@ -556,12 +557,26 @@ export function createHealthMesh(deps: {
   log?: (msg: string) => void;
   /** mesh:index maksimal a'zolari (standart MESH_TUNING.maxIndexSize). */
   maxIndexSize?: number;
+  /**
+   * Breaker o'tishi (provayder va hovuz kalitlari; model kalitlari emas): closed/half_open → open,
+   * open/half_open → closed (muvaffaqiyat), open → half_open (probe lock olindi). Ops bot uchun —
+   * sinxron, hech qachon kutilmaydi; otib yuborsa ham e'tiborsiz.
+   */
+  onTransition?: (t: BreakerTransition) => void;
 }): HealthMesh {
   const store = deps.store;
   const clock = deps.now ?? Date.now;
   const log = deps.log ?? ((m: string) => console.error(m));
   const local = deps.local ?? memoryStore(clock);
   const maxIndex = deps.maxIndexSize ?? MESH_TUNING.maxIndexSize;
+  const emit = (t: BreakerTransition) => {
+    if (!deps.onTransition) return;
+    try {
+      deps.onTransition(t);
+    } catch {
+      /* ops yozuvi hech qachon sog'liq yozuvini buzmaydi */
+    }
+  };
 
   /** Instansiya xotirasidagi model-scope a'zolar ("<provider>:<wire>"), o'lchami cheklangan. */
   const localMembers = new Set<string>();
@@ -710,6 +725,10 @@ export function createHealthMesh(deps: {
       const ev: HealthEvent = { ok: true, ttfbMs: latencyMs };
       const pPrev = await readOne(pKey, store);
       await write(pKey, nextState(pPrev ?? defaultHealth(), ev, now), now, store);
+      if (pPrev) {
+        const was = effectiveState(pPrev, now);
+        if (was !== "closed") emit({ provider, from: was, to: "closed", at: now });
+      }
       // Model kaliti faqat mavjud bo'lsa yangilanadi (probe muvaffaqiyati uni yopadi) — keraksiz yozuv yo'q.
       const member = memberOf(provider, opts.wire);
       if (member && opts.wire) {
@@ -738,6 +757,22 @@ export function createHealthMesh(deps: {
       const next = nextState(prev, { ok: false, error }, now);
       if (error.kind === "auth" && opts.keyFp) next.authFp = opts.keyFp;
       await write(key, next, now, await targetFor(member, opts.ephemeral));
+      if (scope !== "model" && next.state === "open") {
+        const was = effectiveState(prev, now);
+        if (was !== "open") {
+          emit({
+            provider,
+            ...(wire ? { wire } : {}),
+            from: was,
+            to: "open",
+            reason: error.kind,
+            ...(error.timeout ? { timeout: true } : {}),
+            ...(next.until !== undefined ? { until: next.until } : {}),
+            trips: next.trips ?? 0,
+            at: now,
+          });
+        }
+      }
     } catch (e) {
       log(`[mesh] recordFailure ${provider}: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -815,7 +850,14 @@ export function createHealthMesh(deps: {
     },
     async acquireProbe(key) {
       try {
-        return await store.setNX(probeKey(key), "1", MESH_TUNING.probeLockMs);
+        const got = await store.setNX(probeKey(key), "1", MESH_TUNING.probeLockMs);
+        if (got) {
+          const p = parseHealthKey(key);
+          if (p && (!p.wire || isPoolWire(p.wire))) {
+            emit({ provider: p.provider, ...(p.wire ? { wire: p.wire } : {}), from: "open", to: "half_open", at: clock() });
+          }
+        }
+        return got;
       } catch {
         return true; // lock'siz ham bitta ortiqcha urinish — xavfsiz
       }
@@ -875,7 +917,14 @@ function mesh(): HealthMesh {
     }
   }
   const memory = memoryStore();
-  defaultMesh = createHealthMesh({ store: fallbackStore(primary, memory), local: memory });
+  defaultMesh = createHealthMesh({
+    store: fallbackStore(primary, memory),
+    local: memory,
+    // Ops bot (Telegram): breaker o'tishlari — dinamik import, fire-and-forget, so'rov yo'lini kutdirmaydi.
+    onTransition: (t) => {
+      import("@/lib/ops/record").then((m) => m.recordBreaker(t)).catch(() => undefined);
+    },
+  });
   return defaultMesh;
 }
 

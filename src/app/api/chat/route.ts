@@ -59,6 +59,7 @@ import {
   type InquiryGate,
 } from "@/lib/ai/inquiry/types";
 import { createServiceClient } from "@/lib/supabase/service";
+import { bumpOps } from "@/lib/ops/record";
 import { createServerMaskSession, mask } from "@/lib/ai/blind-prompting";
 
 export const runtime = "nodejs";
@@ -734,6 +735,10 @@ export async function POST(req: Request) {
         ]);
         // Tasdiqlab bo'lmasa (kalit yo'q / xato) — ogohlantirish saqlanadi (xavfsiz tomonga).
         const kept = confirmed === null ? borderline : borderline.filter((_, i) => confirmed[i]);
+        // Ops bot: hakam natijasi soni (matn yo'q). Tasdiqlovchi javob bermadi — "none".
+        const verdict =
+          !facts.length && confirmed === null && borderline.length ? "judge:none" : facts.length || kept.length ? "judge:issues" : "judge:clean";
+        bumpOps({ [verdict]: 1 });
         if (!facts.length && !kept.length) return;
         const all: WireIssue[] = [
           ...facts.map((f): WireIssue => ({ ...f, kind: "fact" })),
@@ -1320,6 +1325,10 @@ ${connectorContext}`
           }
         } catch {
           /* mijoz uzilgan */
+        }
+        // Ops bot: faqat son (xabar matni yo'q) — fire-and-forget hisoblagich.
+        if (modelCalls > 0 || cachedFrom) {
+          bumpOps({ "msg:web": 1, "tok:web": usage.input + usage.output + triU.input + triU.output + connU.input + connU.output });
         }
         // Telemetriya ask navbatida [DONE] dan OLDIN yozilishi shart: keyingi reply navbati shu qatorni tekshiradi.
         await Promise.all([
