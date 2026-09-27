@@ -622,6 +622,13 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
         if (print) console.log("\n  " + c.warn(`⚡ full auto: vazifa hali tugamagan — davom ettiryapman (${nudges}/${FULL_AUTO_MAX_NUDGES})`));
         continue;
       }
+      // Oddiy rejimda ham: "davom et deb yozing" bilan to'xtagan bo'lsa — bir marta o'zi boshlaydi.
+      const stall = stallNudge(tracker.entries, text, nudgeState);
+      if (stall) {
+        messages.push({ role: "user", content: stall });
+        if (print) console.log("\n  " + c.dim("▸ davom ettiryapman…"));
+        continue;
+      }
       if (print) process.stdout.write("\n");
       const project = projectStatus();
       const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print, answerModel: finalModel, project });
