@@ -377,5 +377,11 @@ vscode/
   bo'lmaydi), jurnalga hech qachon yozilmaydi. `Sign out` serverda ham bekor qiladi.
 - **Manzil**: `sovereign.baseUrl` har chaqiruvda `https:` (yoki `http://localhost`) ga
   tozalanadi; server qaytargan kirish sahifasi URL'i xost bo'yicha solishtiriladi.
+  Sozlama **machine** doirasida — ya'ni loyihaning o'z `.vscode/settings.json` fayli uni
+  o'zgartira olmaydi (aks holda begona repozitoriyni klonlash tokenni boshqa serverga
+  yuborish uchun yetarli bo'lardi).
+- **Device-code phishing**: kirish kodi muharrirda `/cli/connect` sahifasidagi bilan
+  **aynan bir xil shaklda** (`01234567…cdef`) ko'rsatiladi — foydalanuvchi ikkalasini
+  solishtiradi. Sahifaning o'zi ham boshlovchi IP/mamlakatni tekshiradi (0040).
 - **Fayl tahriri**: "Apply" oddiy `TextEditorEdit` — **Ctrl+Z** qaytaradi, fayl diskka
   o'z-o'zidan saqlanmaydi.

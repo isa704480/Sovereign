@@ -9,16 +9,21 @@ Works in **VS Code**, and in every editor that loads VS Code extensions: **Curso
 
 ## Screenshots
 
-<!-- Rasmlar shu yerga qo'yiladi. Fayllar: docs/media/*.png (repo'da), Marketplace README'ga
-     mutlaq https havola bilan kiritiladi. -->
+> **TODO before publishing.** Drop the PNGs somewhere with a stable `https://` URL and
+> replace the five placeholders below. The Marketplace does **not** render relative image
+> paths — either use absolute `https://` links, or publish with
+> `vsce publish --baseImagesUrl https://…`.
 
-| | |
-|---|---|
-| **Chat side panel** — `![Chat panel](https://…/panel.png)` | *Ask about the current file or selection; answers stream in.* |
-| **Apply to editor** — `![Apply](https://…/apply.png)` | *Every code block gets Copy and Apply to editor.* |
-| **Explain selection** — `![Explain](https://…/explain.png)` | *Editor context menu and `Ctrl+Alt+E`.* |
-| **Fix this error** — `![Fix](https://…/fix.png)` | *Uses the diagnostic under the cursor.* |
-| **Model picker** — `![Models](https://…/models.png)` | *Status bar → model and plan.* |
+1. **Chat side panel** — asking about the open file; the answer streaming in.
+   `![Chat panel](https://…/panel.png)`
+2. **Apply to editor** — a code block with its Copy / Apply buttons, mid-apply.
+   `![Apply](https://…/apply.png)`
+3. **Explain selection** — the editor context menu with the SOVEREIGN submenu open.
+   `![Explain](https://…/explain.png)`
+4. **Fix this error** — a squiggle under the cursor and the resulting answer.
+   `![Fix](https://…/fix.png)`
+5. **Model picker** — the status bar item and the quick pick it opens.
+   `![Models](https://…/models.png)`
 
 ---
 
@@ -82,8 +87,9 @@ Two ways, both reusing your existing SOVEREIGN account:
 **Device login (default).** Click **Sign in** in the panel, or run
 *SOVEREIGN: Sign in*. The extension calls `POST /api/cli/start`, shows you the code,
 opens `https://soveregn.xyz/cli/connect?code=…` with `vscode.env.openExternal`, and polls
-`GET /api/cli/poll` until you approve it in the browser. Approve only if the code in the
-browser matches the one the editor shows.
+`GET /api/cli/poll` until you approve it in the browser. The editor shows the code in
+exactly the same shape the web page does (`01234567…cdef`) — **approve only if the two
+match.** That comparison is what protects you from a device-code phishing attempt.
 
 **Use my existing CLI login.** If you already ran `sov login` in a terminal, run
 *SOVEREIGN: Use my existing CLI login*. The extension reads the token from
@@ -107,6 +113,10 @@ revokes it on the server too.
 | `sovereign.telemetry` | `false` | Off. The extension collects no telemetry at all; the switch exists so the answer is explicit. |
 
 No secret is ever stored in settings.
+
+`sovereign.baseUrl` is deliberately **machine-scoped**: a workspace's own
+`.vscode/settings.json` cannot change it. Otherwise cloning a hostile repository would be
+enough to point your requests — and your token — at someone else's server.
 
 ---
 

@@ -9,7 +9,7 @@ import { hostname } from "node:os";
 import { homedir } from "node:os";
 import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
-import { ApiError, fetchMe, pollDeviceLogin, startDeviceLogin, type Me } from "./core/api";
+import { ApiError, fetchMe, formatDeviceCode, pollDeviceLogin, startDeviceLogin, type Me } from "./core/api";
 import { cliConfigPath, parseCliConfig } from "./core/cli-config";
 import { makeT, type Lang } from "./core/i18n";
 import { TokenStore } from "./core/secrets";
@@ -70,14 +70,15 @@ export class Auth {
     try {
       const device = `${hostname()} (${vscode.env.appName})`.slice(0, 80);
       const start = await startDeviceLogin(settings.baseUrl, device, settings.lang);
-      this.codeSink?.(start.code, start.url);
+      const shown = formatDeviceCode(start.code);
+      this.codeSink?.(shown, start.url);
 
       await vscode.env.openExternal(vscode.Uri.parse(start.url, true));
 
       const token = await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: `${t("auth.codeTitle")}: ${start.code.slice(0, 8).toUpperCase()}`,
+          title: `${t("auth.codeTitle")}: ${shown}`,
           cancellable: true,
         },
         async (progress, cancellation) => {

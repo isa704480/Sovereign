@@ -89,6 +89,16 @@ export async function startDeviceLogin(base: string, device: string, lang: strin
   return { code, url };
 }
 
+/**
+ * Kodni foydalanuvchiga ko'rsatish shakli — `/cli/connect` sahifasidagi bilan AYNAN bir xil
+ * (`ConnectApproval.tsx`: `code.slice(0, 8)…code.slice(-4)`). Foydalanuvchi ikkalasini
+ * solishtira olishi kerak — device-code phishing'ga qarshi yagona amaliy chora shu.
+ */
+export function formatDeviceCode(code: string): string {
+  const c = String(code ?? "");
+  return c.length > 12 ? `${c.slice(0, 8)}…${c.slice(-4)}` : c;
+}
+
 export function sameOrigin(candidate: string, base: string): boolean {
   try {
     const a = new URL(candidate);

@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 import { buildContext } from "../src/core/context";
 import { buildMessages, buildTurn, MAX_HISTORY_MESSAGES, systemPrompt } from "../src/core/prompt";
-import { chunkText, sameOrigin } from "../src/core/api";
+import { chunkText, formatDeviceCode, sameOrigin } from "../src/core/api";
 
 const ctx = buildContext(
   {
@@ -74,6 +74,13 @@ describe("api yordamchilari", () => {
     assert.equal(chunks.length, 3);
     assert.equal(chunks.join(""), text);
     assert.deepEqual(chunkText("", 10), []);
+  });
+
+  it("formatDeviceCode — /cli/connect sahifasidagi shakl bilan bir xil", () => {
+    const code = "0123456789abcdef0123456789abcdef0123456789abcdef";
+    // ConnectApproval.tsx: {code.slice(0, 8)}…{code.slice(-4)}
+    assert.equal(formatDeviceCode(code), `${code.slice(0, 8)}…${code.slice(-4)}`);
+    assert.equal(formatDeviceCode("short"), "short");
   });
 
   it("sameOrigin — server bergan sahifa faqat o'sha domenda bo'lishi kerak", () => {

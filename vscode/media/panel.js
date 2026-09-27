@@ -220,7 +220,8 @@
       case "authCode": {
         const code = String(msg.code || "");
         if (code) {
-          el.codeVal.textContent = code.slice(0, 8).toUpperCase();
+          // Xost allaqachon /cli/connect sahifasi bilan bir xil shaklda yuboradi.
+          el.codeVal.textContent = code;
           el.codeBox.classList.remove("hidden");
         } else {
           el.codeBox.classList.add("hidden");
