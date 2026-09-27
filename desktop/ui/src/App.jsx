@@ -4,6 +4,7 @@ import Sidebar from "./components/Sidebar.jsx";
 import Conversation from "./components/Conversation.jsx";
 import Composer from "./components/Composer.jsx";
 import RightPanel from "./components/RightPanel.jsx";
+import TerminalPanel from "./components/TerminalPanel.jsx";
 import ConfirmDialog from "./components/ConfirmDialog.jsx";
 import CommandPalette, { ShortcutsHelp } from "./components/CommandPalette.jsx";
 import Settings from "./components/Settings.jsx";
@@ -15,6 +16,7 @@ import { applyEvent, replayEvents, addChange, initialAgent } from "./lib/agent.j
 import { I18n, makeT, detectLang, LANGS } from "./lib/i18n.js";
 
 const S = () => window.sovereign;
+const TICK = String.fromCharCode(96); // `  — Ctrl+` yorlig‘i uchun
 
 function reducer(s, a) {
   switch (a.type) {
@@ -161,6 +163,20 @@ export default function App() {
     toast(on ? t("auto.enabled") : t("auto.disabled"), on ? "info" : "ok");
   };
   const toggleSidebar = () => setSetting({ sidebar: !settings.sidebar });
+  // Foydalanuvchi terminali (pastki panel): Ctrl+` bilan ochiladi/yopiladi.
+  const toggleTerminal = useCallback(() => {
+    setSettings((s) => {
+      const open = !s.terminal;
+      S().settings.set({ terminal: open }).then((n) => n && setSettings(n));
+      if (!open) setTimeout(() => composerRef.current?.focus(), 0);
+      return { ...s, terminal: open };
+    });
+  }, []);
+  // Sudrash paytida faqat mahalliy holat; qo'yib yuborilganda sozlamaga yoziladi.
+  const setTermHeight = useCallback((h, persist) => {
+    setSettings((s) => ({ ...s, terminalHeight: h }));
+    if (persist) S().settings.set({ terminalHeight: h });
+  }, []);
   const togglePanel = (tab) => {
     if (tab && (!settings.rightPanel || panelTab !== tab)) { setPanelTab(tab); setSetting({ rightPanel: true }); return; }
     setSetting({ rightPanel: !settings.rightPanel });
@@ -326,6 +342,7 @@ export default function App() {
       { id: "sidebar", label: t("sc.sidebar"), icon: "sidebar", hint: "Ctrl B", group: g.view, run: toggleSidebar },
       { id: "changes", label: t("palette.showChanges"), icon: "diff", group: g.view, run: () => togglePanel("changes") },
       { id: "terminal", label: t("palette.showTerminal"), icon: "terminal", hint: "Ctrl J", group: g.view, run: () => togglePanel("terminal") },
+      { id: "shterm", label: t("sh.palette"), keywords: "terminal shell console powershell bash", icon: "terminal", hint: `${info?.platform === "darwin" ? "Cmd" : "Ctrl"} ${TICK}`, group: g.view, run: toggleTerminal },
       { id: "project", label: t("palette.showProject"), keywords: "SOVEREIGN.md", icon: "list", group: g.view, run: () => togglePanel("project") },
       { id: "theme-dark", label: `${t("settings.theme")}: ${t("theme.dark")}`, icon: "moon", group: g.view, run: () => setSetting({ theme: "dark" }) },
       { id: "theme-light", label: `${t("settings.theme")}: ${t("theme.light")}`, icon: "sun", group: g.view, run: () => setSetting({ theme: "light" }) },
@@ -348,6 +365,10 @@ export default function App() {
       const mod = e.ctrlKey || e.metaKey;
       if (!mod || e.altKey) return;
       const k = e.key.toLowerCase();
+      // Ctrl+` / Cmd+` — terminal paneli (terminal ichida ham ishlaydi).
+      if (e.key === "`" || e.code === "Backquote") { e.preventDefault(); toggleTerminal(); return; }
+      // Terminalda yozayotganda qolgan yorliqlar shellga tegishli (Ctrl+L, Ctrl+B…).
+      if (e.target?.closest?.(".shterm")) return;
       const act = {
         k: () => setPalette((p) => !p),
         "/": () => setShortcuts((s) => !s),
@@ -426,7 +447,7 @@ export default function App() {
     <I18n.Provider value={t}>
       <div className="app">
         <a href="#composer-input" className="skip-link">{t("a11y.skip")}</a>
-        <TitleBar info={info} sidebar={settings.sidebar} panel={settings.rightPanel} onToggleSidebar={toggleSidebar} onTogglePanel={() => togglePanel()} onPalette={() => setPalette(true)} />
+        <TitleBar info={info} sidebar={settings.sidebar} panel={settings.rightPanel} terminal={!!settings.terminal} onToggleSidebar={toggleSidebar} onTogglePanel={() => togglePanel()} onToggleTerminal={toggleTerminal} onPalette={() => setPalette(true)} />
         <div className="body">
           {settings.sidebar && (
             <Sidebar
@@ -454,6 +475,12 @@ export default function App() {
             <RightPanel tab={panelTab} setTab={setPanelTab} changes={agent.changes} term={agent.term} onUndo={undoChange} onUndoAll={undoAll} onClearTerm={() => dispatch({ type: "clear-term" })} onClose={() => togglePanel()} cwd={info.cwd} toast={toast} />
           )}
         </div>
+        {settings.terminal && (
+          <TerminalPanel
+            cwd={info.cwd} platform={info.platform} height={settings.terminalHeight ?? 260}
+            onHeight={setTermHeight} onClose={toggleTerminal}
+          />
+        )}
         <StatusBar info={info} mode={mode} model={info.model} busy={agent.busy} onShortcuts={() => setShortcuts(true)} update={update} onUpdate={() => setSettingsOpen("about")} />
 
         {auditOpen && (

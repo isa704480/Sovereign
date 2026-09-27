@@ -37,6 +37,7 @@ import { shouldVerify, verifyClaims } from "../cli/src/verify.mjs";
 import { SnapshotStore, withCommandSnapshots } from "../cli/src/snapshot.mjs";
 import * as projectMemory from "../cli/src/project-memory.mjs";
 import { registerProjectIpc } from "./electron/project.mjs";
+import { registerTerminalIpc, disposeAllTerminals } from "./electron/terminal.mjs";
 import { runAudit, auditPrompt, AUDIT_LANGS } from "../cli/src/audit.mjs";
 
 import { OFFLINE, netAllowed, installOfflineGuard } from "./electron/net.mjs";
@@ -909,6 +910,7 @@ function resetSession() {
 // ---- IPC ---------------------------------------------------------------
 handle("app:init", async () => {
   resetSession(); // sahifa qayta yuklandi — eski navbat/tasdiqlar egasiz qolmasin
+  disposeAllTerminals(); // eski terminal yorliqlari UI'da yo'q — jarayonlari ham qolmasin
   const config = applyModelOverride(loadConfig());
   session.config = config;
   if (config.token && netAllowed(config.baseUrl)) await syncMemory(config).catch(() => {});
@@ -947,6 +949,16 @@ registerProjectIpc({
   openPath: (p) => shell.openPath(p),
   pm: projectMemory,
   onChange: () => workspace && projectMemory.refreshProjectMessage(session.messages, workspace),
+});
+
+// Foydalanuvchi terminali (pastki panel). Agent uchun yozish yo'li YO'Q: terminal.mjs
+// pty'ga yozadigan funksiya eksport qilmaydi, faqat `term:write` IPC (validSender + preload).
+registerTerminalIpc({
+  handle,
+  on,
+  getWindow: () => win,
+  getCwd: () => workspace,
+  getShell: () => loadSettings().terminalShell,
 });
 
 handle("app:reveal-workspace", async () => {
@@ -1650,6 +1662,7 @@ function createWindow() {
   win.on("close", () => {
     saveBounds();
     persistCurrentTask();
+    disposeAllTerminals(); // ochiq terminallar (va ularning bolalari) qolib ketmasin
   });
   win.on("focus", () => win.flashFrame(false));
   // Renderer qulasa (mas. juda katta diff) — kutilayotgan tasdiqlar rad bilan yopiladi,
@@ -1789,7 +1802,10 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
+app.on("before-quit", disposeAllTerminals);
+app.on("will-quit", disposeAllTerminals);
 app.on("window-all-closed", () => {
+  disposeAllTerminals();
   if (process.platform !== "darwin") app.quit();
 });
 app.on("activate", () => {

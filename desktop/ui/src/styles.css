@@ -640,3 +640,28 @@ button.local-badge:hover { border-color: var(--ok); }
 .local-rec-list .tnum { white-space: nowrap; }
 .local-pane .local-rec-list code { max-width: none; flex: 1; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
 .local-pane .local-rec-list .grow { display: none; }
+
+/* ---------- Foydalanuvchi terminali (pastki panel) ---------- */
+.shterm { flex: none; display: flex; flex-direction: column; min-height: 120px; background: var(--code-bg); border-top: 1px solid var(--border); position: relative; animation: fade 0.12s; }
+.shterm-grip { position: absolute; top: -3px; left: 0; right: 0; height: 7px; cursor: ns-resize; z-index: 2; background: transparent; }
+.shterm-grip:hover, .shterm-grip:focus-visible { background: var(--accent-ring); }
+.shterm-bar { flex: none; display: flex; align-items: center; gap: 6px; padding: 4px 8px 0; border-bottom: 1px solid var(--border); background: var(--panel); }
+.shterm-tabs { display: flex; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.shterm-tabs::-webkit-scrollbar { display: none; }
+.shterm-tab { display: flex; align-items: center; border: 1px solid transparent; border-bottom: none; border-radius: var(--r-sm) var(--r-sm) 0 0; color: var(--muted); max-width: 230px; }
+.shterm-tab:hover { background: var(--hover); }
+.shterm-tab.on { background: var(--code-bg); border-color: var(--border); color: var(--text); }
+.shterm-tab > button:first-child { display: flex; align-items: center; gap: 6px; min-width: 0; padding: 6px 4px 6px 9px; font-size: 12px; }
+.shterm-tab-name { font-weight: 500; white-space: nowrap; }
+.shterm-tab-cwd { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-family: var(--mono); }
+.shterm-x { display: grid; place-items: center; width: 20px; height: 20px; margin-right: 5px; border-radius: 5px; color: var(--faint); flex: none; }
+.shterm-x:hover { background: var(--hover); color: var(--text); }
+.shterm-add { margin-bottom: 3px; }
+.shterm-note { margin: 6px 8px 0; align-items: center; }
+.shterm-host { flex: 1; min-height: 0; position: relative; padding: 6px 4px 4px 10px; }
+.shterm-screen { position: absolute; inset: 6px 4px 4px 10px; }
+.shterm .xterm { height: 100%; }
+.shterm .xterm-viewport { background: transparent !important; scrollbar-width: thin; }
+.shterm-paste { max-height: 260px; overflow: auto; margin: 10px 0 0; padding: 10px 12px; border-radius: var(--r); background: var(--code-bg); border: 1px solid var(--border); font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.shterm-shell-input { width: 100%; height: 32px; padding: 0 10px; border-radius: var(--r-sm); background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-size: 12.5px; outline: none; }
+.shterm-shell-input:focus { border-color: var(--accent-ring); }

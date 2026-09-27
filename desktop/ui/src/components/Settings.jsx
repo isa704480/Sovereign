@@ -257,6 +257,16 @@ export default function Settings({ initial = "general", onClose, info, settings,
               </div>
               <Toggle checked={!!settings.fullAuto} onChange={(v) => Promise.resolve(onFullAuto ? onFullAuto(v) : setSetting({ fullAuto: v })).then(refreshLocal)} label={t("settings.fullAuto")} desc={t("settings.fullAutoDesc")} />
               <Toggle checked={settings.notifications} onChange={(v) => setSetting({ notifications: v })} label={t("settings.notifications")} desc={t("settings.notificationsDesc")} />
+              <div className="field">
+                <span className="label-sm">{t("sh.settings.shell")}</span>
+                <input
+                  type="text" className="shterm-shell-input mono" spellCheck={false} maxLength={400}
+                  aria-label={t("sh.settings.shell")} placeholder={t("sh.settings.shellAuto")}
+                  value={settings.terminalShell ?? ""}
+                  onChange={(e) => setSetting({ terminalShell: e.target.value.replace(/[\r\n\u0000]/g, "") })}
+                />
+                <span className="block faint small mt-sm">{t("sh.settings.shellDesc")}</span>
+              </div>
             </>
           )}
 

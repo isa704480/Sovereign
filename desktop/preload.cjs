@@ -4,6 +4,30 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 const invoke = (ch, ...a) => ipcRenderer.invoke(ch, ...a);
 
+// ---- Terminal: faqat HAQIQIY klaviatura/paste kiritishi pty'ga yoziladi ----
+// Bu hisoblagich izolyatsiyalangan olamda (preload) turadi — sahifadagi JS uni
+// o'zgartira olmaydi va `isTrusted` hodisani soxtalashtira olmaydi. Shu sababli
+// modelning javobi (yoki XSS) pty'ga buyruq yoza olmaydi.
+const USER_INPUT_WINDOW_MS = 10_000;
+let lastUserInput = 0;
+for (const ev of ["keydown", "keyup", "paste", "input", "compositionend", "pointerdown", "mouseup", "auxclick", "wheel"]) {
+  window.addEventListener(
+    ev,
+    (e) => {
+      if (e.isTrusted) lastUserInput = Date.now();
+    },
+    true,
+  );
+}
+/**
+ * Klaviatura/paste'siz o'tishi mumkin bo'lgan yagona narsa — xterm'ning terminal
+ * so'rovlariga javobi (kursor holati, qurilma atributlari, sichqoncha hisobotlari).
+ * Ular ESC bilan boshlanadi va ichida CR/LF yo'q — ya'ni hech qanday buyruqni
+ * bajara olmaydi.
+ */
+const isTerminalReport = (s) => s.length <= 64 && s.charCodeAt(0) === 0x1b && !/[\r\n\u0003\u0004]/.test(s);
+const userTyped = (data) => Date.now() - lastUserInput < USER_INPUT_WINDOW_MS || isTerminalReport(data);
+
 contextBridge.exposeInMainWorld("sovereign", {
   init: () => invoke("app:init"),
   state: () => invoke("app:state"),
@@ -61,6 +85,24 @@ contextBridge.exposeInMainWorld("sovereign", {
     open: (id) => invoke("history:open", id),
     remove: (id) => invoke("history:remove", id),
     clear: () => invoke("history:clear"),
+  },
+  // Foydalanuvchi terminali (pastki panel). `write` — faqat haqiqiy kiritishdan.
+  terminal: {
+    create: (cols, rows) => invoke("term:create", { cols, rows }),
+    write: (id, data) => {
+      if (typeof id !== "string" || typeof data !== "string" || !data) return false;
+      if (data.length > 4096 || !userTyped(data)) return false;
+      ipcRenderer.send("term:write", { id, data });
+      return true;
+    },
+    resize: (id, cols, rows) => ipcRenderer.send("term:resize", { id, cols, rows }),
+    close: (id) => invoke("term:close", id),
+    info: () => invoke("term:info"),
+    onEvent: (cb) => {
+      const handler = (_e, ev) => cb(ev);
+      ipcRenderer.on("term:event", handler);
+      return () => ipcRenderer.removeListener("term:event", handler);
+    },
   },
   updates: {
     check: () => invoke("update:check"),

@@ -5,6 +5,7 @@ import { app } from "electron";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
 import { isValidModelName } from "./ollama.mjs";
+import { isValidShell } from "./terminal.mjs";
 
 const DEFAULTS = {
   onboarded: false,
@@ -19,6 +20,10 @@ const DEFAULTS = {
   tokenBudget: 0, // bitta vazifa uchun token byudjeti (0 — cheklovsiz); oshsa navbat to'xtaydi
   sidebar: true,
   rightPanel: false,
+  // Foydalanuvchi terminali (pastki panel)
+  terminal: false, // panel ochiqmi
+  terminalHeight: 260, // panel balandligi (px)
+  terminalShell: "", // "" — Windows'da PowerShell, mac/Linux'da $SHELL
   model: "", // OmniRoute katalog id ("" = Auto)
   modelLabel: "",
   // Mahalliy model (Ollama) zaxirasi — docs/INQUIRY.md §B.1:
@@ -43,6 +48,9 @@ const VALID = {
   tokenBudget: (v) => Number.isInteger(v) && v >= 0 && v <= 100_000_000,
   sidebar: (v) => typeof v === "boolean",
   rightPanel: (v) => typeof v === "boolean",
+  terminal: (v) => typeof v === "boolean",
+  terminalHeight: (v) => Number.isInteger(v) && v >= 120 && v <= 1200,
+  terminalShell: isValidShell,
   model: (v) => typeof v === "string" && v.length <= 200,
   modelLabel: (v) => typeof v === "string" && v.length <= 200,
   localFallback: (v) => ["off", "ask", "auto"].includes(v),

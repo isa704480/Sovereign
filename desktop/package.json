@@ -29,6 +29,8 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
     "concurrently": "^9.0.0",
     "cross-env": "^7.0.3",
     "electron": "^44.4.5",
@@ -39,6 +41,7 @@
     "wait-on": "^8.0.0"
   },
   "dependencies": {
+    "@lydell/node-pty": "1.1.0",
     "electron-updater": "^6.8.9"
   },
   "build": {
@@ -54,7 +57,12 @@
       "preload.cjs",
       "electron/**",
       "ui-dist/**",
-      "package.json"
+      "package.json",
+      "!**/node_modules/@lydell/**/*.pdb"
+    ],
+    "asarUnpack": [
+      "**/node_modules/@lydell/node-pty/**",
+      "**/node_modules/@lydell/node-pty-*/**"
     ],
     "extraResources": [
       {
