@@ -9,7 +9,7 @@ import CommandPalette, { ShortcutsHelp } from "./components/CommandPalette.jsx";
 import Settings from "./components/Settings.jsx";
 import Onboarding from "./components/Onboarding.jsx";
 import AuditDialog from "./components/AuditDialog.jsx";
-import Modal from "./components/Modal.jsx";
+import Modal, { hasOpenLayer } from "./components/Modal.jsx";
 import Icon, { Logo } from "./components/Icon.jsx";
 import { applyEvent, replayEvents, addChange, initialAgent } from "./lib/agent.js";
 import { I18n, makeT, detectLang, LANGS } from "./lib/i18n.js";
@@ -467,12 +467,15 @@ export default function App() {
       const mod = e.ctrlKey || e.metaKey;
       if (!mod || e.altKey) return;
       const k = e.key.toLowerCase();
+      // Ctrl+K / Ctrl+/ — o'z oynasini yopadi, lekin boshqa dialog yoki popover (ModelPicker) ochiq
+      // bo'lsa uning ustiga yangi modal ochmaydi (ikki fokus tuzog'i bir-birini buzmasin).
+      const blocked = anyModal || hasOpenLayer();
       const act = {
-        k: () => setPalette((p) => !p),
-        "/": () => setShortcuts((s) => !s),
+        k: () => (palette ? setPalette(false) : !blocked && setPalette(true)),
+        "/": () => (shortcuts ? setShortcuts(false) : !blocked && setShortcuts(true)),
       }[k];
       if (act) { e.preventDefault(); act(); return; }
-      if (anyModal) return;
+      if (blocked) return;
       const more = {
         n: newTask,
         o: pickFolder,

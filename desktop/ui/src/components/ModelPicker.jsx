@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
+import { useModalLayer } from "./Modal.jsx";
 import { useT } from "../lib/i18n.js";
 import { plainText } from "../lib/agent.js";
 import { useLocalMode, setLocalMode, refreshLocal, gbText } from "../lib/localMode.js";
@@ -136,16 +137,31 @@ export default function ModelPicker({ label, onSelect, disabled, placement = "up
     });
   }, [open, reload]);
 
+  // Popover modal stekiga qo'shiladi: Esc faqat u eng ustida bo'lganda yopadi (Sozlamalar dialogi
+  // birga yopilmaydi), Ctrl+K kabi global tugmalar ochiq popover ustidan ishlamaydi.
+  useModalLayer(open, { trap: false, onEscape: () => { setOpen(false); setQ(""); btnRef.current?.focus(); } });
+  // Popover oynadan chiqmasin (tor oyna / composer ikki qatorga o'tganda): o'ng chetdan 16px ichkarida.
+  const popRef = useRef(null);
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const fit = () => {
+      const el = popRef.current;
+      if (!el) return;
+      el.style.left = "0px";
+      const r = el.getBoundingClientRect();
+      const over = Math.min(r.right - (window.innerWidth - 16), r.left - 16);
+      if (over > 0) el.style.left = `${-over}px`;
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
     const onDown = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
-    const onKey = (e) => {
-      if (e.key === "Escape") { e.stopPropagation(); setOpen(false); btnRef.current?.focus(); }
-    };
     document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey, true);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey, true); };
+    return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
   useEffect(() => {
@@ -263,7 +279,7 @@ export default function ModelPicker({ label, onSelect, disabled, placement = "up
       <span className="sr-only" role="status" aria-live="polite">{announce}</span>
 
       {open && (
-        <div className={`popover picker-pop ${placement}`} role="dialog" aria-label={t("model.pick")}>
+        <div ref={popRef} className={`popover picker-pop ${placement}`} role="dialog" aria-label={t("model.pick")}>
           <div className="picker-search">
             <Icon name="search" size={14} />
             <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("model.search")} aria-label={t("model.search")} />

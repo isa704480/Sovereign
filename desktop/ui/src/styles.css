@@ -396,7 +396,7 @@ button.update-card:hover { border-color: var(--accent-text); background: color-m
 /* model picker */
 .picker { position: relative; }
 .popover { position: absolute; z-index: 60; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-lg); box-shadow: var(--sh-2); animation: rise 0.16s var(--ease-spring); overflow: hidden; }
-.picker-pop { width: 480px; left: 0; }
+.picker-pop { left: 0; }
 .picker-pop.up { bottom: 36px; }
 .picker-pop.down { top: 36px; }
 .picker-search { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--faint); }
@@ -562,6 +562,16 @@ button.folder-pick:hover { border-color: var(--accent-text); }
 .safety-icon { width: 32px; height: 32px; border-radius: var(--r-sm); display: grid; place-items: center; background: var(--accent-bg); color: var(--accent-text); flex: none; }
 .onb-foot { display: flex; align-items: center; gap: 8px; padding-top: 16px; border-top: 1px solid var(--border); margin-top: 12px; }
 
+/* Tor oyna (min 860px): o'ng panel suhbatni siqmaydi — uning ustida suzuvchi qatlam bo'ladi;
+ * composer paneli ikki qatorga o'tadi, model tanlagich oynadan chiqmaydi. */
+.composer-bar { flex-wrap: wrap; row-gap: 6px; }
+.composer-bar .send { margin-left: auto; }
+.picker-pop { width: min(480px, calc(100vw - 32px)); }
+@media (max-width: 1180px) {
+  .body { position: relative; }
+  .rpanel { position: absolute; top: 0; right: 0; bottom: 0; z-index: 50; width: min(420px, calc(100vw - 48px)); box-shadow: var(--sh-3); animation: panel-in 0.24s var(--ease-spring); }
+}
+@keyframes panel-in { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
 @media (max-width: 1080px) {
   .rpanel { width: 360px; }
   .hide-narrow { display: none; }
