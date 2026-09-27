@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { syncConversation } from "@/app/actions/chat";
 import { rememberExchange } from "@/app/actions/memory";
 import { logInquiryOutcome, rememberInquiryFacts } from "@/app/actions/inquiry";
-import { createMaskSession, mask } from "@/lib/ai/blind-prompting";
+import { createMaskSession, isMaskToken, mask } from "@/lib/ai/blind-prompting";
 import { detectImageIntent } from "@/lib/chat/image-intent";
 import { detectVideoIntent, videoAvailable } from "@/lib/chat/video-intent";
 import { streamChat } from "@/lib/chat/sse-client";
@@ -373,7 +373,7 @@ export function useSendMessage(opts?: { memoryEnabled?: boolean }) {
 
     const state0 = useChat.getState();
     const { wire, tokenMap } = toWire(history.slice(-HISTORY_LIMIT), state0.blindPrompting, state0.lang);
-    const hasMask = Object.keys(tokenMap).length > 0;
+    let hasMask = Object.keys(tokenMap).length > 0;
     const instant = state0.streamingSpeed === "instant";
     // Chuqur so'rash: sozlama + (bo'lsa) kartaga javob navbati — to'liq tarixdan (askedSlots/recentSkips).
     const inquiryReq = buildInquiryRequest(history, state0.inquiryMode);
@@ -395,12 +395,19 @@ export function useSendMessage(opts?: { memoryEnabled?: boolean }) {
         lang: state0.lang,
         agentMode: state0.agentMode,
         inquiry: inquiryReq,
+        blind: state0.blindPrompting,
         context: buildContext(state0.coworkOutline, state0.projects.find((p) => p.id === conv.projectId)),
         messages: wire,
         signal: controller.signal,
         onEvent: (ev) => {
           const s = useChat.getState();
-          if (ev.type === "text") {
+          if (ev.type === "blind-map") {
+            // Server maskalagan xotira/bilim bazasi tokenlari ([CTX_…]) — javobda asl qiymatga qaytariladi.
+            for (const [tok, val] of Object.entries(ev.tokens ?? {})) {
+              if (isMaskToken(tok) && tok.startsWith("[CTX_") && typeof val === "string") tokenMap[tok] = val;
+            }
+            hasMask = Object.keys(tokenMap).length > 0;
+          } else if (ev.type === "text") {
             text += ev.text;
             // "Darhol" (instant) rejimi: javob bo'laklab emas, tugagach butunicha ko'rsatiladi.
             if (!instant) {

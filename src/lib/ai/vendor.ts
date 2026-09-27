@@ -107,6 +107,27 @@ const RULES: [RegExp, Vendor][] = [
   [/gpt|codex|(^|\/)o[1345](-|$)|dall-e|whisper|text-embedding|(^|\/)tts-|sora|(^|\/)openai\//, "openai"],
 ];
 
+/**
+ * Oila nomisiz aralash kombo: OmniRoute "auto/best-free", "auto/coding:free", "auto/best-coding"
+ * yoki SOVEREIGN "auto" — javobni haqiqatda qaysi kompaniyaning modeli berganini id'dan bilib
+ * bo'lmaydi ("auto/glm", "auto/claude-sonnet" kabi oila kombolari — ma'lum, bu yerga kirmaydi).
+ */
+export function isOpaqueAuto(modelId: string | null | undefined): boolean {
+  const raw = (modelId ?? "").trim().toLowerCase();
+  if (!raw) return false;
+  const id = bareModelId(raw);
+  return (id === "auto" || id.startsWith("auto/")) && vendorOfId(raw) === "unknown";
+}
+
+/**
+ * Aralash kombo yo'naltira oladigan kompaniyalar. OmniRoute kombolari tarkibi server
+ * tomonida o'zgaradi (repo'da ro'yxati yo'q) — ehtiyotkorlik: barcha ma'lum kompaniyalar.
+ * Natija: served model noma'lum bo'lsa mustaqil hakam tanlanmaydi (halol "tekshirilmadi").
+ */
+export const OPAQUE_AUTO_VENDORS: readonly Vendor[] = (Object.keys(VENDOR_LABEL) as Vendor[]).filter(
+  (v) => v !== "unknown" && v !== "sovereign",
+);
+
 /** Host prefikslari va ":free" kabi qo'shimchalarsiz, kichik harfli id. */
 export function bareModelId(modelId: string): string {
   let parts = (modelId ?? "").trim().toLowerCase().replace(/:[a-z0-9-]+$/, "").split("/").filter(Boolean);

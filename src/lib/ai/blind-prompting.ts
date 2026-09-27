@@ -85,9 +85,26 @@ function counter(): Counters {
   return { PERSON: 0, ORG: 0, EMAIL: 0, PHONE: 0, URL: 0, CARD: 0, MONEY: 0, IBAN: 0, IP: 0, CRYPTO: 0, ID: 0 };
 }
 
-function label(cat: keyof Counters, n: number): string {
+function label(cat: keyof Counters, n: number, prefix = ""): string {
   // A..Z, keyin raqam — 26 dan ko'p qiymat bitta tokenga to'qnashmasin.
-  return `[${cat}_${n <= 26 ? String.fromCharCode(64 + n) : n}]`;
+  return `[${prefix}${cat}_${n <= 26 ? String.fromCharCode(64 + n) : n}]`;
+}
+
+const CATS = "PERSON|ORG|EMAIL|PHONE|URL|CARD|MONEY|IBAN|IP|CRYPTO|ID|NAME";
+/** Mask tokeni: [PERSON_A], [EMAIL_12], server konteksti [CTX_PERSON_A]; eski/boshqa uslub [NAME_1]. */
+const TOKEN_RE = new RegExp(String.raw`\[(?:[A-Z]{1,8}_)?(?:${CATS})_(?:[A-Z]|\d{1,4})\]`);
+
+/**
+ * Matnda mask tokeni bormi. Bunday matn (xotira fakti) boshqa suhbatda ma'nosiz —
+ * token xaritasi faqat bitta suhbat/so'rovda yashaydi — shuning uchun xotiraga yozilmaydi.
+ */
+export function hasMaskToken(text: string | null | undefined): boolean {
+  return !!text && TOKEN_RE.test(text);
+}
+
+/** Token nomi to'g'ri shakldami (mijoz server yuborgan xaritani tekshiradi). */
+export function isMaskToken(tok: unknown): tok is string {
+  return typeof tok === "string" && tok.length <= 32 && new RegExp(`^${TOKEN_RE.source}$`).test(tok);
 }
 
 /**
@@ -99,22 +116,34 @@ export interface MaskSession {
   cnt: Counters;
   revIndex: Map<string, string>;
   tokenMap: Record<string, string>;
+  /** Token nomi prefiksi ("CTX_") — server konteksti mijoz tokenlari bilan to'qnashmasin. */
+  prefix?: string;
 }
 
 export function createMaskSession(): MaskSession {
   return { cnt: counter(), revIndex: new Map(), tokenMap: {} };
 }
 
+/**
+ * Server qo'shadigan kontekst (xotira, bilim bazasi, Cowork ro'yxati) uchun sessiya — Blind
+ * Prompting yoqilganda shu matnlar ham mijoz bilan BIR XIL qoidalar bilan maskalanadi.
+ * Tokenlar `[CTX_PERSON_A]` — mijozning `[PERSON_A]` tokenlari bilan to'qnashmaydi; xaritasi
+ * mijozga ("blind-map" hodisasi) yuboriladi, provayderga emas.
+ */
+export function createServerMaskSession(): MaskSession {
+  return { ...createMaskSession(), prefix: "CTX_" };
+}
+
 /** Mask PII inside `text` into stable tokens; returns the token map. */
 export function mask(text: string, session: MaskSession = createMaskSession()): BlindResult {
-  const { cnt, revIndex, tokenMap } = session; // revIndex: original → token
+  const { cnt, revIndex, tokenMap, prefix = "" } = session; // revIndex: original → token
 
   const alloc = (cat: keyof Counters, value: string): string => {
     const key = `${cat}:${value.trim().toLowerCase()}`;
     const found = revIndex.get(key);
     if (found) return found;
     cnt[cat] += 1;
-    const tok = label(cat, cnt[cat]);
+    const tok = label(cat, cnt[cat], prefix);
     revIndex.set(key, tok);
     tokenMap[tok] = value;
     return tok;
