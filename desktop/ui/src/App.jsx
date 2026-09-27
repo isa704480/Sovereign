@@ -50,6 +50,7 @@ export default function App() {
   const [sideTab, setSideTab] = useState("tasks");
   const [panelTab, setPanelTab] = useState("changes");
   const [palette, setPalette] = useState(false);
+  const [autoConsent, setAutoConsent] = useState(false); // Full auto xavfi — papka uchun bir martalik rozilik
   const [shortcuts, setShortcuts] = useState(false);
   const [auditOpen, setAuditOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(null);
@@ -149,8 +150,14 @@ export default function App() {
     if (next) setSettings(next);
   }, []);
   const setLang = (l) => setSetting({ lang: l });
-  const setFullAuto = (on) => {
-    setSetting({ fullAuto: on });
+  // Full auto yoqish: shu papka uchun rozilik bo'lmasa — avval xavf dialogi (main ham `fullAutoAck`siz yoqmaydi).
+  const setFullAuto = async (on, ack = false) => {
+    if (on && !ack && !settings.fullAutoConsented) {
+      setSettingsOpen(null); // ikki modal bir-birining fokus tuzog'ini buzmasin
+      setAutoConsent(true);
+      return;
+    }
+    await setSetting(on ? { fullAuto: true, ...(ack ? { fullAutoAck: true } : {}) } : { fullAuto: false });
     toast(on ? t("auto.enabled") : t("auto.disabled"), on ? "info" : "ok");
   };
   const toggleSidebar = () => setSetting({ sidebar: !settings.sidebar });
@@ -297,7 +304,7 @@ export default function App() {
   };
 
   // ---- Commands + hotkeys ----
-  const anyModal = !!(palette || shortcuts || settingsOpen || viewer || auditOpen || agent.confirm);
+  const anyModal = !!(palette || shortcuts || settingsOpen || viewer || auditOpen || autoConsent || agent.confirm);
   // Audit → "AI bilan tuzatish": tayyor topshiriq Kod rejimidagi composer'ga qo'yiladi (yuborilmaydi).
   const fixWithAi = (prompt) => {
     setAuditOpen(false);
@@ -312,7 +319,7 @@ export default function App() {
       { id: "new", label: t("sc.new"), icon: "plus", hint: "Ctrl N", group: g.task, run: newTask },
       { id: "open", label: t("sc.open"), icon: "folder", hint: "Ctrl O", group: g.task, run: pickFolder },
       ...(info?.recent ?? []).filter((r) => r !== info?.cwd).slice(0, 5).map((r) => ({ id: `recent-${r}`, label: `${t("folder.recentOpen")}: ${r.split(/[\\/]/).filter(Boolean).pop()}`, keywords: r, icon: "history", group: g.task, run: () => openRecent(r) })),
-      ...(info?.cwd ? [{ id: "reveal", label: t("files.reveal"), icon: "external", group: g.task, run: reveal }] : []),
+      ...(info?.cwd ? [{ id: "reveal", label: t(info?.platform === "darwin" ? "files.revealMac" : "files.reveal"), icon: "external", group: g.task, run: reveal }] : []),
       ...(info?.cwd ? [{ id: "audit", label: t("audit.title"), keywords: `${t("audit.keywords")} audit security rls env cors`, icon: "shield", group: g.task, run: () => setAuditOpen(true) }] : []),
       { id: "mode", label: mode === "code" ? t("palette.toChat") : t("palette.toCode"), icon: mode === "code" ? "chat" : "code", hint: "Ctrl E", group: g.task, run: () => setMode((m) => (m === "code" ? "chat" : "code")) },
       ...(agent.busy ? [{ id: "stop", label: t("sc.stop"), icon: "stop", hint: "Ctrl .", group: g.task, run: stop }] : []),
@@ -400,7 +407,7 @@ export default function App() {
   const settingsProps = {
     info, settings, setSetting, lang, setLang, model: info.model, onModel, auth, onLogin: login, onCancelLogin: cancelLogin, onLogout: logout,
     onPick: pickFolder, onOpenRecent: openRecent, onReveal: reveal, recent: info.recent ?? [], onClearHistory: clearHistory,
-    update, onUpdateAction: updateAction, onLink: (k) => S().openLink(k),
+    update, onUpdateAction: updateAction, onLink: (k) => S().openLink(k), onFullAuto: setFullAuto,
   };
 
   if (!settings.onboarded) {
@@ -472,6 +479,23 @@ export default function App() {
         {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
         {shortcuts && <ShortcutsHelp onClose={() => setShortcuts(false)} Modal={Modal} />}
         {settingsOpen && <Settings initial={settingsOpen} onClose={() => setSettingsOpen(null)} {...settingsProps} />}
+        {autoConsent && (
+          <Modal
+            title={t("auto.consent.title")} tone="danger" width={540} onClose={() => setAutoConsent(false)}
+            footer={(
+              <>
+                <span className="trunc mono muted small" title={info.cwd ?? ""}>{info.cwd ?? ""}</span>
+                <span className="foot-actions">
+                  <button type="button" className="btn" data-autofocus onClick={() => setAutoConsent(false)}>{t("confirm.cancel")}</button>
+                  <button type="button" className="btn btn-danger" onClick={() => { setAutoConsent(false); setFullAuto(true, true); }}>{t("auto.consent.yes")}</button>
+                </span>
+              </>
+            )}
+          >
+            <p>{t("auto.consent.body")}</p>
+            <p className="muted small">{t("auto.consent.notSandbox")}</p>
+          </Modal>
+        )}
         {agent.confirm && <ConfirmDialog req={agent.confirm} onReply={replyConfirm} />}
         <Toasts toasts={toasts} onDismiss={dismissToast} />
       </div>

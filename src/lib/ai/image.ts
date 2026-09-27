@@ -1,6 +1,6 @@
 import "server-only";
 import { omniImage, omniImagePrompt } from "@/lib/ai/omniroute-media";
-import { modelAllowedIn } from "@/lib/ai/region";
+import { hostAllowedIn, modelAllowedIn } from "@/lib/ai/region";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 /** Oxirgi zaxira — Google (mintaqa siyosati tekshiruvi uchun alohida). */
@@ -170,16 +170,22 @@ export async function generateImage(request: string, opts: { country?: string | 
   // Route maxDuration 180s — hamma provayderlar shu byudjet ichida.
   const deadline = Date.now() + 165_000;
   const aspect = detectAspect(request);
-  const prompt = (await omniImagePrompt(request, "image")) ?? request;
-  const viaKeyed = await pollinationsKeyed(prompt, aspect, deadline);
+  // Mintaqa siyosati (region.ts HOST_POLICY): har bir hop o'z hosti bo'yicha tekshiriladi —
+  // route OFAC mintaqasini rad etadi, bu yerda ikkinchi himoya qatlami.
+  const country = opts.country;
+  const prompt = (await omniImagePrompt(request, "image", country)) ?? request;
+  const polliOk = hostAllowedIn("pollinations", country);
+  const viaKeyed = polliOk ? await pollinationsKeyed(prompt, aspect, deadline) : null;
   if (viaKeyed) return viaKeyed;
-  const viaPolli = await pollinationsAnon(prompt, aspect, deadline);
+  const viaPolli = polliOk ? await pollinationsAnon(prompt, aspect, deadline) : null;
   if (viaPolli) return viaPolli;
-  const viaOmni = await omniImage(prompt, deadline);
+  const viaOmni = await omniImage(prompt, deadline, country);
   if (viaOmni) return viaOmni;
   if (!process.env.OPENROUTER_API_KEY) throw new Error("Rasm provayderi yo'q");
-  // Mintaqa siyosati (region.ts): Google bu mintaqaga xizmat ko'rsatmasa — chaqirilmaydi.
-  if (!modelAllowedIn(GEMINI_IMAGE_MODEL, opts.country)) throw new Error("Rasm provayderi mintaqada yopiq");
+  // Mintaqa siyosati (region.ts): Google (yoki OpenRouter hosti) bu mintaqaga xizmat ko'rsatmasa — chaqirilmaydi.
+  if (!modelAllowedIn(GEMINI_IMAGE_MODEL, country) || !hostAllowedIn("openrouter", country)) {
+    throw new Error("Rasm provayderi mintaqada yopiq");
+  }
   const res = await fetch(OPENROUTER, {
     method: "POST",
     headers: {

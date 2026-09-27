@@ -4,13 +4,13 @@
 
 import { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, Notification, Menu, screen, session as electronSession } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, sep } from "node:path";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
 // CLI modullari: dev'da repo'dagi ../cli/src; o'rnatilgan ilovada electron-builder
 // `extraResources` ularni resources/cli/src ga qo'yadi — app.asar/../cli/src aynan shu.
-import { loadConfig, saveConfig, clearAuth } from "../cli/src/config.mjs";
+import { loadConfig, saveConfig, clearAuth, revokeStoredToken } from "../cli/src/config.mjs";
 import {
   runTool,
   TOOL_SCHEMA,
@@ -40,7 +40,8 @@ import { registerProjectIpc } from "./electron/project.mjs";
 import { runAudit, auditPrompt, AUDIT_LANGS } from "../cli/src/audit.mjs";
 
 import { OFFLINE, netAllowed, installOfflineGuard } from "./electron/net.mjs";
-import { loadSettings, updateFromRenderer, updateInternal, rememberFolder, isDir } from "./electron/settings.mjs";
+import { loadSettings, updateFromRenderer, updateInternal, rememberFolder, isDir, FULL_AUTO_CONSENT_MAX } from "./electron/settings.mjs";
+import { folderKey, fullAutoMustAsk, hasHiddenFormat } from "./electron/full-auto.mjs";
 import { listTasks, saveTask, loadTask, removeTask, clearTasks, metaOf, validId } from "./electron/history.mjs";
 import { startLogin } from "./electron/auth.mjs";
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, updateState } from "./electron/updater.mjs";
@@ -228,20 +229,47 @@ function dropBackup(id) {
 /** Renderer'dan tasdiq so'raydi. meta (write_file/make_dir/run_command) — diff uchun. */
 function askConfirm(question, forcePrompt = false, meta = null) {
   let createdId = null;
+  // Haqiqiy (normallashtirilgan) yo'l: model yozgan "a/../../src/x" o'rniga dialog, "auto" qatori va
+  // O'zgarishlar paneli yozuv AYNAN qayerga tushishini ko'rsatadi.
+  let rel = "";
+  if ((meta?.tool === "write_file" || meta?.tool === "make_dir") && typeof meta.path === "string") {
+    try {
+      const r = resolvePath(meta.path);
+      rel = r.outside ? "" : r.rel.split(sep).join("/");
+      meta = { ...meta, path: r.outside ? r.real : rel || meta.path };
+    } catch {
+      /* yo'l aniqlanmadi — asl ko'rinish qoladi */
+    }
+  }
   if (meta?.tool === "write_file" && typeof meta.path === "string") {
     ({ meta, createdId } = prepareWriteMeta(meta));
   }
+  // Ko'rinmas bidi/nol-kenglik belgilari — dialog ularni ochiq ko'rsatadi va ogohlantiradi.
+  if (meta && (hasHiddenFormat(meta.command) || hasHiddenFormat(meta.path))) meta = { ...meta, hiddenChars: true };
   // Xavf sababi asl ko'rinishda (CLI savolida KATTA harfda) — renderer uni UI tiliga o'giradi.
   if (meta?.tool === "run_command" && meta.risky) {
     meta = { ...meta, riskReason: classifyCommand(meta.command ?? "").reason || "" };
   }
   // FULL AUTO: hech narsa so'ralmaydi. Tashqi yo'l va push/publish/deploy/sudo —
   // so'ralmasdan rad etiladi (himoyalangan/bloklanganlarni runTool o'zi rad etadi).
+  // Istisno: CI/IDE/hook fayllari, ko'rinmas belgili buyruq/yo'l va `node -e`/`python -c` kabi
+  // satr-ichi kod — Full auto'da ham ODDIY tasdiq oynasi (full-auto.mjs; bu sandbox emas).
   if (fullAutoActive()) {
-    const denied = meta?.outside ? "outside" : meta?.tool === "run_command" && fullAutoDenyReason(meta.command) ? "command" : null;
-    if (denied && createdId) dropBackup(createdId);
-    send("auto", { ok: !denied, denied, meta });
-    return Promise.resolve(!denied);
+    // fullAutoDeny (cli/src/tools.mjs): sessiyadan keyin o'zi ishga tushadigan fayl (CI, git hook, …) — rad.
+    const denied = meta?.outside
+      ? "outside"
+      : meta?.fullAutoDeny
+        ? "autorun"
+        : meta?.tool === "run_command" && fullAutoDenyReason(meta.command)
+          ? "command"
+          : null;
+    const mustAsk = denied ? null : fullAutoMustAsk(meta, rel);
+    if (!mustAsk) {
+      if (denied && createdId) dropBackup(createdId);
+      send("auto", { ok: !denied, denied, meta });
+      return Promise.resolve(!denied);
+    }
+    meta = { ...meta, fullAutoAsk: mustAsk };
   }
   return new Promise((resolve) => {
     const id = randomUUID();
@@ -369,7 +397,7 @@ async function runRound(messages, config, withTools = true, signal = undefined, 
       res = await fetch(url, {
         method: "POST",
         signal,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}`, "X-Sov-Lang": mainLang() },
         body: JSON.stringify({
           messages: forServer(messages),
           ...(withTools ? { tools: TOOL_SCHEMA } : {}),
@@ -603,7 +631,9 @@ async function agentTurn(messages, config, turn) {
   const localName = () => turn.local?.model ?? null;
   // signal: "To'xtatish" / yangi vazifa / papka almashtirish ishlayotgan buyruqni ham
   // (butun jarayon daraxti bilan) to'xtatadi — 120 s kutib qolmaydi.
-  const tracker = createTurnTracker((name, args) => runToolWithUndo(name, args, confirm, { signal: turn.controller.signal }));
+  // fullAuto: runTool buni bolaga egress to'sig'i (proxy=127.0.0.1:9) va token env'larini olib tashlash
+  // uchun ishlatadi (cli/src/tools.mjs qo'llab-quvvatlasa; aks holda e'tiborsiz — zararsiz).
+  const tracker = createTurnTracker((name, args) => runToolWithUndo(name, args, confirm, { signal: turn.controller.signal, fullAuto: fullAutoActive() }));
   // Vazifa narxi (token + qadam) va ixtiyoriy token byudjeti (Sozlamalar → 0 = cheklovsiz).
   const meter = createUsageMeter(tokenBudget());
   for (let step = 0; step < maxSteps; step++) {
@@ -812,8 +842,10 @@ function publicLocal() {
 }
 
 function publicSettings() {
-  const { window: _w, recent: _r, lastFolder: _l, fullAutoFolder: _f, ...rest } = loadSettings();
-  return rest;
+  const { window: _w, recent: _r, lastFolder: _l, fullAutoFolder: _f, fullAutoConsent: consent, ...rest } = loadSettings();
+  // Renderer faqat joriy papka uchun rozilik bor-yo'qligini biladi (ro'yxat main'da qoladi).
+  const key = workspace ? folderKey(workspace) : "";
+  return { ...rest, fullAutoConsented: !!key && consent.includes(key) };
 }
 
 function persistCurrentTask() {
@@ -826,21 +858,28 @@ function setWorkspace(dir) {
   rememberFolder(dir);
   // Full auto faqat yoqilgan papkada: boshqa (ehtimol ishonchsiz) papka ochilsa — o'chadi.
   const s = loadSettings();
-  if (s.fullAuto && !samePath(s.fullAutoFolder, dir)) {
+  if (s.fullAuto && !fullAutoBoundTo(dir)) {
     updateInternal({ fullAuto: false, fullAutoFolder: "", fullAutoLocal: false });
     return true;
   }
   return false;
 }
 
-function samePath(a, b) {
-  return !!a && !!b && a.replace(/[\\/]+$/, "").toLowerCase() === b.replace(/[\\/]+$/, "").toLowerCase();
+/**
+ * Full auto aynan shu papkaga bog'langanmi: realpath bo'yicha (symlink qayta yo'naltirilsa — yo'q),
+ * registr faqat Windows/macOS'da e'tiborsiz. Eski (xom yo'l) bog'lanish ham realpath'ga keltiriladi.
+ */
+function fullAutoBoundTo(dir) {
+  const bound = loadSettings().fullAutoFolder;
+  if (!bound || !dir) return false;
+  const key = folderKey(dir);
+  return !!key && (key === bound || key === folderKey(bound));
 }
 
 /** Full auto yoqilganmi: yoqilgan VA aynan shu papka uchun yoqilgan. */
 function fullAutoEnabled() {
   const s = loadSettings();
-  return !!(s.fullAuto && workspace && samePath(s.fullAutoFolder, workspace));
+  return !!(s.fullAuto && workspace && fullAutoBoundTo(workspace));
 }
 
 /**
@@ -1015,7 +1054,7 @@ async function fetchInquiry(config, turn, payload) {
     const res = await fetch(url, {
       method: "POST",
       signal: AbortSignal.any([turn.controller.signal, AbortSignal.timeout(INQUIRY_TIMEOUT_MS)]),
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}`, "X-Sov-Lang": mainLang() },
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -1341,10 +1380,21 @@ handle("history:clear", async () => {
 
 // ---- Sozlamalar -------------------------------------------------------------
 handle("settings:set", async (_e, patch) => {
+  // Full auto yoqish — shu papka (realpath) uchun bir martalik rozilik bilan: renderer xavf dialogini
+  // ko'rsatib `fullAutoAck: true` yuboradi; rozilik bo'lmasa (yoki papka yo'q) yoqilmaydi.
+  if (patch && typeof patch === "object" && patch.fullAuto === true) {
+    const key = workspace ? folderKey(workspace) : "";
+    const consent = loadSettings().fullAutoConsent;
+    if (!key) patch = { ...patch, fullAuto: false };
+    else if (!consent.includes(key)) {
+      if (patch.fullAutoAck === true) updateInternal({ fullAutoConsent: [...consent, key].slice(-FULL_AUTO_CONSENT_MAX) });
+      else patch = { ...patch, fullAuto: false };
+    }
+  }
   const s = updateFromRenderer(patch);
   // Full auto shu (joriy) papkaga bog'lanadi; o'chirilsa — bog'lanish ham o'chadi.
   // Full auto o'chsa — "Full auto + mahalliy model" tasdig'i ham bekor bo'ladi.
-  if (patch && "fullAuto" in patch) updateInternal({ fullAutoFolder: s.fullAuto ? workspace ?? "" : "", ...(s.fullAuto ? {} : { fullAutoLocal: false }) });
+  if (patch && "fullAuto" in patch) updateInternal({ fullAutoFolder: s.fullAuto ? folderKey(workspace) : "", ...(s.fullAuto ? {} : { fullAutoLocal: false }) });
   // R1: "Full auto + mahalliy model" faqat Full auto shu papkada yoqilgan bo'lsa (tasdiq faqat renderer'da emas).
   if (loadSettings().fullAutoLocal === true && !fullAutoEnabled()) updateInternal({ fullAutoLocal: false });
   if (patch && "theme" in patch) applyTheme();
@@ -1386,6 +1436,8 @@ handle("auth:cancel", async () => {
 
 handle("auth:logout", async () => {
   abortTurn();
+  // Token serverda ham bekor qilinadi (best-effort, ~3s; offline rejimda fetch baribir rad etiladi).
+  await revokeStoredToken().catch(() => false);
   clearAuth();
   session.config = applyModelOverride(loadConfig());
   session.messages = initialMessages(session.config);

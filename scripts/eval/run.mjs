@@ -616,7 +616,7 @@ function writeSummary({ models, results, tasks, spent, stopped, runId, outDir, r
       reasoning: "each model's default reasoning/thinking setting on its route; no extra effort flags",
       systemPrompt: "none (single user message)",
       grading: {
-        coding: "hidden unit tests (all must pass) in a sandboxed child process: JS in node:vm (no require/process/fetch), Python -I with sockets blocked; 10s timeout",
+        coding: "hidden unit tests (all must pass) in a separate child process with a timeout; preferred: Docker container with no network, read-only FS, no mounts/env; fallback without Docker: Node permission model (no fs/child_process) and Python audit hooks — hardening layers, not full isolation",
         math: "exact match of the final 'ОТВЕТ:/ANSWER:/JAVOB:' line",
         instruction: "deterministic checks: JSON parse + schema, sentence/word counts, required keywords, forbidden letter, uppercase, script ratio",
         writing: "deterministic checks only (script/alphabet, length, must-include terms); style and fluency are NOT judged",

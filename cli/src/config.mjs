@@ -122,6 +122,33 @@ export function saveConfig(patch) {
   return FILE;
 }
 
+/**
+ * Faylda saqlangan tokenni SERVERDA ham bekor qiladi (POST /api/cli/logout) — best-effort:
+ * tarmoq/HTTP xatosi e'tiborsiz, ~3 soniya kutiladi. clearAuth()'dan OLDIN chaqiriladi
+ * (aks holda sizib chiqqan token 90 kun ishlayverardi). Muhitdagi SOVEREIGN_TOKEN'ga tegmaydi.
+ */
+export async function revokeStoredToken(timeoutMs = 3000) {
+  let file = {};
+  try {
+    file = JSON.parse(readFileSync(FILE, "utf8"));
+  } catch {
+    return false;
+  }
+  const token = file && typeof file.token === "string" ? file.token.trim() : "";
+  if (!token) return false;
+  const base = sanitizeBaseUrl(process.env.SOVEREIGN_URL || file.baseUrl || DEFAULTS.baseUrl);
+  try {
+    const res = await fetch(`${base}/api/cli/logout`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function clearAuth() {
   if (!existsSync(FILE)) return;
   const cfg = loadConfig();

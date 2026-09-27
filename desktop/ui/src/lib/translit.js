@@ -14,7 +14,7 @@ const PROTECT = new Set([
 ]);
 
 /** Translit qoidasiga bo'ysunmaydigan o'zlashma so'zlar (kichik harf asos → kirill asos). */
-const STEMS = [["kompyuter", "компьютер"]];
+const STEMS = [["kompyuter", "компьютер"], ["sikl", "цикл"]];
 
 /** Qisqartma va brendlar — lotinda qoladi. */
 const CAPS = new Set(["SOVEREIGN", "CLI", "OK", "AI", "SQL", "VS", "CI", "README", "API", "URL", "UNC", "JSON", "HTML", "CSS", "UI", "UX", "PC", "GUI"]);

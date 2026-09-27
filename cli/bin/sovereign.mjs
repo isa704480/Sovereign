@@ -3,7 +3,7 @@ import readline from "node:readline";
 import { format } from "node:util";
 import { readFileSync, statSync } from "node:fs";
 import { dirname as pathDirname, resolve as pathResolve, sep as pathSep } from "node:path";
-import { loadConfig, saveConfig, clearAuth, isAccountMode, normalizeSetting, CONFIG_PATH } from "../src/config.mjs";
+import { loadConfig, saveConfig, clearAuth, revokeStoredToken, isAccountMode, normalizeSetting, CONFIG_PATH } from "../src/config.mjs";
 import { agentTurn, initialMessages, swarm } from "../src/agent.mjs";
 import { loadMemory, addMemory, removeMemory, clearMemory, syncMemory } from "../src/memory.mjs";
 import { addProjectNote, createProjectFile, projectInfo, readProjectMemory, refreshProjectMessage, PROJECT_MAX_BYTES } from "../src/project-memory.mjs";
@@ -14,6 +14,8 @@ import { collectMentions, completeMention, readAttachment } from "../src/files.m
 import { banner, c, clearScreen, configureUi, gutter, hintBar, logo, skillsList, slashMenu, spinner, stopSpinner, stripAnsi } from "../src/ui.mjs";
 import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
 import { contextSummary, fullAutoDenyReason, isTrustableDir, resolvePath as resolveWs, visible } from "../src/tools.mjs";
+import { fullAutoMustAsk } from "../src/full-auto.mjs";
+import { confirmFullAutoTrust } from "../src/trust.mjs";
 import { cliSnapshotStore, describeCounts } from "../src/snapshot.mjs";
 import { fetchMe, pushSettings, startBackgroundSync } from "../src/sync.mjs";
 import { countTurns, listSessions, loadSession, rewind, saveSession } from "../src/sessions.mjs";
@@ -58,15 +60,56 @@ const vibe = { on: !flags.noVibe && (invokedAs === "sov" || Boolean(flags.vibe))
  * FULL AUTO — `--full-auto` yoki `/auto` (foydalanuvchi o'zi yoqadi): HECH NARSA
  * so'ralmaydi. Ish papkasi ichidagi yozish va barcha buyruqlar (paket o'rnatish,
  * test, build) tasdiqsiz bajariladi. So'ralmasdan RAD ETILADI: tashqi yo'llar,
- * himoyalangan/bloklangan narsalar (tools.mjs) va push/publish/deploy/sudo.
+ * himoyalangan/bloklangan narsalar (tools.mjs), push/publish/deploy/sudo, git config
+ * va sessiyadan keyin o'zi ishga tushadigan fayllar (CI/hook/.vscode/SOVEREIGN.md).
+ * DIQQAT: bu rad etish faqat buyruq MATNI filtri, sandbox EMAS — agent yozgan skript
+ * foydalanuvchi huquqlari bilan ishlaydi. Shuning uchun har papkada bir martalik
+ * ogohlantirishli tasdiq (src/trust.mjs), flag orqali yoqilganda ham.
  */
 const fullAuto = { on: Boolean(flags.fullAuto) };
+
+/**
+ * `sov init --ai`: foydalanuvchi aynan SOVEREIGN.md ni to'ldirishni so'ragan — shu bitta
+ * fayl uchun avtomatik-fayl cheklovi (forcePrompt / full auto rad) qo'llanmaydi.
+ */
+const initTarget = { path: "" };
+function isInitTarget(meta) {
+  if (!initTarget.path || meta?.tool !== "write_file" || meta.outside || !meta.path) return false;
+  const a = pathResolve(String(meta.path));
+  return process.platform === "win32" ? a.toLowerCase() === initTarget.path.toLowerCase() : a === initTarget.path;
+}
+
+/**
+ * Full auto'da ham ODDIY tasdiq kerakmi (Cowork bilan bir xil qoidalar, cli/src/full-auto.mjs):
+ * CI/IDE/hook fayli, ko'rinmas bidi/nol-kenglik belgisi, `node -e` / `python -c` kabi satr-ichi kod.
+ * Rad etiladigan holatlar (tashqi yo'l, autorun fayl, push/deploy) — null: ularni fullAutoDecision rad etadi.
+ */
+function fullAutoAskReason(meta) {
+  if (!meta || meta.outside) return null;
+  if (meta.fullAutoDeny && !isInitTarget(meta)) return null;
+  if (meta.tool === "run_command" && fullAutoDenyReason(meta.command)) return null;
+  let rel = "";
+  if ((meta.tool === "write_file" || meta.tool === "make_dir") && typeof meta.path === "string") {
+    try {
+      const r = resolveWs(meta.path);
+      rel = r.outside ? "" : String(r.rel ?? "");
+    } catch {
+      /* yo'l aniqlanmadi — meta.path bilan tekshiriladi */
+    }
+  }
+  return fullAutoMustAsk(meta, rel);
+}
 
 /** Full auto qarori: true — bajar, false — rad et (hech qachon so'ramaydi). */
 function fullAutoDecision(question, meta) {
   const q = stripAnsi(question);
   if (meta?.outside) {
     console.log(`  ${c.red("⊘")} ${c.dim(q)} ${c.red("full auto: ish papkasidan tashqarida — rad etildi")}`);
+    return false;
+  }
+  // Sessiyadan keyin o'zi ishga tushadigan fayl (CI, git hook, .vscode task, install-skript, SOVEREIGN.md).
+  if (meta?.fullAutoDeny && !isInitTarget(meta)) {
+    console.log(`  ${c.red("⊘")} ${c.dim(q)} ${c.red(`full auto: ${meta.fullAutoDeny} — rad etildi (qo'lda tasdiqlang: /auto o'chirib qayta so'rang)`)}`);
     return false;
   }
   const deny = meta?.tool === "run_command" ? fullAutoDenyReason(meta.command) : null;
@@ -106,12 +149,21 @@ function requestedLocal() {
  */
 async function applyLocalStartup(config, { interactive, rl, log }) {
   const want = requestedLocal();
-  if (want == null) return { ok: true };
+  if (want == null) {
+    await applyFullAutoStartup({ interactive, rl, log });
+    return { ok: true };
+  }
   const r = await resolveLocalModel(want, config, { c });
   if (!r.ok) return { ok: false, error: r.error, hint: r.hint ?? [] };
   config.local = r.model.name;
   if (fullAuto.on && !(await confirmFullAutoLocal({ interactive, ask: (q) => ask(rl, q), log, c }))) fullAuto.on = false;
+  await applyFullAutoStartup({ interactive, rl, log });
   return { ok: true };
+}
+
+/** --full-auto flag: shu papkada bir martalik ogohlantirishli tasdiq (interaktivsiz — faqat ogohlantirish). */
+async function applyFullAutoStartup({ interactive, rl, log }) {
+  if (fullAuto.on && !(await confirmFullAutoTrust({ interactive, ask: (q) => ask(rl, q), log, c }))) fullAuto.on = false;
 }
 
 /** applyLocalStartup xatosi — terminalga (qizil xabar + ko'rsatma). */
@@ -255,12 +307,18 @@ async function confirmer(rl) {
   };
   return async (question, forcePrompt = false, meta = null) => {
     stopSpinner();
+    let fullAutoAsk = null;
     if (fullAuto.on) {
-      const ok = fullAutoDecision(question, meta);
-      if (ok) previewWrite(meta, false);
-      return ok;
+      fullAutoAsk = fullAutoAskReason(meta);
+      if (!fullAutoAsk) {
+        const ok = fullAutoDecision(question, meta);
+        if (ok) previewWrite(meta, false);
+        return ok;
+      }
+      // Full auto'da ham majburiy tasdiq ("a" taklif qilinmaydi).
+      console.log(`  ${c.amber("⚡")} ${c.dim("full auto: bu amal qo'lda tasdiqlanadi")} ${c.dim(`(${fullAutoAsk})`)}`);
     }
-    const mustAsk = Boolean(forcePrompt || meta?.risky || meta?.outside);
+    const mustAsk = Boolean(fullAutoAsk || forcePrompt || meta?.risky || meta?.outside);
     if (!mustAsk && (trust.all || inTrustedDir(meta?.path))) {
       console.log(`  ${c.dim("✓")} ${c.dim(stripAnsi(question))} ${c.green("auto")}`);
       previewWrite(meta, false);
@@ -298,8 +356,13 @@ async function confirmer(rl) {
  */
 function nonInteractiveConfirmer() {
   return async (question, forcePrompt = false, meta = null) => {
-    if (fullAuto.on) return fullAutoDecision(question, meta);
-    const mustAsk = Boolean(forcePrompt || meta?.risky || meta?.outside);
+    if (fullAuto.on) {
+      const why = fullAutoAskReason(meta);
+      if (!why) return fullAutoDecision(question, meta);
+      console.log(`  ⊘ ${stripAnsi(question)} — rad etildi (full auto: ${why} — interaktiv tasdiq talab qilinadi)`);
+      return false;
+    }
+    const mustAsk = Boolean((forcePrompt && !isInitTarget(meta)) || meta?.risky || meta?.outside);
     const q = stripAnsi(question);
     if (!mustAsk && (AUTO_YES || flags.vibe)) {
       console.log(`  ✓ ${q} (auto-yes)`);
@@ -335,7 +398,7 @@ async function ensureAuth(rl) {
 // ---- yordam -----------------------------------------------------------
 const COMMAND_HELP = {
   login: ["sov login [--local | --url=URL]", "Brauzer orqali SOVEREIGN akkauntiga ulanish (tasdiq sahifasi ochiladi).", ["sov login", "sov login --local"]],
-  logout: ["sov logout", "Akkauntdan chiqish (lokal token o'chiriladi).", []],
+  logout: ["sov logout", "Akkauntdan chiqish (token serverda ham bekor qilinadi).", []],
   whoami: ["sov whoami [--json]", "Ulanish holati: akkaunt yoki o'z OpenRouter kalitingiz.", ["sov whoami --json"]],
   doctor: ["sov doctor [--json]", "Diagnostika: Node/binary, versiya, config, server, login, ish papkasi, PATH. Muammo bo'lsa chiqish kodi 1.", ["sov doctor", "sov doctor --json"]],
   init: [
@@ -404,7 +467,7 @@ function handleHelp(topic) {
       `    -m, --model <id>         shu ish uchun model (saqlanmaydi)`,
       `    -y, --yes                ish papkasi ichidagi oddiy amallarni avtomatik tasdiqlash`,
       `        --vibe, --no-vibe    vibe rejimni yoqish / o'chirish (sov nomi bilan yoqiq)`,
-      `        --full-auto, --auto  FULL AUTO: hech narsa so'ralmaydi (tashqi yo'l, push/publish/deploy rad etiladi)`,
+      `        --full-auto, --auto  FULL AUTO: hech narsa so'ralmaydi (sandbox emas — faqat ishonchli papkada)`,
       `        --no-verify          AI hakam (halollik tekshiruvi)ni o'chirish`,
       `        --budget <token>     bitta vazifa uchun token byudjeti (mas. 50k) — oshsa navbat to'xtaydi`,
       `        --no-ask             vazifa boshida aniqlashtiruvchi savollar berilmasin (chuqur so'rash)`,
@@ -440,8 +503,10 @@ function handleHelp(topic) {
       "",
       `  ${w("Xavfsizlik:")} ish papkasidan tashqaridagi yo'l va xavfli buyruqlar HAR DOIM so'raladi`,
       `    (--yes/vibe ham o'tkazib yubormaydi); -p rejimida ular avtomatik rad etiladi.`,
-      `    --full-auto: hech narsa so'ralmaydi — xavfli buyruqlar ham bajariladi; tashqi yo'l,`,
-      `    git push, publish, deploy, sudo va bloklangan buyruqlar esa so'ralmasdan rad etiladi.`,
+      `    --full-auto: hech narsa so'ralmaydi — xavfli buyruqlar ham bajariladi. Tashqi yo'l, git push,`,
+      `    publish, deploy, sudo, git config va CI/hook fayllari rad etiladi, LEKIN bu faqat buyruq matni`,
+      `    filtri, sandbox emas: repo fayllaridagi yashirin ko'rsatma agentni ixtiyoriy kod bajarishga`,
+      `    undashi mumkin. Har papkada bir marta tasdiq so'raladi — faqat ishonchli papkada yoqing.`,
       "",
       `  ${w("Chiqish kodlari:")} 0 muvaffaqiyat · 1 xato · 2 noto'g'ri foydalanish · 3 login kerak · 130 Ctrl+C`,
       `  ${w("Muhit:")} SOVEREIGN_URL, SOVEREIGN_TOKEN, OPENROUTER_API_KEY, SOVEREIGN_MODEL, NO_COLOR, SOV_VERIFY=0`,
@@ -1130,11 +1195,17 @@ async function repl() {
         rewritePrompt();
         continue;
       }
+      // Papka bo'yicha bir martalik ogohlantirishli tasdiq (flag bilan yoqilganda ham shu).
+      if (fullAuto.on && !(await confirmFullAutoTrust({ interactive: true, ask: (q) => ask(rl, q), log: say, c }))) {
+        fullAuto.on = false;
+        rewritePrompt();
+        continue;
+      }
       say(
         fullAuto.on
           ? `${c.emerald("⚡ FULL AUTO")} ${c.dim("yoqildi — hech narsa so'ralmaydi: fayl yozish, paket o'rnatish, test va build darhol bajariladi.")}
 ` +
-              G + c.amber("  ⚠ Faqat ishonchli papkada ishlating. ") + c.dim("Tashqi yo'llar, git push, publish, deploy va sudo avtomatik rad etiladi. /auto — o'chirish.")
+              G + c.amber("  ⚠ Faqat ishonchli papkada ishlating. ") + c.dim("Push/publish/deploy/sudo rad etish ro'yxati faqat matn filtri — sandbox emas. /auto — o'chirish.")
           : `${c.amber("○ FULL AUTO")} ${c.dim("o'chirildi — amallar yana tasdiqlanadi.")}`,
       );
       rewritePrompt();
@@ -1399,6 +1470,7 @@ async function repl() {
       continue;
     }
     if (input === "/logout") {
+      await revokeStoredToken(); // token serverda ham bekor qilinadi (best-effort, ~3s)
       const base = clearAuth();
       config = loadConfig();
       say(`${c.amber("Chiqdingiz.")} ${base ? c.dim(base) : ""}`);
@@ -1715,7 +1787,8 @@ async function handleLogin() {
   return ok ? EXIT.OK : EXIT.ERROR;
 }
 
-function handleLogout() {
+async function handleLogout() {
+  await revokeStoredToken(); // token serverda ham bekor qilinadi (best-effort, ~3s)
   const base = clearAuth();
   console.log(`\n  ${c.green("Chiqdingiz.")} ${base ? c.dim(base) : ""}\n`);
   return EXIT.OK;
@@ -1811,6 +1884,7 @@ async function handleInit() {
     "asosiy papkalar, stek, buyruqlar (o'rnatish/ishga tushirish/test/build/lint — faqat loyihada haqiqatan bor buyruqlar), " +
     "kod uslubi va qoidalar, \"Tegma\" ro'yxati (generatsiya qilingan kod, lock fayllar va h.k.). Mavjud qoidalar va '## Eslatmalar' " +
     `bo'limini SAQLAB QOL. Qisqa yoz (${PROJECT_MAX_BYTES / 1024} KB dan oshmasin), kalit/parol/token yozma. Faqat SOVEREIGN.md ni o'zgartir, buyruq ishga tushirma.`;
+  initTarget.path = pathResolve(r.path);
   if (!process.stdin.isTTY) return printMode(task);
   return oneShot(task, { inquiry: false });
 }

@@ -246,7 +246,7 @@ export function install() {
     retry: () => {},
     remember: () => {},
     confirmReply: (id, ok) => { const r = pending.get(id); if (r) { pending.delete(id); r(!!ok); } },
-    settings: { set: async (p) => { Object.assign(settings, p); return { ...settings }; } },
+    settings: { set: async (p) => { const { fullAutoAck, ...rest } = p ?? {}; if (fullAutoAck) settings.fullAutoConsented = true; if (rest.fullAuto && !settings.fullAutoConsented) rest.fullAuto = false; Object.assign(settings, rest); return { ...settings }; } },
     // Chuqur so'rash kartasi javobi (main: inquiry:answer).
     inquiry: {
       answer: async (id, answers) => { const c = choices.get(id); if (!c || c.type !== "inquiry") return { ok: false, error: "not-found" }; choices.delete(id); const n = Object.keys(answers ?? {}).length; c.resolve(n ? { answers } : { skip: true }); return { ok: true, answered: n }; },

@@ -46,7 +46,7 @@ export const UPDATES: readonly ProductUpdate[] = [
     tag: "new",
     title: {
       uz: "CLI va desktop: \"Aslida nima bo'ldi\" jurnali",
-      "uz-cyrl": "CLI ва desktop: \"Аслида нима бўлди\" журнали",
+      "uz-cyrl": "CLI ва десктоп: \"Аслида нима бўлди\" журнали",
       ru: "CLI и десктоп: журнал «Что произошло на самом деле»",
       en: "CLI & desktop: \"What actually happened\" log",
     },
@@ -103,7 +103,7 @@ export const UPDATES: readonly ProductUpdate[] = [
     },
     body: {
       uz: "Tariflar, CLI, desktop, to'lovlar va savol-javoblar bir joyda (/docs). Xizmat ishlayaptimi — /status sahifasida. Sayt endi soveregn.xyz manzilida; eski havolalar yo'naltiriladi.",
-      "uz-cyrl": "Тарифлар, CLI, desktop, тўловлар ва савол-жавоблар бир жойда (/docs). Хизмат ишлаяптими — /status саҳифасида. Сайт энди soveregn.xyz манзилида; эски ҳаволалар йўналтирилади.",
+      "uz-cyrl": "Тарифлар, CLI, десктоп илова, тўловлар ва савол-жавоблар бир жойда (/docs). Хизмат ишлаяптими — /status саҳифасида. Сайт энди soveregn.xyz манзилида; эски ҳаволалар йўналтирилади.",
       ru: "Тарифы, CLI, десктоп, оплата и FAQ — в одном месте (/docs). Работает ли сервис — на странице /status. Сайт переехал на soveregn.xyz, старые ссылки перенаправляются.",
       en: "Plans, CLI, desktop app, payments and FAQ in one place (/docs), plus a live service health page (/status). The site now lives at soveregn.xyz — old links redirect.",
     },
@@ -164,16 +164,16 @@ export const UPDATES: readonly ProductUpdate[] = [
     date: "2026-09-25",
     tag: "new",
     title: {
-      uz: "Kripto va СБП orqali to'lov",
+      uz: "Kripto va SBP orqali to'lov",
       "uz-cyrl": "Крипто ва СБП орқали тўлов",
       ru: "Оплата криптовалютой и через СБП",
-      en: "Pay with crypto or СБП",
+      en: "Pay with crypto or SBP",
     },
     body: {
-      uz: "Karta (obuna)dan tashqari endi kripto va Rossiya uchun СБП/МИР orqali ham to'lash mumkin. Promokodlar barcha usullarda ishlaydi.",
+      uz: "Karta (obuna)dan tashqari endi kripto va Rossiya uchun SBP/MIR orqali ham to'lash mumkin. Promokodlar barcha usullarda ishlaydi.",
       "uz-cyrl": "Карта (обуна)дан ташқари энди крипто ва Россия учун СБП/МИР орқали ҳам тўлаш мумкин. Промокодлар барча усулларда ишлайди.",
       ru: "Помимо карты (подписка) теперь можно платить криптовалютой, а в России — через СБП или картой МИР. Промокоды работают во всех способах.",
-      en: "Besides card subscriptions you can now pay with crypto, or via СБП / МИР in Russia. Promo codes work with every method.",
+      en: "Besides card subscriptions you can now pay with crypto, or via SBP / MIR cards in Russia. Promo codes work with every method.",
     },
   },
   {

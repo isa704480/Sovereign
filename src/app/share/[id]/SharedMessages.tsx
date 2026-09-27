@@ -32,7 +32,7 @@ export function SharedMessages({ messages }: { messages: Msg[] }) {
               {(m.modelId && MODEL_BY_ID[m.modelId]?.glyph) || "⬡"}
             </span>
             <div className="min-w-0 flex-1">
-              <Markdown content={m.content} />
+              <Markdown content={m.content} ugc />
             </div>
           </div>
         ),

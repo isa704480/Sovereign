@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Loader2, MailCheck } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { AnimatePresence, motion } from "motion/react";
 import { signUpWithEmail } from "@/app/actions/auth";
@@ -15,6 +15,7 @@ import { EASE } from "@/lib/motion";
 import { useT } from "@/store/chat";
 import { OAuthButtons } from "./OAuthButtons";
 import { PasswordInput } from "./PasswordInput";
+import { Turnstile, type TurnstileHandle } from "./Turnstile";
 import { FieldError, FormAlert, SubmitButton, actionFailed, inputClass } from "./form-primitives";
 
 /** Landing'dagi tarif tugmasi: /register?plan=pro&period=year — Dashboard o'qiydi. */
@@ -39,6 +40,9 @@ export function RegisterForm() {
   const [pending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  // CAPTCHA tokeni (Turnstile yoqilgan bo'lsa) — bir martalik, har urinishdan keyin yangilanadi.
+  const [captcha, setCaptcha] = useState<string | undefined>();
+  const captchaRef = useRef<TurnstileHandle>(null);
 
   const form = useForm<RegisterInput>({
     resolver: zodResolver(registerSchema),
@@ -51,12 +55,14 @@ export function RegisterForm() {
     startTransition(async () => {
       // Tarmoq uzilsa server action reject bo'ladi — Next xato ekrani o'rniga forma ichida xabar.
       try {
-        const res = await signUpWithEmail(values);
+        const res = await signUpWithEmail(values, captcha);
         if (!res) return; // redirected
         if (!res.ok) setServerError(res.error);
         else if (res.status === "confirm-email") setSentTo(values.email);
       } catch (e) {
         setServerError(actionFailed(e, "signUp"));
+      } finally {
+        captchaRef.current?.reset();
       }
     });
   }
@@ -162,6 +168,8 @@ export function RegisterForm() {
             </div>
           )}
         />
+
+        <Turnstile ref={captchaRef} onToken={setCaptcha} />
 
         <AnimatePresence>{serverError && <FormAlert message={serverError} />}</AnimatePresence>
 

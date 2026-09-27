@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowRight, Loader2 } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { AnimatePresence } from "motion/react";
 import { requestPasswordReset, signInWithEmail } from "@/app/actions/auth";
@@ -12,6 +12,7 @@ import { loginSchema, type LoginInput } from "@/lib/validations/auth";
 import { useT } from "@/store/chat";
 import { OAuthButtons } from "./OAuthButtons";
 import { PasswordInput } from "./PasswordInput";
+import { Turnstile, type TurnstileHandle } from "./Turnstile";
 import { FieldError, FormAlert, SubmitButton, actionFailed, inputClass } from "./form-primitives";
 
 interface LoginFormProps {
@@ -25,6 +26,9 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
   const [serverError, setServerError] = useState<string | null>(initialError ?? null);
   const [notice, setNotice] = useState<string | null>(null);
   const [resetMode, setResetMode] = useState(false);
+  // CAPTCHA tokeni (Turnstile yoqilgan bo'lsa) — bir martalik, har urinishdan keyin yangilanadi.
+  const [captcha, setCaptcha] = useState<string | undefined>();
+  const captchaRef = useRef<TurnstileHandle>(null);
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -39,10 +43,12 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
       // Tarmoq uzilsa server action reject bo'ladi — Next xato ekrani o'rniga forma ichida xabar
       // (redirect() xatosi actionFailed ichida qayta otiladi).
       try {
-        const res = await signInWithEmail(values, next);
+        const res = await signInWithEmail(values, next, captcha);
         if (res && !res.ok) setServerError(res.error);
       } catch (e) {
         setServerError(actionFailed(e, "signIn"));
+      } finally {
+        captchaRef.current?.reset();
       }
     });
   }
@@ -53,7 +59,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
     const email = form.getValues("email");
     startTransition(async () => {
       try {
-        const res = await requestPasswordReset(email);
+        const res = await requestPasswordReset(email, captcha);
         if (!res.ok) setServerError(res.error);
         else {
           setNotice("auResetSent");
@@ -61,6 +67,8 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
         }
       } catch (e) {
         setServerError(actionFailed(e, "reset request"));
+      } finally {
+        captchaRef.current?.reset();
       }
     });
   }
@@ -117,6 +125,8 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
             <FieldError message={form.formState.errors.password?.message} />
           </div>
         )}
+
+        <Turnstile ref={captchaRef} onToken={setCaptcha} />
 
         <AnimatePresence>
           {serverError && <FormAlert key="err" message={serverError} />}

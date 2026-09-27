@@ -6,7 +6,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createRollyPayment, isRollyConfigured, rollyRate } from "@/lib/payments/rollypay";
 import { normalizePromo, reservePromoOrder, resolvePromo } from "@/lib/payments/promo";
 import { purchaseBlocker } from "@/lib/payments/entitlement";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
 import { ROLLYPAY_CRYPTO_ORDER_PREFIX } from "@/lib/ai/region-server";
 
@@ -38,7 +38,7 @@ async function cryptoAmountRub(usd: number, fallbackRub: number): Promise<number
 /** POST /api/checkout/rollypay — СБП / МИР (Rossiya) yoki kripto to'lov sahifasi. */
 export async function POST(req: Request) {
   const t = await getServerT();
-  if (!(await rateLimit(`rolly-checkout:${clientIp(req)}`, 10, 60_000)).ok) {
+  if (!(await rateLimit(`rolly-checkout:${ipKey(clientIp(req))}`, 10, 60_000)).ok) {
     return Response.json({ error: t("chTooManyRequests") }, { status: 429 });
   }
   const parsed = schema.safeParse(await req.json().catch(() => null));

@@ -9,15 +9,15 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
   free: {
     tagline: { uz: "Sinab ko'rish uchun", "uz-cyrl": "Синаб кўриш учун", ru: "Чтобы попробовать", en: "To try it out" },
     description: {
-      uz: "Ro'yxatdan o'ting va tekin modellarga darhol kiring.",
-      "uz-cyrl": "Рўйхатдан ўтинг ва текин моделларга дарҳол киринг.",
+      uz: "Ro'yxatdan o'ting va bepul modellarga darhol kiring.",
+      "uz-cyrl": "Рўйхатдан ўтинг ва бепул моделларга дарҳол киринг.",
       ru: "Зарегистрируйтесь и сразу получите доступ к бесплатным моделям.",
       en: "Sign up and get instant access to free models.",
     },
     features: [
       {
-        uz: "Tekin modellar: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
-        "uz-cyrl": "Текин моделлар: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
+        uz: "Bepul modellar: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
+        "uz-cyrl": "Бепул моделлар: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
         ru: "Бесплатные модели: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
         en: "Free models: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
       },
@@ -66,8 +66,8 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
   pro: {
     tagline: { uz: "Professional darajaga", "uz-cyrl": "Профессионал даражага", ru: "Профессиональный уровень", en: "For pro-level work" },
     description: {
-      uz: "10× ko'proq token, barcha flagman modellar va research.",
-      "uz-cyrl": "10× кўпроқ токен, барча флагман моделлар ва research.",
+      uz: "10× ko'proq token, barcha flagman modellar va manbali qidiruv (Research).",
+      "uz-cyrl": "10× кўпроқ токен, барча флагман моделлар ва манбали қидирув (Research).",
       ru: "В 10× больше токенов, все флагманские модели и Research.",
       en: "10× more tokens, all flagship models and research.",
     },
@@ -98,16 +98,16 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
   ultra: {
     tagline: { uz: "Maksimal quvvat", "uz-cyrl": "Максимал қувват", ru: "Максимальная мощность", en: "Maximum power" },
     description: {
-      uz: "20× ko'proq token, Opus/GPT-5, chuqur research, ustuvor navbat.",
-      "uz-cyrl": "20× кўпроқ токен, Opus/GPT-5, чуқур research, устувор навбат.",
+      uz: "20× ko'proq token, Opus/GPT-5, chuqur tadqiqot, ustuvor navbat.",
+      "uz-cyrl": "20× кўпроқ токен, Opus/GPT-5, чуқур тадқиқот, устувор навбат.",
       ru: "В 20× больше токенов, Opus/GPT-5, глубокий Research, приоритетная очередь.",
       en: "20× more tokens, Opus/GPT-5, deep research, priority queue.",
     },
     features: [
       { uz: "Pro'dagi hamma narsa", "uz-cyrl": "Pro'даги ҳамма нарса", ru: "Всё из тарифа Pro", en: "Everything in Pro" },
       {
-        uz: "Claude Opus, GPT-5 flagship modellari",
-        "uz-cyrl": "Claude Opus, GPT-5 flagship моделлари",
+        uz: "Claude Opus, GPT-5 flagman modellari",
+        "uz-cyrl": "Claude Opus, GPT-5 флагман моделлари",
         ru: "Флагманские модели Claude Opus, GPT-5",
         en: "Claude Opus, GPT-5 flagship models",
       },

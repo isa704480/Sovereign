@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { syncConversation } from "@/app/actions/chat";
 import { rememberExchange } from "@/app/actions/memory";
 import { logInquiryOutcome, rememberInquiryFacts } from "@/app/actions/inquiry";
@@ -128,9 +128,11 @@ function toWire(messages: ChatMessage[], blind: boolean, lang: Lang) {
   const tokenMap = session.tokenMap;
   const maskText = (text: string) => mask(text, session).masked;
   const wire = messages.map((m) => {
-    // Blind Prompting yoqilganda BARCHA user xabarlari (nafaqat oxirgi)
-    // maskalanadi — chunki avvalgi turlarda ham PII kelishi mumkin.
-    const isMaskable = blind && m.role === "user" && typeof m.content === "string";
+    // Blind Prompting yoqilganda BARCHA user xabarlari (nafaqat oxirgi) va avvalgi assistant
+    // javoblari ham maskalanadi: saqlangan javob mijozda asl qiymatlarga qaytarilgan (applyTokenMap),
+    // aks holda 2-navbatda PII assistant matni orqali ochiq ketardi. Bitta sessiya — bir qiymat
+    // har doim bir xil token oladi.
+    const isMaskable = blind && (m.role === "user" || m.role === "assistant") && typeof m.content === "string";
     let raw = isMaskable ? maskText(m.content as string) : m.content;
     if (typeof raw === "string") raw = stripInlineImages(raw);
     if (m.role === "user" && m.attachments?.length) {
@@ -332,9 +334,14 @@ function closeOpenInquiries(conversationId: string) {
 }
 
 /** Sends a message to the active (or a new) conversation and streams the reply. */
-export function useSendMessage() {
+export function useSendMessage(opts?: { memoryEnabled?: boolean }) {
   const [isStreaming, setStreaming] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  // Xotira o'chiq bo'lsa rememberExchange umuman chaqirilmaydi (server ham tekshiradi — chuqur himoya).
+  const memoryEnabledRef = useRef(opts?.memoryEnabled);
+  useEffect(() => {
+    memoryEnabledRef.current = opts?.memoryEnabled;
+  }, [opts?.memoryEnabled]);
 
   const run = useCallback(async (conversationId: string, history: ChatMessage[], docIds?: string[]) => {
     const state = useChat.getState();
@@ -464,7 +471,9 @@ export function useSendMessage() {
       });
     } catch (err) {
       if (!(err instanceof Error && err.name === "AbortError")) {
-        failed = err instanceof Error ? err.message : translate(useChat.getState().lang, "chConnectionError");
+        // Brauzer tarmoq xatosi ("Failed to fetch" / "Load failed") inglizcha — foydalanuvchiga tarjima.
+        // Server/SSE xatolari sse-client'da allaqachon tarjima qilingan holda keladi.
+        failed = translate(useChat.getState().lang, "chConnectionError");
       }
     }
 
@@ -524,7 +533,7 @@ export function useSendMessage() {
       serverSensitive,
       userText: typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "",
     });
-    if (!failed && text && !sensitiveTurn) {
+    if (!failed && text && !sensitiveTurn && memoryEnabledRef.current !== false) {
       const firstUser = lastUserMsg;
       if (firstUser && typeof firstUser.content === "string") {
         const userForMemory = state0.blindPrompting

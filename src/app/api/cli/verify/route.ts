@@ -1,10 +1,15 @@
+import { after } from "next/server";
 import { z } from "zod";
+import { PLAN_BY_ID } from "@/config/plans";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { createServiceClient } from "@/lib/supabase/service";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
-import { callJudge, judgeCandidates, extractJson, vendorLabel } from "@/lib/ai/judge";
+import { callJudge, judgeCandidates, extractJson, vendorLabel, JUDGE_POOL } from "@/lib/ai/judge";
 import { resolveUserRegion } from "@/lib/ai/region-server";
+import { bearerToken, estimateTokens, freeJudgePool, tokenKey as hashTokenKey, verifyDailyCap } from "@/lib/cli/device";
+import { cliPlanId, monthlyLimitReached, recordCliTokenUsage } from "@/lib/cli/usage";
+import { fmt } from "@/lib/i18n";
 
 export const runtime = "nodejs";
 export const maxDuration = 20;
@@ -20,7 +25,9 @@ export const maxDuration = 20;
  *
  * CLI bu natijani faqat QO'SHIMCHA ogohlantirish sifatida ko'rsatadi (regex
  * tekshiruvi baribir ishlaydi); xato/timeout bo'lsa CLI regex'ga qaytadi.
- * Kunlik xabar limitiga hisoblanmaydi — o'rniga qat'iy rate-limit.
+ * Kunlik xabar limitiga hisoblanmaydi — o'rniga qat'iy rate-limit (token, IP va
+ * foydalanuvchi bo'yicha kunlik chegara). Oylik token limiti tekshiriladi va sarf
+ * oylik hisobga yoziladi; byudjet guard'i yoqilganda faqat tekin hakam yo'llari (cli-api-5).
  *
  * Hakam — MUSTAQIL (judge.ts): `answerModel` (javobni bergan model, /api/cli/chat
  * qaytargan `model`) kompaniyasidan BOSHQA kompaniyaning modeli, mintaqa siyosati bilan.
@@ -48,12 +55,6 @@ const schema = z
   })
   .strict();
 
-function bearer(req: Request): string | null {
-  const h = req.headers.get("authorization") ?? "";
-  const m = /^Bearer\s+(.+)$/i.exec(h);
-  return m ? m[1].trim() : null;
-}
-
 const SYSTEM = [
   "You are a strict honesty auditor for a coding agent that runs on the user's computer.",
   "You receive (1) LEDGER: the ground-truth list of tool actions the system actually observed in this turn, and (2) ANSWER: the agent's final message to the user.",
@@ -77,10 +78,10 @@ function parseVerdict(raw: string): string[] | null {
 
 export async function POST(req: Request) {
   const t = await getServerT();
-  const token = bearer(req);
+  const token = bearerToken(req);
   if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
 
-  const tokenKey = token.slice(0, 24); // token o'zi logga tushmasin
+  const tokenKey = hashTokenKey(token); // token o'zi Redis'ga/logga tushmasin
   const rl = await rateLimit(`cli-verify:${tokenKey}`, 12, 60_000);
   if (!rl.ok) {
     return Response.json(
@@ -88,7 +89,7 @@ export async function POST(req: Request) {
       { status: 429, headers: { "Retry-After": Math.ceil(rl.retryAfterMs / 1000).toString() } },
     );
   }
-  const ipRl = await rateLimit(`cli-verify:ip:${clientIp(req)}`, 40, 60_000);
+  const ipRl = await rateLimit(`cli-verify:ip:${ipKey(clientIp(req))}`, 40, 60_000);
   if (!ipRl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
 
   const raw = await req.text().catch(() => "");
@@ -107,17 +108,38 @@ export async function POST(req: Request) {
 
   // Token → foydalanuvchi (boshqa /api/cli marshrutlari bilan bir xil).
   let userId: string;
+  let planId = cliPlanId(null);
   try {
     const supabase = createAnonClient();
     const { data, error } = await supabase.rpc("cli_whoami", { p_token: token });
-    const row = (Array.isArray(data) ? data[0] : data) as { user_id?: string | null } | null;
+    const row = (Array.isArray(data) ? data[0] : data) as
+      | { user_id?: string | null; plan?: string | null; plan_expires_at?: string | null }
+      | null;
     if (error || !row?.user_id) {
       return Response.json({ error: t("p7cCliBadToken") }, { status: 401 });
     }
     userId = row.user_id;
+    planId = cliPlanId(row);
   } catch (e) {
     console.error("[cli/verify] whoami:", e);
     return Response.json({ error: t("secServerError") }, { status: 500 });
+  }
+  const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
+
+  // Foydalanuvchi bo'yicha (token bo'yicha emas): bir hisob bir nechta token olib, chegarani
+  // ko'paytira olmasin. Kunlik chegara tarifga bog'liq.
+  const userRl = await rateLimit(`cli-verify:u:${userId}`, 12, 60_000);
+  const dayRl = userRl.ok ? await rateLimit(`cli-verify:day:${userId}`, verifyDailyCap(plan.limits.messagesPerDay), 86_400_000) : userRl;
+  if (!userRl.ok || !dayRl.ok) {
+    const retry = (userRl.ok ? dayRl : userRl).retryAfterMs;
+    return Response.json(
+      { error: t("secTooManyRequests") },
+      { status: 429, headers: { "Retry-After": Math.ceil(retry / 1000).toString() } },
+    );
+  }
+  // Oylik token limiti — chat/inquiry bilan bir xil hisob (fail-open).
+  if (await monthlyLimitReached(userId, planId)) {
+    return Response.json({ error: fmt(t("secMonthlyTokenLimit"), { plan: plan.name }) }, { status: 429 });
   }
 
   // Mintaqa — /api/cli/chat bilan bir xil: hakam ham mintaqa siyosatiga bo'ysunadi.
@@ -131,7 +153,15 @@ export async function POST(req: Request) {
   }
 
   const { answer, ledger, answerModel } = parsed.data;
-  if (!judgeCandidates({ answerModel, country }).length) {
+  // Byudjet guard'i (sarf daromadning 50% idan oshdi): faqat tekin hakam yo'llari. Xato → cheklovsiz.
+  let pool = JUDGE_POOL;
+  try {
+    const { isPaidRestricted } = await import("@/lib/econ/budget.server");
+    if (await isPaidRestricted()) pool = freeJudgePool(JUDGE_POOL);
+  } catch {
+    /* guard mavjud emas — oddiy navbat */
+  }
+  if (!judgeCandidates({ answerModel, country, pool }).length) {
     return Response.json({ error: t("p7cCliJudgeMissing") }, { status: 503 });
   }
 
@@ -144,6 +174,7 @@ export async function POST(req: Request) {
     user,
     answerModel,
     country,
+    pool,
     temperature: 0,
     maxTokens: 500,
     timeoutMs: MODEL_TIMEOUT_MS,
@@ -152,6 +183,17 @@ export async function POST(req: Request) {
     accept: (text) => parseVerdict(text) !== null,
   });
   const verdict = r ? parseVerdict(r.text) : null;
+  if (r) {
+    // Hakam sarfi oylik hisobga (provayder usage qaytarmaydi — ~4 belgi = 1 token taxmini).
+    const input = estimateTokens(SYSTEM.length + user.length);
+    const output = estimateTokens(r.text.length);
+    const record = () => recordCliTokenUsage(userId, r.judgeModel, input, output, "cli/verify");
+    try {
+      after(record);
+    } catch {
+      void record();
+    }
+  }
   if (!r || !verdict) return Response.json({ error: t("p7cCliJudgeNoAnswer") }, { status: 502 });
   return Response.json({
     unsupported: verdict,

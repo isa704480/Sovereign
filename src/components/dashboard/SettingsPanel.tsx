@@ -1,6 +1,6 @@
 "use client";
 
-import {Download, Keyboard, LogOut, Palette, Settings, ShieldAlert, Sparkles, X} from "lucide-react";
+import {Download, Keyboard, LogOut, MonitorSmartphone, Palette, Settings, ShieldAlert, Sparkles, X} from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState, useTransition } from "react";
 import { signOut } from "@/app/actions/auth";
@@ -10,7 +10,7 @@ import {
   getTrainingOptIn,
   setTrainingOptIn as saveTrainingOptIn,
 } from "@/app/actions/account";
-import { getEmailTips, setEmailTips as saveEmailTips } from "@/app/actions/engagement";
+import { getEmailTips, setEmailTips as saveEmailTips, syncEmailLang } from "@/app/actions/engagement";
 import { PLAN_BY_ID, isPlanId } from "@/config/plans";
 import { EASE_OUT_EXPO } from "@/lib/motion";
 import { LANGS, translate } from "@/lib/i18n";
@@ -158,6 +158,12 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
     };
   }, [open]);
 
+  // Til almashsa — tip emaillari ham shu tilda kelsin (faqat obuna yoqilgan bo'lsa serverda yoziladi).
+  function changeLang(v: typeof lang) {
+    setLang(v);
+    if (emailTips) void syncEmailLang(v).catch(() => {});
+  }
+
   function changeEmailTips(v: boolean) {
     const prev = emailTips;
     setEmailTips(v);
@@ -288,7 +294,7 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                     label={t("language")}
                     value={lang}
                     options={LANGS.map((l) => ({ value: l.id, label: l.short, aria: l.label, lang: l.htmlLang }))}
-                    onChange={setLang}
+                    onChange={changeLang}
                   />
                 </Row>
                 <Row title={t("fontSizeTitle")} desc={t("fontSizeDesc")}>
@@ -389,6 +395,15 @@ export function SettingsPanel({ open, onClose, user, plan, onUpgrade }: Settings
                     label={t("stEmailTipsTitle")}
                     onChange={changeEmailTips}
                   />
+                </Row>
+                <Row title={t("stCliDevicesTitle")} desc={t("stCliDevicesDesc")}>
+                  <a
+                    href="/cli/sessions"
+                    className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium"
+                    style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}
+                  >
+                    <MonitorSmartphone className="size-3.5" aria-hidden /> {t("stCliDevicesManage")}
+                  </a>
                 </Row>
                 <Row title={t("exportTitle")} desc={t("exportDesc")}>
                   <button type="button" onClick={exportData} className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>

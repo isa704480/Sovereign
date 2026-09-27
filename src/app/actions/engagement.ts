@@ -36,3 +36,19 @@ export async function setEmailTips(enabled: boolean, lang?: string): Promise<{ o
   const { error } = await s.supabase.from("profiles").update(patch).eq("id", s.user.id);
   return { ok: !error };
 }
+
+/**
+ * UI tili o'zgarganda tip emaillari tilini ham yangilaydi — faqat obuna yoqilgan bo'lsa
+ * (email_tips = true). Aks holda email_lang faqat yoqilgan paytdagi tilda qolib ketardi.
+ */
+export async function syncEmailLang(lang: string): Promise<{ ok: boolean }> {
+  if (!isLang(lang)) return { ok: false };
+  const s = await session();
+  if (!s) return { ok: false };
+  const { error } = await s.supabase
+    .from("profiles")
+    .update({ email_lang: lang })
+    .eq("id", s.user.id)
+    .eq("email_tips", true);
+  return { ok: !error };
+}

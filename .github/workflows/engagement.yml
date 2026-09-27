@@ -7,13 +7,22 @@ on:
   schedule:
     - cron: "17 * * * *"
   workflow_dispatch: {}
+# Faqat curl — GITHUB_TOKEN'ga hech qanday huquq kerak emas.
+permissions: {}
 jobs:
   send:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
+      # Repo ommaviy: javob tanasi (due/sent/failed soni, infra holati) Actions log'iga
+      # chiqarilmaydi — faqat HTTP status. Raqamlar server logida (api/cron/engagement).
+      # Secret skript matniga qo'yilmaydi — env orqali.
       - name: Send due tip emails
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -sS --fail-with-body --max-time 90 \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://soveregn.xyz/api/cron/engagement"
+          code=$(curl -sS --max-time 90 -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://soveregn.xyz/api/cron/engagement")
+          echo "engagement HTTP $code"
+          test "$code" = "200"

@@ -1,5 +1,5 @@
 import { createServiceClient } from "@/lib/supabase/service";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
  */
 export async function GET(req: Request) {
   // CLI har ~2 soniyada so'raydi — 60/min yetarli, kod taxminlashni sekinlashtiradi.
-  const rl = await rateLimit(`cli-poll:ip:${clientIp(req)}`, 60, 60_000);
+  const rl = await rateLimit(`cli-poll:ip:${ipKey(clientIp(req))}`, 60, 60_000);
   if (!rl.ok) return Response.json({ error: (await getServerT())("secTooManyRequests") }, { status: 429 });
 
   const code = new URL(req.url).searchParams.get("code");

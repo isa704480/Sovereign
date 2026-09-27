@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { effectivePlan, planStatus } from "@/lib/auth/profile";
 import { createAnonClient } from "@/lib/supabase/anon";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
+import { tokenKey } from "@/lib/cli/device";
 import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
@@ -31,9 +32,9 @@ export async function GET(req: Request) {
   const token = bearer(req);
   if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
 
-  const rl = await rateLimit(`cli-me-get:${token.slice(0, 24)}`, 30, 60_000);
+  const rl = await rateLimit(`cli-me-get:${tokenKey(token)}`, 30, 60_000);
   if (!rl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
-  const ipRl = await rateLimit(`cli-me:ip:${clientIp(req)}`, 60, 60_000);
+  const ipRl = await rateLimit(`cli-me:ip:${ipKey(clientIp(req))}`, 60, 60_000);
   if (!ipRl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
 
   try {
@@ -70,7 +71,7 @@ export async function PATCH(req: Request) {
   const token = bearer(req);
   if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
 
-  const rl = await rateLimit(`cli-me-patch:${token.slice(0, 24)}`, 20, 60_000);
+  const rl = await rateLimit(`cli-me-patch:${tokenKey(token)}`, 20, 60_000);
   if (!rl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
 
   const raw = await req.json().catch(() => null);

@@ -103,6 +103,8 @@ kbd { font: 11px var(--mono); padding: 1px 5px; border-radius: 5px; border: 1px 
 .skip-link { position: absolute; left: 12px; top: -40px; z-index: 200; background: var(--accent); color: #fff; padding: 6px 10px; border-radius: 8px; }
 .skip-link:focus { top: 48px; }
 .trunc { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Tasdiq dialogidagi yo'l — qisqartirilmaydi (uzun "a/../../" yo'l haqiqiy maqsadni yashirmasin). */
+.confirm-path { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; word-break: break-all; unicode-bidi: plaintext; }
 .block { display: block; }
 .grow { flex: 1; }
 .row { display: flex; align-items: center; }

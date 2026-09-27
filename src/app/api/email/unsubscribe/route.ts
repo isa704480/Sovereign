@@ -1,4 +1,4 @@
-import { emailTokenSecret, verifyUnsubscribe } from "@/lib/email/token";
+import { emailTokenVerifySecrets, verifyUnsubscribe } from "@/lib/email/token";
 import { escapeHtml } from "@/lib/email/tip-email";
 import { isLang, type L10n, type Lang } from "@/lib/i18n";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -16,22 +16,22 @@ export const dynamic = "force-dynamic";
 const PAGE = {
   okTitle: { uz: "Obuna bekor qilindi", "uz-cyrl": "Обуна бекор қилинди", ru: "Вы отписались", en: "You're unsubscribed" },
   okBody: {
-    uz: "Endi maslahat emaillarini yubormaymiz. Xohlasangiz, Sozlamalar'da qayta yoqishingiz mumkin.",
-    "uz-cyrl": "Энди маслаҳат emailларини юбормаймиз. Хоҳласангиз, Созламалар'да қайта ёқишингиз мумкин.",
+    uz: "Endi maslahat xatlarini yubormaymiz. Xohlasangiz, Sozlamalarda qayta yoqishingiz mumkin.",
+    "uz-cyrl": "Энди маслаҳат хатларини юбормаймиз. Хоҳласангиз, Созламаларда қайта ёқишингиз мумкин.",
     ru: "Мы больше не будем присылать письма с советами. При желании их можно снова включить в Настройках.",
     en: "We won't send you tip emails anymore. You can turn them back on in Settings anytime.",
   },
   badTitle: { uz: "Havola yaroqsiz", "uz-cyrl": "Ҳавола яроқсиз", ru: "Ссылка недействительна", en: "This link isn't valid" },
   badBody: {
-    uz: "Havola buzilgan yoki eskirgan. Emaillarni Sozlamalar'da o'chirishingiz mumkin.",
-    "uz-cyrl": "Ҳавола бузилган ёки эскирган. Emailларни Созламалар'да ўчиришингиз мумкин.",
+    uz: "Havola buzilgan yoki eskirgan. Xatlarni Sozlamalarda o'chirishingiz mumkin.",
+    "uz-cyrl": "Ҳавола бузилган ёки эскирган. Хатларни Созламаларда ўчиришингиз мумкин.",
     ru: "Ссылка повреждена или устарела. Отключить письма можно в Настройках.",
     en: "The link is broken or outdated. You can turn emails off in Settings.",
   },
   errTitle: { uz: "Xatolik", "uz-cyrl": "Хатолик", ru: "Ошибка", en: "Something went wrong" },
   errBody: {
-    uz: "Hozir saqlab bo'lmadi. Birozdan keyin qayta urining yoki Sozlamalar'da o'chiring.",
-    "uz-cyrl": "Ҳозир сақлаб бўлмади. Бироздан кейин қайта уриниб кўринг ёки Созламалар'да ўчиринг.",
+    uz: "Hozir saqlab bo'lmadi. Birozdan keyin qayta urining yoki Sozlamalarda o'chiring.",
+    "uz-cyrl": "Ҳозир сақлаб бўлмади. Бироздан кейин қайта уриниб кўринг ёки Созламаларда ўчиринг.",
     ru: "Не удалось сохранить. Попробуйте позже или отключите в Настройках.",
     en: "We couldn't save that right now. Please try again later, or turn emails off in Settings.",
   },
@@ -46,7 +46,7 @@ async function unsubscribe(req: Request): Promise<Outcome> {
   const t = url.searchParams.get("t");
   const qLang = url.searchParams.get("l");
   const fallback: Lang = isLang(qLang) ? qLang : "en";
-  if (!verifyUnsubscribe(u, t, emailTokenSecret()) || !u) return { status: 400, kind: "bad", lang: fallback };
+  if (!verifyUnsubscribe(u, t, emailTokenVerifySecrets()) || !u) return { status: 400, kind: "bad", lang: fallback };
 
   try {
     const db = createServiceClient();

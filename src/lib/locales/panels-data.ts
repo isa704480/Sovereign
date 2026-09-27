@@ -22,10 +22,10 @@ export const CONNECTOR_CATEGORY_TEXT: Record<ConnectorCategory, L10n> = {
 export const CONNECTOR_TEXT: Record<string, { name?: L10n; description: L10n }> = {
   gmail: {
     description: {
-      uz: "Xatlarni o'qish va yuborish.",
-      "uz-cyrl": "Хатларни ўқиш ва юбориш.",
-      ru: "Чтение и отправка писем.",
-      en: "Read and send emails.",
+      uz: "Xatlarni o'qish.",
+      "uz-cyrl": "Хатларни ўқиш.",
+      ru: "Чтение писем.",
+      en: "Read emails.",
     },
   },
   gdrive: {
@@ -64,10 +64,10 @@ export const CONNECTOR_TEXT: Record<string, { name?: L10n; description: L10n }> 
   gcalendar: {
     name: { uz: "Google Kalendar", "uz-cyrl": "Google Календар", ru: "Google Календарь", en: "Google Calendar" },
     description: {
-      uz: "Voqealarni ko'rish va qo'shish.",
-      "uz-cyrl": "Воқеаларни кўриш ва қўшиш.",
-      ru: "Просмотр и добавление событий.",
-      en: "View and add events.",
+      uz: "Voqealarni ko'rish.",
+      "uz-cyrl": "Воқеаларни кўриш.",
+      ru: "Просмотр событий.",
+      en: "View events.",
     },
   },
   figma: {
@@ -81,7 +81,7 @@ export const CONNECTOR_TEXT: Record<string, { name?: L10n; description: L10n }> 
   github: {
     description: {
       uz: "Repozitoriy, issue va PR'lar bilan ishlash.",
-      "uz-cyrl": "Репозиторий, issue ва PR'лар билан ишлаш.",
+      "uz-cyrl": "Репозиторий, Issue ва PR'лар билан ишлаш.",
       ru: "Работа с репозиториями, issue и PR.",
       en: "Work with repositories, issues and PRs.",
     },
@@ -160,7 +160,7 @@ export const SKILL_TEXT: Record<string, { name?: L10n; description: L10n; detail
     details: [
       {
         uz: "Accessibility: kontrast ≥4.5:1, alt matn, klaviatura navigatsiyasi, aria-label",
-        "uz-cyrl": "Accessibility: контраст ≥4.5:1, alt матн, клавиатура навигацияси, aria-label",
+        "uz-cyrl": "Accessibility: контраст ≥4.5:1, «alt» матн, клавиатура навигацияси, «aria-label»",
         ru: "Доступность: контраст ≥4.5:1, alt-текст, навигация с клавиатуры, aria-label",
         en: "Accessibility: contrast ≥4.5:1, alt text, keyboard navigation, aria-label",
       },
@@ -178,7 +178,7 @@ export const SKILL_TEXT: Record<string, { name?: L10n; description: L10n; detail
       },
       {
         uz: "Barcha holatlar: hover, focus, disabled, loading, empty, error",
-        "uz-cyrl": "Барча ҳолатлар: hover, focus, disabled, loading, empty, error",
+        "uz-cyrl": "Барча ҳолатлар: ҳовер, фокус, ўчирилган, юкланиш, бўш, хато",
         ru: "Все состояния: hover, focus, disabled, loading, empty, error",
         en: "All states: hover, focus, disabled, loading, empty, error",
       },
@@ -187,7 +187,7 @@ export const SKILL_TEXT: Record<string, { name?: L10n; description: L10n; detail
   "apple-design": {
     description: {
       uz: "Apple HIG uslubi: soddalik, aniqlik, liquid glass, chuqurlik",
-      "uz-cyrl": "Apple HIG услуби: соддалик, аниқлик, liquid glass, чуқурлик",
+      "uz-cyrl": "Apple HIG услуби: соддалик, аниқлик, Liquid Glass, чуқурлик",
       ru: "Стиль Apple HIG: простота, ясность, liquid glass, глубина",
       en: "Apple HIG style: simplicity, clarity, liquid glass, depth",
     },
@@ -206,13 +206,13 @@ export const SKILL_TEXT: Record<string, { name?: L10n; description: L10n; detail
       },
       {
         uz: "Chuqurlik: qatlamlar, yumshoq soya, blur — liquid glass",
-        "uz-cyrl": "Чуқурлик: қатламлар, юмшоқ соя, blur — liquid glass",
+        "uz-cyrl": "Чуқурлик: қатламлар, юмшоқ соя, хиралик — Liquid Glass",
         ru: "Глубина: слои, мягкие тени, размытие — liquid glass",
         en: "Depth: layers, soft shadows, blur — liquid glass",
       },
       {
         uz: "Katta radiuslar va spring animatsiya",
-        "uz-cyrl": "Катта радиуслар ва spring анимация",
+        "uz-cyrl": "Катта радиуслар ва пружинали анимация",
         ru: "Крупные скругления и пружинная анимация",
         en: "Large corner radii and spring animation",
       },
@@ -234,7 +234,7 @@ export const SKILL_TEXT: Record<string, { name?: L10n; description: L10n; detail
       },
       {
         uz: "Ma'noli nomlar, kichik funksiyalar, erta return",
-        "uz-cyrl": "Маъноли номлар, кичик функциялар, эрта return",
+        "uz-cyrl": "Маъноли номлар, кичик функциялар, эрта «return»",
         ru: "Осмысленные имена, небольшие функции, ранний return",
         en: "Meaningful names, small functions, early returns",
       },
@@ -255,7 +255,7 @@ export const SKILL_TEXT: Record<string, { name?: L10n; description: L10n; detail
   cybersecurity: {
     description: {
       uz: "Har bir teshikni topadi: OWASP + auth + crypto + cloud + supply chain audit",
-      "uz-cyrl": "Ҳар бир тешикни топади: OWASP + auth + crypto + cloud + supply chain аудит",
+      "uz-cyrl": "Ҳар бир тешикни топади: OWASP + аутентификация + криптография + булут + етказиб бериш занжири аудити",
       ru: "Находит каждую уязвимость: аудит OWASP + auth + crypto + cloud + supply chain",
       en: "Finds every hole: OWASP + auth + crypto + cloud + supply chain audit",
     },
@@ -274,13 +274,13 @@ export const SKILL_TEXT: Record<string, { name?: L10n; description: L10n; detail
       },
       {
         uz: "Cloud, Kubernetes va supply chain xavfsizligi",
-        "uz-cyrl": "Cloud, Kubernetes ва supply chain хавфсизлиги",
+        "uz-cyrl": "Булут, Kubernetes ва етказиб бериш занжири хавфсизлиги",
         ru: "Безопасность облака, Kubernetes и цепочки поставок",
         en: "Cloud, Kubernetes and supply chain security",
       },
       {
         uz: "DFIR, threat hunting va incident triage — faqat mudofaa maqsadida",
-        "uz-cyrl": "DFIR, threat hunting ва incident triage — фақат мудофаа мақсадида",
+        "uz-cyrl": "DFIR, таҳдидларни овлаш ва инцидентларни саралаш — фақат мудофаа мақсадида",
         ru: "DFIR, threat hunting и разбор инцидентов — только в целях защиты",
         en: "DFIR, threat hunting and incident triage — defensive use only",
       },
@@ -336,7 +336,7 @@ export const SKILL_TEXT: Record<string, { name?: L10n; description: L10n; detail
       },
       {
         uz: "Chart-junk yo'q: ortiqcha to'r, 3D va gradientsiz",
-        "uz-cyrl": "Chart-junk йўқ: ортиқча тўр, 3D ва градиентсиз",
+        "uz-cyrl": "Ортиқча безаклар йўқ: ортиқча тўр, 3D ва градиентсиз",
         ru: "Без визуального мусора: лишней сетки, 3D и градиентов",
         en: "No chart junk: extra gridlines, 3D or gradients",
       },

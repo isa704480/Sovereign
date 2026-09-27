@@ -3,8 +3,10 @@
 import { ArrowRight, Cpu } from "lucide-react";
 import { MODEL_BY_ID } from "@/config/models";
 import { compactTokens, type AnswerMeta } from "@/lib/chat/answer-meta";
+import { countryName } from "@/config/countries";
 import { fmt } from "@/lib/i18n";
-import { useT } from "@/store/chat";
+import { plural } from "@/lib/plural";
+import { useLang, useT } from "@/store/chat";
 
 /** "cfp/deepseek-ai/deepseek-v4-flash-0731" → "deepseek-v4-flash-0731". */
 function shortId(id: string): string {
@@ -22,6 +24,7 @@ function modelName(id: string): string {
  */
 export function AnswerMetaBadge({ meta }: { meta: AnswerMeta }) {
   const t = useT();
+  const lang = useLang();
   // Upstream darajasidagi almashtirish (katalog id o'sha, lekin boshqa model javob bergan)
   // yoki zaxira shlyuz — upstream nomi ko'rsatiladi; aks holda katalogdagi nom.
   const upstreamSwap = !!meta.upstream && (meta.rescue || (meta.fallback && meta.served === meta.requested));
@@ -29,7 +32,7 @@ export function AnswerMetaBadge({ meta }: { meta: AnswerMeta }) {
   const tokens = typeof meta.tokens === "number" && meta.tokens > 0 ? meta.tokens : 0;
 
   const title = [
-    meta.region ? fmt(t("p10RegionSwapTitle"), { model: modelName(meta.requested), country: meta.region }) : "",
+    meta.region ? fmt(t("p10RegionSwapTitle"), { model: modelName(meta.requested), country: countryName(meta.region, lang) }) : "",
     meta.upstream && !meta.upstream.startsWith("mock/") ? fmt(t("p9wUpstreamTitle"), { id: meta.upstream }) : "",
     meta.rescue ? t("p9wRescueTitle") : "",
     meta.cached ? t("p9wCachedTitle") : "",
@@ -62,7 +65,9 @@ export function AnswerMetaBadge({ meta }: { meta: AnswerMeta }) {
       )}
       {tokens > 0 && (
         <span className="shrink-0 opacity-80">
-          · {fmt(t("p9wTokens"), { n: compactTokens(tokens) })}
+          · {tokens < 1000
+            ? plural(lang, tokens, { one: "p15aTokensOne", few: "p15aTokensFew", many: "p15aTokensMany" })
+            : fmt(t("p9wTokens"), { n: compactTokens(tokens) })}
           {meta.billed && typeof meta.monthPct === "number" && meta.monthPct >= 0.01
             ? ` (${fmt(t("p9wMonthPctShort"), { p: meta.monthPct })})`
             : ""}

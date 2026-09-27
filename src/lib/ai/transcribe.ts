@@ -16,7 +16,8 @@ export async function transcribe(
   opts: { country?: string | null } = {},
 ): Promise<string> {
   // Avval OmniRoute orqali Groq Whisper (tekin, tez); bo'lmasa OpenAI Whisper.
-  const viaOmni = await omniTranscribe(file, filename, language);
+  // Mintaqa siyosati: Groq hosti (HOST_POLICY) mintaqada yopiq bo'lsa — omniTranscribe o'tkazib yuboradi.
+  const viaOmni = await omniTranscribe(file, filename, language, opts.country);
   if (viaOmni !== null) return viaOmni;
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("Transkripsiya provayderi yo'q");

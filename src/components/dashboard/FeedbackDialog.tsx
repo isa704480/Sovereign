@@ -74,7 +74,8 @@ export function FeedbackDialog({ open, onClose }: { open: boolean; onClose: () =
       autoCloseRef.current = window.setTimeout(close, 1400);
     } catch (e) {
       setState("idle");
-      setError(e instanceof Error && e.message ? e.message : t("fbFailed"));
+      // fetch rad etilsa (oflayn) — brauzerning inglizcha TypeError matni ("Failed to fetch") ko'rsatilmaydi.
+      setError(e instanceof TypeError ? t("fbFailed") : e instanceof Error && e.message ? e.message : t("fbFailed"));
     }
   }
 

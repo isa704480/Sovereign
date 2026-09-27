@@ -6,6 +6,7 @@ import { LogoMark } from "@/components/brand/Logo";
 import { CopyCode } from "@/components/docs/CopyCode";
 import { DocsMobileNav, DocsSidebar, type DocsNavItem } from "@/components/docs/DocsNav";
 import { LangSwitcher } from "@/components/LangSwitcher";
+import { LocalizedTitle } from "@/components/LocalizedTitle";
 import { rich } from "@/components/docs/rich";
 import { fmt, type TKey } from "@/lib/i18n";
 import { useT } from "@/store/chat";
@@ -116,22 +117,34 @@ const CLI_COMMANDS: readonly [string, TKey][] = [
   ["/clear, /help, /exit", "p7bDCmdClear"],
 ];
 
-/** Kod bloklari tarjima qilinmaydi. */
-const CLI_USAGE = [
-  "sov                               # interactive mode (chat + agent)",
-  'sov "build a React todo app"      # one task, then exit',
-  'sov "..." -f diagram.png -f a.pdf # attach files (--file)',
-  'sov --yes "..."                   # auto-confirm safe actions (-y)',
-  'sov --full-auto "..."             # Full auto: nothing asked (push/deploy refused)',
-  "sov login                         # connect your account in the browser",
-  "sov logout                        # sign out",
-  "sov whoami                        # connection status",
-  "sov key sk-or-v1-...              # use your own OpenRouter key",
-  "sov init --ai                     # SOVEREIGN.md: shared project memory for the team",
-  "sov audit [--json]                # pre-deploy security audit (offline)",
-  "sov models                        # list models",
-  "sov help                          # help",
-].join("\n");
+/** Buyruqlar tarjima qilinmaydi; "#" dan keyingi izoh — tanlangan tilda (cliBlock). */
+const CLI_USAGE: readonly (readonly [string, TKey])[] = [
+  ["sov", "p15aUseInteractive"],
+  ['sov "build a React todo app"', "p15aUseOneTask"],
+  ['sov "..." -f diagram.png -f a.pdf', "p15aUseAttach"],
+  ['sov --yes "..."', "p15aUseYes"],
+  ['sov --full-auto "..."', "p15aUseFullAuto"],
+  ["sov login", "p15aUseLogin"],
+  ["sov logout", "p15aUseLogout"],
+  ["sov whoami", "p15aUseWhoami"],
+  ["sov key sk-or-v1-...", "p15aUseKey"],
+  ["sov init --ai", "p15aUseInitAi"],
+  ["sov audit [--json]", "p15aUseAudit"],
+  ["sov models", "p15aUseModels"],
+  ["sov help", "p15aUseHelp"],
+];
+
+const CLI_INIT: readonly (readonly [string, TKey | null])[] = [
+  ["sov init", "p15aUseInitTpl"],
+  ["sov init --ai", "p15aUseInitFill"],
+  ['git add SOVEREIGN.md && git commit -m "Project memory"', null],
+];
+
+/** Kod blokidagi buyruq + izoh qatorlari: izohlar bitta ustunda tekislanadi. */
+function cliBlock(rows: readonly (readonly [string, TKey | null])[], t: (k: TKey) => string): string {
+  const width = Math.max(...rows.filter(([, k]) => k).map(([c]) => c.length)) + 1;
+  return rows.map(([c, k]) => (k ? `${c.padEnd(width)}# ${t(k)}` : c)).join("\n");
+}
 
 const FAQ: readonly { id: string; q: TKey; a: TKey }[] = [
   { id: "free", q: "p7bDFaqQ1", a: "p7bDFaqA1" },
@@ -225,6 +238,7 @@ export function DocsContent({ data }: { data: DocsData }) {
 
   return (
     <div id="top" className="flex min-h-full flex-1 flex-col bg-bg-base text-text-primary">
+      <LocalizedTitle title={t("p7bDEyebrow")} />
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
@@ -439,7 +453,7 @@ export function DocsContent({ data }: { data: DocsData }) {
 
               <Sub id="cli-usage" title={t("p7bDUsageTitle")}>
                 <p>{r("p7bDUsage1")}</p>
-                <CopyCode label={t("p7bDCommands")} code={CLI_USAGE} />
+                <CopyCode label={t("p7bDCommands")} code={cliBlock(CLI_USAGE, t)} />
                 <p>{r("p7bDUsage2")}</p>
                 <p>{r("p7bDUsage3")}</p>
               </Sub>
@@ -473,7 +487,7 @@ export function DocsContent({ data }: { data: DocsData }) {
 
               <Sub id="cli-project" title={t("p7bDProjectTitle")}>
                 <p>{r("p7bDProject1")}</p>
-                <CopyCode label={t("p7bDCommands")} code={"sov init          # SOVEREIGN.md template\nsov init --ai     # let the agent fill it in\ngit add SOVEREIGN.md && git commit -m \"Project memory\""} />
+                <CopyCode label={t("p7bDCommands")} code={cliBlock(CLI_INIT, t)} />
                 <p>{r("p7bDProject2")}</p>
                 <p>{r("p7bDProject3")}</p>
                 <Note>{r("p7bDProject4")}</Note>
@@ -585,7 +599,7 @@ export function DocsContent({ data }: { data: DocsData }) {
           </div>
 
           <footer className="mt-20 flex flex-col gap-3 border-t border-border pt-6 text-sm text-text-muted sm:flex-row sm:items-center sm:justify-between">
-            <span>SOVEREIGN AI · Your AI. Your Truth. Your Data. Forever.</span>
+            <span>SOVEREIGN AI · {t("p7cFooterTagline")}</span>
             <span className="flex flex-wrap gap-4">
               <a href={SITE} className="hover:text-text-primary">soveregn.xyz</a>
               <a href={`${SITE}/privacy`} className="hover:text-text-primary">{t("navPrivacy")}</a>

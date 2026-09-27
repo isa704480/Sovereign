@@ -2,7 +2,8 @@ import { z } from "zod";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { createServiceClient } from "@/lib/supabase/service";
 import { PLAN_BY_ID, isPlanId, planAllowsTier, type PlanId } from "@/config/plans";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
+import { tokenKey } from "@/lib/cli/device";
 import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 import { getServerT } from "@/lib/i18n-server";
 import { fmt } from "@/lib/i18n";
@@ -220,13 +221,13 @@ export async function POST(req: Request) {
   if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
 
   // Rate limit: har bir token uchun daqiqasiga 20 chaqiruv (tool-loop hisobga olib).
-  const tokenHash = token.slice(0, 24); // token o'zi kalit sifatida — logga tushmasin
+  const tokenHash = tokenKey(token); // sha256 — token o'zi (yoki prefiksi) Redis'ga/logga tushmasin
   const rl = await rateLimit(`cli:${tokenHash}`, 20, 60_000);
   if (!rl.ok) {
     return limitErrorResponse(t("secTooManyRequests"), "rate_limited", 429, rl.retryAfterMs / 1000);
   }
   // Qo'shimcha IP-bazasidagi tekshiruv (agar bitta token ko'p mijozdan foydalanilsa).
-  const ipRl = await rateLimit(`cli:ip:${clientIp(req)}`, 60, 60_000);
+  const ipRl = await rateLimit(`cli:ip:${ipKey(clientIp(req))}`, 60, 60_000);
   if (!ipRl.ok) {
     return limitErrorResponse(t("secTooManyRequests"), "rate_limited", 429, ipRl.retryAfterMs / 1000);
   }

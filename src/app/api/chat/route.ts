@@ -28,6 +28,8 @@ import { extractUrls, readPages } from "@/lib/ai/web-read";
 import { captureSample } from "@/lib/ai/training";
 import { scriptDrift } from "@/lib/ai/script-check";
 import type { AnswerMeta } from "@/lib/chat/answer-meta";
+import { contentHasAttachment } from "@/lib/chat/attachment-markers";
+import { billableTotal, splitUsage } from "@/lib/chat/usage-chunks";
 import { getEnabledConnectors, runConnectorTools } from "@/lib/ai/connector-tools";
 import { fmt, LANG_FOR_AI, pick, translate, type TKey } from "@/lib/i18n";
 import { getServerT } from "@/lib/i18n-server";
@@ -124,12 +126,34 @@ const bodySchema = z.object({
     .array(
       z.object({
         role: z.enum(["user", "assistant", "system"]),
-        content: z.union([z.string().max(20_000), z.array(contentPart).max(12)]),
+        content: z.union([
+          z.string().max(20_000),
+          // Bitta xabardagi JAMI matn ham 20 000 belgigacha (satr bilan bir xil; mijoz bitta matn qismi +
+          // rasmlar yuboradi). Oldin 12 × 20k qism ruxsat edilib, so'rov ~1M tokengacha borardi.
+          z
+            .array(contentPart)
+            .max(12)
+            .refine((parts) => parts.reduce((n, p) => n + (p.type === "text" ? p.text.length : 0), 0) <= 20_000, {
+              message: "xabardagi jami matn 20 000 belgidan oshmasin",
+            }),
+        ]),
       }),
     )
     .min(1)
     .max(24),
 });
+
+/** Rasm qismi token hisobida ~1500 token (≈6000 belgi) deb olinadi — oldin umuman hisoblanmasdi. */
+const IMAGE_PART_CHARS = 6000;
+
+/** Xabarlar tarixining taxminiy "belgi" hajmi: matn + rasm qismlari (token hisobi uchun, ~4 belgi = 1 token). */
+function historyInputChars(messages: { content: string | unknown[] }[]): number {
+  return messages.reduce((n, m) => {
+    if (typeof m.content === "string") return n + m.content.length;
+    const images = m.content.filter((p) => !!p && typeof p === "object" && (p as { type?: unknown }).type === "image_url").length;
+    return n + textOf(m.content).length + images * IMAGE_PART_CHARS;
+  }, 0);
+}
 
 const UPGRADE = "[upgrade]";
 
@@ -397,6 +421,9 @@ export async function POST(req: Request) {
   // Skills (user-enabled ∪ auto-detected).
   const lastUser = [...messages].reverse().find((m) => m.role === "user")?.content;
   const lastText = lastUser ? textOf(lastUser) : "";
+  // Suhbatda biriktirilgan fayl/transkript/rasm bormi (mijoz fayl matnini user xabariga "[Fayl: …]"
+  // bilan qo'shadi — attachments.ts). Bunday suhbat trening bazasiga va umumiy keshga YOZILMAYDI.
+  const hasAttachment = messages.some((m) => m.role === "user" && contentHasAttachment(m.content));
   const { authed, userId, plan, usedToday, tokensUsedMonth, memoryText, loadKnowledge, trainingOptIn, onboarding } =
     await resolveEntitlement(lastText, docIds);
   const activeSkills = resolveActiveSkills(enabledSkills, lastText);
@@ -460,7 +487,10 @@ export async function POST(req: Request) {
     return refuse(dailyLimitMsg);
   }
   // Oylik token limiti (0015 tokens_used_month) — endi majburiy (javob navbatida ham).
-  if (authed && tokensUsedMonth >= plan.limits.tokensPerMonth) {
+  // Shu so'rovning kirish hajmi ham hisobga olinadi: faqat o'tgan sarf tekshirilsa, limitga yaqin
+  // foydalanuvchi bitta katta so'rov (uzun tarix + rasmlar) bilan limitdan ancha oshib ketardi.
+  const requestInputTokens = Math.round((historyInputChars(messages) + coworkContext.length) / 4);
+  if (authed && (tokensUsedMonth >= plan.limits.tokensPerMonth || tokensUsedMonth + requestInputTokens > plan.limits.tokensPerMonth)) {
     return refuse(markLimit(`${UPGRADE} ${fmt(t("secMonthlyTokenLimit"), { plan: plan.name })}`));
   }
 
@@ -647,6 +677,11 @@ export async function POST(req: Request) {
     urls.length === 0 &&
     !knowledgeText &&
     !memoryText &&
+    // Kesh BARCHA foydalanuvchilar uchun umumiy: fayl, Cowork papkasi yoki shaxsiy skill konteksti
+    // bilan yozilgan javob boshqa foydalanuvchiga qaytmasin.
+    !hasAttachment &&
+    !coworkContext &&
+    !customText &&
     typeof lastUser === "string" &&
     lastText.length >= 12;
 
@@ -702,6 +737,8 @@ export async function POST(req: Request) {
       // Oylik token hisobi uchun (finally'da yoziladi — oqim uzilsa/bekor qilinsa ham).
       let webContext = "";
       let connectorContext = "";
+      // Connector tool bosqichi modelining sarfi — alohida yoziladi (triage kabi).
+      let connectorUsage: { input: number; output: number; model: string; provider: string } | null = null;
       // BARCHA qadamlar (research ham) va barcha nomzodlar chiqishi — kelgan har bo'lak.
       let billedOutChars = 0;
       // Modelga haqiqatan yuborilgan qadam/nomzod chaqiruvlari soni (kirish har safar qayta yuboriladi).
@@ -758,7 +795,7 @@ export async function POST(req: Request) {
       /** Taxminiy token hisobi (~4 belgi = 1 token): butun tarix + kontekst har chaqiruvda. */
       const usageEstimate = () => {
         if (modelCalls === 0) return { input: 0, output: 0 };
-        const historyChars = messages.reduce((n, m) => n + textOf(m.content).length, 0);
+        const historyChars = historyInputChars(messages);
         const contextChars = [webContext, coworkContext, knowledgeText, memoryText, skillText, connectorContext, inquiryAddendum].join("")
           .length;
         return {
@@ -775,6 +812,14 @@ export async function POST(req: Request) {
         if (!authed) return;
         if (who ? u.input + u.output <= 0 : modelCalls === 0) return;
         const supabase = await createClient();
+        // record_token_usage bitta chaqiruvda ≤100k yozadi — katta sarf bo'laklab yoziladi (usage-chunks.ts).
+        for (const chunk of splitUsage(u)) await recordUsageChunk(supabase, chunk, who);
+      };
+      const recordUsageChunk = async (
+        supabase: Awaited<ReturnType<typeof createClient>>,
+        u: { input: number; output: number },
+        who?: { model: string; provider: string | null },
+      ) => {
         const base = {
           p_input_tokens: u.input,
           p_output_tokens: u.output,
@@ -787,10 +832,23 @@ export async function POST(req: Request) {
               ? null
               : (servedProvider || inferProvider(servedUpstream ?? "") || inferProvider(servedId) || null),
         };
-        let { error } = await supabase.rpc("record_token_usage", {
-          ...base,
-          p_upstream_model: who ? who.model : cachedFrom ? null : (servedUpstream ?? null),
-        });
+        const p_upstream_model = who ? who.model : cachedFrom ? null : (servedUpstream ?? null);
+        // database-1: server tekshirgan userId bilan service_role orqali yoziladi (record_token_usage_for,
+        // /api/cli/chat bilan bir xil) — foydalanuvchi JWT'si bilan chaqiriladigan RPC'ga tayanmaymiz.
+        // Service kaliti yo'q / xato bo'lsa — eski yo'l (record_token_usage, foydalanuvchi JWT).
+        if (userId) {
+          try {
+            const svc = createServiceClient();
+            let { error: svcErr } = await svc.rpc("record_token_usage_for", { p_user: userId, ...base, p_upstream_model });
+            // 0036 hali qo'llanmagan — eski imzo.
+            if (svcErr?.code === "PGRST202") ({ error: svcErr } = await svc.rpc("record_token_usage_for", { p_user: userId, ...base }));
+            if (!svcErr) return;
+            console.error("[chat] record_token_usage_for:", svcErr.message);
+          } catch (e) {
+            console.error("[chat] record_token_usage_for:", e instanceof Error ? e.message : e);
+          }
+        }
+        let { error } = await supabase.rpc("record_token_usage", { ...base, p_upstream_model });
         // 0036 hali qo'llanmagan — eski imzo (p_upstream_model yo'q).
         if (error?.code === "PGRST202") ({ error } = await supabase.rpc("record_token_usage", base));
         if (error) console.error("[chat] record_token_usage:", error.message);
@@ -798,11 +856,11 @@ export async function POST(req: Request) {
 
       /**
        * Javob ostidagi belgi uchun: so'ralgan ↔ haqiqiy model va shu javob uchun
-       * hisobga yozilgan token. Raqamlar faqat server hisoblagani (record_token_usage
-       * bitta chaqiruvda 100 000 dan ortig'ini yozmaydi — shu chegara bu yerda ham).
+       * hisobga yozilgan token. Raqamlar faqat server hisoblagani (recordUsage bo'laklab
+       * yozadigan jami — usage-chunks.ts chegarasi bu yerda ham).
        */
       const answerMeta = (u: { input: number; output: number }): AnswerMeta => {
-        const tokens = Math.min(100_000, u.input + u.output);
+        const tokens = billableTotal(u);
         const billed = authed && modelCalls > 0 && tokens > 0;
         const requested = regionSwapFrom ?? (isAuto ? (answerStep?.modelId ?? modelId) : modelId);
         return {
@@ -827,7 +885,7 @@ export async function POST(req: Request) {
        * token — triage'ning haqiqiy tokeni (halollik). Zaxira emas (boshqa bosqich), shuning uchun fallback yo'q.
        */
       const askMeta = (u: { input: number; output: number }): AnswerMeta => {
-        const tokens = Math.min(100_000, u.input + u.output);
+        const tokens = billableTotal(u);
         const billed = authed && tokens > 0;
         const requested = regionSwapFrom ?? (isAuto ? (answerStep?.modelId ?? modelId) : modelId);
         const triageModel = triageOutcomes.find((x) => x.outcome.model)?.outcome.model;
@@ -925,11 +983,12 @@ export async function POST(req: Request) {
             if (cu) {
               const enabled = await getEnabledConnectors(sbc, cu.id);
               if (enabled.length) {
-                // Faqat katalog modeli (tarif tekshiruvidan o'tgan); OmniRoute/xom id → null (standart model).
-                const pm = MODEL_BY_ID[answerStep.modelId]?.providerModel ?? null;
-                const run = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: pm, messages, enabled, signal: req.signal, country });
+                // Tool bosqichi DOIM arzon standart model (TOOL_MODEL / mintaqa zaxirasi) — javob modeli
+                // (mas. Opus) har navbatda 3 martagacha platforma kalitida chaqirilmaydi.
+                const run = await runConnectorTools({ supabase: sbc, userId: cu.id, providerModel: null, messages, enabled, signal: req.signal, country });
                 if (run.context) connectorContext = run.context;
                 actionLedger = run.actions;
+                connectorUsage = run.usage;
               }
             }
           }
@@ -1079,7 +1138,9 @@ ${connectorContext}`
 
         // Muvaffaqiyatli tugagach — yangi javobni keshga yozamiz. Zaxira (boshqa model)
         // javobi keshlanmaydi: keyin u tanlangan model nomi bilan qaytmasin.
-        if (canCache && cacheableAnswer && steps.length === 1 && !servedSubstituted && !servedRescue) {
+        // Ulangan servis (Gmail/GitHub …) yoki o'qilgan sahifa ma'lumoti bilan yozilgan javob — shaxsiy:
+        // umumiy (foydalanuvchilararo) keshga tushmaydi.
+        if (canCache && cacheableAnswer && steps.length === 1 && !servedSubstituted && !servedRescue && !connectorContext && !webContext) {
           try {
             const supabase = await createClient();
             void saveSemanticCache(supabase, lastText, cacheableAnswer, servedId, lang);
@@ -1186,10 +1247,17 @@ ${connectorContext}`
             question: lastText,
             answer: cacheableAnswer,
             model: servedUpstream ?? servedId,
-            // Xotira, ulangan servis (GitHub/Figma) va o'qilgan sahifalar ham
-            // shaxsiy kontekst — bunday javob trening bazasiga tushmaydi.
+            // Xotira, ulangan servis (GitHub/Figma), o'qilgan sahifalar va biriktirilgan
+            // fayl/transkript ham shaxsiy kontekst — bunday javob trening bazasiga tushmaydi.
             hasPrivateContext: Boolean(
-              docIds.length || coworkContext || knowledgeText || memoryText || connectorContext || webContext || customText,
+              hasAttachment ||
+                docIds.length ||
+                coworkContext ||
+                knowledgeText ||
+                memoryText ||
+                connectorContext ||
+                webContext ||
+                customText,
             ),
             optedIn: trainingOptIn,
           });
@@ -1212,6 +1280,8 @@ ${connectorContext}`
         // Bekor qilingan / uzilgan oqim ham hisobga olinadi (oylik token limiti).
         const usage = usageEstimate();
         const triU = triageUsage();
+        // Connector tool bosqichi sarfi belgidagi tokenga ham qo'shiladi (foydalanuvchi limitidan yechiladi).
+        const connU = connectorUsage ? { input: connectorUsage.input, output: connectorUsage.output } : { input: 0, output: 0 };
         // R1-4: sezgir navbat (favqulodda, yuqori xavf regex'i, sezgir soha karta/triage) — mijoz avtomatik
         // xotiraga yozmaydi (kartasiz "answer", mode "off" va triage taymauti holatlari ham).
         const sensitive =
@@ -1223,7 +1293,11 @@ ${connectorContext}`
         try {
           if (modelCalls > 0 || cachedFrom) {
             // Belgidagi token — javob + triage (halollik: foydalanuvchi limitidan ikkalasi ham yechiladi).
-            send({ type: "meta", ...answerMeta({ input: usage.input + triU.input, output: usage.output + triU.output }), ...sens });
+            send({
+              type: "meta",
+              ...answerMeta({ input: usage.input + triU.input + connU.input, output: usage.output + triU.output + connU.output }),
+              ...sens,
+            });
           } else if (askSent) {
             send({ type: "meta", ...askMeta(triU), ...sens });
           }
@@ -1241,6 +1315,12 @@ ${connectorContext}`
                 ).catch((e) => console.error("[chat] record_token_usage (triage):", e))
               : Promise.resolve(),
           ),
+          connectorUsage
+            ? recordUsage(
+                { input: connectorUsage.input, output: connectorUsage.output },
+                { model: connectorUsage.model, provider: connectorUsage.provider },
+              ).catch((e) => console.error("[chat] record_token_usage (connector):", e))
+            : Promise.resolve(),
           ...inquiryJobs,
         ]);
         try {

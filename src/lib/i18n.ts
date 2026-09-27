@@ -31,6 +31,7 @@ import { P11C } from "@/lib/locales/p11-compare";
 import { P12J } from "@/lib/locales/p12-judge";
 import { P13E } from "@/lib/locales/p13-econ";
 import { P14I } from "@/lib/locales/p14-inquiry";
+import { P15A } from "@/lib/locales/p15-audit";
 
 export type Lang = "uz" | "uz-cyrl" | "ru" | "en";
 
@@ -80,10 +81,10 @@ const CORE = {
   projectName: { uz: "Loyiha nomi ↵", "uz-cyrl": "Лойиҳа номи ↵", ru: "Название проекта ↵", en: "Project name ↵" },
   projectInstructions: { uz: "Loyiha ko'rsatmasi", "uz-cyrl": "Лойиҳа кўрсатмаси", ru: "Инструкция проекта", en: "Project instructions" },
   memory: { uz: "Xotira", "uz-cyrl": "Хотира", ru: "Память", en: "Memory" },
-  knowledgeBase: { uz: "Knowledge Base", "uz-cyrl": "Билимлар базаси", ru: "База знаний", en: "Knowledge Base" },
+  knowledgeBase: { uz: "Bilim bazasi", "uz-cyrl": "Билим базаси", ru: "База знаний", en: "Knowledge base" },
   coworkFolder: { uz: "Cowork papka", "uz-cyrl": "Cowork папка", ru: "Папка Cowork", en: "Cowork folder" },
-  skills: { uz: "Skills", "uz-cyrl": "Skills", ru: "Навыки", en: "Skills" },
-  researchMode: { uz: "Research rejim", "uz-cyrl": "Research режим", ru: "Режим Research", en: "Research mode" },
+  skills: { uz: "Skillar", "uz-cyrl": "Скиллар", ru: "Навыки", en: "Skills" },
+  researchMode: { uz: "Tadqiqot rejimi", "uz-cyrl": "Тадқиқот режими", ru: "Режим исследования", en: "Research mode" },
   privateMode: { uz: "Maxfiy rejim", "uz-cyrl": "Махфий режим", ru: "Приватный режим", en: "Private mode" },
   settings: { uz: "Sozlamalar", "uz-cyrl": "Созламалар", ru: "Настройки", en: "Settings" },
   upgrade: { uz: "Oshirish", "uz-cyrl": "Ошириш", ru: "Улучшить", en: "Upgrade" },
@@ -129,7 +130,7 @@ const CORE = {
   navPrivacy: { uz: "Maxfiylik", "uz-cyrl": "Махфийлик", ru: "Приватность", en: "Privacy" },
   login: { uz: "Kirish", "uz-cyrl": "Кириш", ru: "Войти", en: "Log in" },
   startFree: { uz: "Bepul boshlash", "uz-cyrl": "Бепул бошлаш", ru: "Начать бесплатно", en: "Start free" },
-  backToChat: { uz: "Chatbotga qaytish", "uz-cyrl": "Чатботга қайтиш", ru: "Вернуться в чат", en: "Back to chat" },
+  backToChat: { uz: "Chatga qaytish", "uz-cyrl": "Чатга қайтиш", ru: "Вернуться в чат", en: "Back to chat" },
 
   // Umumiy amallar
   delete: { uz: "O'chirish", "uz-cyrl": "Ўчириш", ru: "Удалить", en: "Delete" },
@@ -304,13 +305,13 @@ const CORE = {
 
   // SkillsMarket / SkillPicker
   skillsEnabled: { uz: "yoqilgan", "uz-cyrl": "ёқилган", ru: "включено", en: "enabled" },
-  skillsSearch: { uz: "Skill qidirish", "uz-cyrl": "Skill қидириш", ru: "Поиск навыка", en: "Search skill" },
+  skillsSearch: { uz: "Skill qidirish", "uz-cyrl": "Скилл қидириш", ru: "Поиск навыка", en: "Search skill" },
   catAll: { uz: "Barchasi", "uz-cyrl": "Барчаси", ru: "Все", en: "All" },
   catMine: { uz: "Mening skillarim", "uz-cyrl": "Менинг скилларим", ru: "Мои навыки", en: "My skills" },
   skillCustomDesc: { uz: "Siz yaratgan skill", "uz-cyrl": "Сиз яратган скилл", ru: "Навык, созданный вами", en: "A skill you created" },
   skillNamePlaceholder: {
     uz: "Skill nomi (masalan: Huquqiy tahlil)",
-    "uz-cyrl": "Skill номи (масалан: Ҳуқуқий таҳлил)",
+    "uz-cyrl": "Скилл номи (масалан: Ҳуқуқий таҳлил)",
     ru: "Название навыка (например: Юридический анализ)",
     en: "Skill name (e.g. Legal analysis)",
   },
@@ -320,7 +321,7 @@ const CORE = {
     ru: "Чему должен следовать ИИ при включённом навыке? Опишите чёткие правила.",
     en: "What should the AI follow when this skill is on? Write clear rules.",
   },
-  createSkill: { uz: "O'z skilingizni yarating", "uz-cyrl": "Ўз скилингизни яратинг", ru: "Создайте свой навык", en: "Create your own skill" },
+  createSkill: { uz: "O'z skillingizni yarating", "uz-cyrl": "Ўз скиллингизни яратинг", ru: "Создайте свой навык", en: "Create your own skill" },
   skillPickerSubtitle: {
     uz: "Ekspert rejimlar. Yoqilganlar har javobga qo'shiladi; mos so'rovlar avtomatik ham faollashadi.",
     "uz-cyrl": "Эксперт режимлар. Ёқилганлар ҳар жавобга қўшилади; мос сўровлар автоматик ҳам фаоллашади.",
@@ -330,7 +331,6 @@ const CORE = {
 
   // MessageItem
   answer: { uz: "Javob", "uz-cyrl": "Жавоб", ru: "Ответ", en: "Answer" },
-  sourceWord: { uz: "manba", "uz-cyrl": "манба", ru: "источник(ов)", en: "sources" },
   pageRead: { uz: "Sahifa o'qildi", "uz-cyrl": "Саҳифа ўқилди", ru: "Прочитана страница", en: "Page read" },
   pagesRead: { uz: "sahifa o'qildi", "uz-cyrl": "саҳифа ўқилди", ru: "страниц прочитано", en: "pages read" },
   modelSwitched: { uz: "Model almashtirildi", "uz-cyrl": "Модел алмаштирилди", ru: "Модель заменена", en: "Model switched" },
@@ -384,9 +384,9 @@ const CORE = {
   // PricingDialog
   pricingPlans: { uz: "Tariflar", "uz-cyrl": "Тарифлар", ru: "Тарифы", en: "Plans" },
   pricingHeadline: {
-    uz: "O'zingizga mos rejani tanlang",
-    "uz-cyrl": "Ўзингизга мос режани танланг",
-    ru: "Выберите подходящий план",
+    uz: "O'zingizga mos tarifni tanlang",
+    "uz-cyrl": "Ўзингизга мос тарифни танланг",
+    ru: "Выберите подходящий тариф",
     en: "Choose the plan that fits you",
   },
   planNeeded: { uz: "Kerakli tarif", "uz-cyrl": "Керакли тариф", ru: "Нужный тариф", en: "Required plan" },
@@ -441,8 +441,8 @@ const CORE = {
   densityComfortable: { uz: "Bo'sh", "uz-cyrl": "Бўш", ru: "Свободно", en: "Comfortable" },
   reducedMotionTitle: { uz: "Animatsiyani kamaytirish", "uz-cyrl": "Анимацияни камайтириш", ru: "Уменьшить анимацию", en: "Reduce motion" },
   reducedMotionDesc: {
-    uz: "Kichikroq harakatlar, batarey uchun.",
-    "uz-cyrl": "Кичикроқ ҳаракатлар, батарея учун.",
+    uz: "Kamroq harakat, batareyani tejaydi.",
+    "uz-cyrl": "Камроқ ҳаракат, батареяни тежайди.",
     ru: "Меньше движения, экономит батарею.",
     en: "Smaller motion, saves battery.",
   },
@@ -455,9 +455,9 @@ const CORE = {
   },
   streamingTitle: { uz: "Streaming tezligi", "uz-cyrl": "Streaming тезлиги", ru: "Скорость стриминга", en: "Streaming speed" },
   streamingDesc: {
-    uz: "Naturali — bo'lakli; Darhol — butun javob birga.",
-    "uz-cyrl": "Натурали — бўлакли; Дарҳол — бутун жавоб бирга.",
-    ru: "Натуральный — по частям; Мгновенно — весь ответ сразу.",
+    uz: "Natural — bo'laklab; Darhol — butun javob birga.",
+    "uz-cyrl": "Натурал — бўлаклаб; Дарҳол — бутун жавоб бирга.",
+    ru: "Натурально — по частям; Мгновенно — весь ответ сразу.",
     en: "Natural — in chunks; Instant — the whole answer at once.",
   },
   streamingNatural: { uz: "Natural", "uz-cyrl": "Натурал", ru: "Натурально", en: "Natural" },
@@ -472,7 +472,7 @@ const CORE = {
   trainingTitle: { uz: "Tella 2 ni o'rgatish", "uz-cyrl": "Tella 2 ни ўргатиш", ru: "Обучать Tella 2", en: "Train Tella 2" },
   trainingDesc: {
     uz: "Savol-javoblaringiz o'z modelimizni yaxshilashda ishlatiladi. Fayl, bilim bazasi va maxfiy rejim hech qachon olinmaydi.",
-    "uz-cyrl": "Савол-жавобларингиз ўз моделимизни яхшилашда ишлатилади. Файл, билимлар базаси ва махфий режим ҳеч қачон олинмайди.",
+    "uz-cyrl": "Савол-жавобларингиз ўз моделимизни яхшилашда ишлатилади. Файл, билим базаси ва махфий режим ҳеч қачон олинмайди.",
     ru: "Ваши вопросы-ответы помогают улучшать нашу модель. Файлы, база знаний и приватный режим никогда не используются.",
     en: "Your Q&A helps improve our own model. Files, knowledge base and private mode are never used.",
   },
@@ -486,10 +486,10 @@ const CORE = {
   exportBtn: { uz: "Eksport", "uz-cyrl": "Экспорт", ru: "Экспорт", en: "Export" },
   deleteAllTitle: { uz: "Barcha ma'lumotni o'chirish", "uz-cyrl": "Барча маълумотни ўчириш", ru: "Удалить все данные", en: "Delete all data" },
   deleteAllDesc: {
-    uz: "Suhbatlar va xotira butunlay o'chiriladi.",
-    "uz-cyrl": "Суҳбатлар ва хотира бутунлай ўчирилади.",
-    ru: "Чаты и память будут удалены полностью.",
-    en: "Chats and memory are permanently deleted.",
+    uz: "Suhbatlar, xotira, ulashilgan havolalar, bilim bazasi hujjatlari va ulangan servislar butunlay o'chiriladi; CLI va Cowork qurilmalari uziladi.",
+    "uz-cyrl": "Суҳбатлар, хотира, улашилган ҳаволалар, билим базаси ҳужжатлари ва уланган сервислар бутунлай ўчирилади; CLI ва Cowork қурилмалари узилади.",
+    ru: "Чаты, память, публичные ссылки, документы базы знаний и подключённые сервисы удаляются безвозвратно; устройства CLI и Cowork отключаются.",
+    en: "Chats, memory, shared links, knowledge-base documents and connected services are permanently deleted, and CLI and Cowork devices are signed out.",
   },
   confirmDelete: { uz: "Tasdiqlash — o'chirish", "uz-cyrl": "Тасдиқлаш — ўчириш", ru: "Подтвердить — удалить", en: "Confirm — delete" },
   preparing: { uz: "Tayyorlanmoqda...", "uz-cyrl": "Тайёрланмоқда...", ru: "Подготовка...", en: "Preparing..." },
@@ -524,7 +524,7 @@ const CORE = {
   onbEnter: { uz: "SOVEREIGN'ga kirish", "uz-cyrl": "SOVEREIGN'га кириш", ru: "Войти в SOVEREIGN", en: "Enter SOVEREIGN" },
 } as const;
 
-const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D, ...P9W, ...P10R, ...P11C, ...P12J, ...P13E, ...P14I };
+const DICT = { ...CORE, ...LANDING, ...CHAT, ...PANELS, ...AUTH, ...SECURITY, ...UX, ...P3B, ...P3C, ...P3D, ...P4B, ...P4C, ...P4D, ...P4E, ...P5A, ...P5B, ...P6A, ...P7B, ...P7C, ...P8A, ...P8B, ...P8C, ...P8D, ...P9W, ...P10R, ...P11C, ...P12J, ...P13E, ...P14I, ...P15A };
 
 export type TKey = keyof typeof DICT;
 

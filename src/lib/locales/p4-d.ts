@@ -68,11 +68,11 @@ export const P4D = {
   },
   p4dHowS1Title: { uz: "Bepul hisob oching", "uz-cyrl": "Бепул ҳисоб очинг", ru: "Создайте бесплатный аккаунт", en: "Create a free account" },
   p4dHowS1Body: {
-    uz: "Email yoki Google orqali ro'yxatdan o'ting. Karta kerak emas — Free rejimida Llama 3.3, Gemini 2.5 Flash va DeepSeek R1 bor.",
+    uz: "Email yoki Google orqali ro'yxatdan o'ting. Karta kerak emas — Free rejimida Llama 3.3, Gemini 2.0 Flash va DeepSeek R1 bor.",
     "uz-cyrl":
-      "Email ёки Google орқали рўйхатдан ўтинг. Карта керак эмас — Free режимида Llama 3.3, Gemini 2.5 Flash ва DeepSeek R1 бор.",
-    ru: "Зарегистрируйтесь по email или через Google. Карта не нужна — в тарифе Free есть Llama 3.3, Gemini 2.5 Flash и DeepSeek R1.",
-    en: "Sign up with email or Google. No card needed — the Free plan includes Llama 3.3, Gemini 2.5 Flash and DeepSeek R1.",
+      "Email ёки Google орқали рўйхатдан ўтинг. Карта керак эмас — Free режимида Llama 3.3, Gemini 2.0 Flash ва DeepSeek R1 бор.",
+    ru: "Зарегистрируйтесь по email или через Google. Карта не нужна — в тарифе Free есть Llama 3.3, Gemini 2.0 Flash и DeepSeek R1.",
+    en: "Sign up with email or Google. No card needed — the Free plan includes Llama 3.3, Gemini 2.0 Flash and DeepSeek R1.",
   },
   p4dHowS2Title: {
     uz: "Modelni tanlang — yoki Auto'ga ishoning",
@@ -204,7 +204,7 @@ export const P4D = {
     uz: "Maqsadimiz — dunyoning eng yaxshi AI modellarini O'zbekiston va MDH aholisi uchun foydali va hamyonbop qilish: o'z tilida, mahalliy ishlaydigan to'lov usullari bilan va shaxsiy ma'lumotlarni AI kompaniyalariga bermasdan. SOVEREIGN mustaqil ravishda loyihalangan, qurilgan va boshqariladi.",
     "uz-cyrl":
       "Мақсадимиз — дунёнинг энг яхши AI моделларини Ўзбекистон ва МДҲ аҳолиси учун фойдали ва ҳамёнбоп қилиш: ўз тилида, маҳаллий ишлайдиган тўлов усуллари билан ва шахсий маълумотларни AI компанияларига бермасдан. SOVEREIGN мустақил равишда лойиҳаланган, қурилган ва бошқарилади.",
-    ru: "Наша миссия — сделать лучшие модели ИИ полезными и доступными для людей в Узбекистане и СНГ: на родном языке, со способами оплаты, которые работают на месте, и без передачи личных данных AI-компаниям. SOVEREIGN спроектирован, создан и развивается независимо.",
+    ru: "Наша миссия — сделать лучшие модели ИИ полезными и доступными для людей в Узбекистане и СНГ: на родном языке, со способами оплаты, которые работают на месте, и без передачи личных данных ИИ-компаниям. SOVEREIGN спроектирован, создан и развивается независимо.",
     en: "Our mission is to make the world's best AI useful and affordable for people in Uzbekistan and the CIS — in their own language, with payment methods that work locally, and without handing personal data to AI companies. SOVEREIGN is designed, built and operated independently.",
   },
   p4dAboutFounderBio: {

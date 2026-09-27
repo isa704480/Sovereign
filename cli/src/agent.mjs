@@ -234,7 +234,7 @@ async function runRound(messages, config, onText, signal) {
   if (config.token) {
     const res = await fetchRetry429(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}`, "X-Sov-Lang": "uz" },
       body: JSON.stringify({
         messages: forServer(messages),
         tools: TOOL_SCHEMA,
@@ -466,7 +466,8 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
         if (ok && name === "run_command" && print) toolSpin = spinner("buyruq bajarilyapti...");
         return ok;
       },
-      { signal },
+      // fullAuto: run_command bolasiga egress to'sig'i (proxy) — tools.mjs (sandbox emas).
+      { signal, fullAuto },
     );
   const tracker = createTurnTracker(exec);
   const honestyOut = (h) => ({
@@ -652,7 +653,7 @@ async function askOnce(messages, config, maxTokens = 900) {
   if (config.token) {
     const res = await fetchRetry429(`${config.baseUrl.replace(/\/$/, "")}/api/cli/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}`, "X-Sov-Lang": "uz" },
       body: JSON.stringify({ messages: forServer(messages) }),
     });
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `${res.status}`);

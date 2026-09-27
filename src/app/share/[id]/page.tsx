@@ -29,6 +29,19 @@ interface SharedRow {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * "Foydalanuvchi ulashgan, SOVEREIGN tasdiqlamagan" ogohlantirishi. Ulashilgan nusxa mijoz yuborgan
+ * matndan tuziladi (actions/share.ts) — rasmiy domen va model belgisi ostida soxta "AI javobi"
+ * (fishing havolasi) bilan ishonch uyg'otmasin. Kalit hali lug'atda bo'lmasa — sahifa yiqilmaydi.
+ */
+function unverifiedNotice(t: (k: TKey) => string): string {
+  try {
+    return t("chShareUnverified" as TKey) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/**
  * jsonb shaklini tekshiradi: `messages` massiv emas yoki `content` satr emas bo'lsa sahifa
  * 500 bilan yiqilmasin — yaroqsiz elementlar tashlab yuboriladi.
  */
@@ -103,6 +116,7 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
   const t = (k: TKey) => translate(lang, k);
 
   const model = row.model_id ? MODEL_BY_ID[row.model_id] : undefined;
+  const notice = unverifiedNotice(t);
   const date = new Date(row.created_at).toLocaleDateString(localeOf(lang), { year: "numeric", month: "long", day: "numeric" });
 
   return (
@@ -129,6 +143,15 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
           {date}
           {model ? ` · ${model.name}` : ""} · {t("chShareNote")}
         </p>
+        {notice && (
+          <p
+            role="note"
+            className="mt-4 rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed"
+            style={{ borderColor: "rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#F5C26B" }}
+          >
+            ⚠ {notice}
+          </p>
+        )}
         <div className="mt-8">
           <SharedMessages messages={row.messages} />
         </div>

@@ -223,7 +223,15 @@ export class SnapshotStore {
 
   #ensureDir() {
     if (!this.dirReady) {
-      this.dirReady = fsp.mkdir(join(this.dir, "objects"), { recursive: true }).then(() => {
+      // Nusxalarda loyiha fayllari (.env ham) bor — faqat egasi o'qisin (0700/0600).
+      // mkdir mode faqat YANGI papkalarga ta'sir qiladi — mavjud ~/.sovereign va
+      // baseDir chmod bilan ham toraytiriladi (POSIX; Windows'da profil ACL himoya qiladi).
+      this.dirReady = fsp.mkdir(join(this.dir, "objects"), { recursive: true, mode: 0o700 }).then(async () => {
+        if (process.platform !== "win32") {
+          const dirs = [this.baseDir, this.dir, join(this.dir, "objects")];
+          if (dirname(resolve(this.baseDir)) === join(homedir(), ".sovereign")) dirs.unshift(join(homedir(), ".sovereign"));
+          for (const d of dirs) await fsp.chmod(d, 0o700).catch(() => {});
+        }
         this.#cleanStale(); // fonda — natijasi kutilmaydi
       });
     }
@@ -259,8 +267,8 @@ export class SnapshotStore {
     this.totalBytes += buf.length;
     try {
       await this.#ensureDir();
-      await fsp.mkdir(dirname(this.#objPath(hash)), { recursive: true });
-      await fsp.writeFile(this.#objPath(hash), buf, { flag: "wx" });
+      await fsp.mkdir(dirname(this.#objPath(hash)), { recursive: true, mode: 0o700 });
+      await fsp.writeFile(this.#objPath(hash), buf, { flag: "wx", mode: 0o600 });
       return true;
     } catch (e) {
       if (e?.code === "EEXIST") return true;

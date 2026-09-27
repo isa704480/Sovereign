@@ -219,7 +219,7 @@ function LocalSection({ settings, setSetting, onLink }) {
   );
 }
 
-export default function Settings({ initial = "general", onClose, info, settings, setSetting, lang, setLang, model, onModel, auth, onLogin, onCancelLogin, onLogout, onPick, onOpenRecent, onReveal, recent, onClearHistory, update, onUpdateAction, onLink }) {
+export default function Settings({ initial = "general", onClose, info, settings, setSetting, lang, setLang, model, onModel, auth, onLogin, onCancelLogin, onLogout, onPick, onOpenRecent, onReveal, recent, onClearHistory, update, onUpdateAction, onLink, onFullAuto }) {
   const t = useT();
   const [sec, setSec] = useState(initial);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -255,7 +255,7 @@ export default function Settings({ initial = "general", onClose, info, settings,
                 <Seg label={t("settings.inquiry")} value={settings.inquiryMode ?? "auto"} onChange={(v) => setSetting({ inquiryMode: v })} options={[["auto", t("settings.inquiry.auto")], ["always", t("settings.inquiry.always")], ["off", t("settings.inquiry.off")]]} />
                 <span className="block faint small mt-sm">{t("settings.inquiryDesc")}</span>
               </div>
-              <Toggle checked={!!settings.fullAuto} onChange={(v) => Promise.resolve(setSetting({ fullAuto: v })).then(refreshLocal)} label={t("settings.fullAuto")} desc={t("settings.fullAutoDesc")} />
+              <Toggle checked={!!settings.fullAuto} onChange={(v) => Promise.resolve(onFullAuto ? onFullAuto(v) : setSetting({ fullAuto: v })).then(refreshLocal)} label={t("settings.fullAuto")} desc={t("settings.fullAutoDesc")} />
               <Toggle checked={settings.notifications} onChange={(v) => setSetting({ notifications: v })} label={t("settings.notifications")} desc={t("settings.notificationsDesc")} />
             </>
           )}
@@ -287,7 +287,7 @@ export default function Settings({ initial = "general", onClose, info, settings,
                   <span className="block strong">{info.cwd ? info.cwd.split(/[\\/]/).filter(Boolean).pop() : t("folder.none")}</span>
                   <span className="block faint small mono trunc">{info.cwd || t("folder.pickHint")}</span>
                 </span>
-                {info.cwd && <button type="button" className="btn btn-sm btn-ghost" onClick={onReveal}><Icon name="external" size={13} /> {t("files.reveal")}</button>}
+                {info.cwd && <button type="button" className="btn btn-sm btn-ghost" onClick={onReveal}><Icon name="external" size={13} /> {t(info.platform === "darwin" ? "files.revealMac" : "files.reveal")}</button>}
                 <button type="button" className="btn btn-sm" onClick={onPick}>{info.cwd ? t("folder.change") : t("folder.browse")}</button>
               </div>
               {recent.length > 0 && (

@@ -1,11 +1,33 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { SUPABASE_ANON_KEY, SUPABASE_MISSING_MESSAGE, SUPABASE_URL, cookieDomainFor, isSupabaseConfigured, sessionCookieOptions } from "./env";
+import {
+  SIGNED_IN_HINT_COOKIE,
+  SUPABASE_ANON_KEY,
+  SUPABASE_MISSING_MESSAGE,
+  SUPABASE_URL,
+  cookieDomainFor,
+  isSupabaseConfigured,
+  sessionCookieHttpOnly,
+  sessionCookieOptions,
+} from "./env";
 
 const PROTECTED_PREFIXES = ["/onboarding", "/app"];
 const AUTH_PAGES = ["/login", "/register"];
 
 let warned = false;
+
+/** SIGNED_IN_HINT_COOKIE'ni sessiya holatiga moslaydi (faqat farq bo'lsa Set-Cookie). */
+function syncSignedInHint(request: NextRequest, response: NextResponse, signedIn: boolean, domain: string | undefined, secure: boolean) {
+  const has = request.cookies.get(SIGNED_IN_HINT_COOKIE)?.value === "1";
+  if (signedIn === has) return;
+  response.cookies.set(SIGNED_IN_HINT_COOKIE, signedIn ? "1" : "", {
+    path: "/",
+    sameSite: "lax",
+    secure,
+    ...(domain ? { domain } : {}),
+    maxAge: signedIn ? 400 * 24 * 60 * 60 : 0,
+  });
+}
 
 /**
  * Refreshes the Supabase session on every matched request and applies
@@ -32,11 +54,13 @@ export async function updateSession(request: NextRequest) {
   }
 
   const domain = cookieDomainFor(request.headers.get("host"));
+  const secure = process.env.NODE_ENV === "production";
+  const httpOnly = sessionCookieHttpOnly();
   const supabase = createServerClient(
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
     {
-      cookieOptions: sessionCookieOptions(domain, process.env.NODE_ENV === "production"),
+      cookieOptions: sessionCookieOptions(domain, secure, httpOnly),
       cookies: {
         getAll() {
           return request.cookies.getAll();
@@ -57,6 +81,9 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // httpOnly rejimi: landing JS sessiya cookie'sini ko'rmaydi — alohida maxfiy bo'lmagan ishora.
+  if (httpOnly) syncSignedInHint(request, response, Boolean(user), domain, secure);
 
   const { pathname } = request.nextUrl;
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));

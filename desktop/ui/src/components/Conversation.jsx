@@ -133,10 +133,14 @@ export function LedgerCard({ it }) {
 function ErrorCard({ it, onAction, last }) {
   const t = useT();
   const [cloud, setCloud] = useState(false);
-  const code = ["auth", "network", "offline", "limit", "no-folder", "busy", "server", "local"].includes(it.code) ? it.code : "server";
+  // 413: so'rov juda katta — alohida lokallashtirilgan karta (server matni CLI'ning /clear buyrug'ini tavsiya qiladi).
+  const code = it.code === "server" && it.status === 413 ? "tooLarge"
+    : ["auth", "network", "offline", "limit", "no-folder", "busy", "server", "local"].includes(it.code) ? it.code : "server";
   // Mahalliy model xatosi: localKind — unreachable | not-found | failed.
   const key = code === "local" ? `local.${it.localKind ?? "failed"}` : code;
-  const detail = code === "server" || code === "limit" || (code === "local" && it.localKind !== "unreachable") ? it.message : "";
+  // Limit (402/429) matnlari CLI buyrug'ini (/upgrade) tavsiya qiladi — Cowork'da u yo'q; lokallashtirilgan
+  // err.* sarlavha/tavsif yetarli. Server detali (X-Sov-Lang bilan UI tilida) faqat boshqa server xatolarida.
+  const detail = code === "server" || (code === "local" && it.localKind !== "unreachable") ? it.message : "";
   const backToCloud = async () => {
     const r = await S()?.local?.use(null).catch(() => null);
     if (r?.ok) setCloud(true);

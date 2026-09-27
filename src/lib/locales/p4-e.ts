@@ -48,10 +48,10 @@ export const P4E = {
     en: "Video generation isn't available yet.",
   },
   p4eVideoPlanRequired: {
-    uz: "Video yaratish Starter va undan yuqori tariflarda ochiladi.",
-    "uz-cyrl": "Видео яратиш Starter ва ундан юқори тарифларда очилади.",
-    ru: "Создание видео доступно на тарифе Starter и выше.",
-    en: "Video generation unlocks on Starter and higher plans.",
+    uz: "Video yaratish Basic va undan yuqori tariflarda ochiladi.",
+    "uz-cyrl": "Видео яратиш Basic ва ундан юқори тарифларда очилади.",
+    ru: "Создание видео доступно на тарифе Basic и выше.",
+    en: "Video generation unlocks on Basic and higher plans.",
   },
   p4eVideoDailyLimit: {
     uz: "Bugungi video limiti tugadi ({n} ta). Ertaga davom eting yoki tarifni oshiring.",

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createDodoCheckout, dodoMode, dodoProductId, isDodoConfigured } from "@/lib/payments/dodo";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 import { normalizePromo } from "@/lib/payments/promo";
 import { purchaseBlocker } from "@/lib/payments/entitlement";
 import { getServerT } from "@/lib/i18n-server";
@@ -16,7 +16,7 @@ const schema = z.object({ plan: z.string(), period: z.string().optional(), promo
 /** POST /api/checkout/dodo — card subscription checkout via Dodo Payments. */
 export async function POST(req: Request) {
   const t = await getServerT();
-  const rl = await rateLimit(`dodo-checkout:${clientIp(req)}`, 10, 60_000);
+  const rl = await rateLimit(`dodo-checkout:${ipKey(clientIp(req))}`, 10, 60_000);
   if (!rl.ok) return Response.json({ error: t("chTooManyAttempts") }, { status: 429 });
 
   const parsed = schema.safeParse(await req.json().catch(() => null));

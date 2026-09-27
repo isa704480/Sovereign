@@ -1,6 +1,7 @@
 import "server-only";
 import { detectAspect } from "@/lib/ai/image";
 import { omniImagePrompt } from "@/lib/ai/omniroute-media";
+import { hostAllowedIn } from "@/lib/ai/region";
 
 /**
  * Video generatsiya — Pollinations (gen.pollinations.ai) `GET /video/{prompt}`.
@@ -66,12 +67,18 @@ async function errorCode(res: Response): Promise<string> {
  * ~5 soniyalik video yaratadi. `deadlineMs` — route maxDuration ichidagi byudjet.
  * Xatoda VideoError tashlaydi.
  */
-export async function generateVideo(request: string, deadlineMs = 280_000): Promise<VideoResult> {
+export async function generateVideo(
+  request: string,
+  deadlineMs = 280_000,
+  opts: { country?: string | null } = {},
+): Promise<VideoResult> {
   const key = process.env.POLLINATIONS_API_KEY;
   if (!key) throw new VideoError("disabled", "POLLINATIONS_API_KEY yo'q");
+  // Mintaqa siyosati (region.ts HOST_POLICY): Pollinations bu mintaqaga xizmat ko'rsatmasa — chaqirilmaydi.
+  if (!hostAllowedIn("pollinations", opts.country)) throw new VideoError("disabled", "video provayderi mintaqada yopiq");
   const deadline = Date.now() + deadlineMs;
   const aspectRatio = detectAspect(request) === "portrait" ? "9:16" : "16:9";
-  const prompt = (await omniImagePrompt(request, "video")) ?? request;
+  const prompt = (await omniImagePrompt(request, "video", opts.country)) ?? request;
 
   let lastCode: VideoErrorCode = "failed";
   for (const model of VIDEO_MODELS) {

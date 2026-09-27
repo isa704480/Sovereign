@@ -6,7 +6,7 @@ import type { Dict } from "@/lib/i18n";
  */
 export const P13E = {
   p13eTitle: {
-    uz: "Unit economics — javob narxi",
+    uz: "Yunit-iqtisodiyot — javob narxi",
     "uz-cyrl": "Юнит-экономика — жавоб нархи",
     ru: "Юнит-экономика — стоимость ответа",
     en: "Unit economics — cost per answer",
@@ -38,7 +38,7 @@ export const P13E = {
   p13eMethod: {
     uz: "Ro'yxat narxlari bo'yicha taxmin: har javob tokenlari × shu javobni haqiqatda bergan modelning ro'yxat narxi, bir xil tokenlar bitta vendor flagmanining ro'yxat narxi bilan solishtiriladi. Tekin tarifdagi foydalanish ham ro'yxat narxida hisoblanadi va alohida ko'rsatiladi. Reseller chegirmalari, kesh va qidiruv to'lovlari kiritilmagan; tokenlar qisman taxminiy (~4 belgi = 1 token).",
     "uz-cyrl": "Рўйхат нархлари бўйича тахмин: ҳар жавоб токенлари × шу жавобни ҳақиқатда берган моделнинг рўйхат нархи, бир хил токенлар битта вендор флагманининг рўйхат нархи билан солиштирилади. Текин тарифдаги фойдаланиш ҳам рўйхат нархида ҳисобланади ва алоҳида кўрсатилади. Реселлер чегирмалари, кеш ва қидирув тўловлари киритилмаган; токенлар қисман тахминий (~4 белги = 1 токен).",
-    ru: "Оценка по прайс-листам: токены каждого ответа × прайс модели, которая реально дала ответ, в сравнении с теми же токенами по прайсу флагмана одного вендора. Использование бесплатных тарифов тоже считается по прайсу и показано отдельно. Скидки реселлеров, кеш и плата за поиск не учтены; токены частично оценочные (~4 символа = 1 токен).",
+    ru: "Оценка по прайс-листам: токены каждого ответа × прайс модели, которая реально дала ответ, в сравнении с теми же токенами по прайсу флагмана одного вендора. Использование бесплатных тарифов тоже считается по прайсу и показано отдельно. Скидки реселлеров, кэш и плата за поиск не учтены; токены частично оценочные (~4 символа = 1 токен).",
     en: "Estimates at list prices: each answer's tokens × the list price of the model that actually served it, compared with the same tokens at a single-vendor flagship's list price. Free-tier usage is priced at list price and shown separately. Reseller discounts, caching and search fees are not included; token counts are partly estimated (~4 characters = 1 token).",
   },
   p13eOurPerAnswer: {
@@ -74,8 +74,8 @@ export const P13E = {
   p13eFreeShareSub: {
     uz: "{n} ta javob · ro'yxat narxida {cost} (yuqoridagi xarajatga kiritilgan)",
     "uz-cyrl": "{n} та жавоб · рўйхат нархида {cost} (юқоридаги харажатга киритилган)",
-    ru: "{n} ответов · {cost} по прайсу (включено в расходы выше)",
-    en: "{n} answers · {cost} at list price (included in the cost above)",
+    ru: "Ответов: {n} · {cost} по прайсу (включено в расходы выше)",
+    en: "Answers: {n} · {cost} at list price (included in the cost above)",
   },
   p13eCoverage: {
     uz: "Narxlangan: {priced} / {total} javob · {tokens} token · haqiqiy model saqlangan: {verified}",
@@ -86,8 +86,8 @@ export const P13E = {
   p13eExcluded: {
     uz: "Chiqarilgan: {noModel} ta javobda model yo'q, {unpriced} tasida ro'yxat narxi yo'q {models}",
     "uz-cyrl": "Чиқарилган: {noModel} та жавобда модел йўқ, {unpriced} тасида рўйхат нархи йўқ {models}",
-    ru: "Исключено: {noModel} ответов без модели, {unpriced} без прайса {models}",
-    en: "Excluded: {noModel} answers without a served model, {unpriced} with no list price {models}",
+    ru: "Исключено — без модели: {noModel}, без прайса: {unpriced} {models}",
+    en: "Excluded — no served model: {noModel}, no list price: {unpriced} {models}",
   },
   p13eNoServedCols: {
     uz: "0036 migratsiyasi qo'llanmagan: provayder va haqiqiy model saqlanmaydi — xarajat marshrut model id'si bo'yicha, tekin tarif ulushi esa quyi chegara.",
@@ -135,7 +135,7 @@ export const P13E = {
     uz: "Javoblar",
     "uz-cyrl": "Жавоблар",
     ru: "Ответы",
-    en: "Answers",
+    en: "Responses",
   },
   p13eColCost: {
     uz: "Xarajat",
@@ -243,7 +243,7 @@ export const P13E = {
   },
   p13eBudgetAllowance: {
     uz: "Ruxsat: {allowance} = max(minimum {floor}, daromad × {cap}). Undan oshsa — faqat tekin provayderlar (Groq, Cloudflare va h.k.).",
-    "uz-cyrl": "Рухсат: {allowance} = МАКС(минимум {floor}, даромад × {cap}). Ундан ошса — фақат текин провайдерлар (Groq, Cloudflare ва ҳ.к.).",
+    "uz-cyrl": "Рухсат: {allowance} = max(минимум {floor}, даромад × {cap}). Ундан ошса — фақат текин провайдерлар (Groq, Cloudflare ва ҳ.к.).",
     ru: "Лимит: {allowance} = max(минимум {floor}, выручка × {cap}). Выше — только бесплатные провайдеры (Groq, Cloudflare и т. д.).",
     en: "Allowance: {allowance} = max(floor {floor}, revenue × {cap}). Above it — free providers only (Groq, Cloudflare, etc.).",
   },
@@ -268,7 +268,7 @@ export const P13E = {
   p13eBudgetAsOf: {
     uz: "Hisoblangan: {time} UTC (5 daqiqa keshlanadi)",
     "uz-cyrl": "Ҳисобланган: {time} UTC (5 дақиқа кешланади)",
-    ru: "Рассчитано: {time} UTC (кеш 5 минут)",
+    ru: "Рассчитано: {time} UTC (кэш 5 минут)",
     en: "Computed: {time} UTC (cached for 5 minutes)",
   },
 
@@ -308,5 +308,12 @@ export const P13E = {
     "uz-cyrl": "Бюджет ҳимояси ЎЧДИ: сарф {spend}, рухсат {allowance}. Пуллик моделлар яна ишлайди.",
     ru: "Защита бюджета ВЫКЛЮЧЕНА: расход {spend}, лимит {allowance}. Платные модели снова доступны.",
     en: "Budget guard OFF: spend {spend}, allowance {allowance}. Paid models are available again.",
+  },
+  /* ---- To'lov: qo'lda ko'rib chiqish (payments-2) ---- */
+  p13eAlertPaymentReview: {
+    uz: "SOVEREIGN — to'lovni qo'lda tekshiring\nDodo webhook hodisasi avtomatik bajarilmadi: {note}. Supabase'da webhook_events (type 'review:%') qatorlarini ko'rib chiqing.",
+    "uz-cyrl": "SOVEREIGN — тўловни қўлда текширинг\nDodo вебхук ҳодисаси автоматик бажарилмади: {note}. Supabase'даги вебхук ҳодисалари жадвалида кўриб чиқиш белгили қаторларни текширинг.",
+    ru: "SOVEREIGN — проверьте платёж вручную\nСобытие вебхука Dodo не обработано автоматически: {note}. Проверьте строки webhook_events (type 'review:%') в Supabase.",
+    en: "SOVEREIGN — payment needs manual review\nA Dodo webhook event was not processed automatically: {note}. Check the webhook_events rows (type 'review:%') in Supabase.",
   },
 } satisfies Dict;

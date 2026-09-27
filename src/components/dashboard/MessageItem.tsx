@@ -373,7 +373,9 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
         {theme.layout.showCitations && (
           <div className="mb-2 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--t-text-muted)" }}>
             <span style={{ color: model.primary }}>{model.glyph}</span> {t("answer")}
-            {message.citations?.length ? <span>· {message.citations.length} {t("sourceWord")}</span> : null}
+            {message.citations?.length ? (
+              <span>· {plural(lang, message.citations.length, { one: "p15aSourcesOne", few: "p15aSourcesFew", many: "p15aSourcesMany" })}</span>
+            ) : null}
           </div>
         )}
 

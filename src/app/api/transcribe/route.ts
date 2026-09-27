@@ -3,7 +3,8 @@ import { resolveUserRegion } from "@/lib/ai/region-server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
+import { consumeMedia } from "@/lib/media/quota";
 import { getServerLang, getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
@@ -19,7 +20,7 @@ const LANGS = new Set(["uz", "ru", "en"]);
 export async function POST(req: Request) {
   // Cost-DoS: Whisper qimmat, IP bo'yicha kuchli chegara
   const t = await getServerT();
-  const ipRl = await rateLimit(`trs:ip:${clientIp(req)}`, 5, 60_000);
+  const ipRl = await rateLimit(`trs:ip:${ipKey(clientIp(req))}`, 5, 60_000);
   if (!ipRl.ok) return Response.json({ error: t("chTooManyTranscribe") }, { status: 429 });
 
   // Mintaqa (region-server.ts): cheklangan provayderning zaxira modeli chaqirilmaydi.
@@ -33,6 +34,9 @@ export async function POST(req: Request) {
       const profile = await getProfile(supabase, user.id);
       const region = await resolveUserRegion({ headers: req.headers, supabase, userId: user.id, onboarding: profile?.onboarding ?? null });
       country = region.restricted ? region.country : null;
+      // OFAC embargo mintaqasi (region.ts SANCTIONED) — chat route bilan bir xil: Groq/OpenAI Whisper
+      // chaqirilmaydi; kunlik kvota ham yeyilmaydi.
+      if (region.sanctioned) return Response.json({ error: t("p10RegionNoModels") }, { status: 451 });
       const plan = effectivePlan(profile);
       if (!plan.limits.fullCode) {
         return Response.json({ error: t("chTranscribePro"), upgrade: "pro" }, { status: 402 });
@@ -41,6 +45,10 @@ export async function POST(req: Request) {
       const perDay = TRANSCRIBE_PER_DAY[plan.id] ?? TRANSCRIBE_PER_DAY.pro;
       const day = await rateLimit(`trs:day:${user.id}`, perDay, 24 * 60 * 60 * 1000);
       if (!day.ok) return Response.json({ error: t("chTooManyTranscribe") }, { status: 429 });
+      // Bazadagi kunlik hisob (0041) — pullik Whisper: DB xatosida yopiq.
+      const dbDay = await consumeMedia(supabase, "transcribe", perDay);
+      if (dbDay === null) return Response.json({ error: t("secServerError") }, { status: 503 });
+      if (!dbDay) return Response.json({ error: t("chTooManyTranscribe") }, { status: 429 });
     } else if (process.env.NODE_ENV !== "development") {
       return Response.json({ error: t("chLoginFirst") }, { status: 401 });
     }

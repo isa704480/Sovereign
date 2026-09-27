@@ -26,8 +26,8 @@ const COPY = {
   latest: { uz: "So'nggi yangilik:", "uz-cyrl": "Сўнгги янгилик:", ru: "Последнее обновление:", en: "Latest update:" },
   allUpdates: { uz: "Barcha yangiliklar", "uz-cyrl": "Барча янгиликлар", ru: "Все обновления", en: "All updates" },
   why: {
-    uz: "Bu xatni Sozlamalar'da \"Maslahat va yangiliklarni emailga yuborish\"ni yoqqaningiz uchun oldingiz. Faqat 30 soatdan ko'p kirmasangiz va ko'pi bilan 30 soatda bir marta yozamiz.",
-    "uz-cyrl": "Бу хатни Созламалар'да \"Маслаҳат ва янгиликларни emailга юбориш\"ни ёққанингиз учун олдингиз. Фақат 30 соатдан кўп кирмасангиз ва кўпи билан 30 соатда бир марта ёзамиз.",
+    uz: "Bu xatni Sozlamalarda \"Maslahat va yangiliklarni emailga yuborish\"ni yoqqaningiz uchun oldingiz. Faqat 30 soatdan ko'p kirmasangiz va ko'pi bilan 30 soatda bir marta yozamiz.",
+    "uz-cyrl": "Бу хатни Созламаларда \"Маслаҳат ва янгиликларни электрон почтага юбориш\"ни ёққанингиз учун олдингиз. Фақат 30 соатдан кўп кирмасангиз ва кўпи билан 30 соатда бир марта ёзамиз.",
     ru: "Вы получили это письмо, потому что включили «Присылать советы и новости на email» в Настройках. Пишем, только если вас не было больше 30 часов, и не чаще раза в 30 часов.",
     en: "You're getting this because you turned on \"Email me tips & updates\" in Settings. We only write when you've been away for 30+ hours, and at most once every 30 hours.",
   },

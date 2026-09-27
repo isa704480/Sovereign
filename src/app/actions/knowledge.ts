@@ -9,6 +9,7 @@ import { headers } from "next/headers";
 import { EMBED_MODEL } from "@/lib/ai/omniroute-media";
 import { modelAllowedIn } from "@/lib/ai/region";
 import { resolveUserRegion } from "@/lib/ai/region-server";
+import { rateLimit } from "@/lib/rate-limit";
 
 async function session() {
   if (!isSupabaseConfigured()) return null;
@@ -35,6 +36,9 @@ const uploadSchema = z.object({
   content: z.string().min(20).max(500_000),
 });
 
+/** Bilim bazasiga yuklash: foydalanuvchiga soatiga 20 ta hujjat. */
+const UPLOAD_LIMIT = { limit: 20, windowMs: 60 * 60_000 };
+
 export type UploadResult =
   | { ok: true; documentId: string; chunks: number }
   | { ok: false; error: string };
@@ -46,6 +50,10 @@ export async function uploadKnowledge(input: unknown): Promise<UploadResult> {
   if (!parsed.success) return { ok: false, error: t("pnErrBadFileData") };
   const s = await session();
   if (!s) return { ok: false, error: t("pnErrLoginFirst") };
+  // Har yuklash platforma kalitida embedding + DB/HNSW o'sishi — foydalanuvchiga soatiga cheklov.
+  if (!(await rateLimit(`kb:upload:${s.user.id}`, UPLOAD_LIMIT.limit, UPLOAD_LIMIT.windowMs)).ok) {
+    return { ok: false, error: t("chTooManyRequests") };
+  }
   // Embedding modeli — OpenAI text-embedding-3-small: provayder mintaqaga xizmat
   // ko'rsatmasa hujjat matni unga yuborilmaydi (region.ts).
   const region = await resolveUserRegion({ headers: await headers(), supabase: s.supabase, userId: s.user.id });

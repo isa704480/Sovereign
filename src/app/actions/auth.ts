@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getProfile, postAuthPath } from "@/lib/auth/profile";
 import { getServerT } from "@/lib/i18n-server";
 import { authErrorKey } from "@/lib/locales/auth";
-import { rateLimit } from "@/lib/rate-limit";
+import { ipKey, rateLimit } from "@/lib/rate-limit";
+import { revokeAllCliSessions } from "@/lib/supabase/cli-sessions";
 import { isAuthMsgKey } from "@/components/auth/messages";
 import { safeNextPath } from "@/components/auth/next-path";
 import { RECOVERY_COOKIE, RESET_PASSWORD_PATH } from "@/components/auth/recovery";
@@ -56,19 +57,36 @@ async function translate(message: string): Promise<string> {
   // authErrorKey tanimaydigan keng tarqalgan Supabase xabarlari.
   if (/for security purposes|only request this (after|once)/i.test(message)) return t("auErrRateLimit");
   if (/weak and easy to guess|pwned|leaked password/i.test(message)) return t("auErrWeakPassword");
+  // Supabase Auth CAPTCHA (Turnstile/hCaptcha) rad etdi. Kalit lug'atda bo'lmasa — umumiy xato.
+  if (/captcha/i.test(message)) return isAuthMsgKey(CAPTCHA_ERR_KEY) ? t(CAPTCHA_ERR_KEY) : t("p7cErrGeneric");
   // Tanilmagan provayder xatosi UI'ga xom holda chiqmaydi — logga yoziladi.
   console.error("[auth] unmapped error:", message);
   return t("p7cErrGeneric");
 }
 
+const CAPTCHA_ERR_KEY: string = "auErrCaptcha";
+
 async function fail(message: string): Promise<AuthResult> {
   return { ok: false, error: await translate(message) };
 }
 
-/** Server action ichida mijoz IP'si (Vercel / proxy sarlavhalaridan). */
+/**
+ * Server action ichida mijoz IP'si (Vercel / proxy sarlavhalaridan) — rate-limit kaliti sifatida.
+ * IPv6 /64 prefiksga keltiriladi (ipKey): aks holda /64 ichida manzil almashtirib har safar
+ * yangi limit olinardi.
+ */
 async function actionIp(): Promise<string> {
   const h = await headers();
-  return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+  return ipKey(h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown");
+}
+
+/**
+ * Supabase Auth CAPTCHA tokeni (Turnstile/hCaptcha). Dashboard'da CAPTCHA yoqilsa GoTrue uni
+ * o'zi tekshiradi — to'g'ridan-to'g'ri /auth/v1/* chaqiruvlari ham to'siladi. Ixtiyoriy:
+ * CAPTCHA o'chiq bo'lsa (yoki forma hali yubormasa) undefined, oqim o'zgarmaydi.
+ */
+function captchaOpt(token: unknown): { captchaToken: string } | undefined {
+  return typeof token === "string" && token.length > 0 && token.length <= 4096 ? { captchaToken: token } : undefined;
 }
 
 /**
@@ -85,7 +103,7 @@ async function withinLimits(checks: [key: string, limit: number, windowMs: numbe
 
 const MIN = 60_000;
 
-export async function signUpWithEmail(input: RegisterInput): Promise<AuthResult> {
+export async function signUpWithEmail(input: RegisterInput, captchaToken?: string): Promise<AuthResult> {
   const parsed = registerSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "auErrInvalidData");
 
@@ -100,7 +118,7 @@ export async function signUpWithEmail(input: RegisterInput): Promise<AuthResult>
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    options: { emailRedirectTo: `${await siteUrl()}/auth/callback?next=/onboarding` },
+    options: { emailRedirectTo: `${await siteUrl()}/auth/callback?next=/onboarding`, ...captchaOpt(captchaToken) },
   });
 
   // Account already exists (explicit error, or Supabase's obfuscated user with no
@@ -110,7 +128,9 @@ export async function signUpWithEmail(input: RegisterInput): Promise<AuthResult>
     (!error && data.user?.identities?.length === 0);
 
   if (alreadyExists) {
-    const signIn = await supabase.auth.signInWithPassword({ email, password });
+    // Eslatma: CAPTCHA tokeni bir martalik — CAPTCHA yoqilgan bo'lsa bu urinish rad etiladi va
+    // quyidagi neytral "pochtangizni tekshiring" javobi qaytadi (foydalanuvchi /login'dan kiradi).
+    const signIn = await supabase.auth.signInWithPassword({ email, password, options: captchaOpt(captchaToken) });
     if (signIn.error) {
       // Email ro'yxatda bor-yo'qligini oshkor qilmaymiz (enumeration): yangi hisobdagi
       // kabi neytral "pochtangizni tekshiring" javobi.
@@ -127,7 +147,7 @@ export async function signUpWithEmail(input: RegisterInput): Promise<AuthResult>
   return { ok: true, status: "confirm-email" };
 }
 
-export async function signInWithEmail(input: LoginInput, next?: string | null): Promise<AuthResult> {
+export async function signInWithEmail(input: LoginInput, next?: string | null, captchaToken?: string): Promise<AuthResult> {
   const parsed = loginSchema.safeParse(input);
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "auErrInvalidData");
 
@@ -147,6 +167,7 @@ export async function signInWithEmail(input: LoginInput, next?: string | null): 
   const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
+    options: captchaOpt(captchaToken),
   });
   if (error) return fail(error.message);
 
@@ -171,7 +192,47 @@ export async function signInWithOAuth(provider: OAuthProvider, next?: string | n
   return fail("auErrOAuthUrl");
 }
 
-export async function requestPasswordReset(email: string): Promise<AuthResult> {
+const googleIdTokenSchema = z.object({
+  idToken: z.string().min(20).max(8192),
+  accessToken: z.string().max(8192).optional(),
+  nonce: z.string().max(512).optional(),
+});
+
+/**
+ * Google (Firebase popup) ID token → Supabase sessiyasi SERVERDA (cookie server klienti orqali
+ * yoziladi). Brauzer Supabase klientiga ehtiyoj qolmaydi — sessiya cookie'sini httpOnly qilish
+ * uchun zarur qadam (known gap: JS o'qiy oladigan sessiya cookie'si). Muvaffaqiyatda redirect —
+ * mijoz unstable_rethrow(e) bilan Next'ga qaytaradi.
+ */
+export async function signInWithGoogleIdToken(
+  input: { idToken: string; accessToken?: string; nonce?: string },
+  next?: string | null,
+  captchaToken?: string,
+): Promise<AuthResult> {
+  const parsed = googleIdTokenSchema.safeParse(input);
+  if (!parsed.success) return fail("auErrGoogle");
+  if (!(await withinLimits([[`auth:google-idt:${await actionIp()}`, 30, 5 * MIN]]))) return fail("auErrRateLimit");
+  const supabase = await getSupabase();
+  if (!supabase) return fail("auErrSupabaseMissing");
+  const { error } = await supabase.auth.signInWithIdToken({
+    provider: "google",
+    token: parsed.data.idToken,
+    access_token: parsed.data.accessToken,
+    nonce: parsed.data.nonce,
+    options: captchaOpt(captchaToken),
+  });
+  if (error) {
+    // Xom provayder matni (client ID'lar bilan) UI'ga chiqmaydi.
+    const key = authErrorKey(error.message);
+    if (key || /captcha|for security purposes/i.test(error.message)) return fail(error.message);
+    console.error("[auth] Google ID token:", error.message);
+    return fail("auErrGoogle");
+  }
+  // Brauzerdagi avvalgi oqim bilan bir xil manzil (onboarding o'zi /app ga uzatadi).
+  redirect(safeNextPath(next) ?? "/onboarding");
+}
+
+export async function requestPasswordReset(email: string, captchaToken?: string): Promise<AuthResult> {
   const parsed = resetSchema.safeParse({ email });
   if (!parsed.success) return fail(parsed.error.issues[0]?.message ?? "auErrInvalidEmail");
   // Email kvotasini tugatish (umumiy Supabase SMTP) va spam: IP va manzil bo'yicha.
@@ -188,6 +249,7 @@ export async function requestPasswordReset(email: string): Promise<AuthResult> {
   // Havola callback orqali /reset-password ga olib boradi (flow=recovery → tiklash cookie'si).
   const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: `${await siteUrl()}/auth/callback?flow=recovery&next=${encodeURIComponent(RESET_PASSWORD_PATH)}`,
+    ...captchaOpt(captchaToken),
   });
   if (error) return fail(error.message);
   return { ok: true, status: "reset-sent" };
@@ -218,6 +280,13 @@ export async function updatePassword(input: { password: string; confirmPassword:
     return fail(error.message);
   }
   jar.delete(RECOVERY_COOKIE);
+  // Parol almashdi — hisobga boshqa kirishlar ham yopiladi (best-effort, xato oqimni to'xtatmaydi):
+  // boshqa brauzer sessiyalari va 90 kunlik CLI / Cowork tokenlari (aks holda o'g'irlangan token
+  // parol tiklangandan keyin ham ishlab turadi).
+  const others = await supabase.auth.signOut({ scope: "others" });
+  if (others.error) console.error("[auth] updatePassword signOut others:", others.error.message);
+  const cli = await revokeAllCliSessions(supabase);
+  if (!cli.ok) console.error("[auth] updatePassword cli revoke:", cli.error);
   const profile = await getProfile(supabase, user.id);
   redirect(postAuthPath(profile));
 }

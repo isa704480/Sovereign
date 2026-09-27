@@ -1,4 +1,4 @@
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 
 /**
  * GET /api/download/desktop?os=win|mac|linux[&arch=arm64|x64]
@@ -142,12 +142,23 @@ function bad(error: string, status = 400) {
   return Response.json({ error }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
+/**
+ * Brauzer navigatsiyasi (yuklab olish tugmasi / eski havola): xom inglizcha JSON xato kodi o'rniga
+ * GitHub Releases sahifasiga yo'naltiramiz — u yerda kerakli faylni qo'lda tanlash mumkin.
+ * Dasturiy mijozlar (Accept: text/html emas) JSON xatoni avvalgidek oladi.
+ */
+function wantsHtml(req: Request): boolean {
+  return (req.headers.get("accept") ?? "").includes("text/html");
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ product: string }> }) {
   const { product } = await params;
-  if (product !== "desktop" && product !== "cli") return bad("unknown_product", 404);
+  const html = wantsHtml(req);
+  if (product !== "desktop" && product !== "cli") return html ? redirect(RELEASES_PAGE, "no-store") : bad("unknown_product", 404);
 
-  const rl = await rateLimit(`download:${clientIp(req)}`, LIMIT_PER_MINUTE, 60_000);
+  const rl = await rateLimit(`download:${ipKey(clientIp(req))}`, LIMIT_PER_MINUTE, 60_000);
   if (!rl.ok) {
+    if (html) return redirect(RELEASES_PAGE, "no-store");
     return Response.json(
       { error: "rate_limited" },
       {
@@ -160,8 +171,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ product:
   const sp = new URL(req.url).searchParams;
   const osParam = sp.get("os");
   const archParam = sp.get("arch");
-  if (!osParam || !(OSES as readonly string[]).includes(osParam)) return bad("invalid_os");
-  if (archParam !== null && !(ARCHES as readonly string[]).includes(archParam)) return bad("invalid_arch");
+  if (!osParam || !(OSES as readonly string[]).includes(osParam)) return html ? redirect(RELEASES_PAGE, "no-store") : bad("invalid_os");
+  if (archParam !== null && !(ARCHES as readonly string[]).includes(archParam)) {
+    return html ? redirect(RELEASES_PAGE, "no-store") : bad("invalid_arch");
+  }
   const os = osParam as Os;
   const arch = (archParam as Arch | null) ?? DEFAULT_ARCH[os];
 

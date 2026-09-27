@@ -8,16 +8,21 @@ on:
   schedule:
     - cron: "7,37 * * * *"
   workflow_dispatch: {}
+# Faqat curl — GITHUB_TOKEN'ga hech qanday huquq kerak emas.
+permissions: {}
 jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
       # Javob tanasi (daromad/sarf raqamlari) Actions log'iga chiqarilmaydi — faqat HTTP status.
+      # Secret skript matniga qo'yilmaydi — env orqali (shell uni kod sifatida o'qimaydi).
       - name: Check budget
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           code=$(curl -sS --max-time 90 -o /dev/null -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
             "https://soveregn.xyz/api/cron/budget-watch")
           echo "budget-watch HTTP $code"
           test "$code" = "200"

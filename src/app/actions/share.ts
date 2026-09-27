@@ -75,7 +75,7 @@ export async function shareConversation(raw: unknown): Promise<ShareResult> {
   const { error } = await writer.from("shared_conversations").insert(row);
   if (error) {
     console.error("[share] insert:", error.message);
-    return { ok: false, error: t("chShareFailed") };
+    return { ok: false, error: t("p3bShareFailed") };
   }
 
   const origin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://soveregn.xyz").replace(/\/$/, "");

@@ -14,7 +14,8 @@ const DEFAULTS = {
   autoUpdate: true,
   defaultMode: "code", // code | chat
   fullAuto: false, // Kod rejimida hech narsa so'ralmaydi (tashqi yo'l / push / deploy rad etiladi)
-  fullAutoFolder: "", // Full auto qaysi papka uchun yoqilgan (faqat main yozadi)
+  fullAutoFolder: "", // Full auto qaysi papka uchun yoqilgan — realpath kaliti (faqat main yozadi)
+  fullAutoConsent: [], // Full auto xavfi haqida rozilik berilgan papkalar (realpath kalitlari, faqat main yozadi)
   tokenBudget: 0, // bitta vazifa uchun token byudjeti (0 — cheklovsiz); oshsa navbat to'xtaydi
   sidebar: true,
   rightPanel: false,
@@ -49,6 +50,8 @@ const VALID = {
   fullAutoLocal: (v) => typeof v === "boolean",
   inquiryMode: (v) => ["auto", "always", "off"].includes(v),
 };
+/** Rozilik ro'yxati chegarasi (eng eskilari tushib qoladi — keyin qayta so'raladi). */
+export const FULL_AUTO_CONSENT_MAX = 100;
 /** Renderer o'zgartira oladigan kalitlar. lastFolder/recent/window — faqat main. */
 export const RENDERER_KEYS = Object.keys(VALID);
 
@@ -67,6 +70,7 @@ export function loadSettings() {
   for (const k of Object.keys(VALID)) if (k in data && VALID[k](data[k])) out[k] = data[k];
   if (typeof data.lastFolder === "string") out.lastFolder = data.lastFolder;
   if (typeof data.fullAutoFolder === "string") out.fullAutoFolder = data.fullAutoFolder;
+  if (Array.isArray(data.fullAutoConsent)) out.fullAutoConsent = data.fullAutoConsent.filter((p) => typeof p === "string" && p).slice(-FULL_AUTO_CONSENT_MAX);
   if (Array.isArray(data.recent)) out.recent = data.recent.filter((p) => typeof p === "string").slice(0, 8);
   if (data.window && typeof data.window === "object") out.window = sanitizeBounds(data.window);
   cache = out;

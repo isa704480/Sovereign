@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { sealConnectorConfig } from "@/lib/connectors/secret";
 import { getProfile, postAuthPath } from "@/lib/auth/profile";
 import { authErrorKey } from "@/lib/locales/auth";
 import { CONNECTOR_BY_ID } from "@/config/connectors";
@@ -71,12 +72,13 @@ export async function GET(request: Request) {
               user_id: data.user.id,
               connector_id: connect,
               enabled: true,
-              config: {
+              // Token/refresh shifrlab saqlanadi (connectors-1; CONNECTOR_TOKEN_KEY yo'q bo'lsa — o'zgarishsiz).
+              config: sealConnectorConfig(data.user.id, connect, {
                 oauth: true,
                 token: data.session.provider_token,
                 refresh: data.session.provider_refresh_token ?? null,
                 meta: data.user.email ?? "Google",
-              },
+              }),
             },
             { onConflict: "user_id,connector_id" },
           );

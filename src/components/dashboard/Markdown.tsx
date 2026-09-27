@@ -393,9 +393,25 @@ interface MarkdownProps {
   citations?: string[];
   /** Server tekshiruvida manbasiz chiqqan [n] raqamlari — matnda alohida belgilanadi. */
   unsourced?: number[];
+  /**
+   * Ommaviy ulashilgan (foydalanuvchi yaratgan) kontent: havolalar rel="nofollow ugc" bilan va
+   * haqiqiy manzil xosti matn yonida ko'rsatiladi (yashirin/aldamchi havolaga qarshi).
+   */
+  ugc?: boolean;
 }
 
-export const Markdown = memo(function Markdown({ content, citations, unsourced }: MarkdownProps) {
+/** Havola xosti (faqat http/https) — ugc rejimida matn yonida ko'rsatiladi. */
+function linkHost(href: string | undefined): string | null {
+  if (!href) return null;
+  try {
+    const u = new URL(href);
+    return u.protocol === "http:" || u.protocol === "https:" ? u.hostname : null;
+  } catch {
+    return null;
+  }
+}
+
+export const Markdown = memo(function Markdown({ content, citations, unsourced, ugc = false }: MarkdownProps) {
   const t = useT();
   const unsourcedLabel = t("clmUnsourcedMark");
   const text = useMemo(() => withCitationLinks(content, citations, unsourced), [content, citations, unsourced]);
@@ -425,8 +441,17 @@ export const Markdown = memo(function Markdown({ content, citations, unsourced }
           const n = Number(href.slice(6));
           const url = citations[n - 1];
           return (
-            <a href={url} target="_blank" rel="noreferrer" className="cite" title={url}>
+            <a href={url} target="_blank" rel={ugc ? "nofollow ugc noopener noreferrer" : "noreferrer"} className="cite" title={url}>
               {n}
+            </a>
+          );
+        }
+        if (ugc) {
+          const host = linkHost(href);
+          return (
+            <a href={href} target="_blank" {...rest} rel="nofollow ugc noopener noreferrer">
+              {children}
+              {host && <span className="ml-1 text-xs text-text-muted">({host})</span>}
             </a>
           );
         }
@@ -479,7 +504,7 @@ export const Markdown = memo(function Markdown({ content, citations, unsourced }
         return <ChatImage key={src} src={src} alt={alt ?? ""} />;
       },
     }),
-    [citations, unsourcedLabel],
+    [citations, unsourcedLabel, ugc],
   );
 
   return (

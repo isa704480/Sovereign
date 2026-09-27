@@ -31,9 +31,9 @@ export const CHAT = {
   },
   chSelectModelTitle: { uz: "Model tanlash (Ctrl+K)", "uz-cyrl": "Модел танлаш (Ctrl+K)", ru: "Выбрать модель (Ctrl+K)", en: "Choose model (Ctrl+K)" },
   chAgentMode: { uz: "Agent rejimi", "uz-cyrl": "Агент режими", ru: "Режим агента", en: "Agent mode" },
-  chKbDocsAria: { uz: "Bilim bazasi hujjatlari", "uz-cyrl": "Билимлар базаси ҳужжатлари", ru: "Документы базы знаний", en: "Knowledge base documents" },
-  chMentionHeader: { uz: "Bilim bazasi", "uz-cyrl": "Билимлар базаси", ru: "База знаний", en: "Knowledge base" },
-  chMentionHeaderFolder: { uz: "{name} · bilim bazasi", "uz-cyrl": "{name} · билимлар базаси", ru: "{name} · база знаний", en: "{name} · knowledge base" },
+  chKbDocsAria: { uz: "Bilim bazasi hujjatlari", "uz-cyrl": "Билим базаси ҳужжатлари", ru: "Документы базы знаний", en: "Knowledge base documents" },
+  chMentionHeader: { uz: "Bilim bazasi", "uz-cyrl": "Билим базаси", ru: "База знаний", en: "Knowledge base" },
+  chMentionHeaderFolder: { uz: "{name} · bilim bazasi", "uz-cyrl": "{name} · билим базаси", ru: "{name} · база знаний", en: "{name} · knowledge base" },
   chMentionHint: {
     uz: "↑↓ tanlash · ↵ qo'shish · Esc yopish",
     "uz-cyrl": "↑↓ танлаш · ↵ қўшиш · Esc ёпиш",
@@ -61,10 +61,10 @@ export const CHAT = {
     en: "Web research via Perplexity",
   },
   chPrivateTitle: {
-    uz: "Blind Prompting — ism, telefon, email va boshqa shaxsiy ma'lumotlarni AI ko'rmasligi uchun maskalash",
-    "uz-cyrl": "Blind Prompting — исм, телефон, электрон почта ва бошқа шахсий маълумотларни AI кўрмаслиги учун маскалаш",
-    ru: "Blind Prompting — маскирует имя, телефон, email и другие личные данные, чтобы ИИ их не видел",
-    en: "Blind Prompting — masks names, phone numbers, emails and other personal data so the AI never sees them",
+    uz: "Blind Prompting — xabarlaringizdagi ism, telefon, email va boshqa shaxsiy ma'lumotlarni AI'ga yuborishdan oldin maskalaydi",
+    "uz-cyrl": "Blind Prompting — хабарларингиздаги исм, телефон, электрон почта ва бошқа шахсий маълумотларни AI'га юборишдан олдин маскалайди",
+    ru: "Blind Prompting — маскирует имена, телефоны, email и другие личные данные в ваших сообщениях до отправки ИИ",
+    en: "Blind Prompting — masks names, phone numbers, emails and other personal data in your messages before they are sent to the AI",
   },
 
   // ---- Sidebar ----
@@ -170,7 +170,7 @@ export const CHAT = {
     ru: "Не удалось загрузить библиотеку (интернет или esm.sh)",
     en: "Library failed to load (network or esm.sh)",
   },
-  chArtPreviewTitle: { uz: "Artifact ko'rinishi", "uz-cyrl": "Artifact кўриниши", ru: "Предпросмотр артефакта", en: "Artifact preview" },
+  chArtPreviewTitle: { uz: "Artefakt ko'rinishi", "uz-cyrl": "Артефакт кўриниши", ru: "Предпросмотр артефакта", en: "Artifact preview" },
 
   // ---- Share sahifasi ----
   chShareNotFound: { uz: "Suhbat topilmadi", "uz-cyrl": "Суҳбат топилмади", ru: "Чат не найден", en: "Conversation not found" },
@@ -187,13 +187,13 @@ export const CHAT = {
     ru: "опубликованная копия, новые сообщения не попадут",
     en: "shared copy — later messages aren't included",
   },
-  chShareDefaultTitle: { uz: "Suhbat", "uz-cyrl": "Суҳбат", ru: "Чат", en: "Chat" },
-  chShareFailed: {
-    uz: "Ulashib bo'lmadi. Migratsiya 0019 ishga tushganmi?",
-    "uz-cyrl": "Улашиб бўлмади. Миграция 0019 ишга тушганми?",
-    ru: "Не удалось поделиться. Применена ли миграция 0019?",
-    en: "Couldn't share. Has migration 0019 been applied?",
+  chShareUnverified: {
+    uz: "Bu suhbatni foydalanuvchi ulashgan. Mazmuni (shu jumladan AI javoblari va havolalar) SOVEREIGN tomonidan tekshirilmagan — bu yerda shaxsiy yoki to'lov ma'lumotlarini kiritmang.",
+    "uz-cyrl": "Бу суҳбатни фойдаланувчи улашган. Мазмуни (шу жумладан AI жавоблари ва ҳаволалар) SOVEREIGN томонидан текширилмаган — бу ерда шахсий ёки тўлов маълумотларини киритманг.",
+    ru: "Этим диалогом поделился пользователь. Его содержимое (включая ответы ИИ и ссылки) не проверено SOVEREIGN — не вводите здесь личные или платёжные данные.",
+    en: "This conversation was shared by a user. Its content (including AI replies and links) is not verified by SOVEREIGN — do not enter personal or payment details here.",
   },
+  chShareDefaultTitle: { uz: "Suhbat", "uz-cyrl": "Суҳбат", ru: "Чат", en: "Chat" },
 
   // ---- Server xatolari (API / actions) ----
   chTooManyRequests: {
@@ -267,8 +267,8 @@ export const CHAT = {
   },
   chMultipartExpected: { uz: "Multipart so'rov tanasi kutildi", "uz-cyrl": "Multipart сўров танаси кутилди", ru: "Ожидалось тело multipart", en: "Expected a multipart body" },
   chNoFile: { uz: "Fayl yo'q", "uz-cyrl": "Файл йўқ", ru: "Файл отсутствует", en: "No file" },
-  chFileTooBig25: { uz: "Fayl juda katta (max 25 MB)", "uz-cyrl": "Файл жуда катта (max 25 MB)", ru: "Файл слишком большой (макс. 25 МБ)", en: "File too large (max 25 MB)" },
-  chTranscribeFailed: { uz: "Transkripsiya xato", "uz-cyrl": "Транскрипция хато", ru: "Ошибка транскрипции", en: "Transcription failed" },
+  chFileTooBig25: { uz: "Fayl juda katta (maks. 25 MB)", "uz-cyrl": "Файл жуда катта (макс. 25 МБ)", ru: "Файл слишком большой (макс. 25 МБ)", en: "File too large (max 25 MB)" },
+  chTranscribeFailed: { uz: "Transkripsiya amalga oshmadi", "uz-cyrl": "Транскрипция амалга ошмади", ru: "Ошибка транскрипции", en: "Transcription failed" },
   // ---- Yuborish / biriktirmalar (use-send-message, attachments) ----
   chConnectionError: { uz: "Ulanish xatosi", "uz-cyrl": "Уланиш хатоси", ru: "Ошибка соединения", en: "Connection error" },
   chImageDrawing: { uz: "Rasm chizilyapti...", "uz-cyrl": "Расм чизиляпти...", ru: "Рисую изображение...", en: "Drawing the image..." },

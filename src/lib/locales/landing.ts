@@ -41,10 +41,10 @@ export const LANDING = {
   },
   ldFeat1Title: { uz: "Zero-Trust maxfiylik", "uz-cyrl": "Zero-Trust махфийлик", ru: "Приватность Zero-Trust", en: "Zero-Trust privacy" },
   ldFeat1Body: {
-    uz: "AI kompaniyalari haqiqiy ma'lumotingizni ko'rmaydi — ism, raqam, kompaniya so'rovdan oldin maskalanadi.",
-    "uz-cyrl": "AI компаниялари ҳақиқий маълумотингизни кўрмайди — исм, рақам, компания сўровдан олдин маскаланади.",
-    ru: "AI-компании не видят ваших настоящих данных — имена, номера и названия компаний маскируются до отправки запроса.",
-    en: "AI companies never see your real data — names, numbers and companies are masked before the request goes out.",
+    uz: "Blind Prompting'ni yoqsangiz, xabarlaringizdagi ism, raqam va kompaniya nomlari so'rov yuborilishidan oldin brauzeringizda maskalanadi.",
+    "uz-cyrl": "Blind Prompting'ни ёқсангиз, хабарларингиздаги исм, рақам ва компания номлари сўров юборилишидан олдин браузерингизда маскаланади.",
+    ru: "Включите Blind Prompting — и имена, номера и названия компаний в ваших сообщениях будут маскироваться в браузере до отправки запроса.",
+    en: "Turn on Blind Prompting and names, numbers and companies in your messages are masked in your browser before the request goes out.",
   },
   ldFeat2Title: { uz: "Umrbod xotira", "uz-cyrl": "Умрбод хотира", ru: "Пожизненная память", en: "Lifelong memory" },
   ldFeat2Body: {
@@ -60,6 +60,8 @@ export const LANDING = {
     ru: "Ответы с поиском приходят с настоящими ссылками на источники. Второй ИИ сверяет ключевые утверждения с источниками и помечает неподтверждённые.",
     en: "Search answers come with real source links. A second AI checks key claims against those sources and flags anything it can't confirm.",
   },
+  ldFeat2Tag: { uz: "Xotira grafi", "uz-cyrl": "Хотира графи", ru: "Граф памяти", en: "Memory Graph" },
+  ldFeat3Tag: { uz: "Tekshirilgan", "uz-cyrl": "Текширилган", ru: "Проверено", en: "Verified" },
   ldFeat4Tag: { uz: "1700+ model", "uz-cyrl": "1700+ модел", ru: "1700+ моделей", en: "1700+ models" },
   ldFeat4Title: { uz: "Barchasi bitta oynada", "uz-cyrl": "Барчаси битта ойнада", ru: "Всё в одном окне", en: "All in one window" },
   ldFeat4Body: {
@@ -94,7 +96,7 @@ export const LANDING = {
   },
 
   // ModelShowcase / ModelSwitcherDemo
-  ldFree: { uz: "Tekin", "uz-cyrl": "Текин", ru: "Бесплатно", en: "Free" },
+  ldFree: { uz: "Bepul", "uz-cyrl": "Бепул", ru: "Бесплатно", en: "Free" },
   ldShowcaseTitle: {
     uz: "Qaysi AI'ni tanlasangiz — biz qo'llab-quvvatlaymiz",
     "uz-cyrl": "Қайси AI'ни танласангиз — биз қўллаб-қувватлаймиз",
@@ -147,7 +149,7 @@ export const LANDING = {
   },
 
   // Pricing
-  ldPricingTitle1: { uz: "Tekin boshlang.", "uz-cyrl": "Текин бошланг.", ru: "Начните бесплатно.", en: "Start for free." },
+  ldPricingTitle1: { uz: "Bepul boshlang.", "uz-cyrl": "Бепул бошланг.", ru: "Начните бесплатно.", en: "Start for free." },
   ldPricingTitle2: {
     uz: "Kerak bo'lganda oshiring.",
     "uz-cyrl": "Керак бўлганда оширинг.",
@@ -155,8 +157,8 @@ export const LANDING = {
     en: "Upgrade when you need to.",
   },
   ldPricingSub: {
-    uz: "Tekin rejimda saxiy modellar. Pullik tariflar flagman modellar, to'liq kod yozish va internet tadqiqotni ochadi.",
-    "uz-cyrl": "Текин режимда сахий моделлар. Пуллик тарифлар флагман моделлар, тўлиқ код ёзиш ва интернет тадқиқотни очади.",
+    uz: "Bepul rejimda saxiy modellar. Pullik tariflar flagman modellar, to'liq kod yozish va internet tadqiqotni ochadi.",
+    "uz-cyrl": "Бепул режимда сахий моделлар. Пуллик тарифлар флагман моделлар, тўлиқ код ёзиш ва интернет тадқиқотни очади.",
     ru: "Щедрый набор моделей в бесплатном режиме. Платные тарифы открывают флагманские модели, полноценное написание кода и веб-исследования.",
     en: "Generous models on the free tier. Paid plans unlock flagship models, full code generation and web research.",
   },
@@ -179,8 +181,8 @@ export const LANDING = {
   // Navbar
   ldMenuOpen: { uz: "Menyuni ochish", "uz-cyrl": "Менюни очиш", ru: "Открыть меню", en: "Open menu" },
   ldMenuClose: { uz: "Menyuni yopish", "uz-cyrl": "Менюни ёпиш", ru: "Закрыть меню", en: "Close menu" },
-  ldMonthly: { uz: "Oylik", "uz-cyrl": "Ойлик", ru: "Помесячно", en: "Monthly" },
-  ldYearly: { uz: "Yillik", "uz-cyrl": "Йиллик", ru: "Годовой", en: "Yearly" },
+  ldMonthly: { uz: "Oylik", "uz-cyrl": "Ойлик", ru: "Ежемесячно", en: "Monthly" },
+  ldYearly: { uz: "Yillik", "uz-cyrl": "Йиллик", ru: "Ежегодно", en: "Yearly" },
   ldTwoMonthsFree: { uz: "2 oy bepul", "uz-cyrl": "2 ой бепул", ru: "2 мес. бесплатно", en: "2 months free" },
   ldPerYear: { uz: "yil", "uz-cyrl": "йил", ru: "год", en: "yr" },
   ldBilledYearly: {
@@ -319,7 +321,7 @@ export const LD_CAPABILITY_LABEL: Record<string, L10n> = {
   Ijodiy: { uz: "Ijodiy", "uz-cyrl": "Ижодий", ru: "Творческий", en: "Creative" },
   Tez: { uz: "Tez", "uz-cyrl": "Тез", ru: "Быстрый", en: "Fast" },
   Kod: { uz: "Kod", "uz-cyrl": "Код", ru: "Код", en: "Code" },
-  Multimodal: { uz: "Multimodal", "uz-cyrl": "Мультимодал", ru: "Мультимедиа", en: "Multimodal" },
+  Multimodal: { uz: "Multimodal", "uz-cyrl": "Мультимодал", ru: "Мультимодальность", en: "Multimodal" },
   Kontekst: { uz: "Kontekst", "uz-cyrl": "Контекст", ru: "Контекст", en: "Context" },
   Internet: { uz: "Internet", "uz-cyrl": "Интернет", ru: "Интернет", en: "Web" },
   Manbalar: { uz: "Manbalar", "uz-cyrl": "Манбалар", ru: "Источники", en: "Sources" },
@@ -327,9 +329,9 @@ export const LD_CAPABILITY_LABEL: Record<string, L10n> = {
   Tekin: { uz: "Tekin", "uz-cyrl": "Текин", ru: "Бесплатно", en: "Free" },
   Ochiq: { uz: "Ochiq", "uz-cyrl": "Очиқ", ru: "Открытый", en: "Open" },
   Chuqurlik: { uz: "Chuqurlik", "uz-cyrl": "Чуқурлик", ru: "Глубина", en: "Depth" },
-  "Ko'p modal": { uz: "Ko'p modal", "uz-cyrl": "Кўп модал", ru: "Мультимедиа", en: "Multimodal" },
+  "Ko'p modal": { uz: "Ko'p modal", "uz-cyrl": "Кўп модал", ru: "Мультимодальность", en: "Multimodal" },
   Maxfiy: { uz: "Maxfiy", "uz-cyrl": "Махфий", ru: "Приватный", en: "Private" },
   "O'zbekcha": { uz: "O'zbekcha", "uz-cyrl": "Ўзбекча", ru: "Узбекский", en: "Uzbek" },
-  Reasoning: { uz: "Reasoning", "uz-cyrl": "Reasoning", ru: "Рассуждение", en: "Reasoning" },
+  Reasoning: { uz: "Fikrlash", "uz-cyrl": "Фикрлаш", ru: "Рассуждение", en: "Reasoning" },
   Avto: { uz: "Avto", "uz-cyrl": "Авто", ru: "Авто", en: "Auto" },
 };

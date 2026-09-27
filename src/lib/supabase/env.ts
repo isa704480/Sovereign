@@ -20,12 +20,33 @@ export function cookieDomainFor(hostname: string | null | undefined): string | u
 }
 
 /**
- * Sessiya cookie parametrlari: umumiy domen (bo'lsa) + Secure (production/https).
- * httpOnly=false qoladi — brauzer Supabase klienti cookie'ni o'qiydi. maxAge'ni
- * @supabase/ssr o'zi belgilaydi.
+ * Sessiya cookie'si httpOnly bo'ladimi (faqat serverda o'qiladi; brauzer baribir httpOnly
+ * cookie yoza olmaydi). Standart — o'chiq (avvalgi xatti-harakat). SESSION_COOKIE_HTTPONLY=1
+ * FAQAT quyidagilardan keyin yoqiladi: OAuthButtons Google kirishini signInWithGoogleIdToken
+ * server action'iga o'tkazgan va landing useSignedIn() SIGNED_IN_HINT_COOKIE'ni o'qiydigan
+ * bo'lgach (aks holda JS sessiya cookie'sini ko'rmaydi).
  */
-export function sessionCookieOptions(domain: string | undefined, secure: boolean): { domain?: string; secure: boolean } {
-  return { ...(domain ? { domain } : {}), secure };
+export function sessionCookieHttpOnly(): boolean {
+  return typeof window === "undefined" && process.env.SESSION_COOKIE_HTTPONLY === "1";
+}
+
+/**
+ * httpOnly rejimida landing "kirganmi" ishorasi uchun alohida, MAXFIY BO'LMAGAN cookie
+ * (qiymati faqat "1"; token emas). Proxy har so'rovda sessiya holatiga moslaydi.
+ */
+export const SIGNED_IN_HINT_COOKIE = "sov-signed-in";
+
+/**
+ * Sessiya cookie parametrlari: umumiy domen (bo'lsa) + Secure (production/https) +
+ * (yoqilgan bo'lsa) httpOnly/SameSite=Lax. httpOnly o'chiq bo'lsa — brauzer Supabase klienti
+ * cookie'ni o'qiy oladi (hozirgi holat). maxAge'ni @supabase/ssr o'zi belgilaydi.
+ */
+export function sessionCookieOptions(
+  domain: string | undefined,
+  secure: boolean,
+  httpOnly = false,
+): { domain?: string; secure: boolean; httpOnly?: boolean; sameSite?: "lax" } {
+  return { ...(domain ? { domain } : {}), secure, ...(httpOnly ? { httpOnly: true, sameSite: "lax" as const } : {}) };
 }
 
 export const SUPABASE_MISSING_MESSAGE =

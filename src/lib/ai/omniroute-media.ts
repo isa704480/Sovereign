@@ -1,10 +1,20 @@
 import "server-only";
+import { hostAllowedIn, hostOf } from "@/lib/ai/region";
 
 /**
  * OmniRoute media endpointlari (OpenAI-mos): embeddings, transkripsiya, rasm.
  * Har biri sozlanmagan yoki xato bo'lsa `null` qaytaradi — chaqiruvchi eski
  * yo'lga (OpenRouter / OpenAI) o'tadi. Modellar 2026-09-24 da sinovdan o'tgan.
  */
+/**
+ * Mintaqa siyosati (region.ts HOST_POLICY): model id'dagi upstream host (groq, aihorde ...) shu
+ * mamlakatga xizmat ko'rsatmasa — o'sha model chaqirilmaydi (mas. OFAC embargo mintaqasi).
+ */
+function hostOk(model: string, country: string | null | undefined): boolean {
+  const host = hostOf(model);
+  return !host || hostAllowedIn(host, country);
+}
+
 function omni(): { base: string; key: string } | null {
   const base = process.env.OMNIROUTE_BASE_URL;
   const key = process.env.OMNIROUTE_API_KEY;
@@ -40,10 +50,16 @@ export async function omniEmbed(texts: string[]): Promise<number[][] | null> {
 /** Groq Whisper (tekin) — sinovda 1-2 soniya. */
 const STT_MODELS = ["groq/whisper-large-v3-turbo", "groq/whisper-large-v3"];
 
-export async function omniTranscribe(file: Blob, filename: string, language: string): Promise<string | null> {
+export async function omniTranscribe(
+  file: Blob,
+  filename: string,
+  language: string,
+  country?: string | null,
+): Promise<string | null> {
   const o = omni();
   if (!o) return null;
   for (const model of STT_MODELS) {
+    if (!hostOk(model, country)) continue;
     try {
       const form = new FormData();
       form.append("file", file, filename);
@@ -87,10 +103,12 @@ const IMAGE_MODELS: [string, number][] = [
 export async function omniImage(
   prompt: string,
   deadline = Date.now() + 170_000,
+  country?: string | null,
 ): Promise<{ urls: string[]; provider: string } | null> {
   const o = omni();
   if (!o) return null;
   for (const [model, max] of IMAGE_MODELS) {
+    if (!hostOk(model, country)) continue;
     const timeout = Math.min(max, deadline - Date.now());
     if (timeout < 10_000) break;
     try {
@@ -150,10 +168,15 @@ const VIDEO_SYSTEM = [
  * Foydalanuvchi so'rovini (istalgan tilda) sifatli inglizcha rasm/video
  * promptiga aylantiradi. Xato yoki OmniRoute yo'q bo'lsa — null (asl matn).
  */
-export async function omniImagePrompt(request: string, kind: "image" | "video" = "image"): Promise<string | null> {
+export async function omniImagePrompt(
+  request: string,
+  kind: "image" | "video" = "image",
+  country?: string | null,
+): Promise<string | null> {
   const o = omni();
   if (!o) return null;
   for (const model of PROMPT_MODELS) {
+    if (!hostOk(model, country)) continue;
     try {
       const res = await fetch(`${o.base}/chat/completions`, {
         method: "POST",

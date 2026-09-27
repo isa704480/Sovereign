@@ -127,7 +127,7 @@ export default function Sidebar({ tab, setTab, info, history, activeTaskId, tree
         {tab === "files" && info.cwd && (
           <span className="tab-actions">
             <button type="button" className="icon-btn" aria-label={t("files.refresh")} title={t("files.refresh")} onClick={onRefresh}><Icon name="refresh" size={13} /></button>
-            <button type="button" className="icon-btn" aria-label={t("files.reveal")} title={t("files.reveal")} onClick={onReveal}><Icon name="external" size={13} /></button>
+            <button type="button" className="icon-btn" aria-label={t(info.platform === "darwin" ? "files.revealMac" : "files.reveal")} title={t(info.platform === "darwin" ? "files.revealMac" : "files.reveal")} onClick={onReveal}><Icon name="external" size={13} /></button>
           </span>
         )}
       </div>

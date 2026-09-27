@@ -6,17 +6,25 @@ name: Desktop release (SOVEREIGN Cowork)
 #
 # Tartib (poyga bo'lmasligi uchun):
 #   1) prepare — tegni tekshiradi va GitHub Release'ni DRAFT holatda yaratadi (bitta job).
-#   2) build   — Windows / macOS / Linux parallel yig'iladi; electron-builder mavjud
-#                draft relizni topib, faqat o'z fayllarini yuklaydi (reliz yaratmaydi).
-#   3) publish — hamma fayllar joyida bo'lsa draft → ommaviy (Latest) qilinadi.
+#   2) build   — Windows / macOS / Linux parallel yig'iladi (`--publish never`) va fayllar
+#                Actions artifact sifatida saqlanadi. Bu job'da YOZISH huquqi yo'q.
+#   3) publish — artifact'larni draft relizga yuklaydi, hamma fayllar joyida bo'lsa
+#                draft → ommaviy (Latest) qilinadi.
 #      Biror OS yiqilsa reliz draft bo'lib qoladi — foydalanuvchilarga chala reliz chiqmaydi.
+#
+# Xavfsizlik (supply-chain): `npm ci` ~yuzlab tranzitiv paketni ishga tushiradi. Shuning
+# uchun build job'i `contents: read`, checkout token'ni .git/config'ga yozmaydi
+# (persist-credentials: false), install skriptlari o'chirilgan (--ignore-scripts) va
+# GH_TOKEN berilmaydi. Relizga yozish (contents: write) faqat npm ishlamaydigan
+# prepare/publish job'larida. Actions commit SHA'ga qadalgan (teg ko'chirilsa ham o'zgarmaydi).
 on:
   push:
     tags:
       - "desktop-v*"
 
+# Standart: faqat o'qish. Yozish huquqi faqat kerakli job'larda (pastda).
 permissions:
-  contents: write # GitHub Release yaratish va fayllarni yuklash uchun
+  contents: read
 
 concurrency:
   group: desktop-release-${{ github.ref }}
@@ -29,10 +37,14 @@ jobs:
   prepare:
     name: Verify tag and create draft release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # draft GitHub Release yaratish
     outputs:
       version: ${{ steps.ver.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
       - name: Verify tag matches package version
         id: ver
@@ -73,6 +85,8 @@ jobs:
     name: Build (${{ matrix.name }})
     needs: prepare
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read # faqat o'qish: bu job'da uchinchi tomon npm kodi ishlaydi
     strategy:
       fail-fast: false
       matrix:
@@ -104,16 +118,25 @@ jobs:
       run:
         working-directory: desktop
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: desktop/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
+      # --ignore-scripts: tranzitiv paketlarning postinstall'i ishlamaydi. Kerakli yagona
+      # skript — esbuild (vite) binary tekshiruvi, uni aniq nom bilan chaqiramiz.
+      # electron o'z binary'sini postinstall'siz, kerak bo'lganda yuklaydi; electron-builder
+      # Electron'ni o'zi (checksum bilan) yuklaydi.
+      - name: Install dependencies (no lifecycle scripts)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      - name: esbuild binary
+        run: node node_modules/esbuild/install.js
 
       - name: Syntax check (main / preload)
         shell: bash
@@ -127,24 +150,44 @@ jobs:
       # Imzo sertifikati hali yo'q. Windows: imzosiz. macOS: ad-hoc imzo (mac.identity "-"),
       # Apple Silicon'da ilova ochilishi uchun shart; notarizatsiya yo'q.
       # Sertifikat paydo bo'lganda: CSC_LINK / CSC_KEY_PASSWORD (va Apple notarize) secret'larini qo'shing.
-      - name: Build and upload to draft release
+      # Faqat yig'ish (--publish never, token yo'q). latest*.yml publish konfiguratsiyasi
+      # bo'yicha baribir release/ ichida yaratiladi; yuklashni publish job'i qiladi.
+      - name: Build (no publish)
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npx electron-builder ${{ matrix.platform }} --publish always
+        run: npx electron-builder ${{ matrix.platform }} --publish never
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.artifact }}
           path: ${{ matrix.files }}
-          if-no-files-found: warn
+          if-no-files-found: error
+          retention-days: 7
 
   publish:
     name: Publish release
     needs: [prepare, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # fayllarni draft relizga yuklash va ommaviy qilish (npm yo'q)
     steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: sovereign-cowork-*
+          path: out
+          merge-multiple: true
+
+      - name: Upload assets to draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -la out
+          # Qayta ishga tushirishda (re-run) eski fayllar ustiga yoziladi.
+          gh release upload "$TAG" out/* --clobber
+
       - name: Check assets and publish
         shell: bash
         env:

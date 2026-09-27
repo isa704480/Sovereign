@@ -17,7 +17,7 @@ export const P12J = {
   },
   p12JudgeTitle: {
     uz: "Javobni boshqa kompaniyaning modeli tekshirdi — model yaratuvchisi o'zini tekshirmaydi. Hakam: {model}",
-    "uz-cyrl": "Жавобни бошқа компаниянинг модели текширди — модель яратувчиси ўзини текширмайди. Ҳакам: {model}",
+    "uz-cyrl": "Жавобни бошқа компаниянинг модели текширди — модел яратувчиси ўзини текширмайди. Ҳакам: {model}",
     ru: "Ответ проверила модель другой компании — разработчик модели не проверяет сам себя. Судья: {model}",
     en: "A model from a different company checked this answer — a model's maker never audits itself. Judge: {model}",
   },

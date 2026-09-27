@@ -4,7 +4,8 @@ import { resolveUserRegion } from "@/lib/ai/region-server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
+import { consumeMedia } from "@/lib/media/quota";
 import { getServerT } from "@/lib/i18n-server";
 import { fmt } from "@/lib/i18n";
 
@@ -20,7 +21,7 @@ const schema = z.object({ prompt: z.string().min(2).max(2000) });
 export async function POST(req: Request) {
   // Cost-DoS: har foydalanuvchi/IP uchun kuchli rate-limit
   const t = await getServerT();
-  const ipRl = await rateLimit(`img:ip:${clientIp(req)}`, 10, 60_000);
+  const ipRl = await rateLimit(`img:ip:${ipKey(clientIp(req))}`, 10, 60_000);
   if (!ipRl.ok) return Response.json({ error: t("chTooManyImages") }, { status: 429 });
 
   const body = await req.json().catch(() => null);
@@ -40,10 +41,15 @@ export async function POST(req: Request) {
       const profile = await getProfile(supabase, user.id);
       const region = await resolveUserRegion({ headers: req.headers, supabase, userId: user.id, onboarding: profile?.onboarding ?? null });
       country = region.restricted ? region.country : null;
+      // OFAC embargo mintaqasi (region.ts SANCTIONED) — chat route bilan bir xil: hech qanday provayder
+      // (Groq, Pollinations, AI Horde ...) chaqirilmaydi; kunlik kvota ham yeyilmaydi.
+      if (region.sanctioned) return Response.json({ error: t("p10RegionNoModels") }, { status: 451 });
       const plan = effectivePlan(profile);
       const perDay = IMAGES_PER_DAY[plan.id] ?? IMAGES_PER_DAY.free;
       const day = await rateLimit(`img:day:${user.id}`, perDay, 24 * 60 * 60 * 1000);
-      if (!day.ok) {
+      // Bazadagi kunlik hisob (0041). Rasm tekin provayderda — DB xatosida ochiq (null → ruxsat).
+      const dbDay = day.ok ? await consumeMedia(supabase, "image", perDay) : false;
+      if (!day.ok || dbDay === false) {
         return Response.json(
           { error: fmt(t("uxImageDailyLimit"), { n: perDay }), ...(plan.id === "ultra" ? {} : { upgrade: "pro" }) },
           { status: 429 },

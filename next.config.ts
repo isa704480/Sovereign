@@ -5,20 +5,26 @@ import type { NextConfig } from "next";
  * 16 hydration inline skriptga tayanadi). Boshqa sarlavhalar defense-in-depth:
  * clickjacking, MIME-sniff, referer leak, sniffer downgrade.
  */
+/**
+ * Cloudflare Turnstile (Supabase Auth CAPTCHA) — faqat sayt kaliti berilganda CSP'ga qo'shiladi
+ * (skript + iframe). Kalit yo'q bo'lsa CSP avvalgidek qoladi.
+ */
+const TURNSTILE = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ? " https://challenges.cloudflare.com" : "";
+
 const securityHeaders = [
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://apis.google.com https://www.gstatic.com https://accounts.google.com https://*.dodopayments.com",
-      "script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://apis.google.com https://www.gstatic.com https://accounts.google.com https://*.dodopayments.com",
+      `script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://apis.google.com https://www.gstatic.com https://accounts.google.com https://*.dodopayments.com${TURNSTILE}`,
+      `script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://esm.sh https://apis.google.com https://www.gstatic.com https://accounts.google.com https://*.dodopayments.com${TURNSTILE}`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' data: https://fonts.gstatic.com",
       "img-src 'self' data: blob: https:",
       // Yaratilgan video (Pollinations xotirasi) — faqat shu host, faqat media uchun.
       "media-src 'self' blob: data: https://media.pollinations.ai",
       "connect-src 'self' https://esm.sh https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://dashboard.zenobank.io https://*.dodopayments.com",
-      "frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://checkout.dodopayments.com https://test.checkout.dodopayments.com",
+      `frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://checkout.dodopayments.com https://test.checkout.dodopayments.com${TURNSTILE}`,
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "base-uri 'self'",

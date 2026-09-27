@@ -27,6 +27,26 @@ const PII = [
   /\b(?:sk|pk|xpl|ci_live|whsec|gsk|nvapi)[-_][A-Za-z0-9_-]{12,}/, // API kalitlar
 ];
 
+/**
+ * Sirlar (fayl biriktirilmasa ham savolga yopishtirilishi mumkin): JWT (Supabase servis kaliti),
+ * AWS kaliti, parolli ulanish satri, PEM blok, .env qatori (KALIT=uzun_qiymat), GitHub/Google kalitlari.
+ */
+const SECRETS = [
+  /eyJ[\w-]{8,}\.[\w-]{8,}\./, // JWT
+  /\bA(?:KIA|SIA)[0-9A-Z]{16}\b/, // AWS access key
+  /\b[a-z][a-z0-9+.-]{1,20}:\/\/[^\s:/@]+:[^\s@/]+@/i, // postgres://user:parol@… (har qanday sxema)
+  /-----BEGIN [A-Z ]+-----/, // PEM (private key, sertifikat)
+  /\b[A-Z][A-Z0-9_]{2,}=\S{16,}/, // .env qatori
+  /\bgh[pousr]_[A-Za-z0-9]{20,}/, // GitHub token
+  /\bAIza[0-9A-Za-z_-]{30,}/, // Google API kaliti
+];
+
+/**
+ * Biriktirilgan fayl/transkript belgisi (attachments.ts → "[Fayl: …]", "[TRANSKRIPT: …]") — chaqiruvchi
+ * hasPrivateContext'ni belgilamasa ham shu yerda rad etiladi.
+ */
+const ATTACHMENT_MARK = /\[(?:Fayl|TRANSKRIPT|Fayl endi mavjud emas|Media fayl biriktirildi)[: ]/;
+
 export interface CaptureInput {
   question: string;
   answer: string;
@@ -53,7 +73,9 @@ export function captureVerdict(input: CaptureInput): { ok: boolean; reason: stri
   const a = input.answer.trim();
   if (q.length < MIN_Q || q.length > MAX_Q) return { ok: false, reason: "question-length" };
   if (a.length < MIN_A || a.length > MAX_A) return { ok: false, reason: "answer-length" };
+  if (ATTACHMENT_MARK.test(q)) return { ok: false, reason: "attachment" };
   if (PII.some((re) => re.test(q) || re.test(a))) return { ok: false, reason: "pii" };
+  if (SECRETS.some((re) => re.test(q) || re.test(a))) return { ok: false, reason: "secret" };
   // Maxfiy rejim maskalagan matn ([person_A], [email_B]) trening uchun yaroqsiz —
   // model bunday tokenlarni o'rganib qolmasligi kerak.
   if (/\[(person|email|phone|card|org|money|url|iban|crypto)_[A-Z]\]/i.test(q + a)) {

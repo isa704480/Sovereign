@@ -4,9 +4,9 @@ import type { Dict } from "@/lib/i18n";
 export const P8C = {
   /** PrivacyBand bo'limi ustidagi kichik sarlavha (avval inglizcha qattiq yozilgan edi). */
   p8cPrivacyEyebrow: {
-    uz: "Yashirin prompt",
-    "uz-cyrl": "Яширин промпт",
-    ru: "Слепой промптинг",
+    uz: "Blind Prompting",
+    "uz-cyrl": "Blind Prompting",
+    ru: "Blind Prompting",
     en: "Blind Prompting",
   },
   /** ldCompareModels ning birlik shakli (Intl.PluralRules "one"): 1 / 21 / 1731 … */

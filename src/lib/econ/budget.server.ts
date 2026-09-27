@@ -1,6 +1,6 @@
 import "server-only";
 import { Redis } from "@upstash/redis";
-import { isLang, type Lang } from "@/lib/i18n";
+import { fmt, isLang, translate, type Lang } from "@/lib/i18n";
 import { isResendConfigured, sendEmail } from "@/lib/email/resend";
 import { isRollyConfigured, rollyRate } from "@/lib/payments/rollypay";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -210,7 +210,7 @@ async function sendTelegram(text: string): Promise<boolean> {
   }
 }
 
-async function sendAlertEmail(id: AlertId, text: string): Promise<boolean> {
+async function sendAlertEmail(id: AlertId | "payment_review", text: string): Promise<boolean> {
   const to = process.env.ALERT_EMAIL?.trim();
   if (!to) return false;
   const [subject, ...rest] = text.split("\n");
@@ -224,6 +224,25 @@ async function sendAlertEmail(id: AlertId, text: string): Promise<boolean> {
   });
   if (!res.ok) console.error(`[budget-watch] email failed (status ${res.status})`);
   return res.ok;
+}
+
+/**
+ * To'lov webhook'i hodisani qo'lda ko'rib chiqishga qoldirdi (webhook_events.type 'review:%' —
+ * mos kelmagan refund, rad etilgan faollashtirish): founder'ga qisqa alert (payments-2).
+ * Kanal sozlanmagan bo'lsa jim; hech qachon otmaydi (webhook javobini buzmasin).
+ */
+export async function sendPaymentReviewAlert(note: string): Promise<boolean> {
+  try {
+    const text = fmt(translate(alertLang(), "p13eAlertPaymentReview"), { note: note.slice(0, 300) });
+    const results = await Promise.all([
+      telegramConfigured() ? sendTelegram(text) : Promise.resolve(false),
+      emailConfigured() ? sendAlertEmail("payment_review", text) : Promise.resolve(false),
+    ]);
+    return results.some(Boolean);
+  } catch (e) {
+    console.error("[payment-review alert]", e instanceof Error ? e.message : e);
+    return false;
+  }
 }
 
 const dedupe: DedupeStore = {

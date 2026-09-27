@@ -68,7 +68,7 @@ export const P7B = {
   },
   p7bDFirstChat4: {
     uz: "Kiritish maydoni yonidagi **+** menyusida qo'shimcha vositalar bor: fayl biriktirish, Bilim bazasi, Xotira, Rasm yaratish va Cowork papka.",
-    "uz-cyrl": "Киритиш майдони ёнидаги **+** менюсида қўшимча воситалар бор: файл бириктириш, Билимлар базаси, Хотира, Расм яратиш ва Cowork папка.",
+    "uz-cyrl": "Киритиш майдони ёнидаги **+** менюсида қўшимча воситалар бор: файл бириктириш, Билим базаси, Хотира, Расм яратиш ва Cowork папка.",
     ru: "В меню **+** рядом с полем ввода — дополнительные инструменты: прикрепить файл, База знаний, Память, Создать изображение и папка Cowork.",
     en: "The **+** menu next to the input holds extra tools: attach a file, your Knowledge base, Memory, Create image and the Cowork folder.",
   },
@@ -149,11 +149,11 @@ export const P7B = {
     ru: "SOVEREIGN запоминает ключевые факты — ваше имя, проекты и предпочитаемый стиль — между чатами. Откройте **Память** в меню +, чтобы посмотреть, что он знает, удалить отдельные записи или очистить всё. Как хранится память — см. [Приватность]({aPrivacy}).",
     en: "SOVEREIGN remembers key facts — your name, projects and preferred style — across chats. Open **Memory** from the + menu to see what it knows, delete single items or clear everything. See [Privacy]({aPrivacy}) for how memory is stored.",
   },
-  p7bDKbNav: { uz: "Bilim bazasi", "uz-cyrl": "Билимлар базаси", ru: "База знаний", en: "Knowledge base" },
-  p7bDKbTitle: { uz: "Bilim bazasi (hujjatlar)", "uz-cyrl": "Билимлар базаси (ҳужжатлар)", ru: "База знаний (документы)", en: "Knowledge base (documents)" },
+  p7bDKbNav: { uz: "Bilim bazasi", "uz-cyrl": "Билим базаси", ru: "База знаний", en: "Knowledge base" },
+  p7bDKbTitle: { uz: "Bilim bazasi (hujjatlar)", "uz-cyrl": "Билим базаси (ҳужжатлар)", ru: "База знаний (документы)", en: "Knowledge base (documents)" },
   p7bDKbBody: {
     uz: "O'z hujjatlaringizni — PDF, matn, Markdown, JSON, CSV yoki kod — **Bilim bazasi**ga yuklang. Ular indekslanadi, shunda AI ular asosida javob bera oladi. Xabarda hujjatga murojaat qilish uchun `@` va uning nomini yozing; tegishli parchalar avtomatik ham topiladi.",
-    "uz-cyrl": "Ўз ҳужжатларингизни — PDF, матн, Markdown, JSON, CSV ёки код — **Билимлар базаси**га юкланг. Улар индексланади, шунда AI улар асосида жавоб бера олади. Хабарда ҳужжатга мурожаат қилиш учун `@` ва унинг номини ёзинг; тегишли парчалар автоматик ҳам топилади.",
+    "uz-cyrl": "Ўз ҳужжатларингизни — PDF, матн, Markdown, JSON, CSV ёки код — **Билим базаси**га юкланг. Улар индексланади, шунда AI улар асосида жавоб бера олади. Хабарда ҳужжатга мурожаат қилиш учун `@` ва унинг номини ёзинг; тегишли парчалар автоматик ҳам топилади.",
     ru: "Загружайте свои документы — PDF, текст, Markdown, JSON, CSV или код — в **Базу знаний**. Они индексируются, чтобы AI мог отвечать на их основе. Чтобы сослаться на документ в сообщении, введите `@` и его название; подходящие фрагменты также подбираются автоматически.",
     en: "Upload your own documents — PDF, text, Markdown, JSON, CSV or code — in **Knowledge base**. They are indexed so the AI can answer from them. Reference a document in a message by typing `@` and its name; relevant passages are also retrieved automatically.",
   },
@@ -431,10 +431,10 @@ export const P7B = {
     en: "Open the app, choose a project folder, and describe the task.",
   },
   p7bDDesktop3: {
-    uz: "Xuddi shu himoyalangan muhit (sandbox) amal qiladi: papkadan tashqaridagi yo'llar va xavfli buyruqlar doim tasdiq talab qiladi.",
-    "uz-cyrl": "Худди шу ҳимояланган муҳит амал қилади: папкадан ташқаридаги йўллар ва хавфли буйруқлар доим тасдиқ талаб қилади.",
-    ru: "Действует та же песочница: пути за пределами папки и рискованные команды всегда требуют подтверждения.",
-    en: "The same sandbox applies: paths outside the folder and risky commands always require confirmation.",
+    uz: "Xuddi shu xavfsizlik qoidalari amal qiladi (OT darajasidagi sandbox yo'q): papkadan tashqaridagi yo'llar va xavfli buyruqlar tasdiq talab qiladi — To'liq avto rejimi bundan mustasno, uni faqat ishonchli papkalarda yoqing.",
+    "uz-cyrl": "Худди шу хавфсизлик қоидалари амал қилади (ОТ даражасидаги ҳимояланган муҳит йўқ): папкадан ташқаридаги йўллар ва хавфли буйруқлар тасдиқ талаб қилади — «Тўлиқ авто» режими бундан мустасно, уни фақат ишончли папкаларда ёқинг.",
+    ru: "Действуют те же правила безопасности (песочницы на уровне ОС нет): пути за пределами папки и рискованные команды требуют подтверждения — кроме режима «Полный авто», который стоит включать только в папках, которым вы доверяете.",
+    en: "The same safety rules apply (there is no OS-level sandbox): paths outside the folder and risky commands require confirmation — except in Full auto, which you should only turn on in folders you trust.",
   },
   p7bDDesktop4: {
     uz: "Vibe rejimi va umumiy xotira CLI'dagi kabi ishlaydi.",
@@ -710,7 +710,7 @@ export const P7B = {
   p7bSFooter: {
     uz: "Tekshiruvlar serverlarimizdan o'tkaziladi va 60 soniyagacha keshlanadi.",
     "uz-cyrl": "Текширувлар серверларимиздан ўтказилади ва 60 сониягача кешланади.",
-    ru: "Проверки выполняются с наших серверов и кешируются до 60 секунд.",
+    ru: "Проверки выполняются с наших серверов и кэшируются до 60 секунд.",
     en: "Checks run from our servers and are cached for up to 60 seconds.",
   },
   p7bSLinksAria: { uz: "SOVEREIGN havolalari", "uz-cyrl": "SOVEREIGN ҳаволалари", ru: "Ссылки SOVEREIGN", en: "SOVEREIGN links" },
@@ -740,16 +740,16 @@ export const P7B = {
   },
   p7bSNCheckFailed: { uz: "Tekshiruv amalga oshmadi", "uz-cyrl": "Текширув амалга ошмади", ru: "Проверка не удалась", en: "Check failed" },
   p7bDCmdAuto: {
-    uz: "Full auto rejimini yoqish/o'chirish — hech narsa so'ralmaydi (Xavfsizlik modeliga qarang)",
+    uz: "To'liq avto rejimini yoqish/o'chirish — hech narsa so'ralmaydi (Xavfsizlik modeliga qarang)",
     "uz-cyrl": "Тўлиқ авто режимини ёқиш/ўчириш — ҳеч нарса сўралмайди (Хавфсизлик моделига қаранг)",
     ru: "Включить/выключить полный авто — без вопросов (см. «Модель безопасности»)",
     en: "Toggle Full auto — nothing is asked (see Safety model)",
   },
   p7bDSafetyAuto: {
-    uz: "**Full auto** (`--full-auto` yoki `/auto`; Cowork'da ⚡ tugmasi) — hech narsa so'ralmaydi: ish papkasi ichida fayl yozish, paket o'rnatish, test va build darhol bajariladi; agent test o'tguncha o'zi tuzatadi. Ish papkasidan tashqaridagi yo'llar, `git push`, publish, deploy va `sudo` so'ralmasdan **rad etiladi**; himoyalangan yo'llar va xavfli buyruqlar baribir bloklanadi. Faqat ishonchli papkada yoqing.",
-    "uz-cyrl": "**Тўлиқ авто** (`--full-auto` ёки `/auto`; Cowork'да ⚡ тугмаси) — ҳеч нарса сўралмайди: иш папкаси ичида файл ёзиш, пакет ўрнатиш, тест ва йиғиш дарҳол бажарилади; агент тест ўтгунча ўзи тузатади. Иш папкасидан ташқаридаги йўллар, `git push`, нашр, деплой ва `sudo` сўралмасдан **рад этилади**; ҳимояланган йўллар ва хавфли буйруқлар барибир блокланади. Фақат ишончли папкада ёқинг.",
-    ru: "**Полный авто** (`--full-auto` или `/auto`; в Cowork — кнопка ⚡) — ничего не спрашивается: запись файлов, установка пакетов, тесты и сборка внутри рабочей папки выполняются сразу; агент сам исправляет ошибки, пока тесты не пройдут. Пути вне рабочей папки, `git push`, publish, deploy и `sudo` **отклоняются** без вопросов; защищённые пути и опасные команды по-прежнему блокируются. Включайте только в доверенной папке.",
-    en: "**Full auto** (`--full-auto` or `/auto`; the ⚡ button in Cowork) — nothing is asked: file writes, package installs, tests and builds inside the working folder run right away, and the agent keeps fixing until tests pass. Paths outside the working folder, `git push`, publish, deploy and `sudo` are **refused** without asking; protected paths and dangerous commands stay blocked. Turn it on only in a folder you trust.",
+    uz: "**To'liq avto** (`--full-auto` yoki `/auto`; Cowork'da ⚡ tugmasi) — hech narsa so'ralmaydi: ish papkasi ichida fayl yozish, paket o'rnatish, test va build darhol bajariladi; agent test o'tguncha o'zi tuzatadi. Ish papkasidan tashqaridagi yo'llar, `git push`, publish, deploy va `sudo` so'ralmasdan **rad etiladi**; himoyalangan yo'llar va xavfli buyruqlar baribir bloklanadi. Rad etish ro'yxati faqat buyruq matnini tekshiradi — bu sandbox emas. Faqat ishonchli papkada yoqing.",
+    "uz-cyrl": "**Тўлиқ авто** (`--full-auto` ёки `/auto`; Cowork'да ⚡ тугмаси) — ҳеч нарса сўралмайди: иш папкаси ичида файл ёзиш, пакет ўрнатиш, тест ва йиғиш дарҳол бажарилади; агент тест ўтгунча ўзи тузатади. Иш папкасидан ташқаридаги йўллар, `git push`, `publish`, `deploy` ва `sudo` сўралмасдан **рад этилади**; ҳимояланган йўллар ва хавфли буйруқлар барибир блокланади. Рад этиш рўйхати фақат буйруқ матнини текширади — бу ҳимояланган муҳит эмас. Фақат ишончли папкада ёқинг.",
+    ru: "**Полный авто** (`--full-auto` или `/auto`; в Cowork — кнопка ⚡) — ничего не спрашивается: запись файлов, установка пакетов, тесты и сборка внутри рабочей папки выполняются сразу; агент сам исправляет ошибки, пока тесты не пройдут. Пути вне рабочей папки, `git push`, publish, deploy и `sudo` **отклоняются** без вопросов; защищённые пути и опасные команды по-прежнему блокируются. Список запретов проверяет только текст команды — это не песочница. Включайте только в доверенной папке.",
+    en: "**Full auto** (`--full-auto` or `/auto`; the ⚡ button in Cowork) — nothing is asked: file writes, package installs, tests and builds inside the working folder run right away, and the agent keeps fixing until tests pass. Paths outside the working folder, `git push`, publish, deploy and `sudo` are **refused** without asking; protected paths and dangerous commands stay blocked. The deny list only checks command text — it is not a sandbox. Turn it on only in a folder you trust.",
   },
   // ---- Loyiha xotirasi (SOVEREIGN.md) ----
   p7bDProjectTitle: {

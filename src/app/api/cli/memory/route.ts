@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createAnonClient } from "@/lib/supabase/anon";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
+import { tokenKey } from "@/lib/cli/device";
 import { getServerT } from "@/lib/i18n-server";
 
 export const runtime = "nodejs";
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
   const t = await getServerT();
   const token = bearer(req);
   if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
-  const rl = await rateLimit(`cli-mem:${token.slice(0, 24)}`, 40, 60_000);
+  const rl = await rateLimit(`cli-mem:${tokenKey(token)}`, 40, 60_000);
   if (!rl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
 
   try {
@@ -50,9 +51,9 @@ export async function POST(req: Request) {
   const t = await getServerT();
   const token = bearer(req);
   if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
-  const rl = await rateLimit(`cli-mem-w:${token.slice(0, 24)}`, 30, 60_000);
+  const rl = await rateLimit(`cli-mem-w:${tokenKey(token)}`, 30, 60_000);
   if (!rl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
-  const ipRl = await rateLimit(`cli-mem:ip:${clientIp(req)}`, 60, 60_000);
+  const ipRl = await rateLimit(`cli-mem:ip:${ipKey(clientIp(req))}`, 60, 60_000);
   if (!ipRl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
 
   const parsed = addSchema.safeParse(await req.json().catch(() => null));
@@ -76,7 +77,7 @@ export async function DELETE(req: Request) {
   const t = await getServerT();
   const token = bearer(req);
   if (!token) return Response.json({ error: t("p7cCliNoToken") }, { status: 401 });
-  const rl = await rateLimit(`cli-mem-d:${token.slice(0, 24)}`, 30, 60_000);
+  const rl = await rateLimit(`cli-mem-d:${tokenKey(token)}`, 30, 60_000);
   if (!rl.ok) return Response.json({ error: t("secTooManyRequests") }, { status: 429 });
 
   const url = new URL(req.url);

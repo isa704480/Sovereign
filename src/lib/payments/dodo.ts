@@ -82,6 +82,17 @@ export async function retrieveDodoPayment(paymentId: string): Promise<{ orderId?
 }
 
 /**
+ * Webhook'da to'langan mahsulot va muddatni metadata'dan emas, Dodo obunasining
+ * o'zidan olish uchun (payment.* event'larida product_id / next_billing_date yo'q).
+ */
+export async function retrieveDodoSubscription(
+  subscriptionId: string,
+): Promise<{ productId?: string; nextBillingDate?: string; status?: string }> {
+  const sub = await dodo().subscriptions.retrieve(subscriptionId);
+  return { productId: sub.product_id, nextBillingDate: sub.next_billing_date, status: sub.status };
+}
+
+/**
  * Verifies the Standard Webhooks signature (id.timestamp.body, HMAC-SHA256,
  * 5-minute tolerance) via the official SDK. Throws on any mismatch.
  */

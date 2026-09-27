@@ -13,6 +13,8 @@
  *   - src/** da t("key") / translate(lang, "key") / "key" as TKey — DICT da yo'q
  *   - "uz-cyrl" qiymatida kichik harfli lotin so'z, "uz" qiymatida kirill harfi
  *   - qiymat statik satr emas (tekshirib bo'lmaydi)
+ *   - DICT dan tashqaridagi { uz, "uz-cyrl", ru, en } obyektlari (PLAN_TEXT, LEGAL, src/content,
+ *     email shablonlari…) — xuddi shu qoidalar: 4 til, bo'sh emas, placeholder, alifbo
  * Ogohlantirish: hech qayerda ishlatilmagan kalitlar (soni; --verbose bilan ro'yxat).
  *
  *   npm run i18n:check            # qisqa hisobot
@@ -55,7 +57,7 @@ const CYRL_LATIN_ALLOW = new Set([
   "mini", "pro", "max", "flash", "turbo", "lite", "nano", "sonnet", "opus", "haiku", "latest", "preview",
   "api", "key", "token", "id",
   // Terminal / kod
-  "sov", "chmod", "sudo", "bash", "zsh", "fish", "powershell", "export", "default", "import", "env",
+  "sov", "chmod", "sudo", "bash", "zsh", "fish", "powershell", "export", "default", "import", "env", "irm", "iex",
   // Model nomlari (qidiruv misollari)
   "claude", "gemini", "deepseek", "gpt", "llama", "qwen", "mistral", "grok", "kimi", "glm", "o3", "o4",
   // Ataylab qoldirilgan texnik atamalar (qavs ichidagi izoh / tashqi konsol nomlari)
@@ -127,6 +129,7 @@ const issues = {
   unknownKey: [],
   cyrlLatin: [],
   uzCyrillic: [],
+  l10nTable: [],
 };
 const warnings = { unused: [] };
 
@@ -299,6 +302,58 @@ function walk(dir, out = []) {
   return out;
 }
 
+// ─── DICT dan tashqaridagi { uz, "uz-cyrl", ru, en } jadvallari ──────────────
+// PLAN_TEXT, LEGAL, LD_*, src/content (updates, tips), email shablonlari, onboarding-data va h.k.
+// DICT ga kirmaydi, lekin foydalanuvchiga ko'rinadi: xuddi shu qoidalar (4 til, bo'sh emas,
+// placeholder, alifbo) — "uz-cyrl" xossasi bor har bir obyekt literali uchun.
+const dictValueNodes = new Set(); // DICT kalitlari (ular yuqorida tekshirilgan)
+for (const [key, { file }] of dict) dictValueNodes.add(`${file}\0${key}`);
+
+function checkL10nObject(file, sf, obj) {
+  const values = {};
+  for (const p of obj.properties) {
+    if (!ts.isPropertyAssignment(p)) return; // spread / metod — jadval emas
+    const n = propName(p);
+    if (!LANGS.includes(n)) return; // boshqa xossa bor — til obyekti emas
+    values[n] = staticString(p.initializer);
+  }
+  // Faqat satr qiymatli til obyektlari (massiv/obyekt qiymatlilar — o'z ichidagi obyektlar alohida tekshiriladi).
+  if (!Object.values(values).some((v) => typeof v === "string")) return;
+  const parent = obj.parent;
+  const key = parent && ts.isPropertyAssignment(parent) ? propName(parent) : null;
+  if (key && dictValueNodes.has(`${file}\0${key}`)) return;
+  const where = `${rel(file)}:${lineOf(sf, obj)}${key ? ` (${key})` : ""}`;
+  const miss = LANGS.filter((l) => typeof values[l] !== "string" || values[l].trim() === "");
+  if (miss.length) issues.l10nTable.push(`${where}: til yo'q/bo'sh [${miss.join(", ")}]`);
+  const phs = LANGS.filter((l) => typeof values[l] === "string" && values[l] !== "").map((l) => placeholders(values[l]));
+  if (new Set(phs).size > 1) issues.l10nTable.push(`${where}: {placeholder} tillar orasida mos emas`);
+  const cy = values["uz-cyrl"];
+  if (typeof cy === "string") {
+    const bad = latinWordsInCyrl(cy);
+    if (bad.length) issues.l10nTable.push(`${where}: "uz-cyrl" ichida lotin so'zlar: ${[...new Set(bad)].join(", ")}`);
+  }
+  const uz = values.uz;
+  if (typeof uz === "string" && CYR.test(uz)) {
+    const words = [...new Set(uz.match(/\S*[Ѐ-ӿ]+\S*/g) ?? [])];
+    issues.l10nTable.push(`${where}: "uz" ichida kirill harflari: ${words.slice(0, 4).join(", ")}`);
+  }
+}
+
+/** Til obyektlari foydalanuvchiga emas, modelga boradigan fayllar (prompt matni). */
+const L10N_SKIP = new Set(["src/lib/ai/inquiry/prompt.ts"]);
+
+for (const file of walk(SRC)) {
+  if (!/\.(ts|tsx)$/.test(file) || /\.test\.tsx?$/.test(file) || L10N_SKIP.has(rel(file))) continue;
+  const text = readFileSync(file, "utf8");
+  if (!text.includes('"uz-cyrl"')) continue;
+  const sf = parse(file);
+  const visit = (node) => {
+    if (ts.isObjectLiteralExpression(node) && node.properties.some((p) => propName(p) === "uz-cyrl")) checkL10nObject(file, sf, node);
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+}
+
 const literalRefs = new Set();
 const prefixRefs = new Set();
 
@@ -352,6 +407,7 @@ const TITLES = {
   unknownKey: "Kodda ishlatilgan, lekin DICT da yo'q kalitlar",
   cyrlLatin: '"uz-cyrl" ichida lotin so\'zlar',
   uzCyrillic: '"uz" ichida kirill harflari',
+  l10nTable: "DICT dan tashqaridagi til jadvallari (PLAN_TEXT, LEGAL, src/content, email…)",
 };
 
 const LIMIT = VERBOSE ? Infinity : 60;

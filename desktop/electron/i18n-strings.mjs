@@ -67,7 +67,7 @@ export const MAIN_STRINGS = {
     "menu.selectAll": "Выбрать все",
     "menu.window": "Окно",
     "menu.minimize": "Свернуть",
-    "menu.zoom": "Масштаб",
+    "menu.zoom": "Изменить масштаб",
     "menu.close": "Закрыть окно",
     "inquiry.clarify": "Уточнение:",
     "inquiry.assumeRest": "По вопросам без ответа сделайте разумные допущения и прямо их назовите.",

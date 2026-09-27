@@ -51,7 +51,7 @@ export const PANELS = {
   pnCwApplied: { uz: "qo'llandi", "uz-cyrl": "қўлланди", ru: "применено", en: "applied" },
   pnCwApply: { uz: "Qo'llash", "uz-cyrl": "Қўллаш", ru: "Применить", en: "Apply" },
   pnCwApplyAria: { uz: "{path} — qo'llash", "uz-cyrl": "{path} — қўллаш", ru: "{path} — применить", en: "{path} — apply" },
-  pnCwDownload: { uz: "Yuklab", "uz-cyrl": "Юклаб", ru: "Скачать", en: "Download" },
+  pnCwDownload: { uz: "Yuklab olish", "uz-cyrl": "Юклаб олиш", ru: "Скачать", en: "Download" },
   pnCwDownloadAria: { uz: "{path} — yuklab olish", "uz-cyrl": "{path} — юклаб олиш", ru: "{path} — скачать", en: "{path} — download" },
   pnCwConnectHint: {
     uz: "To'g'ridan-to'g'ri saqlash uchun quyida papkani Chrome/Edge orqali ulang.",
@@ -77,7 +77,7 @@ export const PANELS = {
   },
 
   // Server actions — xato xabarlari
-  pnErrLoginFirst: { uz: "Avval tizimga kiring.", "uz-cyrl": "Аввал тизимга киринг.", ru: "Сначала войдите в систему.", en: "Please sign in first." },
+  pnErrLoginFirst: { uz: "Avval tizimga kiring.", "uz-cyrl": "Аввал тизимга киринг.", ru: "Сначала войдите в систему.", en: "Please log in first." },
   pnErrNoSession: { uz: "Sessiya topilmadi", "uz-cyrl": "Сессия топилмади", ru: "Сессия не найдена", en: "Session not found" },
   pnErrBadRequest: { uz: "Noto'g'ri so'rov.", "uz-cyrl": "Нотўғри сўров.", ru: "Неверный запрос.", en: "Invalid request." },
   pnErrFigmaToken: {
@@ -122,7 +122,7 @@ export const PANELS = {
   pnErrBadFileData: { uz: "Noto'g'ri fayl ma'lumoti", "uz-cyrl": "Нотўғри файл маълумоти", ru: "Некорректные данные файла", en: "Invalid file data" },
   pnErrFileEmpty: { uz: "Fayl bo'sh", "uz-cyrl": "Файл бўш", ru: "Файл пуст", en: "File is empty" },
   pnErrFileNotSaved: { uz: "Fayl saqlanmadi", "uz-cyrl": "Файл сақланмади", ru: "Не удалось сохранить файл", en: "File was not saved" },
-  pnErrIndexing: { uz: "Indekslash xato", "uz-cyrl": "Индекслаш хатоси", ru: "Ошибка индексации", en: "Indexing error" },
+  pnErrIndexing: { uz: "Indekslash xatosi", "uz-cyrl": "Индекслаш хатоси", ru: "Ошибка индексации", en: "Indexing error" },
   pnErrBadPlan: { uz: "Noto'g'ri tarif", "uz-cyrl": "Нотўғри тариф", ru: "Неверный тариф", en: "Invalid plan" },
   pnErrPlanPaymentOnly: {
     uz: "Tarif faqat to'lov orqali ochiladi.",

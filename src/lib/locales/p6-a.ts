@@ -20,13 +20,13 @@ export const P6A = {
   dlDesktopDesc: {
     uz: "Alohida oynadagi AI koding hamkori — chat, fayllar va agentlar.",
     "uz-cyrl": "Алоҳида ойнадаги AI кодинг ҳамкори — чат, файллар ва агентлар.",
-    ru: "AI-напарник для кода в отдельном окне — чат, файлы и агенты.",
+    ru: "ИИ-напарник для кода в отдельном окне — чат, файлы и агенты.",
     en: "An AI coding coworker in its own window — chat, files and agents.",
   },
   dlCliDesc: {
     uz: "sov — terminaldagi AI koding agenti. Bitta buyruq bilan o'rnatiladi.",
     "uz-cyrl": "sov — терминалдаги AI кодинг агенти. Битта буйруқ билан ўрнатилади.",
-    ru: "sov — AI-агент для кода в терминале. Установка одной командой.",
+    ru: "sov — ИИ-агент для кода в терминале. Установка одной командой.",
     en: "sov — an AI coding agent in your terminal. One command to install.",
   },
   dlRecommended: { uz: "Sizga mos", "uz-cyrl": "Сизга мос", ru: "Для вашей системы", en: "Recommended for you" },
@@ -114,5 +114,5 @@ export const P6A = {
     ru: "Все релизы на GitHub",
     en: "All releases on GitHub",
   },
-  dlChatButton: { uz: "Cowork desktop", "uz-cyrl": "Cowork десктоп", ru: "Cowork для компьютера", en: "Cowork desktop" },
+  dlChatButton: { uz: "Cowork kompyuter uchun", "uz-cyrl": "Cowork компьютер учун", ru: "Cowork для компьютера", en: "Cowork desktop" },
 } satisfies Dict;

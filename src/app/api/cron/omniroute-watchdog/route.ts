@@ -1,3 +1,4 @@
+import { bearerMatches } from "@/lib/email/token";
 import { isWatchdogConfigured, probeOmniRoute, restartOmniRoute } from "@/lib/omniroute-watchdog";
 
 export const runtime = "nodejs";
@@ -12,8 +13,8 @@ export const dynamic = "force-dynamic";
  * Himoya: Authorization: Bearer $CRON_SECRET (Vercel cron o'zi qo'yadi).
  */
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
+  // Doimiy vaqtli solishtirish (boshqa cron route'lari kabi).
+  if (!bearerMatches(req.headers.get("authorization"), process.env.CRON_SECRET)) {
     return Response.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!isWatchdogConfigured()) {

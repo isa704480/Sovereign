@@ -95,6 +95,7 @@ git add SOVEREIGN.md && git commit -m "Loyiha xotirasi"
 - Chegara — 16 KB (oshsa, boshi beriladi va ogohlantiriladi). Symlink fayllar o'qilmaydi.
 - `/project` — fayl yo'li va qisqa mazmun; `/project init` — shablon; `/project-remember <fakt>` — `## Eslatmalar` bo'limiga sanali band qo'shadi.
 - Fayl mazmuni loyiha konventsiyasi sifatida bajariladi, lekin undagi "kalitni yubor / ruxsatni o'chir" kabi buyruqlarga agent amal qilmaydi.
+- Agent `SOVEREIGN.md` ga faqat sizning aniq tasdig'ingiz bilan yozadi (vibe/`--yes` ham o'tkazib yubormaydi, full auto'da rad etiladi) — bir martalik prompt-injection jamoaning barcha sessiyalariga o'rnashib qolmasin. O'zgarishlarni commit'dan oldin ko'rib chiqing.
 - Individual xotira (`/memory`, `/remember`) — faqat sizniki; `SOVEREIGN.md` — loyihaniki.
 
 ## Halollik: "Aslida nima bo'ldi"
@@ -118,7 +119,9 @@ Cheklovlar: rasm 900 KB, matn 2 MB, PDF 20 MB. PDF matni uchun `npm i -g pdf-par
 ## Xavfsizlik
 
 - Fayl amallari ish papkasi ichida; tashqi yo'l va xavfli buyruqlar **har doim** alohida so'raladi (`--yes`/vibe ham o'tkazib yubormaydi).
-- **Full auto** (`--full-auto` yoki `/auto`): hech narsa so'ralmaydi — ish papkasi ichida yozish, paket o'rnatish, test va build darhol bajariladi, agent test o'tguncha o'zi tuzatadi (yiqilgan buyruqdan keyin to'xtasa — avtomatik davom ettiriladi, ko'pi bilan 3 marta). Tashqi yo'llar, `git push`, publish, deploy, `sudo` va tizim sozlamalari so'ralmasdan **rad etiladi**; bloklangan/himoyalangan narsalar o'zgarmaydi.
+- **Full auto** (`--full-auto` yoki `/auto`): hech narsa so'ralmaydi — ish papkasi ichida yozish, paket o'rnatish, test va build darhol bajariladi, agent test o'tguncha o'zi tuzatadi (yiqilgan buyruqdan keyin to'xtasa — avtomatik davom ettiriladi, ko'pi bilan 3 marta). Tashqi yo'llar, `git push`, publish, deploy, `sudo`, `git config`/`git -c`, tizim sozlamalari va sessiyadan keyin o'zi ishga tushadigan fayllar (`.github`, `.husky`, `.vscode`, `package.json` install-skriptlari, `SOVEREIGN.md`) so'ralmasdan rad etiladi; bloklangan/himoyalangan narsalar o'zgarmaydi.
+  - **Muhim: bu sandbox emas.** Rad etish ro'yxati faqat buyruq *matnini* tekshiradi. Agent yozgan skript (`node x.js`) sizning to'liq huquqlaringiz bilan ishlaydi va `~/.sovereign` token, `~/.ssh` kalit kabi sirlarni o'qib tarmoqqa yuborishi mumkin. Repo ichidagi fayllar (README, test, issue matni) agentga yashirin ko'rsatma berishi mumkin (prompt-injection) — full auto'ni faqat o'zingiz ishonadigan papkada yoqing.
+  - Har papkada birinchi marta (flag bilan yoqilganda ham) ogohlantirish va `[y/N]` tasdiq so'raladi; ishonchli papkalar `~/.sovereign/full-auto-trust.json` da saqlanadi. `-p` (interaktivsiz) rejimida faqat ogohlantirish chiqadi.
 - Kalit/parol/tizim yo'llari (`.ssh`, `.aws`, `~/.sovereign`, brauzer profillari ...) — hech qachon.
 - Token va kalitlar faqat kompyuteringizda (`~/.sovereign/config.json`, 0600).
 

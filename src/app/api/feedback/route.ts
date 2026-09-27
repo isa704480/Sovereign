@@ -16,7 +16,7 @@ const schema = z.object({
 /**
  * POST /api/feedback — taklif / xato / shikoyat. Faqat serverda (service role)
  * `feedback` jadvaliga yoziladi (0031). Kirmagan mehmon ham yozishi mumkin —
- * spamga qarshi IP bo'yicha 5 ta / 10 daqiqa.
+ * spamga qarshi IP bo'yicha 5 ta / 10 daqiqa (mehmon: IP bo'yicha 5 ta / soat ham).
  */
 export async function POST(req: Request) {
   const t = await getServerT();
@@ -38,12 +38,15 @@ export async function POST(req: Request) {
   } catch {
     /* mehmon */
   }
-  // Kirgan foydalanuvchi — hisobi bo'yicha; mehmonlar — umumiy soatlik chegara
-  // (ko'p IP'dan spam admin navbatini to'ldirmasin).
-  const extra = userId
-    ? await rateLimit(`feedback:user:${userId}`, 10, 60 * 60_000)
-    : await rateLimit("feedback:guest:global", 60, 60 * 60_000);
-  if (!extra.ok) return tooMany();
+  // Kirgan foydalanuvchi — hisobi bo'yicha (10/soat). Mehmon — avval IP bo'yicha soatlik
+  // chegara (bitta tajovuzkor umumiy navbatni egallab olmasin), keyin yuqori umumiy
+  // "suv toshqini" chegarasi (ko'p IP'dan spam admin navbatini to'ldirmasin).
+  if (userId) {
+    if (!(await rateLimit(`feedback:user:${userId}`, 10, 60 * 60_000)).ok) return tooMany();
+  } else {
+    if (!(await rateLimit(`feedback:guest:${ipKey(clientIp(req))}`, 5, 60 * 60_000)).ok) return tooMany();
+    if (!(await rateLimit("feedback:guest:global", 400, 60 * 60_000)).ok) return tooMany();
+  }
 
   try {
     const { error } = await createServiceClient()

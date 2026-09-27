@@ -45,21 +45,21 @@ export const P11C = {
     en: "Measured result",
   },
   p11cHeadlineCheaper: {
-    uz: "{model} bizning vazifalarda {ref} natijasining {score}% ini ko'rsatdi ({pass} / {refPass} yechilgan), taxminan {cost}× arzonroq.",
-    "uz-cyrl": "{model} бизнинг вазифаларда {ref} натижасининг {score}% ини кўрсатди ({pass} / {refPass} ечилган), тахминан {cost}× арзонроқ.",
-    ru: "{model} набрала {score}% от результата {ref} на наших задачах ({pass} против {refPass} решённых) при примерно в {cost}× меньшей стоимости.",
+    uz: "Bizning vazifalarda {model} {ref} natijasining {score} foizini ko'rsatdi ({pass} / {refPass} yechilgan) va taxminan {cost} baravar arzonroq.",
+    "uz-cyrl": "Бизнинг вазифаларда {model} {ref} натижасининг {score} фоизини кўрсатди ({pass} / {refPass} ечилган) ва тахминан {cost} баравар арзонроқ.",
+    ru: "{model}: {score}% от результата {ref} на наших задачах ({pass} против {refPass} решённых) при стоимости примерно в {cost}× ниже.",
     en: "{model} scored {score}% of {ref}'s result on our tasks ({pass} vs {refPass} solved) at about {cost}× lower cost.",
   },
   p11cHeadlinePricier: {
-    uz: "{model} bizning vazifalarda {ref} natijasining {score}% ini ko'rsatdi ({pass} / {refPass} yechilgan); narxi {ref}ning {cost}× i.",
-    "uz-cyrl": "{model} бизнинг вазифаларда {ref} натижасининг {score}% ини кўрсатди ({pass} / {refPass} ечилган); нархи {ref}нинг {cost}× и.",
-    ru: "{model} набрала {score}% от результата {ref} на наших задачах ({pass} против {refPass} решённых); стоимость — {cost}× от {ref}.",
+    uz: "Bizning vazifalarda {model} {ref} natijasining {score} foizini ko'rsatdi ({pass} / {refPass} yechilgan); narxi {ref} narxining {cost} baravariga teng.",
+    "uz-cyrl": "Бизнинг вазифаларда {model} {ref} натижасининг {score} фоизини кўрсатди ({pass} / {refPass} ечилган); нархи {ref} нархининг {cost} бараварига тенг.",
+    ru: "{model}: {score}% от результата {ref} на наших задачах ({pass} против {refPass} решённых); стоимость — {cost}× от {ref}.",
     en: "{model} scored {score}% of {ref}'s result on our tasks ({pass} vs {refPass} solved); cost {cost}× that of {ref}.",
   },
   p11cGapNote: {
     uz: "Bu tenglik emas: {ref} ko'proq vazifani yechdi. Farq qayerda ekanini quyidagi jadvalda ko'ring.",
     "uz-cyrl": "Бу тенглик эмас: {ref} кўпроқ вазифани ечди. Фарқ қаерда эканини қуйидаги жадвалда кўринг.",
-    ru: "Это не паритет: {ref} решил больше задач. Где именно разница — смотрите в таблице ниже.",
+    ru: "Это не паритет: {ref} решает больше задач. Где именно разница — смотрите в таблице ниже.",
     en: "This is not parity: {ref} solved more tasks. See the table below for where the gap is.",
   },
   p11cParityNote: {
@@ -231,10 +231,10 @@ export const P11C = {
     en: "Cloudflare Workers AI route: about {n} neurons were used for these measurements (free allowance: 10,000 neurons per day). The cost column still uses the OpenRouter list price.",
   },
   p11cMethod3: {
-    uz: "Kod vazifalari yashirin unit-testlar bilan izolyatsiya qilingan jarayonda (tarmoqsiz, vaqt chegarasi bilan) tekshiriladi — barcha testlar o'tishi shart.",
-    "uz-cyrl": "Код вазифалари яширин юнит-тестлар билан изоляция қилинган жараёнда (тармоқсиз, вақт чегараси билан) текширилади — барча тестлар ўтиши шарт.",
-    ru: "Код проверяется скрытыми unit-тестами в изолированном процессе (без сети, с тайм-аутом) — должны пройти все тесты.",
-    en: "Code is checked with hidden unit tests in an isolated process (no network, with a timeout) — all tests must pass.",
+    uz: "Kod vazifalari yashirin unit-testlar bilan alohida jarayonda, vaqt chegarasi bilan (imkon bo'lsa — tarmoqsiz Docker konteynerida) tekshiriladi — barcha testlar o'tishi shart.",
+    "uz-cyrl": "Код вазифалари яширин юнит-тестлар билан алоҳида жараёнда, вақт чегараси билан (имкон бўлса — тармоқсиз Docker контейнерида) текширилади — барча тестлар ўтиши шарт.",
+    ru: "Код проверяется скрытыми unit-тестами в отдельном процессе с тайм-аутом (по возможности — в Docker-контейнере без сети) — должны пройти все тесты.",
+    en: "Code is checked with hidden unit tests in a separate process with a timeout (in a network-less Docker container when available) — all tests must pass.",
   },
   p11cMethod4: {
     uz: "Matn vazifalarida faqat alifbo, uzunlik va majburiy atamalar tekshiriladi — uslub va ravonlik baholanmaydi.",

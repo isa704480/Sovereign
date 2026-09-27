@@ -3,13 +3,11 @@
 import { Loader2 } from "lucide-react";
 import { unstable_rethrow } from "next/navigation";
 import { useState, useTransition } from "react";
-import { signInWithOAuth } from "@/app/actions/auth";
-import { createClient } from "@/lib/supabase/client";
+import { signInWithGoogleIdToken, signInWithOAuth } from "@/app/actions/auth";
 import { authErrorKey } from "@/lib/locales/auth";
 import type { OAuthProvider } from "@/lib/validations/auth";
 import type { AuthMsgKey } from "./messages";
 import { actionFailed } from "./form-primitives";
-import { safeNextPath } from "./next-path";
 import { cn } from "@/lib/utils";
 import { useT } from "@/store/chat";
 
@@ -88,20 +86,19 @@ export function OAuthButtons({ next, onError }: OAuthButtonsProps) {
       return;
     }
     try {
-      // Firebase Google popup → Supabase session via ID token + nonce.
+      // Firebase Google popup → ID token + nonce → Supabase sessiyasi SERVERDA (server action
+      // cookie'ni o'zi yozadi; brauzer Supabase klienti kerak emas — httpOnly sessiya uchun).
+      // Muvaffaqiyatda server redirect qiladi (safeNextPath serverda), xato — lug'at matni.
       const { googleIdTokenViaFirebase } = await loadFirebase();
       const { idToken, accessToken, nonce } = await googleIdTokenViaFirebase();
-      const supabase = createClient();
-      const { error } = await supabase.auth.signInWithIdToken({
-        provider: "google",
-        token: idToken,
-        access_token: accessToken,
-        nonce,
-      });
-      if (error) throw new Error(error.message);
-      // Open-redirect'ni to'sish: `/%09/evil.com` kabi yo'llar ham rad etiladi (qat'iy tekshiruv).
-      window.location.href = safeNextPath(next) ?? "/onboarding";
+      const res = await signInWithGoogleIdToken({ idToken, accessToken, nonce }, next);
+      if (res && !res.ok) {
+        onError?.(res.error);
+        setActive(null);
+      }
     } catch (e) {
+      // redirect() ham mijozda reject bo'lib keladi — uni Next'ga qaytaramiz.
+      unstable_rethrow(e);
       // Xom Firebase/Supabase matni (client ID'lar bilan) foydalanuvchiga ko'rsatilmaydi —
       // faqat lug'at kaliti; tafsilot konsolda.
       const msg = e instanceof Error ? e.message : String(e);

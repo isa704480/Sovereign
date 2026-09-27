@@ -142,7 +142,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
       setBlindPrompting: s.setBlindPrompting,
     })),
   );
-  const { send, regenerate, editAndResend, stop, isStreaming, answerInquiry, skipInquiry, answerFollowup } = useSendMessage();
+  const [memoryEnabled, setMemoryEnabled] = useState(memoryInit);
+  const { send, regenerate, editAndResend, stop, isStreaming, answerInquiry, skipInquiry, answerFollowup } = useSendMessage({ memoryEnabled });
   // Oqim tugagach "Javob tayyor" e'loni (render vaqtida, effektsiz).
   const [prevStreaming, setPrevStreaming] = useState(isStreaming);
   const [replyAnnouncement, setReplyAnnouncement] = useState("");
@@ -155,7 +156,6 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   const [sourcesOpen, setSourcesOpen] = useState(true);
   const [artifact, setArtifact] = useState<ArtifactPayload | null>(null);
   const [memoryOpen, setMemoryOpen] = useState(false);
-  const [memoryEnabled, setMemoryEnabled] = useState(memoryInit);
   // Chuqur so'rash kartasi amallari — barqaror obyekt (MessageItem memo'si har render'da buzilmasin).
   const inquiryActions = useMemo<InquiryActions>(
     () => ({ answer: answerInquiry, skip: skipInquiry, followup: answerFollowup, memoryEnabled, busy: isStreaming }),

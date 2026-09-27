@@ -6,16 +6,20 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch: {}
+# Faqat curl — GITHUB_TOKEN'ga hech qanday huquq kerak emas.
+permissions: {}
 jobs:
   ping:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
       # Javob tanasi (probe/detail — ichki diagnostika, Railway xatolari) Actions log'iga
-      # chiqarilmaydi: faqat HTTP status kodi.
+      # chiqarilmaydi: faqat HTTP status kodi. Secret skript matniga qo'yilmaydi — env orqali.
       - name: Check OmniRoute
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           code=$(curl -sS --max-time 120 -o /dev/null -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer $CRON_SECRET" \
             "https://soveregn.xyz/api/cron/omniroute-watchdog")
           echo "watchdog HTTP $code"

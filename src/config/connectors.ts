@@ -42,9 +42,10 @@ export const CONNECTORS: ConnectorSpec[] = [
     category: "google",
     glyph: "✉️",
     auth: "oauth-google",
-    description: "Xatlarni o'qish va yuborish.",
+    description: "Xatlarni o'qish.",
     sensitive: true,
-    scopes: [G + "gmail.readonly", G + "gmail.send"],
+    // Faqat o'qish (least privilege, connectors-6): yuborish tooli yo'q — gmail.send so'ralmaydi.
+    scopes: [G + "gmail.readonly"],
   },
   {
     id: "gdrive",
@@ -89,8 +90,9 @@ export const CONNECTORS: ConnectorSpec[] = [
     category: "google",
     glyph: "📅",
     auth: "oauth-google",
-    description: "Voqealarni ko'rish va qo'shish.",
-    scopes: [G + "calendar.events"],
+    description: "Voqealarni ko'rish.",
+    // Faqat o'qish: gcalendar_list tooli voqea qo'shmaydi.
+    scopes: [G + "calendar.events.readonly"],
   },
   // ---- Dizayn (token) ----
   {

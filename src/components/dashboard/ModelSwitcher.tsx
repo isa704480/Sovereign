@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { AUTO_MODEL, AUTO_MODEL_ID, MODEL_BY_ID, resolveModel } from "@/config/models";
 import { planAllowsTier, type Plan } from "@/config/plans";
+import { countryName } from "@/config/countries";
 import { EASE } from "@/lib/motion";
 import { fmt } from "@/lib/i18n";
 import { modelAllowedIn } from "@/lib/ai/region";
@@ -258,7 +259,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                 data-testid="region-banner"
               >
                 <Globe2 className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                <span className="flex-1">{fmt(t("p10RegionBanner"), { country: regionCountry })}</span>
+                <span className="flex-1">{fmt(t("p10RegionBanner"), { country: countryName(regionCountry, lang) })}</span>
               </p>
             )}
 

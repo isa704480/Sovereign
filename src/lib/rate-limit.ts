@@ -17,6 +17,23 @@ const redis =
     ? new Redis({ url: process.env.UPSTASH_REDIS_REST_URL, token: process.env.UPSTASH_REDIS_REST_TOKEN })
     : null;
 
+/**
+ * Production'da Upstash sozlanmagan bo'lsa — har Vercel instansiyasi o'z xotira hisobini
+ * yuritadi (limitlar instansiyalar soniga ko'payadi). Bir martalik baland ogohlantirish.
+ */
+let warnedNoRedis = false;
+function warnIfNoRedis() {
+  if (redis || warnedNoRedis || process.env.VERCEL_ENV !== "production") return;
+  warnedNoRedis = true;
+  console.error(
+    "[rate-limit] DIQQAT: production'da UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN yo'q — " +
+      "limitlar faqat har instansiyaning xotirasida (umumiy emas). Upstash'ni sozlang.",
+  );
+}
+
+/** Kvota/xarajat kalitlari: Redis timeout'ida ham ochiq qolmaydi (qimmat media so'rovlari). */
+const FAIL_CLOSED_PREFIXES = ["vid:", "trs:"];
+
 /** Har (limit, oyna) juftligi uchun bitta limiter — qayta yaratmaslik uchun. */
 const limiters = new Map<string, Ratelimit>();
 function sharedLimiter(limit: number, windowMs: number): Ratelimit | null {
@@ -63,10 +80,17 @@ function localLimit(key: string, limit: number, windowMs: number): Result {
 
 /** Har `windowMs` ichida `limit` ta so'rovga ruxsat beradi (kalit bo'yicha). */
 export async function rateLimit(key: string, limit: number, windowMs: number): Promise<Result> {
+  warnIfNoRedis();
   const shared = sharedLimiter(limit, windowMs);
   if (shared) {
     try {
       const r = await shared.limit(key);
+      // @upstash/ratelimit timeout'da success:true qaytaradi (reason: "timeout") — bu kvotani
+      // butunlay chetlab o'tardi. Qimmat kalitlar yopiq, qolganlari mahalliy limitga o'tadi.
+      if (r.reason === "timeout") {
+        if (FAIL_CLOSED_PREFIXES.some((p) => key.startsWith(p))) return { ok: false, retryAfterMs: 5000 };
+        return localLimit(key, limit, windowMs);
+      }
       return { ok: r.success, retryAfterMs: r.success ? 0 : Math.max(1, r.reset - Date.now()) };
     } catch (e) {
       console.error("[rate-limit] Upstash xato, mahalliy limitga o'tildi:", e instanceof Error ? e.message : e);

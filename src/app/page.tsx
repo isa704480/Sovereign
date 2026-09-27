@@ -58,7 +58,7 @@ function jsonLd() {
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web, Windows, macOS, Linux",
         description: translate("en", "uxMetaDescription"),
-        inLanguage: ["uz", "ru", "en"],
+        inLanguage: ["uz", "uz-Cyrl", "ru", "en"],
         publisher: { "@id": orgId },
         offers: PLANS.map((p) => ({
           "@type": "Offer",

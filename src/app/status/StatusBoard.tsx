@@ -11,6 +11,7 @@ import {
   type HealthSnapshot,
   type OverallStatus,
 } from "@/lib/status/types";
+import { LocalizedTitle } from "@/components/LocalizedTitle";
 import { useT } from "@/store/chat";
 
 type T = (key: TKey) => string;
@@ -154,6 +155,7 @@ export function StatusBoard({ initial }: { initial: HealthSnapshot | null }) {
 
   return (
     <main className="flex-1 bg-[#060812] text-[#F0F2FF]">
+      <LocalizedTitle title={t("p7bSBadge")} />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 sm:py-16">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <a

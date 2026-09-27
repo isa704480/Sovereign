@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { LocalizedTitle } from "@/components/LocalizedTitle";
 import { LEGAL, LEGAL_LABELS, LEGAL_UPDATED, type LegalDocId } from "@/lib/locales/legal";
 import { useLang } from "@/store/chat";
 
@@ -33,6 +34,7 @@ export function LegalDoc({ doc }: { doc: LegalDocId }) {
 
   return (
     <article className="mx-auto max-w-2xl px-5 pb-24 pt-32 md:px-8">
+      <LocalizedTitle title={c.title} />
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{labels.eyebrow}</p>
       <h1 className="font-display mt-3 text-3xl font-extrabold tracking-tight text-text-primary md:text-4xl">{c.title}</h1>
       <p className="mt-3 text-sm text-text-muted">

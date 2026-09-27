@@ -106,7 +106,7 @@ export const PLANS: Plan[] = [
       priority: false,
     },
     features: [
-      "Tekin modellar: Llama 3.3 70B (Groq), Gemini 2.5 Flash, DeepSeek R1",
+      "Bepul modellar: Llama 3.3 70B (Groq), Gemini 2.0 Flash, DeepSeek R1",
       "Kunlik chegara bilan",
       "O'rtacha kod va javoblar (3K token)",
       "Suhbat tarixi",

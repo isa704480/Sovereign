@@ -13,7 +13,7 @@ const OPTIONS: Record<OptionGroup, Record<string, OptionText>> = {
   purposes: {
     work: {
       label: { uz: "Ish / Biznes", "uz-cyrl": "Иш / Бизнес", ru: "Работа / Бизнес", en: "Work / Business" },
-      description: { uz: "Hisob-kitob, email, tahlil", "uz-cyrl": "Ҳисоб-китоб, email, таҳлил", ru: "Расчёты, почта, аналитика", en: "Calculations, email, analysis" },
+      description: { uz: "Hisob-kitob, email, tahlil", "uz-cyrl": "Ҳисоб-китоб, электрон почта, таҳлил", ru: "Расчёты, почта, аналитика", en: "Calculations, email, analysis" },
     },
     research: {
       label: { uz: "Tadqiqot", "uz-cyrl": "Тадқиқот", ru: "Исследования", en: "Research" },

@@ -43,7 +43,7 @@ export const P9W = {
   p9wCachedTitle: {
     uz: "Javob keshdan qaytdi — model chaqirilmadi, token sarflanmadi.",
     "uz-cyrl": "Жавоб кешдан қайтди — модел чақирилмади, токен сарфланмади.",
-    ru: "Ответ из кеша — модель не вызывалась, токены не списаны.",
+    ru: "Ответ из кэша — модель не вызывалась, токены не списаны.",
     en: "Answer served from cache — no model call, no tokens used.",
   },
   p9wTokens: { uz: "≈{n} token", "uz-cyrl": "≈{n} токен", ru: "≈{n} токенов", en: "≈{n} tokens" },

@@ -10,6 +10,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import { assertPublicUrl } from "@/lib/ai/web-read";
 import { getServerT } from "@/lib/i18n-server";
+import { hasPlaintextSecret, sealConnectorConfig, tokenCryptoEnabled, unsealField } from "@/lib/connectors/secret";
+import { revokeGoogleToken } from "@/lib/connectors/store";
 
 async function session() {
   if (!isSupabaseConfigured()) return null;
@@ -36,6 +38,20 @@ export async function listConnectors(): Promise<ConnectorState[]> {
     .from("connector_accounts")
     .select("connector_id, enabled, config")
     .eq("user_id", s.user.id);
+  // Eski (shifrlanmagan) tokenlarni lazy qayta shifrlash — kalit sozlangan bo'lsa.
+  if (tokenCryptoEnabled()) {
+    for (const r of data ?? []) {
+      const cfg = (r.config ?? {}) as Record<string, unknown>;
+      if (!hasPlaintextSecret(cfg)) continue;
+      const id = r.connector_id as string;
+      const { error } = await s.supabase
+        .from("connector_accounts")
+        .update({ config: sealConnectorConfig(s.user.id, id, cfg) })
+        .eq("user_id", s.user.id)
+        .eq("connector_id", id);
+      if (error) console.error("[connectors] reseal:", error.message);
+    }
+  }
   return (data ?? []).map((r) => {
     const cfg = (r.config ?? {}) as Record<string, unknown>;
     return {
@@ -56,7 +72,12 @@ async function upsert(userId: string, connectorId: string, patch: { enabled?: bo
     .eq("user_id", userId)
     .eq("connector_id", connectorId)
     .maybeSingle();
-  const config = { ...((existing?.config as Record<string, unknown>) ?? {}), ...(patch.config ?? {}) };
+  // Maxfiy maydonlar (token/refresh) DB'ga faqat shifrlangan holda yoziladi
+  // (CONNECTOR_TOKEN_KEY sozlangan bo'lsa); eski ochiq qiymatlar ham shu yerda shifrlanadi.
+  const config = sealConnectorConfig(userId, connectorId, {
+    ...((existing?.config as Record<string, unknown>) ?? {}),
+    ...(patch.config ?? {}),
+  });
   const row = { user_id: userId, connector_id: connectorId, enabled: patch.enabled ?? true, config };
   // config.url (MCP) ni foydalanuvchi REST orqali yozolmaydi (0028 trigger) —
   // URL tekshiruvdan o'tgach, faqat server (service role) yozadi. user_id sessiyadan.
@@ -169,8 +190,14 @@ export async function setConnectorEnabled(input: unknown): Promise<Result> {
 /** Ulanishni butunlay uzish (token o'chadi). */
 export async function disconnectConnector(connectorId: string): Promise<Result> {
   const t = await getServerT();
+  if (typeof connectorId !== "string" || !connectorId || connectorId.length > 60) return { ok: false, error: t("pnErrBadRequest") };
   const s = await session();
   if (!s) return { ok: false, error: t("pnErrLoginFirst") };
+  // Google: uzishdan oldin saqlangan tokenni o'qib olamiz — keyin Google'da bekor qilinadi.
+  const isGoogle = CONNECTOR_BY_ID[connectorId]?.auth === "oauth-google";
+  const { data: rows } = isGoogle
+    ? await s.supabase.from("connector_accounts").select("connector_id, config").eq("user_id", s.user.id)
+    : { data: null };
   const { error } = await s.supabase
     .from("connector_accounts")
     .delete()
@@ -180,7 +207,31 @@ export async function disconnectConnector(connectorId: string): Promise<Result> 
     console.error("[connectors] delete:", error.message);
     return { ok: false, error: t("chUnknownError") };
   }
+  if (isGoogle && rows) await revokeGoogleGrant(s.user.id, connectorId, rows);
   return { ok: true };
+}
+
+/**
+ * Google tokenini bekor qilish (best-effort). Google bekor qilishni butun ilova
+ * ruxsatiga qo'llaydi — shuning uchun boshqa Google connector hali ulangan
+ * bo'lsa bekor qilinmaydi (ular buzilmasin).
+ */
+async function revokeGoogleGrant(
+  userId: string,
+  connectorId: string,
+  rows: { connector_id: unknown; config: unknown }[],
+): Promise<void> {
+  const others = rows.some((r) => {
+    const id = r.connector_id as string;
+    const cfg = (r.config ?? {}) as Record<string, unknown>;
+    return id !== connectorId && CONNECTOR_BY_ID[id]?.auth === "oauth-google" && !!cfg.oauth;
+  });
+  if (others) return;
+  const cfg = (rows.find((r) => r.connector_id === connectorId)?.config ?? {}) as Record<string, unknown>;
+  const pick = (f: "refresh" | "token") =>
+    typeof cfg[f] === "string" && cfg[f] ? unsealField(cfg[f] as string, userId, connectorId, f) : null;
+  const token = pick("refresh") ?? pick("token");
+  if (token && !(await revokeGoogleToken(token))) console.warn("[connectors] google token bekor qilinmadi");
 }
 
 /**

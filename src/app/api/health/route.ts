@@ -1,5 +1,5 @@
 import { getHealthSnapshot, HEALTH_CACHE_SECONDS } from "@/lib/status/health";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 
 /**
  * GET /api/health — ommaviy status (status.soveregn.xyz sahifasi shu yerdan o'qiydi).
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 const LIMIT_PER_MINUTE = 30;
 
 export async function GET(req: Request) {
-  const rl = await rateLimit(`health:${clientIp(req)}`, LIMIT_PER_MINUTE, 60_000);
+  const rl = await rateLimit(`health:${ipKey(clientIp(req))}`, LIMIT_PER_MINUTE, 60_000);
   if (!rl.ok) {
     return Response.json(
       { error: "rate_limited" },

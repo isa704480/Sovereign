@@ -2,7 +2,9 @@
 
 import raw from "@/data/model-compare.json";
 import { fmt, type TKey } from "@/lib/i18n";
-import { useT } from "@/store/chat";
+import { LocalizedTitle } from "@/components/LocalizedTitle";
+import { localeOf } from "@/lib/locales/chat-data";
+import { useLang, useT } from "@/store/chat";
 
 /* ------------------------------------------------------------------ */
 /* Ma'lumot shakli (scripts/eval/run.mjs yozadi)                          */
@@ -78,6 +80,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export function CompareView() {
   const t = useT();
+  const lang = useLang();
   // O'lchanganlar avval (katalog tartibi saqlanadi), keyin "hali o'lchanmagan"lar.
   const models = [...DATA.models].sort((a, b) => Number(b.measured) - Number(a.measured));
   const ref = models.find((m) => m.reference && m.measured) ?? null;
@@ -103,6 +106,7 @@ export function CompareView() {
 
   return (
     <article className="mx-auto max-w-5xl px-5 pb-24 pt-32 md:px-8">
+      <LocalizedTitle title={t("p11cTitle")} />
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("p11cEyebrow")}</p>
       <h1 className="font-display mt-3 text-3xl font-extrabold tracking-tight text-text-primary md:text-4xl">{t("p11cTitle")}</h1>
       <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-text-secondary">{t("p11cLead")}</p>
@@ -212,7 +216,7 @@ export function CompareView() {
       <p className="mt-3 text-sm text-text-muted">{t("p11cCostNote")}</p>
       {!!DATA.cloudflareNeurons && models.some((m) => m.measured && m.route?.via === "cloudflare") && (
         <p className="mt-1 text-sm text-text-muted">
-          {fmt(t("p11cCfNeurons"), { n: Math.round(DATA.cloudflareNeurons).toLocaleString("en-US") })}
+          {fmt(t("p11cCfNeurons"), { n: Math.round(DATA.cloudflareNeurons).toLocaleString(localeOf(lang)) })}
         </p>
       )}
 

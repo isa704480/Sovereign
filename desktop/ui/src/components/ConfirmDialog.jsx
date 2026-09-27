@@ -18,6 +18,16 @@ function riskReason(meta, question, t) {
   return m ? riskText(m[1].trim(), t) : "";
 }
 
+/**
+ * Ko'rinmas formatlash belgilari (bidi, nol-kenglik, BOM, qator ajratkich) ochiq ko'rsatiladi:
+ * U+202E kabi belgi buyruq yoki yo'l qismlarini vizual almashtirib, asl ma'noni yashira olmasin.
+ */
+const HIDDEN_RANGES = [[0x200b, 0x200f], [0x2028, 0x2029], [0x202a, 0x202e], [0x2060, 0x2064], [0x2066, 0x2069], [0xfeff, 0xfeff]];
+const HIDDEN_RE = new RegExp(`[${HIDDEN_RANGES.map(([a, b]) => `${String.fromCharCode(a)}-${String.fromCharCode(b)}`).join("")}]`, "g");
+export function revealHidden(s) {
+  return String(s ?? "").replace(HIDDEN_RE, (ch) => `[U+${ch.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}]`);
+}
+
 function Banner({ tone = "warn", children }) {
   return (
     <div role="alert" className={`banner banner-${tone}`}>
@@ -54,7 +64,9 @@ export default function ConfirmDialog({ req, onReply }) {
 
   // Ogohlantirishlar: runTool meta'dagi outside/autoRun/risky belgilari aniq ko'rsatiladi.
   const warnings = [];
-  if (meta.outside) warnings.push({ tone: "danger", text: <>{t("confirm.outside")} <span className="mono">{meta.path}</span></> });
+  if (meta.fullAutoAsk) warnings.push({ tone: "warn", text: t("confirm.fullAutoAsk") });
+  if (meta.hiddenChars) warnings.push({ tone: "danger", text: t("confirm.hiddenChars") });
+  if (meta.outside) warnings.push({ tone: "danger", text: <>{t("confirm.outside")} <span className="mono">{revealHidden(meta.path)}</span></> });
   if (meta.autoRun) warnings.push({ tone: "danger", text: t("confirm.autoRun") });
   if (beforeUnknown) warnings.push({ tone: "danger", text: t("confirm.beforeUnknown") });
   if (isCmd && meta.risky) {
@@ -78,7 +90,8 @@ export default function ConfirmDialog({ req, onReply }) {
         <div className="modal-head">
           <span className={`dot ${danger ? "dot-err" : "dot-warn"}`} aria-hidden="true" />
           <h2 id={hid} className="modal-title">{title}</h2>
-          {isWrite && <span className="trunc mono muted small">{meta.path}</span>}
+          {/* To'liq yo'l (qisqartirilmaydi): main uni haqiqiy nisbiy yo'lga normallashtiradi. */}
+          {isWrite && <span className="confirm-path mono muted small" title={revealHidden(meta.path)}>{revealHidden(meta.path)}</span>}
           {isWrite && (
             <span className="mono tnum small diffstat" aria-label={t("diff.stats", { add: stat.add, del: stat.del })}>
               <span className="add">+{stat.add}</span>
@@ -112,14 +125,14 @@ export default function ConfirmDialog({ req, onReply }) {
           ) : isCmd ? (
             <div className="pad">
               <div className="label-sm">{t("confirm.cmdLabel")}</div>
-              <pre className={`cmd ${meta.risky ? "cmd-risky" : ""}`}>$ {meta.command}</pre>
+              <pre className={`cmd ${meta.risky ? "cmd-risky" : ""}`}>$ {revealHidden(meta.command)}</pre>
               <p className="muted small">{t("confirm.cmdCwd")}</p>
             </div>
           ) : (
             // CLI savoli o'zbekcha — o'rniga meta.tool bo'yicha UI tilidagi savol + aniq yo'l.
             <div className="pad question">
               {["list_dir", "read_file", "make_dir"].includes(meta.tool) ? t(`confirm.q.${meta.tool}`) : t("confirm.default")}
-              {meta.path && <pre className="cmd">{meta.path}</pre>}
+              {meta.path && <pre className="cmd">{revealHidden(meta.path)}</pre>}
             </div>
           )}
         </div>

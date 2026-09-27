@@ -11,6 +11,7 @@
 
 import { app } from "electron";
 import { createRequire } from "node:module";
+import { UPDATE_PUBKEY_PEM, channelFile, verifyManifest, infoMatchesManifest } from "./update-sig.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -23,6 +24,8 @@ let emit = () => {};
 let lastState = { state: "idle" };
 let knownVersion = null; // oxirgi "available" versiyasi
 let inDownload = false; // yuklab olish (yoki uni qayta urinish) jarayonidami
+let feedBase = null; // joriy desktop relizining yuklab olish manzili (imzo tekshiruvi uchun)
+let lastInfo = null; // oxirgi tekshiruvdagi updateInfo (electron-updater aynan shuni yuklaydi)
 
 function set(state) {
   lastState = state;
@@ -126,6 +129,26 @@ async function checkManual() {
   return lastState;
 }
 
+/**
+ * Manifest imzosi (update-sig.mjs): kalit o'rnatilgan bo'lsa, `<kanal>.yml` va `<kanal>.yml.sig`
+ * relizdan olinadi, imzo va updateInfo (versiya + sha512) mosligi tekshiriladi. Mos kelmasa —
+ * yuklab olish boshlanmaydi (xato holati). Kalit bo'sh — tekshiruv o'chiq (eski xatti-harakat).
+ */
+async function verifySignedRelease() {
+  if (!UPDATE_PUBKEY_PEM) return;
+  if (!feedBase || !lastInfo) throw new Error("update signature: release unknown");
+  const name = channelFile();
+  const get = async (file) => {
+    const res = await fetch(`${feedBase}/${file}`, { headers: { "User-Agent": "sovereign-cowork" }, signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) throw new Error("update signature: manifest unavailable"); // status raqamisiz — "no-release" deb tasniflanmasin
+    return Buffer.from(await res.arrayBuffer());
+  };
+  const [manifest, sig] = await Promise.all([get(name), get(`${name}.sig`)]);
+  if (!verifyManifest(manifest, sig) || !infoMatchesManifest(lastInfo, manifest.toString("utf8"))) {
+    throw new Error("update signature invalid");
+  }
+}
+
 export async function checkForUpdates() {
   // Yuklanayotgan yoki tayyor yangilanishni qayta tekshirish kerak emas.
   if (lastState.state === "downloading" || lastState.state === "ready") return lastState;
@@ -137,10 +160,9 @@ export async function checkForUpdates() {
     // provayderi /releases/latest'ga tayanadi, u esa CLI relizi bo'lib qolishi mumkin
     // (unda latest.yml yo'q → karta chiqmasdi). API ishlamasa — standart yo'l.
     const rel = await latestDesktopRelease().catch(() => null);
-    if (rel) {
-      updater.setFeedURL({ provider: "generic", url: `https://github.com/${REPO}/releases/download/${rel.tag_name}` });
-    }
-    await updater.checkForUpdates();
+    feedBase = rel ? `https://github.com/${REPO}/releases/download/${rel.tag_name}` : null;
+    if (feedBase) updater.setFeedURL({ provider: "generic", url: feedBase });
+    lastInfo = (await updater.checkForUpdates())?.updateInfo ?? null;
   } catch (e) {
     fail(e);
   }
@@ -155,9 +177,10 @@ export async function downloadUpdate() {
   try {
     if (retry) {
       // Qayta urinish: yangilanish ma'lumoti yangilanadi, keyin yuklash qaytadan.
-      await updater.checkForUpdates();
+      lastInfo = (await updater.checkForUpdates())?.updateInfo ?? lastInfo;
       if (lastState.state !== "available") return lastState;
     }
+    await verifySignedRelease();
     set({ state: "downloading", version: knownVersion, percent: 0 });
     await updater.downloadUpdate();
   } catch (e) {

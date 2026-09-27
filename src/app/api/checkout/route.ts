@@ -7,7 +7,7 @@ import { isZenoConfigured, zeno } from "@/lib/payments/zenobank";
 import { getServerT } from "@/lib/i18n-server";
 import { normalizePromo, reservePromoOrder, resolvePromo } from "@/lib/payments/promo";
 import { purchaseBlocker } from "@/lib/payments/entitlement";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -17,7 +17,7 @@ const schema = z.object({ plan: z.string(), promo: z.string().max(64).optional()
 export async function POST(req: Request) {
   const t = await getServerT();
   // Promokodlarni terib topishga (brute-force) qarshi.
-  if (!(await rateLimit(`zeno-checkout:${clientIp(req)}`, 10, 60_000)).ok) {
+  if (!(await rateLimit(`zeno-checkout:${ipKey(clientIp(req))}`, 10, 60_000)).ok) {
     return Response.json({ error: t("chTooManyRequests") }, { status: 429 });
   }
   const body = await req.json().catch(() => null);

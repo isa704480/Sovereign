@@ -75,7 +75,7 @@ export const TIPS: readonly Tip[] = [
     },
     body: {
       uz: "\"Maxfiy rejim\" (Blind Prompting) ism, telefon, email va boshqa shaxsiy ma'lumotlarni model ko'rmasidan oldin maskalaydi — javobda esa asl holiga qaytaradi.",
-      "uz-cyrl": "\"Махфий режим\" (Blind Prompting) исм, телефон, email ва бошқа шахсий маълумотларни модел кўрмасидан олдин маскалайди — жавобда эса асл ҳолига қайтаради.",
+      "uz-cyrl": "\"Махфий режим\" (Blind Prompting) исм, телефон, электрон почта ва бошқа шахсий маълумотларни модел кўрмасидан олдин маскалайди — жавобда эса асл ҳолига қайтаради.",
       ru: "«Приватный режим» (Blind Prompting) маскирует имена, телефоны, email и другие личные данные до того, как их увидит модель, а в ответе возвращает их обратно.",
       en: "Private mode (Blind Prompting) masks names, phone numbers, emails and other personal data before the model sees them, then puts them back in the answer.",
     },
@@ -90,8 +90,8 @@ export const TIPS: readonly Tip[] = [
       en: "Pull in a document with @",
     },
     body: {
-      uz: "PDF, matn yoki kodni Bilimlar bazasiga yuklang, keyin chatda @ yozib hujjatni tanlang — AI shu hujjat asosida javob beradi.",
-      "uz-cyrl": "PDF, матн ёки кодни Билимлар базасига юкланг, кейин чатда @ ёзиб ҳужжатни танланг — AI шу ҳужжат асосида жавоб беради.",
+      uz: "PDF, matn yoki kodni Bilim bazasiga yuklang, keyin chatda @ yozib hujjatni tanlang — AI shu hujjat asosida javob beradi.",
+      "uz-cyrl": "PDF, матн ёки кодни Билим базасига юкланг, кейин чатда @ ёзиб ҳужжатни танланг — AI шу ҳужжат асосида жавоб беради.",
       ru: "Загрузите PDF, текст или код в Базу знаний, затем наберите @ в чате и выберите документ — ИИ ответит на его основе.",
       en: "Upload a PDF, text or code file to the Knowledge Base, then type @ in the chat and pick it — the AI answers from that document.",
     },
@@ -248,8 +248,8 @@ export const TIPS: readonly Tip[] = [
       en: "Ask for a page, see it live",
     },
     body: {
-      uz: "AI HTML sahifa yozsa, u yon panelda jonli preview sifatida ochiladi — nusxalash yoki yuklab olish mumkin.",
-      "uz-cyrl": "AI HTML саҳифа ёзса, у ён панелда жонли preview сифатида очилади — нусхалаш ёки юклаб олиш мумкин.",
+      uz: "AI HTML sahifa yozsa, u yon panelda jonli ko'rinish sifatida ochiladi — nusxalash yoki yuklab olish mumkin.",
+      "uz-cyrl": "AI HTML саҳифа ёзса, у ён панелда жонли кўриниш сифатида очилади — нусхалаш ёки юклаб олиш мумкин.",
       ru: "Если ИИ пишет HTML-страницу, она открывается в боковой панели как живое превью — можно скопировать или скачать.",
       en: "When the AI writes an HTML page it opens as a live preview in the side panel — ready to copy or download.",
     },

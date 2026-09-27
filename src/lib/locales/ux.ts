@@ -131,7 +131,7 @@ export const UX = {
   cliSub: {
     uz: "Kod yozadigan AI agent — to'g'ridan-to'g'ri terminalingizda. Node.js 20+ kerak.",
     "uz-cyrl": "Код ёзадиган AI агент — тўғридан-тўғри терминалингизда. Node.js 20+ керак.",
-    ru: "AI-агент для кода прямо в вашем терминале. Нужен Node.js 20+.",
+    ru: "ИИ-агент для кода прямо в вашем терминале. Нужен Node.js 20+.",
     en: "A coding AI agent right in your terminal. Requires Node.js 20+.",
   },
   cliThenRun: { uz: "So'ng ishga tushiring:", "uz-cyrl": "Сўнг ишга туширинг:", ru: "Затем запустите:", en: "Then run:" },
