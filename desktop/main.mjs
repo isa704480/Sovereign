@@ -2,7 +2,7 @@
 // Mavjud CLI agentini (tools/xavfsizlik/xotira) qayta ishlatadi; GUI orqali
 // chat, fayl yozish (tasdiq bilan) va buyruq ishga tushirishni boshqaradi.
 
-import { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, Notification, Menu, screen, session as electronSession } from "electron";
+import { app, BrowserWindow, ipcMain, dialog, shell, clipboard, nativeTheme, Notification, Menu, screen, session as electronSession } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, sep } from "node:path";
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync } from "node:fs";
@@ -959,6 +959,9 @@ registerTerminalIpc({
   getWindow: () => win,
   getCwd: () => workspace,
   getShell: () => loadSettings().terminalShell,
+  // Ctrl+V terminalda: matn shu yerdan olinadi (shell o'zi qo'yib yubormasin —
+  // aks holda ko'p satrli qo'yish tasdig'i chetlab o'tilardi).
+  readClipboard: () => clipboard.readText(),
 });
 
 handle("app:reveal-workspace", async () => {

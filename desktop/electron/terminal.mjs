@@ -29,6 +29,8 @@ export const SCROLLBACK_LINES = 5000;
 export const FLUSH_MS = 16;
 /** Bitta flush'dagi maksimal bayt (satr chegarasidan tashqari). */
 export const MAX_FLUSH_BYTES = 512 * 1024;
+/** Bir martalik qo'yish (paste) chegarasi. */
+export const PASTE_MAX = 1_000_000;
 export const MIN_COLS = 2;
 export const MAX_COLS = 1000;
 export const MIN_ROWS = 1;
@@ -272,11 +274,12 @@ export const terminalCount = () => SESSIONS.size;
  *   getWindow: () => object|null,
  *   getCwd: () => string|null,
  *   getShell: () => string,
+ *   readClipboard?: () => string,
  *   ptyModule?: object,
  * }} deps  main.mjs o'zining validSender bilan o'ralgan helper'larini beradi.
  *   `ptyModule` — faqat testlar uchun (soxta pty); ishlab chiqarishda berilmaydi.
  */
-export function registerTerminalIpc({ handle, on, getWindow, getCwd, getShell, ptyModule = null }) {
+export function registerTerminalIpc({ handle, on, getWindow, getCwd, getShell, readClipboard = () => "", ptyModule = null }) {
   const emitTo = (wcId) => (payload) => {
     const win = getWindow();
     if (!win || win.isDestroyed() || win.webContents.id !== wcId) return;
@@ -373,6 +376,21 @@ export function registerTerminalIpc({ handle, on, getWindow, getCwd, getShell, p
     if (!s || s.wcId !== event.sender.id) return { ok: false };
     destroySession(s, { notify: false });
     return { ok: true };
+  });
+
+  /**
+   * Ctrl+V: almashish buferini terminal uchun o'qiydi. Windows'da PSReadLine
+   * Ctrl+V ni O'ZI ushlab, buferdan to'g'ridan-to'g'ri qo'yib yuboradi — u holda
+   * ko'p satrli qo'yish tasdig'i chetlab o'tilardi. Shuning uchun tugmani UI
+   * ushlaydi va matnni shu yerdan oladi. Faqat shu oynaning mavjud yorlig'i
+   * uchun; preload esa haqiqiy (isTrusted) klaviatura hodisasini talab qiladi.
+   */
+  handle("term:paste", async (event, id) => {
+    const s = typeof id === "string" ? SESSIONS.get(id) : null;
+    if (!s || s.dead || s.wcId !== event.sender.id) return { error: "unknown-id" };
+    // Electron 44'da clipboard.readText() promise qaytaradi (eskisida — satr).
+    const text = String((await readClipboard()) ?? "");
+    return { text: text.length > PASTE_MAX ? text.slice(0, PASTE_MAX) : text };
   });
 
   handle("term:info", () => {

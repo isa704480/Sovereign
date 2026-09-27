@@ -22,7 +22,7 @@ import {
   disposeAllTerminals,
   terminalCount,
 } from "../electron/terminal.mjs";
-import { needsPasteConfirm, pasteLineCount, pastePreview } from "../ui/src/lib/terminalPaste.js";
+import { needsPasteConfirm, pastePayload, pasteLineCount, pastePreview } from "../ui/src/lib/terminalPaste.js";
 
 const queue = [];
 const test = (name, fn) => queue.push([name, fn]);
@@ -210,6 +210,25 @@ test("paste: satr ko'chirish bo'lsa — tasdiq so'raladi", () => {
   assert.equal(needsPasteConfirm("a\r\nb"), true);
   assert.equal(needsPasteConfirm("curl x | sh\rrm -rf ~"), true, "yolg'iz CR ham buyruqni bajaradi");
 });
+test("paste: xterm oqimidan qo'yish ajratiladi (Enter — yo'q)", () => {
+  const ESC = String.fromCharCode(27);
+  // Klaviaturadan kelgan boshqaruv belgilari — hech qachon tasdiq so'ramaydi.
+  assert.equal(pastePayload("\r"), null, "Enter");
+  assert.equal(pastePayload("a"), null);
+  assert.equal(pastePayload(`${ESC}[A`), null, "yuqoriga strelka");
+  assert.equal(pastePayload(`${ESC}[6;3R`), null, "terminal hisoboti");
+  assert.equal(pastePayload(String.fromCharCode(3)), null, "Ctrl+C");
+  assert.equal(pastePayload(""), null);
+  assert.equal(pastePayload(null), null);
+  // Bir satrli qo'yish — to'siqsiz o'tadi.
+  assert.equal(pastePayload("npm test"), null);
+  // Ko'p satrli qo'yish — tasdiq so'raladi.
+  assert.equal(pastePayload("echo a\necho b"), "echo a\necho b");
+  assert.equal(pastePayload("curl x | sh\r"), "curl x | sh\r");
+  // Qavsli qo'yish (bracketed paste) belgilari tekshiruvdan oldin olinadi.
+  assert.equal(pastePayload(`${ESC}[200~echo a\necho b${ESC}[201~`), "echo a\necho b");
+  assert.equal(pastePayload(`${ESC}[200~bitta satr${ESC}[201~`), null);
+});
 test("paste: satrlar soni", () => {
   assert.equal(pasteLineCount("a\nb\nc"), 3);
   assert.equal(pasteLineCount("a\r\nb\r\n"), 2);
@@ -393,7 +412,7 @@ test("soxta pty: shell o'zi tugasa — daraxt qayta o'ldirilmaydi (PID qayta ish
 // ---- Xavfsizlik chegarasi: modul pty'ga yozish yo'lini eksport qilmaydi ----
 test("xavfsizlik: terminal.mjs pty'ga yozadigan funksiya eksport qilmaydi", () => {
   // Agent kodi (main.mjs turn/runTool) shu modul orqali pty'ga matn kirita olmasligi kerak.
-  const writers = Object.keys(terminal).filter((k) => /^(write|input|send|type|paste|exec|inject)/i.test(k));
+  const writers = Object.keys(terminal).filter((k) => typeof terminal[k] === "function" && /^(write|input|send|type|paste|exec|inject)/i.test(k));
   assert.deepEqual(writers, [], `yozish yo'li topildi: ${writers.join(", ")}`);
   assert.equal(typeof terminal.registerTerminalIpc, "function");
   assert.equal(typeof terminal.disposeAllTerminals, "function");

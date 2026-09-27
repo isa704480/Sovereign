@@ -5,7 +5,7 @@ import "@xterm/xterm/css/xterm.css";
 import Icon from "./Icon.jsx";
 import Modal from "./Modal.jsx";
 import { useT } from "../lib/i18n.js";
-import { needsPasteConfirm, pasteLineCount, pastePreview } from "../lib/terminalPaste.js";
+import { pastePayload, pasteLineCount, pastePreview } from "../lib/terminalPaste.js";
 
 const S = () => window.sovereign;
 const TICK = String.fromCharCode(96);
@@ -13,6 +13,11 @@ const MAX_TABS = 5;
 const MIN_H = 120;
 const MAX_H = 1200;
 const CHUNK = 2048; // preload'dagi 4096 belgilik chegaradan past
+
+/** pty'ga yozish — IPC chegarasidan (4096) past bo'laklarda. */
+const writeChunks = (id, data) => {
+  for (let i = 0; i < data.length; i += CHUNK) S()?.terminal.write(id, data.slice(i, i + CHUNK));
+};
 
 const cssVar = (name, fallback) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 const leaf = (p) => String(p || "").split(/[\\/]/).filter(Boolean).pop() || "";
@@ -64,10 +69,12 @@ export default function TerminalPanel({ cwd, height, onHeight, onClose, platform
   const [errCode, setErrCode] = useState("");
   const [paste, setPaste] = useState(null); // { id, text }
   const hostRef = useRef(null);
-  const termsRef = useRef(new Map()); // id -> { term, fit, el, dData, dBinary, onPaste }
+  const termsRef = useRef(new Map()); // id -> { term, fit, el, dData, dBinary }
   const activeRef = useRef("");
   activeRef.current = active;
   const dragRef = useRef(null);
+  const rafRef = useRef(0);
+  const approvedRef = useRef(false); // tasdiqlangan qo'yish — bir marta o'tkaziladi
   const heightRef = useRef(height);
   heightRef.current = height;
 
@@ -83,7 +90,6 @@ export default function TerminalPanel({ cwd, height, onHeight, onClose, platform
   }, []);
 
   const disposeTerm = (rec) => {
-    rec.el.removeEventListener("paste", rec.onPaste, true);
     try {
       rec.dData.dispose();
       rec.dBinary.dispose();
@@ -93,6 +99,21 @@ export default function TerminalPanel({ cwd, height, onHeight, onClose, platform
     }
     rec.el.remove();
   };
+
+  /** Ctrl+V: matn main'dan olinadi; ko'p satrli bo'lsa — avval tasdiq. */
+  const pasteFromClipboard = useCallback(async (id) => {
+    const r = await S()?.terminal.paste(id).catch(() => null);
+    const text = typeof r?.text === "string" ? r.text : "";
+    if (!text) return;
+    if (pastePayload(text) !== null) {
+      setPaste({ id, text });
+      return;
+    }
+    const rec = termsRef.current.get(id);
+    if (!rec) return;
+    approvedRef.current = true;
+    rec.term.paste(text);
+  }, []);
 
   // ---- Yorliq ochish -------------------------------------------------------
   const addTab = useCallback(async () => {
@@ -130,29 +151,46 @@ export default function TerminalPanel({ cwd, height, onHeight, onClose, platform
     }
     setErrCode("");
 
-    // Klaviatura → pty. Bu YAGONA yozish yo'li (paste alohida tasdiqlanadi).
+    // Klaviatura va qo'yish → pty. Bu YAGONA yozish yo'li. Ko'p satrli qo'yish
+    // shu oqimda ushlanadi (DOM paste hodisasidan ishonchliroq: Ctrl+V, o'ng
+    // tugma, o'rta tugma va sudrab tashlash — hammasi shu yerdan o'tadi).
     const dData = term.onData((d) => {
-      for (let i = 0; i < d.length; i += CHUNK) S()?.terminal.write(r.id, d.slice(i, i + CHUNK));
+      if (approvedRef.current) {
+        approvedRef.current = false;
+        writeChunks(r.id, d);
+        return;
+      }
+      const body = pastePayload(d);
+      if (body !== null) {
+        // Tasdiqsiz ko'p satrli matn pty'ga bormaydi (sudrab tashlash,
+        // o'rta tugma bilan qo'yish va h.k.).
+        setPaste({ id: r.id, text: body });
+        return;
+      }
+      writeChunks(r.id, d);
     });
-    const dBinary = term.onBinary((d) => S()?.terminal.write(r.id, d));
-    // Ko'p satrli qo'yish — bir marta tasdiq (paste-injection himoyasi).
-    const onPaste = (e) => {
-      const text = e.clipboardData?.getData("text") ?? "";
-      if (!needsPasteConfirm(text)) return;
+    const dBinary = term.onBinary((d) => writeChunks(r.id, d));
+    // Ctrl+V / Cmd+V / Shift+Insert — xterm ularni shellga ^V sifatida yuboradi,
+    // Windows'da esa PSReadLine buferdan O'ZI qo'yib yuboradi va tasdiq
+    // chetlab o'tilardi. Shuning uchun tugmani shu yerda ushlaymiz.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== "keydown") return true;
+      const mod = platform === "darwin" ? e.metaKey : e.ctrlKey;
+      const wantsPaste = (mod && !e.altKey && (e.key === "v" || e.key === "V")) || (e.shiftKey && e.key === "Insert");
+      if (!wantsPaste) return true;
       e.preventDefault();
-      e.stopPropagation();
-      setPaste({ id: r.id, text });
-    };
-    el.addEventListener("paste", onPaste, true);
+      pasteFromClipboard(r.id);
+      return false;
+    });
 
-    termsRef.current.set(r.id, { term, fit, el, dData, dBinary, onPaste });
+    termsRef.current.set(r.id, { term, fit, el, dData, dBinary });
     setTabs((list) => [...list, { id: r.id, name: r.name, cwd: r.cwd, mode: r.mode }]);
     setActive(r.id);
     setTimeout(() => {
       fitNow(r.id);
       term.focus();
     }, 0);
-  }, [fitNow]);
+  }, [fitNow, pasteFromClipboard, platform]);
   const addTabRef = useRef(addTab);
   addTabRef.current = addTab;
 
@@ -210,11 +248,24 @@ export default function TerminalPanel({ cwd, height, onHeight, onClose, platform
   }, [active, tabs, fitNow]);
 
   // ---- O'lcham o'zgarsa — fit() → pty.resize() -----------------------------
-  useEffect(() => {
-    const ro = new ResizeObserver(() => fitNow(activeRef.current));
-    if (hostRef.current) ro.observe(hostRef.current);
-    return () => ro.disconnect();
+  // fit() o'zi kuzatilayotgan element ichini o'zgartiradi, shuning uchun
+  // o'lchash keyingi kadrga suriladi (aks holda eski o'lcham bilan hisoblanadi).
+  const scheduleFit = useCallback(() => {
+    cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => fitNow(activeRef.current));
   }, [fitNow]);
+  useEffect(() => {
+    const ro = new ResizeObserver(scheduleFit);
+    if (hostRef.current) ro.observe(hostRef.current);
+    window.addEventListener("resize", scheduleFit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", scheduleFit);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [scheduleFit]);
+  // Panel balandligi (sudrash / sozlamadan tiklash) — darhol moslashtiramiz.
+  useEffect(scheduleFit, [height, scheduleFit]);
 
   // ---- Mavzu almashsa — xterm ranglari ham --------------------------------
   useEffect(() => {
@@ -261,8 +312,12 @@ export default function TerminalPanel({ cwd, height, onHeight, onClose, platform
     const p = paste;
     setPaste(null);
     if (!p) return;
-    termsRef.current.get(p.id)?.term.focus();
-    for (let i = 0; i < p.text.length; i += CHUNK) S()?.terminal.write(p.id, p.text.slice(i, i + CHUNK));
+    const rec = termsRef.current.get(p.id);
+    if (!rec) return;
+    rec.term.focus();
+    // xterm o'zi \n → \r ga aylantiradi va kerak bo'lsa qavsli qo'yishni qo'shadi.
+    approvedRef.current = true;
+    rec.term.paste(p.text);
   };
 
   const cur = tabs.find((x) => x.id === active);

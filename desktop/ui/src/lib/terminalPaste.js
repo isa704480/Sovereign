@@ -10,6 +10,23 @@ export function needsPasteConfirm(text) {
   return typeof text === "string" && text.length > 0 && /[\r\n]/.test(text);
 }
 
+const BRACKET_START = "\u001b[200~";
+const BRACKET_END = "\u001b[201~";
+
+/**
+ * xterm'ning ma'lumot oqimidan (onData) ko'p satrli QO'YISHni ajratadi.
+ * Klaviaturadan yozilgan Enter — bitta "\r" (uzunligi 1), shuning uchun u
+ * hech qachon bu yerga tushmaydi. Qavsli qo'yish (bracketed paste) belgilari
+ * tekshiruvdan oldin olib tashlanadi, lekin pty'ga asl matn yoziladi.
+ * @returns {string|null} tasdiq kerak bo'lsa — ko'rsatiladigan matn, aks holda null
+ */
+export function pastePayload(data) {
+  if (typeof data !== "string" || data.length < 2) return null;
+  let body = data;
+  if (body.startsWith(BRACKET_START) && body.endsWith(BRACKET_END)) body = body.slice(BRACKET_START.length, -BRACKET_END.length);
+  return needsPasteConfirm(body) ? body : null;
+}
+
 /** Qo'yiladigan buyruqlar (satrlar) soni — tasdiq oynasida ko'rsatiladi. */
 export function pasteLineCount(text) {
   if (typeof text !== "string" || !text) return 0;

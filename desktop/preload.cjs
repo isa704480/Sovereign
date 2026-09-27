@@ -96,6 +96,9 @@ contextBridge.exposeInMainWorld("sovereign", {
       return true;
     },
     resize: (id, cols, rows) => ipcRenderer.send("term:resize", { id, cols, rows }),
+    // Ctrl+V: matnni main'dan olamiz (shell o'zi qo'ymasin). Faqat haqiqiy
+    // klaviatura hodisasidan keyin — model javobi buferni o'qiy olmaydi.
+    paste: (id) => (typeof id === "string" && userTyped("") ? invoke("term:paste", id) : Promise.resolve({ error: "no-input" })),
     close: (id) => invoke("term:close", id),
     info: () => invoke("term:info"),
     onEvent: (cb) => {
