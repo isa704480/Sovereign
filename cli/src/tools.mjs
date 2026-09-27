@@ -583,6 +583,23 @@ export function createPlan() {
   };
 }
 
+/**
+ * Ikki holat orasidagi farq — CLI qaysi qatorlarni qayta chizishini hal qiladi.
+ * Qadamlar ro'yxati o'zgargan (yoki avvalgi holat yo'q) bo'lsa — null (to'liq qayta chizish);
+ * aks holda ko'rinishi o'zgargan qatorlarning 0-dan boshlangan indekslari.
+ */
+export function planChanges(snap, prev) {
+  if (!prev || !snap || prev.total !== snap.total) return null;
+  if (prev.steps.some((s, i) => s.text !== snap.steps[i].text)) return null;
+  const out = [];
+  for (let i = 0; i < snap.steps.length; i++) {
+    const wasActive = prev.active === i + 1;
+    const isActive = snap.active === i + 1;
+    if (prev.steps[i].done !== snap.steps[i].done || wasActive !== isActive) out.push(i);
+  }
+  return out;
+}
+
 /** Jurnal/xulosa uchun reja holati (o'zbekcha) yoki null. */
 export function planSummary(snap) {
   if (!snap?.total) return null;

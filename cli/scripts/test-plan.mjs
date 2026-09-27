@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   createPlan,
   createTurnTracker,
+  planChanges,
   planSummary,
   planText,
   runTool,
@@ -181,6 +182,43 @@ await test("plan tasdiq so'ramaydi va diskka tegmaydi", async () => {
 
 await test("plan vositasi berilmasa — aniq xato (yiqilish yo'q)", async () => {
   assert.match(await runTool("plan", { steps: ["a"] }, noConfirm, {}), /^XATO/);
+});
+
+// ---- CLI chizish: faqat o'zgargan qatorlar -------------------------------
+await test("planChanges: yangi reja yoki boshqa qadamlar — to'liq qayta chizish (null)", async () => {
+  const plan = createPlan();
+  await call(plan, { steps: ["a", "b", "c"] });
+  const first = plan.snapshot();
+  assert.equal(planChanges(first, null), null);
+  await call(plan, { steps: ["a", "boshqa", "c"] });
+  assert.equal(planChanges(plan.snapshot(), first), null);
+  await call(plan, { steps: ["a", "b"] });
+  assert.equal(planChanges(plan.snapshot(), first), null);
+});
+
+await test("planChanges: bitta qadam belgilansa — 2 ta qator (eski faol + yangi faol/bajarilgan)", async () => {
+  const plan = createPlan();
+  await call(plan, { steps: ["a", "b", "c"] });
+  const before = plan.snapshot();
+  await call(plan, { done: [1] });
+  // 1-qadam: faol emas + bajarildi; 2-qadam: endi faol.
+  assert.deepEqual(planChanges(plan.snapshot(), before), [0, 1]);
+});
+
+await test("planChanges: hech narsa o'zgarmasa — bo'sh ro'yxat", async () => {
+  const plan = createPlan();
+  await call(plan, { steps: ["a", "b", "c"] });
+  const before = plan.snapshot();
+  await call(plan, {});
+  assert.deepEqual(planChanges(plan.snapshot(), before), []);
+});
+
+await test("planChanges: ko'p qadam birdan belgilansa — 2 tadan ortiq (to'liq ro'yxat chiziladi)", async () => {
+  const plan = createPlan();
+  await call(plan, { steps: ["a", "b", "c", "d"] });
+  const before = plan.snapshot();
+  await call(plan, { done: [1, 2, 3] });
+  assert.ok(planChanges(plan.snapshot(), before).length > 2);
 });
 
 // ---- Jurnal (ledger) va halollik -----------------------------------------

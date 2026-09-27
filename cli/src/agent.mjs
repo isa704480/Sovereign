@@ -15,6 +15,7 @@ import {
   formatTokens,
   statusTag,
   createPlan,
+  planChanges,
   planSummary,
   PLAN_RULE,
   HONESTY_RULE,
@@ -93,14 +94,11 @@ function planLines(snap) {
  */
 function printPlan(snap, prev) {
   const lines = planLines(snap);
-  const same = prev && prev.total === snap.total && prev.steps.every((s, i) => s.text === snap.steps[i].text);
-  if (same) {
-    const changed = lines.filter(
-      (_, i) => prev.steps[i].done !== snap.steps[i].done || (prev.active === i + 1) !== (snap.active === i + 1),
-    );
-    if (!changed.length) return;
+  const changed = planChanges(snap, prev);
+  if (changed) {
+    if (!changed.length) return; // hech narsa o'zgarmadi
     if (changed.length <= 2) {
-      for (const l of changed) console.log(l);
+      for (const i of changed) console.log(lines[i]);
       console.log(`     ${c.dim(`reja: ${snap.done}/${snap.total}`)}`);
       return;
     }
