@@ -113,8 +113,12 @@ export function globToRegExp(glob) {
     if (ch === "*") {
       if (g[i + 1] === "*") {
         i++;
-        if (g[i + 1] === "/") i++;
-        re += "(?:.*/)?";
+        if (g[i + 1] === "/") {
+          i++;
+          re += "(?:.*/)?"; // `**/` — nol yoki ko'p bo'lak
+        } else {
+          re += ".*"; // oxiridagi `**` — qolgan hamma narsa
+        }
       } else {
         re += "[^/]*";
       }
@@ -576,11 +580,36 @@ export function registerFilesIpc({ handle, getWorkspace, resolvePath, isProtecte
   return { ensureWatch, stopWatch, check, tegmaGlobs };
 }
 
-/** Testlar uchun: papkadagi fayllar ro'yxati (tartiblangan). */
-export function listDir(dir) {
+// ---- Fayl daraxti ---------------------------------------------------------
+
+/** Daraxtda ko'rsatilmaydigan papkalar (shovqin va katta hajm). */
+export const TREE_SKIP = new Set(["node_modules", ".git", ".next", "dist", "build", "out", ".turbo", ".cache", "__pycache__", ".venv", "venv", "ui-dist", "release"]);
+
+/**
+ * Sidebar uchun daraxt: papkalar oldinda, yashirin fayllar (.env.example'dan
+ * tashqari) yashirin, umumiy tugun va bir papkadagi qator soni cheklangan.
+ */
+export function buildTree(dir, depth = 0, max = 6, budget = { n: 0 }) {
+  let entries;
   try {
-    return readdirSync(dir).sort();
+    entries = readdirSync(dir, { withFileTypes: true });
   } catch {
     return [];
   }
+  const nodes = [];
+  entries.sort((a, b) => (a.isDirectory() === b.isDirectory() ? a.name.localeCompare(b.name) : a.isDirectory() ? -1 : 1));
+  for (const e of entries) {
+    if (budget.n > 4000) break;
+    if (e.name.startsWith(".") && e.name !== ".env.example") continue;
+    if (e.isDirectory() && TREE_SKIP.has(e.name)) continue;
+    const full = join(dir, e.name);
+    budget.n++;
+    if (e.isDirectory()) {
+      nodes.push({ name: e.name, path: full, dir: true, children: depth < max ? buildTree(full, depth + 1, max, budget) : [] });
+    } else {
+      nodes.push({ name: e.name, path: full, dir: false });
+    }
+    if (nodes.length > 800) break;
+  }
+  return nodes;
 }
