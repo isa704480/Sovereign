@@ -20,10 +20,17 @@ export function verifyDisabled() {
   return v === "0" || v === "false" || v === "off";
 }
 
+const clean = (s, max) => (typeof s === "string" ? s.replace(/[\x00-\x1f\x7f-\x9f]/g, " ").trim().slice(0, max) : "");
+
 /**
- * @returns {Promise<{ unsupported: string[], model?: string } | null>}
+ * Hakam — MUSTAQIL: server `answerModel` (javobni bergan model) kompaniyasidan
+ * BOSHQA kompaniyaning modelini tanlaydi va kimligini qaytaradi.
+ * @param {object} config
+ * @param {{answer?: string, entries?: object[], signal?: AbortSignal, answerModel?: string}} [p]
+ * @returns {Promise<{ unsupported: string[], model?: string, judgeModel?: string,
+ *   judgeVendor?: string, judgeVendorLabel?: string, answerVendor?: string } | null>}
  */
-export async function verifyClaims(config, { answer, entries, signal } = {}) {
+export async function verifyClaims(config, { answer, entries, signal, answerModel } = {}) {
   if (!config?.token || !config?.baseUrl || verifyDisabled()) return null;
   const text = String(answer ?? "").trim();
   if (!text) return null;
@@ -36,7 +43,12 @@ export async function verifyClaims(config, { answer, entries, signal } = {}) {
     const res = await fetch(`${config.baseUrl.replace(/\/$/, "")}/api/cli/verify`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${config.token}` },
-      body: JSON.stringify({ answer: text.slice(0, ANSWER_MAX), ledger }),
+      body: JSON.stringify({
+        answer: text.slice(0, ANSWER_MAX),
+        ledger,
+        // Server sxemasi qat'iy (id belgilari) — mos kelmasa yubormaymiz (hakam baribir boshqa kompaniyadan tanlanadi).
+        ...(typeof answerModel === "string" && /^[\w./:@-]{1,200}$/.test(answerModel) ? { answerModel } : {}),
+      }),
       signal: combined,
     });
     if (!res.ok) return null;
@@ -46,7 +58,14 @@ export async function verifyClaims(config, { answer, entries, signal } = {}) {
       .filter((s) => typeof s === "string" && s.trim())
       .map((s) => s.replace(/[\x00-\x1f\x7f-\x9f]/g, " ").trim().slice(0, 200))
       .slice(0, 10);
-    return { unsupported, model: typeof data.model === "string" ? data.model : undefined };
+    return {
+      unsupported,
+      model: typeof data.model === "string" ? data.model : undefined,
+      judgeModel: clean(data.judgeModel, 200) || undefined,
+      judgeVendor: clean(data.judgeVendor, 40) || undefined,
+      judgeVendorLabel: clean(data.judgeVendorLabel, 60) || undefined,
+      answerVendor: clean(data.answerVendor, 40) || undefined,
+    };
   } catch {
     return null;
   }

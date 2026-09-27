@@ -85,7 +85,7 @@ export function applyEvent(s, ev, { replay = false } = {}) {
         ...s,
         items: [
           ...s.items,
-          { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, testWarning: ev.testWarning ?? null, noteCode: ev.noteCode, maxSteps: ev.maxSteps, loop: ev.loop ?? null, budget: ev.budget ?? null },
+          { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, testWarning: ev.testWarning ?? null, noteCode: ev.noteCode, maxSteps: ev.maxSteps, loop: ev.loop ?? null, budget: ev.budget ?? null, judge: ev.judge ?? null },
         ],
       };
     case "usage":

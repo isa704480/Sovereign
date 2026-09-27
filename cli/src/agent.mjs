@@ -180,9 +180,10 @@ async function runRound(messages, config, onText, signal) {
       throw new Error(m);
     }
     // `usage` — server yangi versiyada qaytaradi (eski server: yo'q → taxmin).
-    const { message, usage } = await res.json();
+    // `model` — haqiqatda javob bergan model (mustaqil hakam boshqa kompaniyadan tanlanishi uchun).
+    const { message, usage, model } = await res.json();
     const toolCalls = message.tool_calls ?? [];
-    return { message, toolCalls, usage };
+    return { message, toolCalls, usage, model: typeof model === "string" ? model : null };
   }
 
   // Direct OpenRouter — true token streaming with low-balance auto-retry.
@@ -278,6 +279,9 @@ function printLedger(entries, { note = "", regexWarn = null, judge = null, usage
   } else if (judge && worth) {
     console.log("   " + c.dim("✓ Mustaqil tekshiruv (AI hakam): javob jurnalga zid emas."));
   }
+  // Hakam har doim javob bergan modelning kompaniyasidan boshqa kompaniya (server: judge.ts).
+  const judgeName = judge?.judgeVendorLabel || judge?.judgeVendor;
+  if (judgeName && (judgeHits.length || worth)) console.log("     " + c.dim(`tekshirdi: ${visible(judgeName)} (mustaqil)`));
   if (usage) console.log(usageLine(usage));
   console.log("");
 }
@@ -294,14 +298,14 @@ function usageLine(u) {
  * ogohlantirishni u bekor qila olmaydi (javob matnidagi prompt-injection hakamni
  * "hammasi joyida" deyishga majburlasa ham regex ogohlantirishi qoladi).
  */
-async function checkHonesty(entries, finalText, { config, signal, verify, print }) {
+async function checkHonesty(entries, finalText, { config, signal, verify, print, answerModel = null }) {
   // Har rejimda: "bajardim" da'vosi + "testlar o'tdi" da'vosi (test yo'q / eskirgan / yiqilgan).
   const tests = finalText ? testClaimIssue(finalText, entries) : null;
   const regexWarn = finalText ? [unsupportedClaim(finalText, entries), testClaimText(tests)].filter(Boolean).join(" ") || null : null;
   let judge = null;
   if (verify && finalText && config?.token && !signal?.aborted && shouldVerify(entries, regexWarn)) {
     const spin = print ? spinner("javob jurnal bilan solishtirilyapti...") : null;
-    judge = await verifyClaims(config, { answer: finalText, entries, signal });
+    judge = await verifyClaims(config, { answer: finalText, entries, signal, answerModel: answerModel ?? undefined });
     spin?.stop();
   }
   return { regexWarn, judge, tests };
@@ -321,7 +325,7 @@ function isAbort(err, signal) {
  * @param {number} [p.budget=0]  shu vazifa uchun token byudjeti (0 — cheklovsiz); oshsa navbat to'xtaydi
  * @returns {Promise<{done?: boolean, error?: string, aborted?: boolean, truncated?: boolean,
  *   loop?: object, budgetExceeded?: boolean, usage: object,
- *   ledger: object[], final: string, honesty: {regex: string|null, judge: string[]|null, tests: object|null, source: string}}>}
+ *   ledger: object[], final: string, honesty: {regex: string|null, judge: string[]|null, judgeVendor?: string|null, tests: object|null, source: string}}>}
  */
 export async function agentTurn({ messages, config, confirm, maxSteps, signal, print = true, stream = false, verify = true, fullAuto = false, budget = 0, snapshots = false }) {
   // Full auto: yoz → testla → tuzat sikli uchun ko'proq qadam.
@@ -347,14 +351,18 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
   const honestyOut = (h) => ({
     regex: h.regexWarn ?? null,
     judge: h.judge ? h.judge.unsupported : null,
+    // Hakam kompaniyasi (javob bergan modelnikidan har doim boshqa).
+    judgeVendor: h.judge?.judgeVendor ?? null,
     tests: h.tests ?? null,
     source: h.judge ? "llm+regex" : "regex",
   });
-  const noHonesty = { regex: null, judge: null, tests: null, source: "regex" };
+  const noHonesty = { regex: null, judge: null, judgeVendor: null, tests: null, source: "regex" };
   // Vazifa narxi: token (server/provayder `usage`, bo'lmasa taxmin) va qadamlar soni.
   const meter = createUsageMeter(budget);
   const usage = () => meter.snapshot();
   let final = "";
+  // Yakuniy javob matnini bergan model (server qaytargan) — hakam boshqa kompaniyadan bo'lsin.
+  let finalModel = null;
   let nudges = 0; // full auto: "vazifa tugamagan" avtomatik davom ettirishlar
   const nudgeState = {};
 
@@ -402,7 +410,10 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
 
     messages.push(round.message);
     const text = round.message.content && String(round.message.content).trim() ? String(round.message.content) : "";
-    if (text) final = text;
+    if (text) {
+      final = text;
+      finalModel = round.model ?? null;
+    }
 
     // Javob matnini toza markdown bilan ko'rsat (xom `**`/`#` emas).
     if (md) md.end();
@@ -421,7 +432,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
         continue;
       }
       if (print) process.stdout.write("\n");
-      const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print });
+      const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print, answerModel: finalModel });
       printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge, usage: usage() });
       return { done: true, ledger: tracker.entries, final: text, usage: usage(), honesty: honestyOut(h) };
     }
@@ -474,7 +485,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
       return { done: true, loop: tracker.loop, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty };
     }
   }
-  const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print });
+  const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print, answerModel: finalModel });
   printLedger(tracker.entries, {
     note: `Qadamlar chegarasi (${maxSteps}) tugadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin. "davom et" deb yozing.`,
     regexWarn: h.regexWarn,

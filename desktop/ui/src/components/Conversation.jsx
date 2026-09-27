@@ -73,7 +73,10 @@ export function LedgerCard({ it }) {
   const t = useT();
   const st = ledgerStats(it.entries);
   const effects = (it.entries ?? []).filter((e) => !(["read_file", "list_dir"].includes(e.tool) && (e.status === "ok" || e.status === "skipped")));
-  const bad = st.failed + st.declined > 0 || !!it.warning || !!it.testWarning || !!it.noteCode;
+  // Mustaqil hakam (javob bergan modelning kompaniyasidan boshqa kompaniya) — server natijasi.
+  const judgeHits = Array.isArray(it.judge?.unsupported) ? it.judge.unsupported.filter((s) => typeof s === "string" && s) : [];
+  const judgeVendor = typeof it.judge?.vendor === "string" && it.judge.vendor ? it.judge.vendor : null;
+  const bad = st.failed + st.declined > 0 || !!it.warning || !!it.testWarning || !!it.noteCode || judgeHits.length > 0;
   return (
     <section className={`ledger ${bad ? "ledger-warn" : ""}`} aria-label={t("ledger.title")}>
       <header className="ledger-head">
@@ -106,6 +109,17 @@ export function LedgerCard({ it }) {
       {it.noteCode && <div className="banner banner-warn"><Icon name={it.noteCode === "loop" ? "repeat" : "alert"} size={14} /><span>{ledgerNote(it, t)}</span></div>}
       {it.warning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.claimWarn")}</b> {ledgerWarning(it.warning, t)}</span></div>}
       {it.testWarning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.testWarn")}</b> {testWarningText(it.testWarning, t)}</span></div>}
+      {judgeHits.length > 0 && (
+        <div className="banner banner-warn">
+          <Icon name="alert" size={14} />
+          <span>
+            <b>{t("ledger.judgeWarn")}</b>
+            <ul className="ledger-list">{judgeHits.map((h, i) => <li key={i}>– {h}</li>)}</ul>
+          </span>
+        </div>
+      )}
+      {it.judge && !judgeHits.length && <div className="ledger-reads faint small"><Icon name="check" size={12} /> {t("ledger.judgeOk")}</div>}
+      {judgeVendor && <div className="ledger-reads faint small"><Icon name="shield" size={12} /> {t("ledger.judgeBy", { vendor: judgeVendor })}</div>}
     </section>
   );
 }

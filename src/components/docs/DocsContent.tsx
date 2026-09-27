@@ -170,6 +170,7 @@ export function DocsContent({ data }: { data: DocsData }) {
       children: [
         { id: "image-generation", label: t("p7bDImgTitle") },
         { id: "research", label: t("p7bDResearchTitle") },
+        { id: "verification", label: t("p12DocsVerifyTitle") },
         { id: "memory", label: t("p7bDMemoryTitle") },
         { id: "knowledge-base", label: t("p7bDKbNav") },
         { id: "connectors", label: t("p7bDConnTitle") },
@@ -372,6 +373,10 @@ export function DocsContent({ data }: { data: DocsData }) {
 
               <Sub id="research" title={t("p7bDResearchTitle")}>
                 <p>{r("p7bDResearchBody")}</p>
+              </Sub>
+
+              <Sub id="verification" title={t("p12DocsVerifyTitle")}>
+                <p>{r("p12DocsVerifyBody")}</p>
               </Sub>
 
               <Sub id="memory" title={t("p7bDMemoryTitle")}>

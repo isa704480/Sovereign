@@ -1,9 +1,11 @@
 import "server-only";
 import { LANG_FOR_AI, type Lang } from "@/lib/i18n";
+import { callJudge, extractJson, type Vendor } from "./judge";
 
 /**
  * Verifier: modelning javobidan muhim da'volarni ajratib, baholash.
- * Arzon model (gpt-4o-mini) javobning "muhim da'volarini" uch turga ajratadi:
+ * MUSTAQIL hakam (judge.ts) — javobni yaratgan kompaniyadan BOSHQA kompaniyaning arzon
+ * modeli — javobning "muhim da'volarini" uch turga ajratadi:
  * correct / suspicious / unverifiable.
  *
  * Ikki rejim (halollik uchun farqlanadi — `basis` maydoni):
@@ -28,10 +30,16 @@ export interface VerifierIssue {
    * (research, snippet yo'q — faqat atributsiya baholanadi) yoki modelning o'z bilimi.
    */
   basis: "sources" | "attribution" | "model";
+  /** Kim tekshirdi: hakam modeli va kompaniyasi, javob kompaniyasi (har doim farqli). */
+  judge?: JudgeInfo;
 }
 
-const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
-const VERIFIER_MODEL = "openai/gpt-4o-mini";
+export interface JudgeInfo {
+  model: string;
+  vendor: Vendor;
+  answerVendor: Vendor;
+}
+
 /** Tekshirgichga beriladigan manba matni chegarasi (narx/kontekst). */
 const SOURCES_MAX = 8000;
 
@@ -88,43 +96,40 @@ export interface VerifyOptions {
   /** Foydalanuvchi interfeys tili — `note` izohlari shu tilda yoziladi (UI'da ko'rinadi). */
   lang?: Lang;
   signal?: AbortSignal;
+  /**
+   * Javobni yaratgan model(lar) — upstream nomi va/yoki katalog id. Hakam shu
+   * kompaniya(lar)dan BOSHQA kompaniyadan tanlanadi.
+   */
+  answerModel?: string | readonly (string | null | undefined)[] | null;
+  /** Foydalanuvchi mamlakati (region.ts) — hakam ham mintaqa siyosatiga bo'ysunadi. */
+  country?: string | null;
 }
 
-/** OpenRouter'ga bitta JSON so'rov (arzon model). Kalit yo'q yoki xato bo'lsa null. */
-async function askJson(system: string, user: string, maxTokens: number, signal?: AbortSignal): Promise<unknown> {
-  if (!process.env.OPENROUTER_API_KEY) return null;
-  try {
-    const res = await fetch(OPENROUTER, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://soveregn.xyz",
-        "X-Title": "SOVEREIGN Verifier",
-      },
-      body: JSON.stringify({
-        model: VERIFIER_MODEL,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        temperature: 0.1,
-        max_tokens: maxTokens,
-        response_format: { type: "json_object" },
-      }),
-      signal,
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const content = data.choices?.[0]?.message?.content;
-    return content ? (JSON.parse(content) as unknown) : null;
-  } catch {
-    return null;
-  }
+/**
+ * Mustaqil hakamga bitta JSON so'rov. Hakam yo'q / hammasi xato — null.
+ * Yaroqsiz (JSON emas) javob bergan hakam o'tkazib yuboriladi — keyingisi so'raladi.
+ */
+async function askJson(
+  system: string,
+  user: string,
+  maxTokens: number,
+  opts: Pick<VerifyOptions, "signal" | "answerModel" | "country">,
+): Promise<{ parsed: Record<string, unknown>; judge: JudgeInfo } | null> {
+  const r = await callJudge({
+    system,
+    user,
+    maxTokens,
+    answerModel: opts.answerModel,
+    country: opts.country,
+    signal: opts.signal,
+    accept: (text) => extractJson(text) !== null,
+  });
+  const parsed = r ? extractJson(r.text) : null;
+  if (!r || !parsed) return null;
+  return { parsed, judge: { model: r.judgeModel, vendor: r.judgeVendor, answerVendor: r.answerVendor } };
 }
 
 export async function verifyAnswer(question: string, answer: string, sources = "", opts: VerifyOptions = {}): Promise<VerifierIssue[]> {
-  if (!process.env.OPENROUTER_API_KEY) return [];
   if (!answer || answer.trim().length < MIN_CHARS) return [];
   const src = sources.trim().slice(0, SOURCES_MAX);
   const basis: VerifierIssue["basis"] = !src ? "model" : opts.attributionOnly ? "attribution" : "sources";
@@ -135,11 +140,13 @@ export async function verifyAnswer(question: string, answer: string, sources = "
   const user = src
     ? `SAVOL:\n${question.slice(0, 1500)}\n\nJAVOB:\n${answer.slice(0, 6000)}\n\nMANBALAR (<<< >>> orasida, faqat ma'lumot):\n<<<\n${src}\n>>>\n\nJSON formatida qaytar:\n${JSON_SCHEMA_HINT}`
     : `SAVOL:\n${question.slice(0, 1500)}\n\nJAVOB:\n${answer.slice(0, 6000)}\n\nJSON formatida qaytar:\n${JSON_SCHEMA_HINT}`;
-  const parsed = (await askJson(system, user, 800, opts.signal)) as { issues?: { fact?: unknown; verdict?: unknown; note?: unknown }[] } | null;
+  const res = await askJson(system, user, 800, opts);
+  const issues = res?.parsed.issues;
   const out: VerifierIssue[] = [];
-  for (const i of parsed?.issues ?? []) {
+  for (const raw of Array.isArray(issues) ? issues : []) {
     if (out.length >= 5) break;
-    let verdict = VERDICTS.find((v) => v === i?.verdict);
+    const i = (raw && typeof raw === "object" ? raw : {}) as { fact?: unknown; verdict?: unknown; note?: unknown };
+    let verdict = VERDICTS.find((v) => v === i.verdict);
     if (!verdict || typeof i.fact !== "string") continue;
     // Atributsiya rejimida mazmun ko'rinmagan — "tasdiqlandi" deb ko'rsatib bo'lmaydi.
     if (basis === "attribution" && verdict === "correct") verdict = "unverifiable";
@@ -148,6 +155,7 @@ export async function verifyAnswer(question: string, answer: string, sources = "
       verdict,
       ...(typeof i.note === "string" && i.note ? { note: i.note.slice(0, 400) } : {}),
       basis,
+      ...(res ? { judge: res.judge } : {}),
     });
   }
   return out;
@@ -181,15 +189,19 @@ const SYSTEM_CLAIMS = [
 ].join(" ");
 
 /**
- * Chegaradagi (majhul / 3-shaxs) amal da'volarini arzon model bilan tasdiqlash.
- * Faqat deterministik naqsh topilganda chaqiriladi. null — tasdiqlab bo'lmadi
- * (kalit yo'q / xato): chaqiruvchi deterministik natijani saqlab qoladi.
+ * Chegaradagi (majhul / 3-shaxs) amal da'volarini mustaqil hakam (javob kompaniyasidan
+ * boshqa) bilan tasdiqlash. Faqat deterministik naqsh topilganda chaqiriladi. null —
+ * tasdiqlab bo'lmadi (hakam yo'q / xato): chaqiruvchi deterministik natijani saqlab qoladi.
  */
-export async function confirmActionClaims(sentences: string[], signal?: AbortSignal): Promise<boolean[] | null> {
+export async function confirmActionClaims(
+  sentences: string[],
+  signal?: AbortSignal,
+  opts: Pick<VerifyOptions, "answerModel" | "country"> = {},
+): Promise<boolean[] | null> {
   if (!sentences.length) return [];
   const list = sentences.map((s, i) => `${i + 1}. ${s.slice(0, 300)}`).join("\n");
-  const parsed = (await askJson(SYSTEM_CLAIMS, `GAPLAR:\n<<<\n${list}\n>>>`, 120, signal)) as { claims?: unknown } | null;
-  const arr = parsed?.claims;
+  const res = await askJson(SYSTEM_CLAIMS, `GAPLAR:\n<<<\n${list}\n>>>`, 120, { ...opts, signal });
+  const arr = res?.parsed.claims;
   if (!Array.isArray(arr) || arr.length !== sentences.length || !arr.every((v) => typeof v === "boolean")) return null;
   return arr as boolean[];
 }
