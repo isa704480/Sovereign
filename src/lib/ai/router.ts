@@ -2,6 +2,7 @@ import "server-only";
 import type { Plan } from "@/config/plans";
 import { DEFAULT_LANG, fmt, LANG_FOR_AI, translate, type Lang, type TKey } from "@/lib/i18n";
 import { autoCandidates, autoModelLabel, type AutoCategory } from "@/lib/ai/auto-pools";
+import { modelAllowedIn, restrictedRegion } from "@/lib/ai/region";
 
 export interface RouteStep {
   modelId: string;
@@ -21,6 +22,10 @@ const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 
 const CODE_RE =
   /\b(kod|code|dastur|program|funksiya|function|api|component|komponent|react|next|typescript|javascript|python|java|c\+\+|css|html|sql|debug|xato|error|refactor|algoritm|script|backend|frontend|sayt|website|app|ilova|bot)\b/i;
+/** So'rov kod vazifasimi (qoidaviy) — mintaqa almashtirishida kod ekvivalentini tanlash uchun. */
+export function isCodeRequest(text: string): boolean {
+  return CODE_RE.test(text);
+}
 const CREATIVE_RE = /\b(yoz|matn|maqola|she'r|hikoya|ssenariy|scenariy|reklama|slogan|blog|post|kontent|content|tarjima|translate)\b/i;
 const MATH_RE = /\b(hisobla|matematik|math|tenglama|equation|formula|integral|hosila|statistik|ehtimol)\b/i;
 // Alternativalar guruhda: aks holda \b faqat birinchi/oxirgi so'zga tegardi va
@@ -52,9 +57,11 @@ interface Choice {
   name: string;
   fallbacks: string[];
 }
-function choose(plan: Plan, category: AutoCategory): Choice {
-  const list = autoCandidates(plan, category);
-  return { id: list[0], name: autoModelLabel(list[0]), fallbacks: list };
+function choose(plan: Plan, category: AutoCategory, country?: string | null): Choice {
+  const list = autoCandidates(plan, category, country);
+  // Bo'sh ro'yxat (faqat OFAC embargosi mintaqasida) — chat route rad etadi.
+  const first = list[0] ?? "";
+  return { id: first, name: first ? autoModelLabel(first) : "", fallbacks: list };
 }
 
 const RESEARCH_MODEL = "sonar-online";
@@ -63,20 +70,26 @@ const RESEARCH_MODEL = "sonar-online";
  * Deterministic "SOVEREIGN Auto" planner: reads the request and picks the best
  * model — or a research→answer pipeline when the task needs fresh facts first.
  */
-export function planRoute(content: string | unknown[], plan: Plan, lang: Lang = DEFAULT_LANG): RoutePlan {
+export function planRoute(
+  content: string | unknown[],
+  plan: Plan,
+  lang: Lang = DEFAULT_LANG,
+  country?: string | null,
+): RoutePlan {
   // reason/purpose foydalanuvchiga ko'rinadi (MessageItem) — interfeys tilida.
   const t = (key: TKey) => translate(lang, key);
   const text = textOf(content);
+  // Research (Perplexity) mintaqada yopiq bo'lsa — bu bosqich rejaga kirmaydi.
   const needsResearch =
-    plan.limits.research && RESEARCH_RE.some((re) => re.test(text));
+    plan.limits.research && modelAllowedIn(RESEARCH_MODEL, country) && RESEARCH_RE.some((re) => re.test(text));
   const isCode = CODE_RE.test(text);
   const isCreative = CREATIVE_RE.test(text);
   const isMath = MATH_RE.test(text);
 
-  const codeModel = choose(plan, "code");
-  const creativeModel = choose(plan, "creative");
-  const mathModel = choose(plan, "math");
-  const generalModel = choose(plan, "general");
+  const codeModel = choose(plan, "code", country);
+  const creativeModel = choose(plan, "creative", country);
+  const mathModel = choose(plan, "math", country);
+  const generalModel = choose(plan, "general", country);
 
   // Research + build → Perplexity first, then the coding model.
   if (needsResearch && isCode) {
@@ -139,15 +152,18 @@ export async function planRouteLLM(
   plan: Plan,
   lang: Lang = DEFAULT_LANG,
   signal?: AbortSignal,
+  country?: string | null,
 ): Promise<RoutePlan> {
   const t = (key: TKey) => translate(lang, key);
   const text = textOf(content).slice(0, 2000);
-  if (!text || !process.env.OPENROUTER_API_KEY) return planRoute(content, plan, lang);
+  // Planner LLM — openai/gpt-4o-mini: cheklangan mintaqadagi foydalanuvchi matni
+  // OpenAI'ga yuborilmaydi, qoidaviy planner ishlaydi.
+  if (!text || !process.env.OPENROUTER_API_KEY || restrictedRegion(country)) return planRoute(content, plan, lang, country);
 
-  const codeModel = choose(plan, "code");
-  const creativeModel = choose(plan, "creative");
-  const mathModel = choose(plan, "math");
-  const generalModel = choose(plan, "general");
+  const codeModel = choose(plan, "code", country);
+  const creativeModel = choose(plan, "creative", country);
+  const mathModel = choose(plan, "math", country);
+  const generalModel = choose(plan, "general", country);
 
   const sys = [
     "Sen SOVEREIGN Auto planner'san. Foydalanuvchi so'rovini tahlil qilib, uni qanday bajarish kerakligini aniqla.",
@@ -187,7 +203,7 @@ export async function planRouteLLM(
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     raw = JSON.parse(data.choices?.[0]?.message?.content ?? "{}");
   } catch {
-    return planRoute(content, plan, lang);
+    return planRoute(content, plan, lang, country);
   }
 
   const needsResearch = plan.limits.research && (raw.needs_research === true || raw.category === "research");

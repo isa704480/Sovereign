@@ -24,6 +24,11 @@ export interface AnswerMeta {
   monthPct?: number;
   /** Token oylik hisobga haqiqatan yozildi (kirgan foydalanuvchi). */
   billed?: boolean;
+  /**
+   * Mintaqa siyosati (region.ts) javobni o'zgartirdi: so'ralgan model / research
+   * provayderi shu mamlakatga (ISO-2) xizmat ko'rsatmaydi — ruxsat etilgan model javob berdi.
+   */
+  region?: string;
 }
 
 /** 1234 → "1.2k", 950 → "950". */

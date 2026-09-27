@@ -2,6 +2,8 @@
 
 import { Check, Globe, Menu, PanelRight, Share2 } from "lucide-react";
 import { HERO_DEMO_MODELS, RESEARCH_MODEL_ID } from "@/config/models";
+import { modelAllowedIn } from "@/lib/ai/region";
+import { useRegion } from "@/hooks/use-region";
 import type { Plan } from "@/config/plans";
 import { useT } from "@/store/chat";
 import { CreditIndicator } from "./CreditIndicator";
@@ -43,6 +45,9 @@ export function ChatHeader({
   const { model } = useTheme();
   const t = useT();
   const quick = [...HERO_DEMO_MODELS.slice(0, 3)];
+  // Mintaqa siyosati: yopiq modellarning tezkor tugmalari o'chiq (sababi — title'da).
+  const region = useRegion();
+  const blocked = (id: string) => region.restricted && !modelAllowedIn(id, region.country);
 
   return (
     <header
@@ -66,13 +71,16 @@ export function ChatHeader({
       <div className="hidden items-center gap-1 lg:flex">
         {quick.map((m) => {
           const active = m.id === modelId;
+          const off = blocked(m.id);
           return (
             <button
               key={m.id}
               type="button"
               onClick={() => onModelChange(m.id)}
               aria-pressed={active}
-              className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-white/5"
+              disabled={off}
+              title={off ? t("p10RegionUnavailable") : undefined}
+              className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
               style={{
                 borderColor: active ? m.primary : "var(--t-border)",
                 color: active ? m.primary : "var(--t-text-muted)",
@@ -88,7 +96,9 @@ export function ChatHeader({
           type="button"
           onClick={() => onModelChange(RESEARCH_MODEL_ID)}
           aria-pressed={modelId === RESEARCH_MODEL_ID}
-          className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-white/5"
+          disabled={blocked(RESEARCH_MODEL_ID)}
+          title={blocked(RESEARCH_MODEL_ID) ? t("p10RegionUnavailable") : undefined}
+          className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           style={{
             borderColor: modelId === RESEARCH_MODEL_ID ? "#20808D" : "var(--t-border)",
             color: modelId === RESEARCH_MODEL_ID ? "#29A0AD" : "var(--t-text-muted)",

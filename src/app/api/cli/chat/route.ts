@@ -6,6 +6,8 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 import { getServerT } from "@/lib/i18n-server";
 import { fmt } from "@/lib/i18n";
+import { hostAllowedIn, modelAllowedIn, REGION_SAFE } from "@/lib/ai/region";
+import { resolveUserRegion } from "@/lib/ai/region-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -66,6 +68,27 @@ function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
   if (!needsTools) list.push({ provider: "llm7", model: "mistral-Nemo-Instruct-2407", url: LLM7, auth: process.env.LLM7_API_KEY ?? "unused" });
 
   return list;
+}
+
+/**
+ * Mintaqa siyosati (region.ts): cheklangan mintaqada provayderi xizmat ko'rsatmaydigan
+ * model/host (Claude/GPT/Gemini/Mistral, "auto/*" aralash kombo, LLM7) zanjirdan olib
+ * tashlanadi va o'rniga ruxsat etilgan OmniRoute modellari (DeepSeek, Qwen, GLM, Kimi —
+ * tool-calling qo'llaydi) qo'yiladi. `big` — Kimi (pullik) faqat Pro/Ultra'da.
+ */
+function regionCandidates(list: Cand[], country: string | null, big: boolean): Cand[] {
+  if (!country) return list;
+  const allowed = list.filter((c) => modelAllowedIn(c.model, country) && hostAllowedIn(c.provider, country));
+  const omniKey = process.env.OMNIROUTE_API_KEY;
+  const safe: Cand[] =
+    OMNIROUTE && omniKey
+      ? [...(big ? [REGION_SAFE.kimi] : []), REGION_SAFE.deepseek, REGION_SAFE.qwen, REGION_SAFE.glm]
+          .filter((m) => !allowed.some((c) => c.model === m))
+          .map((model) => ({ provider: "omniroute", model, url: `${OMNIROUTE}/chat/completions`, auth: omniKey }))
+      : [];
+  // Foydalanuvchi o'zi tanlagan (ruxsat etilgan) model birinchi qoladi.
+  const [first, ...rest] = allowed;
+  return first?.provider === "omniroute" ? [first, ...safe, ...rest] : [...safe, ...allowed];
 }
 
 // Cost-DoS'ni to'sish: strict schema. Provider'ga o'zboshimchalik parametrlar
@@ -235,7 +258,27 @@ export async function POST(req: Request) {
   // (tekin yo'naltirish) hammaga ochiq. Ruxsat yo'q bo'lsa tanlov e'tiborsiz.
   const reqModel = parsed.data.model;
   const chosen = reqModel && (reqModel.startsWith("auto/") || planAllowsTier(plan, "pro")) ? reqModel : undefined;
-  const cands = candidates(planId, chosen, Boolean(parsed.data.tools?.length));
+
+  // Mintaqa (IP + SBP to'lovi + onboarding mamlakati) — serverda; CLI/Cowork ham shu yo'ldan.
+  let country: string | null = null;
+  try {
+    const region = await resolveUserRegion({ headers: req.headers, supabase: createServiceClient(), userId });
+    if (region.sanctioned) return Response.json({ error: t("p10RegionNoModels") }, { status: 451 });
+    country = region.restricted ? region.country : null;
+  } catch (e) {
+    // Servis kaliti yo'q — faqat IP sarlavhasi.
+    console.error("[cli/chat] region:", e instanceof Error ? e.message : e);
+    const region = await resolveUserRegion({ headers: req.headers });
+    if (region.sanctioned) return Response.json({ error: t("p10RegionNoModels") }, { status: 451 });
+    country = region.restricted ? region.country : null;
+  }
+  const regionSwapped = Boolean(country && chosen && !modelAllowedIn(chosen, country));
+  const cands = regionCandidates(
+    candidates(planId, chosen, Boolean(parsed.data.tools?.length)),
+    country,
+    planId === "pro" || planId === "ultra",
+  );
+  if (!cands.length) return Response.json({ error: t("p10RegionNoModels") }, { status: 451 });
 
   // CLI ham veb chat bilan bir xil kunlik chegaraga bo'ysunadi. Har bir model
   // chaqiruvi server tomonida atomik hisoblanadi (0027 consume_message_for —
@@ -320,7 +363,15 @@ export async function POST(req: Request) {
         Number.isFinite(pt) && Number.isFinite(ct)
           ? { prompt_tokens: pt, completion_tokens: ct, total_tokens: pt + ct }
           : undefined;
-      return Response.json({ message, plan: planId, model: cand.model, provider: cand.provider, ...(usage ? { usage } : {}) });
+      return Response.json({
+        message,
+        plan: planId,
+        model: cand.model,
+        provider: cand.provider,
+        ...(usage ? { usage } : {}),
+        // Shaffoflik: tanlangan model mintaqada yopiq edi — boshqa model javob berdi (eski mijozlar e'tiborsiz qoldiradi).
+        ...(regionSwapped && chosen ? { requested: chosen, region: country, notice: t("p10RegionUnavailable") } : {}),
+      });
     }
 
     let message = `${res.status}`;

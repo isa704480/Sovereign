@@ -1,4 +1,5 @@
 import { transcribe } from "@/lib/ai/transcribe";
+import { resolveUserRegion } from "@/lib/ai/region-server";
 import { createClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { effectivePlan, getProfile } from "@/lib/auth/profile";
@@ -21,6 +22,8 @@ export async function POST(req: Request) {
   const ipRl = await rateLimit(`trs:ip:${clientIp(req)}`, 5, 60_000);
   if (!ipRl.ok) return Response.json({ error: t("chTooManyTranscribe") }, { status: 429 });
 
+  // Mintaqa (region-server.ts): cheklangan provayderning zaxira modeli chaqirilmaydi.
+  let country: string | null = null;
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
     const {
@@ -28,6 +31,8 @@ export async function POST(req: Request) {
     } = await supabase.auth.getUser();
     if (user) {
       const profile = await getProfile(supabase, user.id);
+      const region = await resolveUserRegion({ headers: req.headers, supabase, userId: user.id, onboarding: profile?.onboarding ?? null });
+      country = region.restricted ? region.country : null;
       const plan = effectivePlan(profile);
       if (!plan.limits.fullCode) {
         return Response.json({ error: t("chTranscribePro"), upgrade: "pro" }, { status: 402 });
@@ -56,7 +61,7 @@ export async function POST(req: Request) {
     // Whisper uchun til ishorasi: aniq berilmasa — interfeys tili (uz-cyrl ham "uz").
     const asked = String(form.get("language") ?? "").slice(0, 2).toLowerCase();
     const language = LANGS.has(asked) ? asked : (await getServerLang()).slice(0, 2);
-    const text = await transcribe(file, name, language);
+    const text = await transcribe(file, name, language, { country });
     return Response.json({ text });
   } catch (e) {
     // Provayderning xom xatosi (kalit qoldig'i, balans holati) faqat logga.

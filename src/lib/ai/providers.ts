@@ -4,6 +4,7 @@ import { DEFAULT_LANG, fmt, translate, type Lang, type TKey } from "@/lib/i18n";
 import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 import type { AnswerMeta } from "@/lib/chat/answer-meta";
 import { isSubstitution } from "./served";
+import { hostAllowedIn, modelAllowedIn, restrictedRegion } from "./region";
 
 /**
  * O'z serverimizdagi modellar (providerModel). Ular faqat o'z serverimizda
@@ -182,15 +183,22 @@ function providerEndpoint(p: Provider): { url: string; auth: string } {
  * Flagman modellar (Claude/GPT) bunga kirmaydi: OmniRoute "auto" ularni pullik
  * OpenRouter orqali yuborib, xarajatni oshirishi sinovda ko'rindi.
  */
-function omnirouteFirst(providerModel: string): { url: string; auth: string; model: string; provider: Provider } | null {
+function omnirouteFirst(
+  providerModel: string,
+  country?: string | null,
+): { url: string; auth: string; model: string; provider: Provider } | null {
   const base = process.env.OMNIROUTE_BASE_URL;
   if (!base || !process.env.OMNIROUTE_API_KEY) return null;
   const cheap = providerModel.endsWith(":free") || /llama|mistral-small|gemini.*flash|deepseek/i.test(providerModel);
   if (!cheap) return null;
+  const model = process.env.OMNIROUTE_MODEL ?? "auto/gemini";
+  // Mintaqa siyosati: "auto/gemini" (Google) kabi kombo cheklangan mintaqaga yuborilmaydi —
+  // so'ralgan model o'z (ruxsat etilgan) yo'lidan ketadi.
+  if (!modelAllowedIn(model, country)) return null;
   return {
     url: `${base.replace(/\/$/, "")}/chat/completions`,
     auth: process.env.OMNIROUTE_API_KEY,
-    model: process.env.OMNIROUTE_MODEL ?? "auto/gemini",
+    model,
     provider: "omniroute",
   };
 }
@@ -220,17 +228,21 @@ function rsiRoute(providerModel: string): { url: string; auth: string; model: st
 
 function pickDirectRoute(
   providerModel: string,
-  opts: { skipOmni?: boolean } = {},
+  opts: { skipOmni?: boolean; country?: string | null } = {},
 ): { url: string; auth: string; model: string; provider: Provider } | null {
+  const country = opts.country ?? null;
   if (!opts.skipOmni) {
     const viaRsi = rsiRoute(providerModel);
-    if (viaRsi) return viaRsi;
+    if (viaRsi && hostAllowedIn("rsi", country)) return viaRsi;
   }
-  const viaOmni = opts.skipOmni ? null : omnirouteFirst(providerModel);
+  const viaOmni = opts.skipOmni ? null : omnirouteFirst(providerModel, country);
   if (viaOmni) return viaOmni;
   const candidates = DIRECT_ROUTES[providerModel];
   if (!candidates) return null;
   for (const c of candidates) {
+    // Mintaqa siyosati: haqiqiy upstream model (Groq'da gpt-oss va h.k.) va host
+    // (NVIDIA NIM, LLM7, Mistral ...) ikkalasi ham shu mintaqaga ruxsat bergan bo'lsin.
+    if (!modelAllowedIn(c.model, country) || !hostAllowedIn(c.provider, country)) continue;
     if (providerAvailable(c.provider)) {
       const ep = providerEndpoint(c.provider);
       return { ...ep, model: c.model, provider: c.provider };
@@ -610,7 +622,12 @@ async function* streamFreeFallback(
 ): AsyncGenerator<StreamEvent, boolean> {
   const plain = messages.map((m) => ({ role: m.role, content: textOf(m.content) }));
 
-  for (const target of fallbackTargets()) {
+  // Mintaqa siyosati: zaxira shlyuz ham cheklangan provayderga (claude-3-haiku, "auto"
+  // kombo, LLM7'dagi Mistral) yuborilmaydi.
+  const targets = fallbackTargets().filter(
+    (tg) => modelAllowedIn(tg.model, opts.country) && hostAllowedIn(tg.name, opts.country),
+  );
+  for (const target of targets) {
     let res: Response;
     try {
       res = await fetchUpstream(
@@ -681,7 +698,7 @@ async function* streamOpenRouter(
   forced?: { url: string; auth: string; model: string; provider: Provider },
 ): AsyncGenerator<StreamEvent> {
   const cached = withPromptCache(model, messages);
-  const direct = forced ?? pickDirectRoute(model.providerModel, { skipOmni });
+  const direct = forced ?? pickDirectRoute(model.providerModel, { skipOmni, country: opts.country });
 
   // Direct route ishlatiladigan bo'lsa uni ishlatamiz — Groq / OpenAI direct
   // OpenRouter proxysidan tezroq va ishonchliroq.
@@ -712,7 +729,8 @@ async function* streamOpenRouter(
     if (model.category === "free") {
       body.models = [
         model.providerModel,
-        ...FREE_FALLBACKS.filter((m) => m !== model.providerModel).slice(0, 2),
+        // OpenRouter o'zi almashtiradigan tekin zaxiralar ham mintaqa siyosatiga bo'ysunadi.
+        ...FREE_FALLBACKS.filter((m) => m !== model.providerModel && modelAllowedIn(m, opts.country)).slice(0, 2),
       ];
     }
   }
@@ -809,6 +827,10 @@ async function* streamOpenRouter(
       if (!servedSent && !c.error?.message && c.choices?.length) {
         servedSent = true;
         const served = reportedModel(c) ?? modelId;
+        if (!modelAllowedIn(served, opts.country)) {
+          // Upstream o'zi boshqa (cheklangan) modelga yo'naltirgan — bu yo'lni yopish uchun log.
+          console.warn(`[region] upstream cheklangan modelga yo'naltirdi: ${modelId} → ${served} (${opts.country})`);
+        }
         yield { type: "served", model: served, substituted: isSubstitution(model.providerModel, served) };
       }
       if (c.error?.message) {
@@ -1047,6 +1069,11 @@ export interface StreamOptions {
    * o'tadi. Faqat oxirgi nomzod uchun true (standart: true — eski xatti-harakat).
    */
   freeRescue?: boolean;
+  /**
+   * Foydalanuvchi mintaqasi (ISO-2, serverda aniqlangan — region-server.ts). Berilsa,
+   * provayderi shu mintaqaga xizmat ko'rsatmaydigan model/host HECH QACHON chaqirilmaydi.
+   */
+  country?: string | null;
 }
 
 /** Streams a completion from OpenRouter (or Perplexity for research models). */
@@ -1088,6 +1115,13 @@ function syntheticOmniModel(id: string): SovereignModel {
 }
 
 export async function* streamCompletion(opts: StreamOptions): AsyncGenerator<StreamEvent> {
+  // Mintaqa siyosati — oxirgi himoya chizig'i: route almashtirishni o'tkazib yuborsa
+  // ham cheklangan provayder chaqirilmaydi (xato → route keyingi nomzodga o'tadi).
+  if (restrictedRegion(opts.country) && !modelAllowedIn(opts.modelId, opts.country)) {
+    const name = MODEL_BY_ID[opts.modelId]?.name ?? opts.modelId;
+    yield { type: "error", message: fmt(translate(opts.lang ?? DEFAULT_LANG, "p10RegionModelBlocked"), { model: name }) };
+    return;
+  }
   // Foydalanuvchi OmniRoute katalogidan model tanlagan bo'lsa — o'sha id bilan
   // to'g'ridan-to'g'ri OmniRoute'ga; xato bersa quyidagi zaxira zanjiri ishlaydi.
   if (isOmniCatalogId(opts.modelId)) {

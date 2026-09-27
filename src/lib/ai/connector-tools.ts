@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertPublicUrl, safeFetch } from "@/lib/ai/web-read";
 import type { ActionEffect, ActionRecord } from "@/lib/ai/claims";
+import { modelAllowedIn, REGION_SAFE } from "@/lib/ai/region";
 
 /**
  * Connector tool-calling. Javobdan OLDIN ishlaydi: model ulangan connectorlardan
@@ -29,15 +30,28 @@ type ORTool = {
  */
 const TOOL_MODEL = process.env.CONNECTOR_TOOL_MODEL ?? "google/gemini-2.5-flash";
 
-/** Tool bosqichi uchun provayder: OpenRouter → OmniRoute → Groq (mavjudiga qarab). */
-function pickToolProvider(providerModel: string | null): { url: string; auth: string; model: string; referer: boolean } | null {
+/** Cheklangan mintaqada tool bosqichi modeli (DeepSeek — tool-calling qo'llaydi, Rossiyani cheklamaydi). */
+const REGION_TOOL_MODEL = "deepseek/deepseek-v4-flash";
+
+/**
+ * Tool bosqichi uchun provayder: OpenRouter → OmniRoute → Groq (mavjudiga qarab).
+ * `country` — mintaqa siyosati (region.ts): cheklangan provayderning modeli tanlanmaydi.
+ */
+function pickToolProvider(
+  providerModel: string | null,
+  country?: string | null,
+): { url: string; auth: string; model: string; referer: boolean } | null {
   if (process.env.OPENROUTER_API_KEY) {
-    return { url: "https://openrouter.ai/api/v1/chat/completions", auth: process.env.OPENROUTER_API_KEY, model: providerModel ?? TOOL_MODEL, referer: true };
+    const wanted = providerModel ?? TOOL_MODEL;
+    const model = modelAllowedIn(wanted, country) ? wanted : REGION_TOOL_MODEL;
+    return { url: "https://openrouter.ai/api/v1/chat/completions", auth: process.env.OPENROUTER_API_KEY, model, referer: true };
   }
   const ob = process.env.OMNIROUTE_BASE_URL;
   const ok = process.env.OMNIROUTE_API_KEY;
   if (ob && ok) {
-    return { url: `${ob.replace(/\/$/, "")}/chat/completions`, auth: ok, model: process.env.OMNIROUTE_MODEL ?? "auto/gemini", referer: false };
+    const wanted = process.env.OMNIROUTE_MODEL ?? "auto/gemini";
+    const model = modelAllowedIn(wanted, country) ? wanted : REGION_SAFE.deepseek;
+    return { url: `${ob.replace(/\/$/, "")}/chat/completions`, auth: ok, model, referer: false };
   }
   if (process.env.GROQ_API_KEY) {
     return { url: "https://api.groq.com/openai/v1/chat/completions", auth: process.env.GROQ_API_KEY, model: "openai/gpt-oss-120b", referer: false };
@@ -475,6 +489,8 @@ interface RunOpts {
   messages: { role: string; content: unknown }[];
   enabled: EnabledConnector[];
   signal?: AbortSignal;
+  /** Foydalanuvchi mintaqasi (region-server.ts) — tool modeli mintaqa siyosatiga bo'ysunadi. */
+  country?: string | null;
 }
 
 function toText(content: unknown): string {
@@ -492,9 +508,9 @@ export interface ConnectorRun {
   actions: ActionRecord[];
 }
 
-export async function runConnectorTools({ supabase, userId, providerModel, messages, enabled, signal }: RunOpts): Promise<ConnectorRun> {
+export async function runConnectorTools({ supabase, userId, providerModel, messages, enabled, signal, country }: RunOpts): Promise<ConnectorRun> {
   const none: ConnectorRun = { context: null, actions: [] };
-  const prov = pickToolProvider(providerModel);
+  const prov = pickToolProvider(providerModel, country);
   if (!prov || !enabled.length) return none;
 
   const creds: Record<string, Record<string, unknown>> = Object.fromEntries(enabled.map((c) => [c.id, { ...c.config }]));

@@ -1,11 +1,14 @@
 "use client";
 
-import { Check, ChevronDown, ChevronLeft, ChevronRight, Lock, Search } from "lucide-react";
+import { Check, ChevronDown, ChevronLeft, ChevronRight, Globe2, Lock, Search } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { AUTO_MODEL, AUTO_MODEL_ID, MODEL_BY_ID, resolveModel } from "@/config/models";
 import { planAllowsTier, type Plan } from "@/config/plans";
 import { EASE } from "@/lib/motion";
+import { fmt } from "@/lib/i18n";
+import { modelAllowedIn } from "@/lib/ai/region";
+import { useRegion } from "@/hooks/use-region";
 import { cn } from "@/lib/utils";
 import { useLang, useT } from "@/store/chat";
 import { featuredLabel, featuredNote, modelPrice, modelProvider } from "@/lib/locales/chat-data";
@@ -59,6 +62,12 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
   // Katalog (OmniRoute) modellari Pro+ tarifda ochiladi. Free/Starter — qulf.
   // Tekin ✦ tavsiya modellari va Auto barcha tariflarda ochiq.
   const catalogLocked = !planAllowsTier(plan, "pro");
+  // Mintaqa siyosati: provayderi foydalanuvchi mintaqasiga xizmat ko'rsatmaydigan modellar
+  // "mavjud emas" deb ko'rsatiladi (tanlab bo'lmaydi). Cheklovning o'zi serverda (/api/chat).
+  const region = useRegion();
+  const regionCountry = region.restricted ? region.country : null;
+  const regionBlocked = (id: string) => !!regionCountry && !modelAllowedIn(id, regionCountry);
+  const regionNote = t("p10RegionUnavailable");
   // Tanlangan katalog modelining nomi (ro'yxatdan kelgan label) — tugmada id o'rniga.
   const [pickedLabel, setPickedLabel] = useState<{ id: string; label: string } | null>(null);
   // Tekin ✦ tavsiya nomlari joriy tilda har renderda hisoblanadi (reload/til almashsa ham tarjimali).
@@ -192,11 +201,13 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
               {isOmniValue ? valueLabel : model.name}
             </span>
             <span className="block text-xs" style={{ color: "var(--t-text-muted)" }}>
-              {isOmniValue
-                ? catalogLocked
-                  ? t("uxFreeModel")
-                  : t("uxCatalogModel")
-                : `${modelProvider(lang, model)} · ${modelPrice(lang, model)}`}
+              {regionBlocked(value)
+                ? regionNote
+                : isOmniValue
+                  ? catalogLocked
+                    ? t("uxFreeModel")
+                    : t("uxCatalogModel")
+                  : `${modelProvider(lang, model)} · ${modelPrice(lang, model)}`}
             </span>
           </span>
         )}
@@ -238,6 +249,18 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
               </span>
               {value === AUTO_MODEL_ID && <Check className="mt-1 size-4 shrink-0" style={{ color: "#7C6FF7" }} />}
             </button>
+
+            {/* Mintaqa: qaysi modellar ishlaydi — bitta qator tushuntirish */}
+            {regionCountry && (
+              <p
+                className="mb-1 flex items-start gap-2 rounded-xl px-2.5 py-2 text-xs"
+                style={{ background: "rgba(56,189,248,0.10)", color: "var(--t-text-muted)" }}
+                data-testid="region-banner"
+              >
+                <Globe2 className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                <span className="flex-1">{fmt(t("p10RegionBanner"), { country: regionCountry })}</span>
+              </p>
+            )}
 
             {/* Free/Starter: bitta tushuntirish — nima ochiq, nima Pro'da */}
             {catalogLocked && (
@@ -299,23 +322,28 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                       {t("chFreeRecommended")}
                       <span className="rounded-full px-1.5 py-0.5 text-[9px] font-semibold normal-case tracking-normal" style={{ background: "rgba(16,212,160,0.15)", color: "#10D4A0" }}>{t("chPerMonthTokens")}</span>
                     </div>
-                    {featured.map((m) => (
+                    {featured.map((m) => {
+                      const blocked = regionBlocked(m.id);
+                      return (
                       <button
                         key={m.id}
                         type="button"
                         aria-current={value === m.id || undefined}
+                        disabled={blocked}
                         onClick={() => choose(m.id, featuredLabel(lang, m.id, m.label))}
-                        className="tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5"
+                        className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", blocked && "cursor-not-allowed opacity-50 hover:bg-transparent")}
                         style={value === m.id ? { background: "color-mix(in srgb, #10D4A0 12%, transparent)" } : undefined}
+                        title={blocked ? regionNote : undefined}
                       >
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "rgba(16,212,160,0.18)", color: "#10D4A0" }}>✦</span>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{featuredLabel(lang, m.id, m.label)}</span>
-                          <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{featuredNote(lang, m.id, m.note)}</span>
+                          <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{blocked ? regionNote : featuredNote(lang, m.id, m.note)}</span>
                         </span>
-                        {value === m.id && <Check className="size-4 shrink-0" style={{ color: "#10D4A0" }} />}
+                        {blocked ? <Globe2 className="size-3.5 shrink-0" style={{ color: "var(--t-text-muted)" }} aria-hidden /> : value === m.id && <Check className="size-4 shrink-0" style={{ color: "#10D4A0" }} />}
                       </button>
-                    ))}
+                      );
+                    })}
                     <div className="my-1.5 h-px" style={{ background: "var(--t-border)" }} />
                   </>
                 )}
@@ -324,24 +352,35 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                 {!q && !activeFamily && (
                   <>
                     {!families && <div className="px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>{t("chLoading")}</div>}
-                    {families?.map((f) => (
+                    {families?.map((f) => {
+                      // Butun oila (Claude, GPT, Gemini ...) mintaqada yopiq — "boshqa" aralash, ichida tekshiriladi.
+                      const famBlocked = f.key !== "boshqa" && regionBlocked(f.key);
+                      return (
                       <button
                         key={f.key}
                         type="button"
+                        disabled={famBlocked}
                         onClick={() => {
                           if (catalogLocked) { upgrade(); return; }
                           setCatalog(null);
                           setActiveFamily(f);
                         }}
-                        className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", catalogLocked && "opacity-70")}
-                        title={catalogLocked ? t("chProUnlock") : undefined}
+                        className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", catalogLocked && "opacity-70", famBlocked && "cursor-not-allowed opacity-50 hover:bg-transparent")}
+                        title={famBlocked ? regionNote : catalogLocked ? t("chProUnlock") : undefined}
                       >
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "color-mix(in srgb, #7C6FF7 20%, transparent)", color: "#7C6FF7" }}>✦</span>
                         <span className="flex-1 truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{f.key === "boshqa" ? t("onbOther") : f.label}</span>
                         <span className="text-[10px]" style={{ color: "var(--t-text-muted)" }}>{f.count}</span>
-                        {catalogLocked ? <Lock className="size-3.5" style={{ color: "#F59E0B" }} /> : <ChevronRight className="size-3.5" style={{ color: "var(--t-text-muted)" }} />}
+                        {famBlocked ? (
+                          <Globe2 className="size-3.5" style={{ color: "var(--t-text-muted)" }} aria-label={regionNote} />
+                        ) : catalogLocked ? (
+                          <Lock className="size-3.5" style={{ color: "#F59E0B" }} />
+                        ) : (
+                          <ChevronRight className="size-3.5" style={{ color: "var(--t-text-muted)" }} />
+                        )}
                       </button>
-                    ))}
+                      );
+                    })}
                   </>
                 )}
 
@@ -349,7 +388,7 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                 {(q || activeFamily) && (
                   <>
                     {/* Oila "auto" — eng yaxshisini AI/OmniRoute tanlaydi */}
-                    {!q && activeFamily?.auto && (
+                    {!q && activeFamily?.auto && !regionBlocked(activeFamily.auto) && (
                       <button
                         type="button"
                         onClick={() => {
@@ -374,23 +413,26 @@ export function ModelSwitcher({ value, onChange, plan, compact }: ModelSwitcherP
                     {!loading &&
                       catalog?.models?.map((m) => {
                         const active = m.id === value;
+                        const blocked = regionBlocked(m.id);
                         return (
                           <button
                             key={m.id}
                             type="button"
                             aria-current={active || undefined}
+                            disabled={blocked}
                             onClick={() => {
                               if (catalogLocked) { upgrade(); return; }
                               choose(m.id, prettyModelId(m.id));
                             }}
-                            className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", catalogLocked && "opacity-70")}
+                            className={cn("tt flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-white/5", catalogLocked && "opacity-70", blocked && "cursor-not-allowed opacity-50 hover:bg-transparent")}
                             style={active ? { background: "color-mix(in srgb, #7C6FF7 14%, transparent)" } : undefined}
-                            title={catalogLocked ? t("chProUnlock") : undefined}
+                            title={blocked ? regionNote : catalogLocked ? t("chProUnlock") : undefined}
                           >
                             <span className="flex size-6 shrink-0 items-center justify-center rounded-md text-xs" style={{ background: "color-mix(in srgb, #7C6FF7 20%, transparent)", color: "#7C6FF7" }}>✦</span>
                             <span className="min-w-0 flex-1">
                               <span className="block truncate text-xs font-medium" style={{ color: "var(--t-text)" }}>{prettyModelId(m.id)}</span>
                               <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>
+                                {blocked ? `${regionNote} · ` : ""}
                                 {[publicOwner(m.owner), m.context ? `${Math.round(m.context / 1000)}k` : ""].filter(Boolean).join(" · ")}
                                 {m.tools ? <span title={t("uxCapTools")}> · 🔧</span> : null}
                                 {m.vision ? <span title={t("uxCapVision")}> · 👁</span> : null}
