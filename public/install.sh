@@ -12,6 +12,7 @@
 #   SOV_VERSION=cli-v0.10.0   aniq reliz (standart: eng so'nggi cli-v* reliz)
 #   SOV_NO_MODIFY_PATH=1      shell profiliga PATH qo'shmaslik
 #   SOV_DOWNLOAD_BASE=https://...  binary manzili (mirror/test; <base>/sov-linux-x64 ...)
+#   SOV_SITE=https://soveregn.xyz  GitHub API ishlamasa reliz shu saytning /api/download/cli orqali topiladi
 set -eu
 
 PKG="@islombekrrr/sov-cli"
@@ -119,6 +120,31 @@ sha256_of() {
   fi
 }
 
+# GitHub API ishlamasa (rate limit) — sayt redirect'i orqali eng so'nggi cli-v* reliz.
+# /api/download/cli?os=linux|mac&arch=x64|arm64 → 302 github.com/<repo>/releases/download/cli-vX/<name>.
+# Faqat shu repo'ning cli-v* reliz manzili qabul qilinadi (checksum ham o'sha tegdan olinadi).
+# ("releases/latest/download" ISHLATILMAYDI: "latest" — desktop-v* relizi, unda sov-* yo'q.)
+site_base() {
+  name="$1"
+  case "$name" in
+    sov-linux-*) o=linux ;;
+    sov-macos-*) o=mac ;;
+    *) return 1 ;;
+  esac
+  a=${name##*-}
+  url="${SOV_SITE:-https://soveregn.xyz}/api/download/cli?os=$o&arch=$a"
+  loc=""
+  if has curl; then
+    loc=$(curl -sS -o /dev/null -w '%{redirect_url}' "$url" 2>/dev/null || true)
+  elif has wget; then
+    loc=$(wget -q -S --max-redirect=0 -O /dev/null "$url" 2>&1 | awk 'tolower($1)=="location:"{print $2}' | tail -n 1 | tr -d '\r')
+  fi
+  case "$loc" in
+    "https://github.com/$REPO/releases/download/cli-v"*"/$name") echo "${loc%/*}" ;;
+    *) return 1 ;;
+  esac
+}
+
 # Eng so'nggi CLI relizi (cli-v*) — repo'da boshqa relizlar ham bo'lishi mumkin.
 release_base() {
   if [ -n "${SOV_DOWNLOAD_BASE:-}" ]; then
@@ -139,20 +165,30 @@ release_base() {
   tag=$(printf '%s' "$json" | grep -o '"tag_name": *"cli-v[^"]*"' | head -n 1 | sed 's/.*"\(cli-v[^"]*\)"$/\1/')
   if [ -n "$tag" ]; then
     echo "https://github.com/$REPO/releases/download/$tag"
-  else
-    echo "https://github.com/$REPO/releases/latest/download"
+    return 0
   fi
+  if site_base "$1"; then
+    return 0
+  fi
+  err "could not find the latest CLI release (GitHub API unavailable). Retry later or set SOV_VERSION=cli-vX.Y.Z"
+  return 1
 }
 
 install_binary() {
   name=$(detect_target) || return 1
-  base=$(release_base)
+  base=$(release_base "$name") || return 1
   TMP_DIR=$(mktemp -d 2>/dev/null || mktemp -d -t sov)
   say "Downloading $name ..."
   download "$base/$name" "$TMP_DIR/$name" || { err "download failed: $base/$name"; return 1; }
-  download "$base/$name.sha256" "$TMP_DIR/$name.sha256" || { err "checksum file missing: $base/$name.sha256"; return 1; }
-
-  expected=$(awk '{print $1}' "$TMP_DIR/$name.sha256" | tr 'A-F' 'a-f')
+  # Checksum: <name>.sha256, bo'lmasa shu relizning umumiy SHA256SUMS fayli.
+  if download "$base/$name.sha256" "$TMP_DIR/$name.sha256" 2>/dev/null; then
+    expected=$(awk '{print $1}' "$TMP_DIR/$name.sha256" | tr 'A-F' 'a-f')
+  elif download "$base/SHA256SUMS" "$TMP_DIR/SHA256SUMS"; then
+    expected=$(awk -v n="$name" '{f=$2; sub(/^\*/, "", f); if (f==n) {print $1; exit}}' "$TMP_DIR/SHA256SUMS" | tr 'A-F' 'a-f')
+  else
+    err "checksum file missing: $base/$name.sha256 (and SHA256SUMS)"
+    return 1
+  fi
   actual=$(sha256_of "$TMP_DIR/$name") || { err "no sha256 tool (sha256sum/shasum/openssl) — refusing to install an unverified binary"; return 1; }
   if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
     err "SHA256 mismatch for $name (expected $expected, got $actual) — not installed"

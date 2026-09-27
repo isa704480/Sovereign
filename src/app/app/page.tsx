@@ -21,6 +21,8 @@ export default async function AppPage({ searchParams }: PageProps<"/app">) {
   const paymentReturn = paidParam === "1" ? "success" : paidParam === "0" ? "failed" : null;
   // Landing'dagi to'lov chipi: /app?checkout=card|crypto|sbp — tarif oynasi shu usul bilan ochiladi.
   const checkoutMethod = sp.checkout === "card" || sp.checkout === "crypto" || sp.checkout === "sbp" ? sp.checkout : null;
+  // Google connector callback'i: saqlanmadi (server sozlanmagan / boshqa xato).
+  const connectError = sp.connect_error === "server" || sp.connect_error === "failed" ? sp.connect_error : null;
 
   // Local design preview without Supabase (development only).
   if (!isSupabaseConfigured()) {
@@ -70,6 +72,7 @@ export default async function AppPage({ searchParams }: PageProps<"/app">) {
       planRenews={renews}
       paymentReturn={paymentReturn}
       checkoutMethod={checkoutMethod}
+      connectError={connectError}
     />
   );
 }

@@ -6,7 +6,10 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import {
+  ConnectorKeyMissingError,
+  connectorSaveErrorCode,
   hasPlaintextSecret,
+  isConnectorKeyMissing,
   isSealed,
   sealConnectorConfig,
   sealField,
@@ -49,11 +52,28 @@ function withKeys(cur: string | undefined, prev: string | undefined, fn: () => v
   }
 }
 
-test("kalitsiz: sealField o'zgartirmaydi, unsealField ochiqni qaytaradi", () =>
+test("kalitsiz: sealField ochiq yozmaydi (ConnectorKeyMissingError), unsealField ochiqni qaytaradi", () =>
   withKeys(undefined, undefined, () => {
-    assert.equal(tokenCryptoEnabled(), false);
-    assert.equal(sealField("ghp_abc", U, "github", "token"), "ghp_abc");
-    assert.equal(unsealField("ghp_abc", U, "github", "token"), "ghp_abc");
+    const err = console.error;
+    const logs: unknown[] = [];
+    console.error = (...a: unknown[]) => void logs.push(a);
+    try {
+      assert.equal(tokenCryptoEnabled(), false);
+      assert.throws(() => sealField("ghp_abc", U, "github", "token"), ConnectorKeyMissingError);
+      assert.throws(() => sealField("ghp_abc", U, "github", "token"), (e: unknown) => isConnectorKeyMissing(e));
+      assert.throws(() => sealConnectorConfig(U, "gmail", { oauth: true, token: "ya29.x" }), ConnectorKeyMissingError);
+      // Faqat bir marta log (qiymatsiz)
+      assert.equal(logs.length, 1);
+      assert.ok(!JSON.stringify(logs).includes("ghp_abc"));
+      // Maxfiy maydonsiz config (builtin/toggle) — xato yo'q
+      assert.deepEqual(sealConnectorConfig(U, "cli", { builtin: true }), { builtin: true });
+      assert.deepEqual(sealConnectorConfig(U, "gmail", { token: null, refresh: "" }), { token: null, refresh: "" });
+      // Allaqachon shifrlangan qiymat kalitsiz ham o'zgarmaydi
+      assert.equal(sealField("enc:v1:a:b:c:d", U, "github", "token"), "enc:v1:a:b:c:d");
+      assert.equal(unsealField("ghp_abc", U, "github", "token"), "ghp_abc");
+    } finally {
+      console.error = err;
+    }
   }));
 
 test("aylanma: seal → unseal (base64 va hex kalit)", () => {
@@ -127,6 +147,14 @@ test("config: token/refresh shifrlanadi, meta/oauth/url o'zgarmaydi; ochib bo'lm
     const n = sealConnectorConfig(U, "gmail", { token: "at", refresh: null });
     assert.equal(n.refresh, null);
   }));
+
+test("saqlash xatosi kodi: kalit yo'q / trigger rad etdi / boshqa", () => {
+  assert.equal(connectorSaveErrorCode(new ConnectorKeyMissingError()), "connector_key_missing");
+  assert.equal(connectorSaveErrorCode({ message: "connector secrets must be sealed by the server" }), "connector_key_missing");
+  assert.equal(connectorSaveErrorCode({ message: "duplicate key" }), "save_failed");
+  assert.equal(connectorSaveErrorCode(null), "save_failed");
+  assert.equal(connectorSaveErrorCode(new Error("boom")), "save_failed");
+});
 
 console.log(`${passed} o'tdi, ${failed} yiqildi`);
 if (failed) process.exit(1);

@@ -60,6 +60,8 @@ interface DashboardProps {
   paymentReturn?: "success" | "failed" | null;
   /** Landing'dagi to'lov chipi (/app?checkout=crypto) — tarif oynasi shu usul bilan ochiladi. */
   checkoutMethod?: "card" | "crypto" | "sbp" | null;
+  /** /app?connect_error=server|failed — Google connector saqlanmadi (auth/callback). */
+  connectError?: "server" | "failed" | null;
 }
 
 /** Tariflar tartibi (past → yuqori) — "kerakli tarif" tavsiyasi uchun. */
@@ -69,7 +71,7 @@ const PLAN_ORDER: PlanId[] = ["free", "starter", "pro", "ultra"];
 const PAID_POLL_TRIES = 15;
 const PAID_POLL_MS = 4000;
 
-export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null, planExpiresAt = null, paidPlan = "free", planRenews = false, paymentReturn = null, checkoutMethod = null }: DashboardProps) {
+export function Dashboard({ user, defaultModelId, initialConversations, isDev, plan: planId = "free", memoryEnabled: memoryInit = true, planState = "free", daysLeft = null, planExpiresAt = null, paidPlan = "free", planRenews = false, paymentReturn = null, checkoutMethod = null, connectError = null }: DashboardProps) {
   const router = useRouter();
   const plan = PLAN_BY_ID[planId] ?? PLAN_BY_ID.free;
   // Barqaror t — useCallback bog'liqliklari har renderda yangilanmasin.
@@ -479,6 +481,19 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
     return () => clearInterval(id);
   }, [payShown, router]);
 
+  // Connector saqlanmadi (?connect_error=) — xabar; URL tozalanadi (reload qayta ko'rsatmasin).
+  const [connectNotice, setConnectNotice] = useState(connectError);
+  useEffect(() => {
+    if (!connectError) return;
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("connect_error");
+      window.history.replaceState(null, "", `${url.pathname}${url.search}${url.hash}`);
+    } catch {
+      /* ignore */
+    }
+  }, [connectError]);
+
   // Tarif faollashgach xabar o'zi yopiladi.
   useEffect(() => {
     if (payShown !== "active") return;
@@ -710,6 +725,36 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
               <button
                 type="button"
                 onClick={() => setPayNotice(null)}
+                className="min-h-8 shrink-0 rounded-lg px-2 transition-colors hover:bg-white/10"
+                style={{ color: "var(--t-text-muted)" }}
+                aria-label={t("p3bDismiss")}
+                title={t("p3bDismiss")}
+              >
+                <X className="size-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Connector saqlanmadi (?connect_error=server|failed) */}
+        <AnimatePresence>
+          {connectNotice && !payShown && (
+            <motion.div
+              key={connectNotice}
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.2, ease: EASE }}
+              role="alert"
+              className="tt fixed left-1/2 top-4 z-50 flex w-[min(92vw,520px)] -translate-x-1/2 items-start gap-3 border py-2.5 pl-4 pr-2 text-sm shadow-lg"
+              style={{ background: "var(--t-surface)", borderColor: "var(--error, #E0554E)", borderRadius: 14, color: "var(--t-text)" }}
+            >
+              <span className="min-w-0 flex-1 py-1">
+                {connectNotice === "server" ? t("p19ConnKeyMissing") : t("p19ConnSaveFailed")}
+              </span>
+              <button
+                type="button"
+                onClick={() => setConnectNotice(null)}
                 className="min-h-8 shrink-0 rounded-lg px-2 transition-colors hover:bg-white/10"
                 style={{ color: "var(--t-text-muted)" }}
                 aria-label={t("p3bDismiss")}

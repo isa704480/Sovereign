@@ -44,7 +44,14 @@ export async function saveRefreshedToken(
   config: Record<string, unknown>,
   token: string,
 ): Promise<void> {
-  const sealed = sealConnectorConfig(userId, connectorId, { ...config, token });
+  let sealed: Record<string, unknown>;
+  try {
+    sealed = sealConnectorConfig(userId, connectorId, { ...config, token });
+  } catch (e) {
+    // Kalit yo'q (ConnectorKeyMissingError) — ochiq token yozilmaydi; yangi token faqat shu so'rovda ishlatiladi.
+    console.error("[connectors] refresh saqlanmadi:", e instanceof Error ? e.message : "unknown");
+    return;
+  }
   const { error } = await supabase
     .from("connector_accounts")
     .update({ config: sealed })
