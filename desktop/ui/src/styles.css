@@ -330,6 +330,7 @@ button.update-card:hover { border-color: var(--accent-soft); filter: brightness(
 .s-ok > svg { color: var(--ok); } .s-failed > svg { color: var(--err); } .s-declined > svg { color: var(--warn); } .s-skipped > svg { color: var(--faint); }
 .s-failed, .s-declined { color: var(--text); }
 .ledger-reads { display: flex; align-items: center; gap: 6px; }
+.ledger-project { display: flex; flex-direction: column; gap: 4px; }
 /* vazifa narxi: token · qadam */
 .usage-line { display: flex; align-items: center; justify-content: flex-end; gap: 5px; font-size: 11.5px; margin-top: -4px; }
 

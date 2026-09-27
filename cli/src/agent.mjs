@@ -20,10 +20,13 @@ import {
   FULL_AUTO_MAX_NUDGES,
   fullAutoNudge,
   stallNudge,
+  projectCheckNudge,
+  isProjectCodeFile,
 } from "./tools.mjs";
 import { c, spinner, renderMarkdown, markdownStream } from "./ui.mjs";
 import { memorySystemMessage } from "./memory.mjs";
-import { projectMemoryMessage } from "./project-memory.mjs";
+import { projectMemoryMessage, refreshProjectMessage } from "./project-memory.mjs";
+import { projectCheckStatus, projectClaimIssue, projectClaimText, projectJudgeLines } from "./project-rules.mjs";
 import { shouldVerify, verifyClaims } from "./verify.mjs";
 import { withCommandSnapshots, cliSnapshotStore } from "./snapshot.mjs";
 import { chat as ollamaChat, capabilities as ollamaCapabilities, classifyServerError, isValidModelName } from "./ollama.mjs";
@@ -334,10 +337,19 @@ async function runRound(messages, config, onText, signal) {
  * "Aslida nima bo'ldi" — modelning so'zlariga emas, vosita natijalariga
  * asoslangan xulosa. Faqat iz qoldiruvchi amal yoki muammo bo'lsa chiqadi.
  */
-function printLedger(entries, { note = "", regexWarn = null, judge = null, usage = null } = {}) {
+/** SOVEREIGN.md tekshiruv buyruqlarining jurnal bo'yicha holati (modelning so'zlari emas). */
+const PROJECT_STATUS = {
+  ok: ["✓", "green", "bajarildi (exit 0)"],
+  failed: ["✕", "red", "xato bilan tugadi"],
+  declined: ["⊘", "amber", "rad etildi — bajarilmadi"],
+  stale: ["↺", "amber", "kod keyin o'zgargan — natija eskirgan"],
+  notRun: ["○", "amber", "ishga tushirilmadi"],
+};
+
+function printLedger(entries, { note = "", regexWarn = null, judge = null, usage = null, project = null } = {}) {
   const worth = ledgerWorthShowing(entries);
   const judgeHits = judge?.unsupported ?? [];
-  if (!worth && !regexWarn && !note && !judgeHits.length) {
+  if (!worth && !regexWarn && !note && !judgeHits.length && !project?.length) {
     if (usage) console.log(usageLine(usage) + "\n");
     return;
   }
@@ -345,6 +357,13 @@ function printLedger(entries, { note = "", regexWarn = null, judge = null, usage
   if (worth) {
     console.log("   " + c.dim("Aslida nima bo'ldi (tizim jurnali):"));
     for (const l of ledgerLines(entries)) console.log(`     ${icon[l.status] ?? "•"} ${c.dim(l.text)}`);
+  }
+  if (project?.length) {
+    console.log("   " + c.dim("SOVEREIGN.md buyruqlari (jurnal bo'yicha):"));
+    for (const s of project) {
+      const [mark, color, text] = PROJECT_STATUS[s.status] ?? PROJECT_STATUS.notRun;
+      console.log(`     ${c[color](mark)} ${c.dim(`${visible(s.label)}: ${visible(s.command)} — ${text}`)}`);
+    }
   }
   if (note) console.log("   " + c.amber("⚠ " + note));
   if (regexWarn) console.log("   " + c.amber("⚠ Diqqat: " + regexWarn + " Jurnalga ishoning."));
@@ -375,15 +394,18 @@ function usageLine(u) {
  * ogohlantirishni u bekor qila olmaydi (javob matnidagi prompt-injection hakamni
  * "hammasi joyida" deyishga majburlasa ham regex ogohlantirishi qoladi).
  */
-async function checkHonesty(entries, finalText, { config, signal, verify, print, answerModel = null }) {
-  // Har rejimda: "bajardim" da'vosi + "testlar o'tdi" da'vosi (test yo'q / eskirgan / yiqilgan).
+async function checkHonesty(entries, finalText, { config, signal, verify, print, answerModel = null, project = null }) {
+  // Har rejimda: "bajardim" da'vosi + "testlar o'tdi" da'vosi (test yo'q / eskirgan / yiqilgan)
+  // + SOVEREIGN.md tekshiruvida bajarilmagan buyruq "✅" deb belgilanganmi.
   const tests = finalText ? testClaimIssue(finalText, entries) : null;
-  const regexWarn = finalText ? [unsupportedClaim(finalText, entries), testClaimText(tests)].filter(Boolean).join(" ") || null : null;
+  const projectIssue = finalText ? projectClaimIssue(finalText, project) : null;
+  const regexWarn = finalText ? [unsupportedClaim(finalText, entries), testClaimText(tests), projectClaimText(projectIssue)].filter(Boolean).join(" ") || null : null;
   let judge = null;
   // Mahalliy rejimda hakam (server) chaqirilmaydi — javob matni kompyuterdan chiqmasin.
   if (verify && finalText && config?.token && !config?.local && !signal?.aborted && shouldVerify(entries, regexWarn)) {
     const spin = print ? spinner("javob jurnal bilan solishtirilyapti...") : null;
-    judge = await verifyClaims(config, { answer: finalText, entries, signal, answerModel: answerModel ?? undefined });
+    // Hakam ham ishga tushirilmagan / eskirgan SOVEREIGN.md buyrug'ini "bajarildi" deb qabul qilmasin.
+    judge = await verifyClaims(config, { answer: finalText, entries, signal, answerModel: answerModel ?? undefined, extraLines: projectJudgeLines(project) });
     spin?.stop();
   }
   return { regexWarn, judge, tests };
@@ -502,6 +524,16 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
   let finalModel = null;
   let nudges = 0; // full auto: "vazifa tugamagan" avtomatik davom ettirishlar
   const nudgeState = {};
+  // SOVEREIGN.md tekshiruvi bo'lgan bo'lsa — buyruqlarning jurnal bo'yicha haqiqiy holati.
+  const projectStatus = () => (nudgeState.projectRules ? projectCheckStatus(nudgeState.projectRules, tracker.entries, { isCodeFile: isProjectCodeFile }) : null);
+  // SOVEREIGN.md suhbat davomida (muharrirda) o'zgargan bo'lishi mumkin — system xabari har navbatda diskdan yangilanadi.
+  if (messages.some((m) => m.role === "system")) {
+    try {
+      refreshProjectMessage(messages);
+    } catch {
+      /* o'qib bo'lmadi — eski xabar qoladi */
+    }
+  }
 
   const localName = () => (config.local && typeof config.local === "object" ? config.local.model : null);
   const finishAborted = () => {
@@ -571,6 +603,17 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
     }
 
     if (!round.toolCalls.length) {
+      // SOVEREIGN.md: kod yozilgan bo'lsa — yakunlashdan oldin qoidalar diskdan qayta o'qilib, BIR MARTA
+      // tekshiruv eslatmasi (buyruqlar oddiy tasdiq / Full auto tartibida ishga tushadi).
+      const pc = projectCheckNudge(tracker.entries, nudgeState);
+      if (pc) {
+        messages.push({ role: "user", content: pc.text });
+        if (print) {
+          const parts = [pc.rules.checks.length && `${pc.rules.checks.length} ta buyruq`, (pc.rules.rules.length + pc.rules.notes.length) && `${pc.rules.rules.length + pc.rules.notes.length} ta qoida`].filter(Boolean);
+          console.log("\n  " + c.dim(`▸ SOVEREIGN.md qoidalari tekshirilmoqda${parts.length ? ` (${parts.join(", ")})` : ""}`));
+        }
+        continue;
+      }
       // FULL AUTO: oxirgi buyruq yiqilgan yoki model "tekshiraman" deb to'xtagan — so'ramasdan davom.
       const nudge = fullAuto && nudges < FULL_AUTO_MAX_NUDGES ? fullAutoNudge(tracker.entries, text, nudgeState) : null;
       if (nudge) {
@@ -580,9 +623,10 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
         continue;
       }
       if (print) process.stdout.write("\n");
-      const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print, answerModel: finalModel });
-      printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge, usage: usage() });
-      return { done: true, ledger: tracker.entries, final: text, usage: usage(), honesty: honestyOut(h), local: localName() };
+      const project = projectStatus();
+      const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print, answerModel: finalModel, project });
+      printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge, usage: usage(), project });
+      return { done: true, ledger: tracker.entries, final: text, usage: usage(), honesty: honestyOut(h), local: localName(), projectCheck: project };
     }
 
     // Model asked for tools — narrate & run each, then loop.
@@ -633,14 +677,16 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
       return { done: true, loop: tracker.loop, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty, local: localName() };
     }
   }
-  const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print, answerModel: finalModel });
+  const project = projectStatus();
+  const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print, answerModel: finalModel, project });
   printLedger(tracker.entries, {
     note: `Qadamlar chegarasi (${maxSteps}) tugadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin. "davom et" deb yozing.`,
     regexWarn: h.regexWarn,
     judge: h.judge,
     usage: usage(),
+    project,
   });
-  return { done: true, ledger: tracker.entries, truncated: true, final, usage: usage(), honesty: honestyOut(h), local: localName() };
+  return { done: true, ledger: tracker.entries, truncated: true, final, usage: usage(), honesty: honestyOut(h), local: localName(), projectCheck: project };
 }
 
 /** Bitta javob — vositalarsiz, oqimsiz. Parallel rejim uchun. */

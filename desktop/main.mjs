@@ -27,6 +27,8 @@ import {
   fullAutoDenyReason,
   fullAutoNudge,
   stallNudge,
+  projectCheckNudge,
+  isProjectCodeFile,
   FULL_AUTO_MAX_NUDGES,
   FULL_AUTO_RULE,
   HONESTY_RULE,
@@ -36,6 +38,7 @@ import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mj
 import { shouldVerify, verifyClaims } from "../cli/src/verify.mjs";
 import { SnapshotStore, withCommandSnapshots } from "../cli/src/snapshot.mjs";
 import * as projectMemory from "../cli/src/project-memory.mjs";
+import { projectCheckStatus, projectClaimIssue, projectJudgeLines } from "../cli/src/project-rules.mjs";
 import { registerProjectIpc } from "./electron/project.mjs";
 import { runAudit, auditPrompt, AUDIT_LANGS } from "../cli/src/audit.mjs";
 
@@ -143,7 +146,7 @@ const pendingChoices = new Map();
 // ---- Vazifa (task) va hodisalar --------------------------------------------
 // Joriy vazifaning UI hodisalari tarixga yoziladi — keyin ekranni qayta tiklash uchun.
 // inquiry / inquiry-state — savol kartasi va uning holati; local — "Mahalliy model · <nom>" belgisi (halollik).
-const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped", "inquiry", "inquiry-state", "local"]);
+const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped", "inquiry", "inquiry-state", "local", "project-check"]);
 let currentTask = null;
 
 function send(type, payload = {}) {
@@ -256,13 +259,16 @@ function askConfirm(question, forcePrompt = false, meta = null) {
   // satr-ichi kod — Full auto'da ham ODDIY tasdiq oynasi (full-auto.mjs; bu sandbox emas).
   if (fullAutoActive()) {
     // fullAutoDeny (cli/src/tools.mjs): sessiyadan keyin o'zi ishga tushadigan fayl (CI, git hook, …) — rad.
+    // protect: SOVEREIGN.md "Tegma" ro'yxatidagi yo'l (cli/src/project-rules.mjs) — rad.
     const denied = meta?.outside
       ? "outside"
-      : meta?.fullAutoDeny
-        ? "autorun"
-        : meta?.tool === "run_command" && fullAutoDenyReason(meta.command)
-          ? "command"
-          : null;
+      : meta?.protect
+        ? "protect"
+        : meta?.fullAutoDeny
+          ? "autorun"
+          : meta?.tool === "run_command" && fullAutoDenyReason(meta.command)
+            ? "command"
+            : null;
     const mustAsk = denied ? null : fullAutoMustAsk(meta, rel);
     if (!mustAsk) {
       if (denied && createdId) dropBackup(createdId);
@@ -569,13 +575,14 @@ function progressFor(turn) {
  * kompaniyasidan BOSHQA kompaniya. Faqat kerak bo'lganda (regex shubha / yozish amali);
  * offline, xato yoki timeout — null (jurnal kartasi regex natijasi bilan qoladi).
  */
-async function judgeTurn(entries, finalText, config, turn, answerModel) {
+async function judgeTurn(entries, finalText, config, turn, answerModel, project = null) {
   const text = String(finalText ?? "").trim();
   // Mahalliy rejimda hakam yo'q (serverga hech narsa ketmaydi) — ledger'da `local` bilan ochiq aytiladi.
   if (!text || turn.local || !config?.token || !config?.baseUrl || !netAllowed(config.baseUrl) || turn.aborted) return null;
-  const regexWarn = unsupportedClaim(text, entries) || testClaimIssue(text, entries);
+  const regexWarn = unsupportedClaim(text, entries) || testClaimIssue(text, entries) || projectClaimIssue(text, project);
   if (!shouldVerify(entries, regexWarn)) return null;
-  const r = await verifyClaims(config, { answer: text, entries, signal: turn.controller.signal, answerModel: answerModel ?? undefined });
+  // SOVEREIGN.md buyrug'i ishga tushirilmagan / eskirgan bo'lsa — hakam ham uni "o'tdi" deb qabul qilmasin.
+  const r = await verifyClaims(config, { answer: text, entries, signal: turn.controller.signal, answerModel: answerModel ?? undefined, extraLines: projectJudgeLines(project) });
   if (!r) return null;
   return { unsupported: r.unsupported, vendor: r.judgeVendorLabel || r.judgeVendor || null, vendorId: r.judgeVendor ?? null };
 }
@@ -589,12 +596,15 @@ async function judgeTurn(entries, finalText, config, turn, answerModel) {
  * judge: mustaqil hakam natijasi — {unsupported: string[], vendor: "Alibaba (Qwen)" | null, vendorId} yoki null.
  * local: mahalliy model nomi (mustaqil tekshiruv o'tkazilmadi — "mahalliy model") yoki null.
  */
-function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0, loop = null, budget = null, judge = null, local = null } = {}) {
+function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0, loop = null, budget = null, judge = null, local = null, project = null } = {}) {
   const warn = unsupportedClaim(finalText, entries);
   const testWarning = testClaimIssue(finalText, entries);
+  // project: SOVEREIGN.md tekshiruv buyruqlarining jurnal bo'yicha holati (ok|failed|declined|stale|notRun);
+  // projectWarning: javobda muvaffaqiyatli bajarilmagan buyruq "bajarildi" deb belgilangan.
+  const projectWarning = projectClaimIssue(finalText, project);
   const show = ledgerWorthShowing(entries);
-  if (!show && !warn && !testWarning && !noteCode && !judge?.unsupported?.length) return;
-  send("ledger", { entries: show ? entries : [], warning: warn ?? null, testWarning, noteCode, maxSteps, loop, budget, judge, local });
+  if (!show && !warn && !testWarning && !noteCode && !judge?.unsupported?.length && !project?.length) return;
+  send("ledger", { entries: show ? entries : [], warning: warn ?? null, testWarning, noteCode, maxSteps, loop, budget, judge, local, project, projectWarning });
 }
 
 /** Vazifa narxi: token va qadamlar (UI jurnal ostida ko'rsatadi). Mahalliy model — "server tokeni sarflanmadi". */
@@ -627,6 +637,8 @@ async function agentTurn(messages, config, turn) {
   const confirm = confirmFor(turn);
   let nudges = 0; // full auto: "vazifa tugamagan" avtomatik davom ettirishlar
   const nudgeState = {};
+  // SOVEREIGN.md tekshiruvi bo'lgan bo'lsa — buyruqlarning jurnal bo'yicha haqiqiy holati (tracker pastda yaratiladi).
+  const projectStatus = () => (nudgeState.projectRules ? projectCheckStatus(nudgeState.projectRules, tracker.entries, { isCodeFile: isProjectCodeFile }) : null);
   const fbState = { server: 0 }; // ketma-ket 5xx hisoblagichi (mahalliy zaxira uchun)
   const localName = () => turn.local?.model ?? null;
   // signal: "To'xtatish" / yangi vazifa / papka almashtirish ishlayotgan buyruqni ham
@@ -674,6 +686,14 @@ async function agentTurn(messages, config, turn) {
       send("text", { text: round.message.content });
     }
     if (!round.toolCalls.length) {
+      // SOVEREIGN.md: kod yozilgan bo'lsa — yakunlashdan oldin qoidalar diskdan qayta o'qilib, BIR MARTA
+      // tekshiruv eslatmasi (buyruqlar oddiy tasdiq / Full auto tartibida). Suhbatda qadam izohi ko'rinadi.
+      const pc = workspace ? projectCheckNudge(tracker.entries, nudgeState, workspace) : null;
+      if (pc) {
+        messages.push({ role: "user", content: pc.text });
+        send("project-check", { commands: pc.rules.checks.length, rules: pc.rules.rules.length + pc.rules.notes.length, protect: pc.rules.protect.length });
+        continue;
+      }
       // FULL AUTO: oxirgi buyruq yiqilgan yoki model "tekshiraman" deb to'xtagan — so'ramasdan davom.
       const nudge = fullAuto && nudges < FULL_AUTO_MAX_NUDGES ? fullAutoNudge(tracker.entries, round.message.content ?? "", nudgeState) : null;
       if (nudge) {
@@ -688,9 +708,10 @@ async function agentTurn(messages, config, turn) {
         continue;
       }
       const finalText = round.message.content ?? "";
-      const judge = await judgeTurn(tracker.entries, finalText, config, turn, round.model);
+      const project = projectStatus();
+      const judge = await judgeTurn(tracker.entries, finalText, config, turn, round.model, project);
       if (turn.aborted) return "stopped";
-      sendLedger(tracker.entries, { finalText, judge, local: localName() });
+      sendLedger(tracker.entries, { finalText, judge, local: localName(), project });
       sendUsage(meter, turn);
       send("done");
       return "done";
@@ -734,7 +755,7 @@ async function agentTurn(messages, config, turn) {
     }
   }
   if (turn.aborted) return "stopped";
-  sendLedger(tracker.entries, { noteCode: "steps", maxSteps, local: localName() });
+  sendLedger(tracker.entries, { noteCode: "steps", maxSteps, local: localName(), project: projectStatus() });
   sendUsage(meter, turn);
   send("done");
   return "done";
@@ -1194,6 +1215,14 @@ on("agent:send", async (_e, payload) => {
   const turn = { aborted: false, controller: new AbortController(), local, localRounds: 0, addendum: "", mode: runMode };
   activeTurn = turn;
   const messages = session.messages;
+  // SOVEREIGN.md suhbat davomida muharrirda o'zgargan bo'lishi mumkin — system xabari har navbatda diskdan yangilanadi.
+  if (workspace) {
+    try {
+      projectMemory.refreshProjectMessage(messages, workspace);
+    } catch {
+      /* o'qib bo'lmadi — eski xabar qoladi */
+    }
+  }
   const firstOfTask = !messages.some((x) => x.role === "user");
   if (!retry) {
     messages.push({ role: "user", content: body });

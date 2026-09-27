@@ -200,7 +200,8 @@ export function projectTemplate(dir = process.cwd()) {
   return [
     `# ${name} — loyiha xotirasi`,
     "",
-    "> Bu faylni SOVEREIGN agenti (CLI va Cowork) har suhbat boshida o'qiydi.",
+    "> Bu faylni SOVEREIGN agenti (CLI va Cowork) har xabarda o'qiydi. Kod yozgandan keyin u Test/Build/Lint",
+    "> buyruqlarini ishga tushiradi va har qoida bo'yicha hisobot beradi; \"Tegma\" yo'llari har doim so'raladi.",
     "> Git'ga commit qiling — jamoadagi hamma va har bir AI sessiya shu qoidalardan boshlaydi.",
     `> Qisqa yozing (${PROJECT_MAX_BYTES / 1024} KB gacha). Kalit, parol, token kabi maxfiy ma'lumot YOZMANG.`,
     "",
@@ -223,7 +224,7 @@ export function projectTemplate(dir = process.cwd()) {
     "- O'zgarishdan keyin testlarni ishga tushir.",
     "",
     "## Tegma",
-    "- (o'zgartirilmasligi kerak bo'lgan fayl va papkalar, mas. generatsiya qilingan kod, migratsiyalar)",
+    "- (o'zgartirilmasligi kerak bo'lgan fayl va papkalar, mas. `migrations/`, `src/generated/**`, `*.lock`)",
     "",
     NOTES_HEADING,
     "",

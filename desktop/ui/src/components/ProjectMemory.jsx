@@ -8,7 +8,8 @@ const ERRORS = ["empty", "duplicate", "unsafe", "too-long", "no-folder", "open",
 
 /**
  * Loyiha xotirasi (SOVEREIGN.md): jamoa qoidalari, git orqali ulashiladi.
- * Agent uni har suhbat boshida o'qiydi. Bu yerda — holat, muharrirda ochish,
+ * Agent uni har xabarda diskdan qayta o'qiydi; kod yozgandan keyin qoidalar bo'yicha tekshiruv
+ * o'tkazadi, "Tegma" yo'llari esa har doim so'raladi (cli/src/project-rules.mjs). Bu yerda — holat, muharrirda ochish,
  * shablon yaratish va eslatma qo'shish (fayl yo'li main jarayonda hisoblanadi).
  */
 export default function ProjectMemory({ cwd, toast }) {
@@ -78,6 +79,7 @@ export default function ProjectMemory({ cwd, toast }) {
         <span className={`pill ${exists ? "pill-ok" : ""}`}>{exists ? t("project.on") : t("project.off")}</span>
       </div>
       <p className="faint small">{t("project.desc")}</p>
+      <p className="faint small">{t("project.enforce")}</p>
 
       {exists ? (
         <div className="proj-file">
