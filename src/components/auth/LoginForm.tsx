@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { AnimatePresence } from "motion/react";
@@ -100,9 +100,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
             className={inputClass}
             {...form.register("email")}
           />
-          <div id="login-email-error">
-            <FieldError message={form.formState.errors.email?.message} />
-          </div>
+          <FieldError id="login-email-error" message={form.formState.errors.email?.message} />
         </div>
 
         {!resetMode && (
@@ -126,9 +124,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
               className={inputClass}
               {...form.register("password")}
             />
-            <div id="login-password-error">
-              <FieldError message={form.formState.errors.password?.message} />
-            </div>
+            <FieldError id="login-password-error" message={form.formState.errors.password?.message} />
           </div>
         )}
 
@@ -151,6 +147,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
             onClick={() => setResetMode(false)}
             className="inline-flex min-h-11 w-full items-center justify-center text-sm text-text-secondary transition-colors hover:text-text-primary"
           >
+            <ArrowLeft className="mr-1.5 size-3.5" aria-hidden />
             {t("auBackToPasswordLogin")}
           </button>
         )}

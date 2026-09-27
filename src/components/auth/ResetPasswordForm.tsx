@@ -57,9 +57,7 @@ export function ResetPasswordForm() {
           className={inputClass}
           {...form.register("password")}
         />
-        <div id="reset-password-error">
-          <FieldError message={form.formState.errors.password?.message} />
-        </div>
+        <FieldError id="reset-password-error" message={form.formState.errors.password?.message} />
       </div>
 
       <div className="space-y-1.5">
@@ -73,9 +71,7 @@ export function ResetPasswordForm() {
           className={inputClass}
           {...form.register("confirmPassword")}
         />
-        <div id="reset-confirmPassword-error">
-          <FieldError message={form.formState.errors.confirmPassword?.message} />
-        </div>
+        <FieldError id="reset-confirmPassword-error" message={form.formState.errors.confirmPassword?.message} />
       </div>
 
       <AnimatePresence>{serverError && <FormAlert message={serverError} />}</AnimatePresence>

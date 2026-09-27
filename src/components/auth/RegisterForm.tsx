@@ -112,9 +112,7 @@ export function RegisterForm() {
             className={inputClass}
             {...form.register("email")}
           />
-          <div id="register-email-error">
-            <FieldError message={form.formState.errors.email?.message} />
-          </div>
+          <FieldError id="register-email-error" message={form.formState.errors.email?.message} />
         </div>
 
         <div className="space-y-1.5">
@@ -128,9 +126,7 @@ export function RegisterForm() {
             className={inputClass}
             {...form.register("password")}
           />
-          <div id="register-password-error">
-            <FieldError message={form.formState.errors.password?.message} />
-          </div>
+          <FieldError id="register-password-error" message={form.formState.errors.password?.message} />
         </div>
 
         <div className="space-y-1.5">
@@ -144,9 +140,7 @@ export function RegisterForm() {
             className={inputClass}
             {...form.register("confirmPassword")}
           />
-          <div id="register-confirmPassword-error">
-            <FieldError message={form.formState.errors.confirmPassword?.message} />
-          </div>
+          <FieldError id="register-confirmPassword-error" message={form.formState.errors.confirmPassword?.message} />
         </div>
 
         <Controller
@@ -174,9 +168,7 @@ export function RegisterForm() {
                   {t("auAcceptSuffix")}
                 </span>
               </label>
-              <div id="register-acceptTerms-error">
-                <FieldError message={form.formState.errors.acceptTerms?.message} />
-              </div>
+              <FieldError id="register-acceptTerms-error" message={form.formState.errors.acceptTerms?.message} />
             </div>
           )}
         />

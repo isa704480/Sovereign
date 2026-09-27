@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LogoMark } from "@/components/brand/Logo";
@@ -33,14 +34,15 @@ export function AuthCard({ title, subtitle, children, footer }: AuthCardProps) {
   );
 }
 
-/** Karta pastidagi "Hisobingiz yo'qmi? Ro'yxatdan o'ting →" qatori. */
+/** Karta pastidagi "Hisobingiz yo'qmi? Ro'yxatdan o'ting" qatori (strelka — ikon, matnda emas). */
 export function AuthFooterLink({ prompt, link, href }: { prompt: AuthKey; link: AuthKey; href: string }) {
   const t = useT();
   return (
     <>
       {t(prompt)}{" "}
-      <Link href={href} className="inline-flex min-h-11 items-center font-medium text-primary-soft underline-offset-4 hover:underline md:min-h-0">
+      <Link href={href} className="inline-flex min-h-11 items-center gap-1 font-medium text-primary-soft underline-offset-4 hover:underline md:min-h-0">
         {t(link)}
+        <ArrowRight className="size-3.5" aria-hidden />
       </Link>
     </>
   );
