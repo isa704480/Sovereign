@@ -1,122 +1,109 @@
 "use client";
 
-import { motion, useMotionTemplate, useMotionValue, useSpring } from "motion/react";
-import type { MouseEvent } from "react";
-import { SHOWCASE_MODELS, type SovereignModel } from "@/config/models";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import {
+  siClaude,
+  siDeepseek,
+  siGooglegemini,
+  siMeta,
+  siMistralai,
+  siNvidia,
+  siQwen,
+  siZdotai,
+  type SimpleIcon,
+} from "simple-icons";
 import { FadeIn } from "@/components/motion/FadeIn";
-import { Stagger, StaggerItem } from "@/components/motion/Stagger";
-import { pick } from "@/lib/i18n";
-import { LD_CAPABILITY_LABEL, LD_MODEL_TEXT } from "@/lib/locales/landing";
+import { MODEL_BY_ID, TOTAL_MODELS_CLAIM, type SovereignModel } from "@/config/models";
+import { fmt, pick } from "@/lib/i18n";
 import { modelProvider } from "@/lib/locales/chat-data";
+import { TIER_TEXT } from "@/lib/locales/plans";
 import { useLang, useT } from "@/store/chat";
+import { SectionHeading } from "./SectionHeading";
 
-function ModelCard({ model }: { model: SovereignModel }) {
-  const t = useT();
-  const lang = useLang();
-  const description = LD_MODEL_TEXT[model.id] ? pick(lang, LD_MODEL_TEXT[model.id].description) : model.description;
-  const rx = useMotionValue(0);
-  const ry = useMotionValue(0);
-  const mx = useMotionValue(50);
-  const my = useMotionValue(50);
-  const srx = useSpring(rx, { stiffness: 260, damping: 22 });
-  const sry = useSpring(ry, { stiffness: 260, damping: 22 });
-  const glow = useMotionTemplate`radial-gradient(240px circle at ${mx}% ${my}%, ${model.primary}2e, transparent 60%)`;
+/**
+ * Har laboratoriyaning hozirgi flagmani — config/models.ts katalogidan (nom, laboratoriya, tarif).
+ * O'ylab topilgan ko'rsatkich/ball YO'Q: o'lchangan taqqoslash /compare sahifasida.
+ * Belgilar bir rangli (simple-icons, CC0); belgisi yo'q laboratoriya uchun harf.
+ */
+const FLAGSHIPS: { id: string; icon?: SimpleIcon }[] = [
+  { id: "claude-opus-5", icon: siClaude },
+  { id: "gpt-6-astra" },
+  { id: "gemini-3-8-flash", icon: siGooglegemini },
+  { id: "grok-4-6" },
+  { id: "deepseek-v4-pro", icon: siDeepseek },
+  { id: "qwen3-8-max", icon: siQwen },
+  { id: "mistral-medium-3-5", icon: siMistralai },
+  { id: "glm-5-3", icon: siZdotai },
+  { id: "llama-4-scout", icon: siMeta },
+  { id: "nemotron-ultra-free", icon: siNvidia },
+];
 
-  function onMove(e: MouseEvent<HTMLDivElement>) {
-    const r = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width;
-    const py = (e.clientY - r.top) / r.height;
-    ry.set((px - 0.5) * 10);
-    rx.set((0.5 - py) * 10);
-    mx.set(px * 100);
-    my.set(py * 100);
-  }
-  function onLeave() {
-    rx.set(0);
-    ry.set(0);
-  }
+const ROWS = FLAGSHIPS.flatMap(({ id, icon }) => {
+  const model = MODEL_BY_ID[id];
+  return model ? [{ model, icon }] : [];
+});
 
+function Mark({ model, icon }: { model: SovereignModel; icon?: SimpleIcon }) {
   return (
-    <motion.div
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-      // --card-accent shu kartaning o'zida (inline) — avvalgi global `.group:hover` <style>
-      // qoidasi oxirgi kartaning (Mistral) rangini hamma kartalarga yoyardi.
-      style={{ rotateX: srx, rotateY: sry, transformPerspective: 900, ["--card-accent" as string]: `${model.primary}66` }}
-      className="group relative h-full overflow-hidden rounded-2xl border border-border p-5 transition-colors duration-300 hover:border-[color:var(--card-accent)]"
+    <span
+      aria-hidden="true"
+      className="grid size-9 shrink-0 place-items-center rounded-md border border-border bg-white/[0.03] text-text-secondary"
     >
-      <div
-        className="absolute inset-0 -z-10"
-        style={{ background: `linear-gradient(160deg, ${model.bg} 0%, #0D1033 100%)` }}
-      />
-      <motion.div className="pointer-events-none absolute inset-0 -z-10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ background: glow }} />
-
-      <div className="flex items-start justify-between">
-        <span
-          className="flex size-11 items-center justify-center rounded-xl text-xl"
-          style={{ background: `${model.primary}22`, color: model.primary, boxShadow: `0 0 20px ${model.primary}33` }}
-        >
-          {model.glyph}
-        </span>
-        {model.cost === "free" ? (
-          <span className="rounded-full bg-success/15 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-success">
-            {t("ldFree")}
-          </span>
-        ) : (
-          <span className="rounded-full bg-bg-hover px-2.5 py-1 font-mono text-[11px] text-text-secondary">{model.cost}</span>
-        )}
-      </div>
-
-      <h3 className="font-display mt-5 text-lg font-bold text-text-primary">{model.name}</h3>
-      <p className="text-xs text-text-muted">{modelProvider(lang, model)}</p>
-      <p className="mt-3 text-sm text-text-secondary">{description}</p>
-
-      <div className="mt-5 space-y-2">
-        {model.capabilities.map((c) => (
-          <div key={c.label} className="flex items-center gap-3 text-xs">
-            <span className="w-20 text-text-muted">
-              {LD_CAPABILITY_LABEL[c.label] ? pick(lang, LD_CAPABILITY_LABEL[c.label]) : c.label}
-            </span>
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg-hover">
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: model.primary }}
-                initial={{ width: 0 }}
-                whileInView={{ width: `${(c.score / 5) * 100}%` }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    </motion.div>
+      {icon ? (
+        <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" focusable="false">
+          <path d={icon.path} />
+        </svg>
+      ) : (
+        <span className="font-mono text-sm font-medium">{model.provider.charAt(0)}</span>
+      )}
+    </span>
   );
 }
 
 export function ModelShowcase() {
   const t = useT();
+  const lang = useLang();
   return (
     <section
       id="models"
       aria-labelledby="models-title"
-      className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 md:px-8 md:py-32"
+      className="relative mx-auto max-w-6xl scroll-mt-24 px-5 py-24 md:px-8 md:py-28"
     >
-      <FadeIn inView>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-soft">{t("navModels")}</p>
-        <h2 id="models-title" className="font-display mt-3 max-w-2xl text-balance text-[1.85rem] [overflow-wrap:anywhere] sm:text-3xl font-extrabold text-text-primary md:text-4xl">
-          {t("ldShowcaseTitle")}
-        </h2>
-        <p className="mt-4 max-w-xl text-text-secondary">{t("ldShowcaseSub")}</p>
-      </FadeIn>
+      <SectionHeading
+        id="models-title"
+        eyebrow={t("navModels")}
+        title={t("ldShowcaseTitle")}
+        sub={fmt(t("ldShowcaseSub"), { n: TOTAL_MODELS_CLAIM })}
+      />
 
-      <Stagger inView stagger={0.08} className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {SHOWCASE_MODELS.map((m) => (
-          <StaggerItem key={m.id} className="h-full">
-            <ModelCard model={m} />
-          </StaggerItem>
-        ))}
-      </Stagger>
+      <FadeIn inView className="mx-auto mt-12 max-w-4xl">
+        <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2">
+          {ROWS.map(({ model, icon }) => (
+            <li key={model.id} className="flex min-w-0 items-center gap-3.5 bg-bg-base px-5 py-4">
+              <Mark model={model} icon={icon} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[15px] font-semibold text-text-primary">{model.name}</p>
+                <p className="truncate text-sm text-text-muted">{modelProvider(lang, model)}</p>
+              </div>
+              <span className="shrink-0 rounded-full border border-border px-2.5 py-0.5 text-xs font-medium text-text-secondary">
+                <span className="sr-only">{t("p20wModelsPlanSr")} </span>
+                {pick(lang, TIER_TEXT[model.tier])}
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 flex flex-col items-center justify-between gap-3 text-sm sm:flex-row">
+          <p className="text-text-muted">{t("p20wModelsPlanNote")}</p>
+          <Link
+            href="/compare"
+            className="inline-flex min-h-11 items-center gap-1.5 font-medium text-accent-text underline-offset-4 hover:underline sm:min-h-0"
+          >
+            {t("p20wModelsCompare")}
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </div>
+      </FadeIn>
     </section>
   );
 }

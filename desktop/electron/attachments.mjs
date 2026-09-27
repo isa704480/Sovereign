@@ -15,8 +15,29 @@
 import { lstatSync, statSync, realpathSync, openSync, readSync, closeSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { randomUUID } from "node:crypto";
-import { readAttachment, attachmentKind, IMAGE_EXT, TEXT_EXT, TEXT_MAX_BYTES, PDF_MAX_BYTES } from "../../cli/src/files.mjs";
+import { readAttachment, attachmentKind, pdfTextFromModule, IMAGE_EXT, TEXT_EXT, TEXT_MAX_BYTES, PDF_MAX_BYTES } from "../../cli/src/files.mjs";
 import { isProtected } from "../../cli/src/tools.mjs";
+
+/**
+ * PDF matnini ajratish — pdf-parse Cowork'ning O'Z bog'liqligi (desktop/package.json).
+ * O'rnatilgan ilovada cli/src resources/cli/src ichida turadi va uning yonida node_modules yo'q,
+ * shuning uchun files.mjs'dagi `import("pdf-parse")` topolmaydi ("pdf-unavailable"). Bu fayl esa
+ * app.asar ichida — import app.asar/node_modules'dan hal qilinadi. Modul bir marta yuklanadi.
+ */
+let pdfModule = null;
+export async function desktopPdfText(buf) {
+  try {
+    pdfModule ??= import("pdf-parse");
+    const mod = await pdfModule;
+    return await pdfTextFromModule(mod, buf);
+  } catch (e) {
+    if (e?.code === "ERR_MODULE_NOT_FOUND") {
+      pdfModule = null;
+      return { missing: true };
+    }
+    throw e;
+  }
+}
 
 /**
  * Chegaralar. Server (/api/cli/chat): xabarda ≤12 qism (matn + biriktirmalar), matn qismi ≤40 000
@@ -161,9 +182,10 @@ function readHead(path, n) {
  * Bitta tanlangan fayl → biriktirma.
  *  - rasm: {kind: "image", name, size, mime, dataUrl} — renderer kichraytiradi va yuborishda qaytaradi;
  *  - matn/PDF: {kind: "file", sub: "text"|"pdf", name, size, chars, truncated, part} — `part` main'da qoladi.
+ * opts.pdfText — PDF ajratuvchisini almashtirish (testlar uchun); standart: desktopPdfText.
  * @returns {Promise<{item: object} | {error: string, name: string}>}
  */
-export async function readPicked(p) {
+export async function readPicked(p, opts = {}) {
   const name = safeName(basename(String(p ?? ""))) || "?";
   const chk = checkPickedPath(p);
   if (chk.error) return { error: chk.error, name };
@@ -187,8 +209,19 @@ export async function readPicked(p) {
     // PDF
     if (chk.size > PDF_MAX_BYTES) return { error: "too-large", name };
     if (readHead(chk.real, 5).toString("latin1") !== "%PDF-") return { error: "bad-pdf", name };
-    const r = await readAttachment(chk.real, { maxChars: LIMITS.fileTextChars });
-    if (r.unextracted) return { error: "pdf-unavailable", name };
+    // Ajratuvchi xato bersa — fayl buzilgan yoki parolli ("pdf-unreadable"); modul umuman yo'q bo'lsa — "pdf-unavailable".
+    let parseFailed = false;
+    const extract = opts.pdfText ?? desktopPdfText;
+    const pdfText = async (buf) => {
+      try {
+        return await extract(buf);
+      } catch (e) {
+        parseFailed = true;
+        throw e;
+      }
+    };
+    const r = await readAttachment(chk.real, { maxChars: LIMITS.fileTextChars, pdfText });
+    if (r.unextracted) return { error: parseFailed ? "pdf-unreadable" : "pdf-unavailable", name };
     if (!/\S/.test(String(r.part?.text ?? "").replace(/^\[PDF: [^\]]*\]|\[\/PDF\]$/g, ""))) return { error: "pdf-empty", name };
     return { item: fileItem("pdf", name, chk.size, r) };
   } catch {

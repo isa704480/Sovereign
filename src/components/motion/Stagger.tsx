@@ -1,7 +1,13 @@
 "use client";
 
-import { motion, type HTMLMotionProps } from "motion/react";
-import { fadeUp, staggerContainer } from "@/lib/motion";
+import { motion, type HTMLMotionProps, type Variants } from "motion/react";
+import { EASE_OUT_EXPO, staggerContainer } from "@/lib/motion";
+
+/** SSR'da ko'rinadi: faqat 8px siljish, opacity/blur yo'q (FadeIn bilan bir xil). */
+export const reveal: Variants = {
+  hidden: { y: 8 },
+  show: { y: 0, transition: { duration: 0.5, ease: EASE_OUT_EXPO } },
+};
 
 interface StaggerProps extends HTMLMotionProps<"div"> {
   stagger?: number;
@@ -42,7 +48,7 @@ export function Stagger({
 
 export function StaggerItem({ children, ...rest }: HTMLMotionProps<"div">) {
   return (
-    <motion.div variants={fadeUp} {...rest}>
+    <motion.div variants={reveal} {...rest}>
       {children}
     </motion.div>
   );

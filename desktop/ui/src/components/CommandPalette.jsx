@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import { useFocusTrap } from "./Modal.jsx";
 import { useT } from "../lib/i18n.js";
+import { kbd } from "../lib/keys.js";
 
 /** Ctrl+K — buyruqlar palitrasi. commands: [{ id, label, icon, hint, run, group }] */
 export default function CommandPalette({ commands, onClose }) {
@@ -10,6 +11,9 @@ export default function CommandPalette({ commands, onClose }) {
   const [idx, setIdx] = useState(0);
   const ref = useRef(null);
   const input = useRef(null);
+  // Option id'lari indeksdan: buyruq id'si xom papka yo'lini (recent-C:\\...) o'z ichiga olishi mumkin.
+  const uid = useId().replace(/:/g, "");
+  const optId = (i) => `${uid}-opt-${i}`;
   useFocusTrap(ref, { initialFocus: input, onEscape: onClose });
 
   const list = useMemo(() => {
@@ -41,17 +45,17 @@ export default function CommandPalette({ commands, onClose }) {
             placeholder={t("palette.placeholder")}
             role="combobox"
             aria-expanded="true"
-            aria-controls="palette-list"
-            aria-activedescendant={list[idx] ? `cmd-${list[idx].id}` : undefined}
+            aria-controls={`${uid}-list`}
+            aria-activedescendant={list[idx] ? optId(idx) : undefined}
           />
           <kbd>Esc</kbd>
         </div>
-        <ul id="palette-list" role="listbox" className="palette-list">
+        <ul id={`${uid}-list`} role="listbox" aria-label={t("palette.title")} className="palette-list">
           {list.length === 0 && <li className="muted small pad">{t("palette.none")}</li>}
           {list.map((c, i) => (
             <li
               key={c.id}
-              id={`cmd-${c.id}`}
+              id={optId(i)}
               role="option"
               aria-selected={i === idx}
               data-idx={i}
@@ -62,7 +66,7 @@ export default function CommandPalette({ commands, onClose }) {
               <Icon name={c.icon ?? "command"} size={15} />
               <span className="grow">{c.label}</span>
               {c.group && <span className="faint small">{c.group}</span>}
-              {c.hint && <kbd>{c.hint}</kbd>}
+              {c.hint && <kbd>{kbd(c.hint)}</kbd>}
             </li>
           ))}
         </ul>
@@ -96,7 +100,7 @@ export function ShortcutsHelp({ onClose, Modal }) {
           {SHORTCUTS.map(([k, d]) => (
             <tr key={k}>
               <td>{t(d)}</td>
-              <td className="right">{k.split(" ").map((p, i) => <kbd key={i}>{p}</kbd>)}</td>
+              <td className="right">{kbd(k).split(" ").map((p, i) => <kbd key={i}>{p}</kbd>)}</td>
             </tr>
           ))}
         </tbody>

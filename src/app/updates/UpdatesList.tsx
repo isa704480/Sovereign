@@ -1,12 +1,14 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import { UPDATES, type ProductUpdate, type UpdateTag } from "@/content/updates";
+import { ctaPrimarySm } from "@/components/landing/cta";
 import { pick, type Lang, type TKey } from "@/lib/i18n";
 import { LocalizedTitle } from "@/components/LocalizedTitle";
 import { useLang, useT } from "@/store/chat";
 
 const TAG_KEY: Record<UpdateTag, TKey> = { new: "wnTagNew", improved: "wnTagImproved", fixed: "wnTagFixed" };
-const TAG_COLOR: Record<UpdateTag, string> = { new: "#8F86FF", improved: "#5FC8A0", fixed: "#E8B75A" };
+const TAG_COLOR: Record<UpdateTag, string> = { new: "var(--accent-text)", improved: "var(--t-success)", fixed: "var(--t-warning)" };
 
 /** ICU'ga bog'lanmagan sana (server va brauzerda bir xil — hydration farqi yo'q). */
 const MONTHS: Record<Lang, string[]> = {
@@ -46,12 +48,9 @@ export function UpdatesList() {
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{t("updEyebrow")}</p>
       <h1 className="font-display mt-3 text-3xl font-extrabold tracking-tight text-text-primary md:text-4xl">{t("updTitle")}</h1>
       <p className="mt-3 text-[15px] leading-relaxed text-text-secondary">{t("updLead")}</p>
-      <a
-        href="/app"
-        className="mt-6 inline-flex min-h-10 items-center rounded-xl px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-        style={{ background: "#5B50F0" }}
-      >
-        {t("updOpenApp")} →
+      <a href="/app" className={`mt-6 ${ctaPrimarySm}`}>
+        {t("updOpenApp")}
+        <ArrowRight className="size-4" aria-hidden="true" />
       </a>
 
       <ol className="mt-12 space-y-10">
@@ -65,7 +64,7 @@ export function UpdatesList() {
                 <li key={u.id} id={u.id} className="scroll-mt-28">
                   <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      className="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
                       style={{ color: TAG_COLOR[u.tag], background: `color-mix(in srgb, ${TAG_COLOR[u.tag]} 14%, transparent)` }}
                     >
                       {t(TAG_KEY[u.tag])}

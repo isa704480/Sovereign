@@ -14,6 +14,7 @@ import { meshComplete } from "@/lib/ai/mesh/execute";
 import { enabledAdapters } from "@/lib/ai/mesh/registry";
 import { plan as meshPlan } from "@/lib/ai/mesh/scheduler";
 import { cliRouteRequest, isGeneralAdapter, meshMode, requiredPlanTier } from "@/lib/ai/mesh/request";
+import { compactHistory, sanitizeHistory } from "@/lib/cli/sanitize-history";
 import { limitErrorResponse } from "@/lib/ai/inquiry/limit-codes";
 import { lastUserText, skillSystemMessage, withSkillMessage } from "@/config/skills";
 
@@ -158,7 +159,13 @@ const messageSchema = z.object({
   tool_call_id: z.string().max(200).optional(),
   // Model bitta javobda bir nechta faylni parallel yozishi mumkin (9+ chaqiruv) — 8 chegarasi
   // keyingi so'rovni 400 bilan buzardi. Chiqishda MAX_TOOL_CALLS_OUT ga kesiladi, kirish zaxira bilan.
-  tool_calls: z.array(z.any()).max(32).optional(),
+  // Ba'zi modellar (mas. qwen2.5-coder) `tool_calls: null` yoki [] qaytaradi — mijoz uni tarixga
+  // saqlab qayta yuboradi. Rad etmaymiz: bo'sh/null maydon olib tashlanadi (provayder ham [] ni rad etadi).
+  tool_calls: z
+    .array(z.any())
+    .max(32)
+    .nullable()
+    .optional(), // null / [] — sanitizeHistory olib tashlaydi
   name: z.string().max(100).optional(),
 });
 const toolSchema = z.object({
@@ -250,6 +257,8 @@ export async function POST(req: Request) {
     const where = issue?.path.join(".") || "body";
     return Response.json({ error: `${t("chBadRequest")} (${where})` }, { status: 400 });
   }
+  // Zaif modellar qoldirgan buzuq tarix (id'siz / bo'sh chaqiruvlar, egasiz tool) provayderda 400 bermasin.
+  const history = sanitizeHistory(parsed.data.messages);
 
   // Kamida bitta provider kaliti kerak (mesh: umumiy chatga yaraydigan, rescue bo'lmagan adapter).
   const mesh = meshMode() === "on";
@@ -344,7 +353,7 @@ export async function POST(req: Request) {
   // Bitta system xabar mijozning boshlang'ich system blokidan keyin qo'shiladi. Mijoz system xabarlari
   // baribir foydalanuvchi nazoratida — bu yerda ular ustidan hech narsa "ishonchli" deb hisoblanmaydi.
   const skill = skillSystemMessage(enabledSkills, lastUserText(parsed.data.messages));
-  const messages = skill ? withSkillMessage(parsed.data.messages, skill.content) : parsed.data.messages;
+  const messages = skill ? withSkillMessage(history, skill.content) : history;
   const needsTools = Boolean(parsed.data.tools?.length);
   const routeReq = cliRouteRequest({ chosen, planTier: planId, country, tools: needsTools, messages });
   const cands = mesh ? [] : regionCandidates(candidates(planId, chosen, needsTools), country, planId === "pro" || planId === "ultra");
@@ -393,9 +402,18 @@ export async function POST(req: Request) {
   }
 
   const maxTokens = Math.min(plan.limits.maxTokens, 4096);
-  const outcome = mesh
-    ? await meshCliComplete(routeReq, messages, parsed.data.tools, maxTokens, req.signal)
-    : await legacyComplete(cands, messages, parsed.data.tools, maxTokens);
+  const complete = (h: typeof messages, rr: typeof routeReq) =>
+    mesh ? meshCliComplete(rr, h, parsed.data.tools, maxTokens, req.signal) : legacyComplete(cands, h, parsed.data.tools, maxTokens);
+  let outcome = await complete(messages, routeReq);
+  // Model konteksti to'ldi (kichik kontekstli model + uzun Full auto sessiyasi): eski qadamlarni
+  // qisqartirib qayta urinamiz — foydalanuvchi "juda katta so'rov" bilan qotib qolmasin.
+  let compacted = false;
+  for (const [ratio, toolMax] of [[0.5, 4000], [0.25, 1500]] as const) {
+    if (outcome.ok || outcome.status !== 413 || req.signal.aborted) break;
+    const h = compactHistory(messages, ratio, toolMax);
+    outcome = await complete(h, cliRouteRequest({ chosen, planTier: planId, country, tools: needsTools, messages: h }));
+    compacted = true;
+  }
 
   if (!outcome.ok) {
     if (outcome.status === 400) return Response.json({ error: t("chBadRequest") }, { status: 400 });
@@ -419,6 +437,7 @@ export async function POST(req: Request) {
     plan: planId,
     model: outcome.model,
     provider: outcome.provider,
+    ...(compacted ? { compacted: true } : {}),
     ...(usage ? { usage } : {}),
     // Shu qadamda qo'llangan skillar (mijoz chip ko'rsatadi). Doim massiv — maydon borligi = yangi server.
     skills: skill?.ids ?? [],
@@ -431,7 +450,14 @@ export async function POST(req: Request) {
 const MAX_TOOL_CALLS_OUT = 16;
 function capToolCalls(message: unknown): unknown {
   const m = message as { tool_calls?: unknown } | null;
-  if (!m || !Array.isArray(m.tool_calls) || m.tool_calls.length <= MAX_TOOL_CALLS_OUT) return message;
+  if (!m || typeof m !== "object" || !("tool_calls" in m)) return message;
+  // null / [] / massiv emas — maydonni olib tashlaymiz (aks holda mijoz keyingi so'rovda 400 oladi).
+  if (!Array.isArray(m.tool_calls) || m.tool_calls.length === 0) {
+    const { tool_calls: _drop, ...rest } = m;
+    void _drop;
+    return rest;
+  }
+  if (m.tool_calls.length <= MAX_TOOL_CALLS_OUT) return message;
   return { ...m, tool_calls: m.tool_calls.slice(0, MAX_TOOL_CALLS_OUT) };
 }
 

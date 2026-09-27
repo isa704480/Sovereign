@@ -19,11 +19,13 @@ type T = (key: TKey) => string;
 const REFRESH_MS = 60_000;
 const CLOCK_TICK_MS = 5_000;
 
+/** Status tokenlari (globals.css): qorong'i fonda matn sifatida AA. */
 const COLORS: Record<ComponentStatus, string> = {
-  operational: "#22C55E",
-  degraded: "#F59E0B",
-  down: "#EF4444",
+  operational: "var(--t-success)",
+  degraded: "var(--t-warning)",
+  down: "var(--t-danger)",
 };
+const NEUTRAL = "var(--text-secondary)";
 
 const STATUS_LABEL: Record<ComponentStatus, TKey> = {
   operational: "p7bSOperational",
@@ -154,51 +156,53 @@ export function StatusBoard({ initial }: { initial: HealthSnapshot | null }) {
   const [checkedBefore, checkedAfter = ""] = t("p7bSLastChecked").split("{time}");
 
   return (
-    <main className="flex-1 bg-[#060812] text-[#F0F2FF]">
+    <main id="main-content" className="flex-1 bg-bg-base text-text-primary">
       <LocalizedTitle title={t("p7bSBadge")} />
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10 sm:px-6 sm:py-16">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <a
             href="https://soveregn.xyz"
-            className="flex items-center gap-2.5 rounded-md focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#5B50F0]"
+            className="flex min-h-11 items-center gap-2.5 rounded-md"
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- kichik statik SVG logo */}
             <img src="/logo.svg" alt="" width={28} height={28} className="h-7 w-7" />
             <span className="font-[family-name:var(--font-syne)] text-lg font-bold tracking-wide">SOVEREIGN</span>
-            <span className="rounded-full border border-[#5B50F0]/40 bg-[#5B50F0]/15 px-2 py-0.5 text-xs font-medium text-[#C9C4FF]">
+            <span className="rounded-full border border-[var(--border-accent)] bg-accent-bg px-2 py-0.5 text-xs font-medium text-accent-text">
               {t("p7bSBadge")}
             </span>
           </a>
           <div className="flex items-center gap-2">
-            <LangSwitcher className="h-[34px] shrink-0 cursor-pointer border-white/10 px-1.5 text-[#9BA3CC] hover:border-[#5B50F0]/60 focus-visible:outline-[#5B50F0]" />
+            <LangSwitcher className="h-11 shrink-0 cursor-pointer border-border px-1.5 text-text-secondary hover:border-[var(--border-strong)] sm:h-9" />
             <button
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-[#9BA3CC] transition-colors hover:border-[#5B50F0]/60 hover:text-[#F0F2FF] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5B50F0] disabled:opacity-60"
+              className="inline-flex h-11 items-center rounded-md border border-border px-3 text-sm text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary disabled:opacity-60 sm:h-9"
             >
               {loading ? t("p7bSRefreshing") : t("p7bSRefresh")}
             </button>
           </div>
         </header>
 
+        {/* Ekran o'quvchiga faqat UMUMIY holat o'zgarganda aytiladi. "N soniya oldin" har 5 s
+            yangilanadi — u jonli hududda bo'lsa, har gal qayta o'qilardi. */}
+        <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+          {overall ? t(overall.text) : t("p7bSUnavailable")}
+        </p>
         <section
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
           className="rounded-2xl border p-5 sm:p-6"
           style={{
-            borderColor: `${overall?.color ?? "#9BA3CC"}55`,
-            background: `linear-gradient(135deg, ${overall?.color ?? "#9BA3CC"}1f, transparent 70%)`,
+            borderColor: `color-mix(in srgb, ${overall?.color ?? NEUTRAL} 33%, transparent)`,
+            background: `linear-gradient(135deg, color-mix(in srgb, ${overall?.color ?? NEUTRAL} 12%, transparent), transparent 70%)`,
           }}
         >
           <div className="flex items-center gap-3">
-            <Dot color={overall?.color ?? "#9BA3CC"} />
+            <Dot color={overall?.color ?? NEUTRAL} />
             <h1 className="font-[family-name:var(--font-syne)] text-xl font-bold sm:text-2xl">
               {overall ? t(overall.text) : t("p7bSUnavailable")}
             </h1>
           </div>
-          <p className="mt-2 text-sm text-[#9BA3CC]">
+          <p className="mt-2 text-sm text-text-secondary">
             {data ? (
               <>
                 {checkedBefore}
@@ -213,23 +217,23 @@ export function StatusBoard({ initial }: { initial: HealthSnapshot | null }) {
               t("p7bSLoadFail")
             )}
           </p>
-          {error && data && <p className="mt-2 text-sm text-[#F59E0B]">{t(error)}</p>}
+          {error && data && <p className="mt-2 text-sm text-warning">{t(error)}</p>}
         </section>
 
         {data && (
           <section aria-labelledby="components-heading">
-            <h2 id="components-heading" className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-[#9BA3CC]">
+            <h2 id="components-heading" className="mb-3 text-xs font-medium uppercase tracking-[0.14em] text-text-secondary">
               {t("p7bSComponents")}
             </h2>
-            <ul className="divide-y divide-white/[0.06] overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]">
+            <ul className="divide-y divide-[var(--border-subtle)] overflow-hidden rounded-2xl border border-border bg-bg-elevated">
               {data.components.map((c) => (
                 <li key={c.id} className="flex items-start justify-between gap-x-3 px-4 py-4 sm:gap-x-4 sm:px-5">
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{componentName(c, t)}</p>
-                    {c.note && <p className="mt-0.5 text-sm text-[#9BA3CC]">{componentNote(c.note, t)}</p>}
+                    {c.note && <p className="mt-0.5 text-sm text-text-secondary">{componentNote(c.note, t)}</p>}
                   </div>
                   <div className="flex shrink-0 items-center gap-3 pt-0.5 text-sm sm:gap-4">
-                    <span className="font-[family-name:var(--font-dm-mono)] text-[#9BA3CC] tabular-nums">
+                    <span className="font-mono tabular-nums text-text-secondary">
                       {c.latencyMs === null ? (
                         <span aria-label={t("p7bSLatencyNA")}>—</span>
                       ) : (
@@ -250,14 +254,14 @@ export function StatusBoard({ initial }: { initial: HealthSnapshot | null }) {
           </section>
         )}
 
-        <footer className="flex flex-col gap-4 border-t border-white/[0.06] pt-6 text-sm text-[#9BA3CC] sm:flex-row sm:items-center sm:justify-between">
+        <footer className="flex flex-col gap-4 border-t border-[var(--border-subtle)] pt-6 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
           <p>{t("p7bSFooter")}</p>
           <nav aria-label={t("p7bSLinksAria")} className="flex flex-wrap gap-x-5 gap-y-2">
             {LINKS.map((l) => (
               <a
                 key={l.href}
                 href={l.href}
-                className="rounded text-[#F0F2FF] underline-offset-4 hover:text-[#5B50F0] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#5B50F0]"
+                className="inline-flex min-h-10 items-center rounded-sm text-text-primary underline-offset-4 hover:text-accent-text hover:underline sm:min-h-0"
               >
                 {t(l.label)}
               </a>

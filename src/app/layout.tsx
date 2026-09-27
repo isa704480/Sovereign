@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Mono, DM_Sans, Syne } from "next/font/google";
+import { SkipLink } from "@/components/a11y/SkipLink";
 import { LangSync } from "@/components/LangSync";
 import { MotionProvider } from "@/components/motion/MotionProvider";
 import { translate } from "@/lib/i18n";
@@ -47,7 +48,7 @@ const description = translate("en", "uxMetaDescription");
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "SOVEREIGN AI — Your AI. Your Truth. Your Data. Forever.",
+    default: "SOVEREIGN AI — Every AI model in one app",
     template: "%s · SOVEREIGN AI",
   },
   description,
@@ -90,6 +91,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-bg-base text-text-primary">
+        <SkipLink />
         <LangSync />
         <MotionProvider>{children}</MotionProvider>
       </body>

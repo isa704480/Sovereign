@@ -386,6 +386,13 @@ function trimHistory(messages) {
 /** Bitta javobda bajariladigan vosita chaqiruvlari (server 32 tagacha qabul qiladi). Qolganini model keyingi qadamda so'raydi. */
 const MAX_TOOL_CALLS = 16;
 function capToolCalls(round) {
+  // Ba'zi modellar `tool_calls: null` / [] qaytaradi — tarixga yozilsa keyingi so'rov 400 oladi.
+  if (!Array.isArray(round.toolCalls)) round.toolCalls = [];
+  if (round.message && "tool_calls" in round.message && !round.toolCalls.length) {
+    const { tool_calls: _drop, ...rest } = round.message;
+    void _drop;
+    round.message = rest;
+  }
   if (round.toolCalls.length <= MAX_TOOL_CALLS) return;
   round.toolCalls = round.toolCalls.slice(0, MAX_TOOL_CALLS);
   round.message = { ...round.message, tool_calls: round.toolCalls };
@@ -1664,6 +1671,8 @@ handle("auth:logout", async () => {
 handle("update:check", async () => checkForUpdates());
 handle("update:download", async () => downloadUpdate());
 handle("update:install", async () => {
+  // Ishlayotgan agent vazifasi uzilmasin: UI o'rnatishni vazifa tugaguncha kechiktiradi.
+  if (activeTurn) return { ok: false, error: "busy" };
   persistCurrentTask();
   installUpdate();
   return { ok: true };

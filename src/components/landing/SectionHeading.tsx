@@ -4,29 +4,34 @@ import type { ReactNode } from "react";
 import { FadeIn } from "@/components/motion/FadeIn";
 import { cn } from "@/lib/utils";
 
-/** Landing bo'limlari uchun yagona sarlavha: eyebrow + h2 + izoh. */
+/**
+ * Landing bo'limlari uchun YAGONA sarlavha: eyebrow + h2 + izoh.
+ * H2 hero H1'dan (clamp 44–80px) aniq kichik: clamp(28px, 4vw, 44px).
+ */
 export function SectionHeading({
   id,
   eyebrow,
   title,
   sub,
   align = "center",
+  className,
 }: {
   /** h2 id — section aria-labelledby uchun. */
   id: string;
   eyebrow: string;
   title: ReactNode;
-  sub?: string;
+  sub?: ReactNode;
   align?: "center" | "left";
+  className?: string;
 }) {
   const center = align === "center";
   return (
-    <FadeIn inView className={cn(center && "text-center")}>
+    <FadeIn inView className={cn(center && "text-center", className)}>
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">{eyebrow}</p>
       <h2
         id={id}
         className={cn(
-          "font-display mt-3 max-w-2xl text-balance text-[1.85rem] font-extrabold [overflow-wrap:anywhere] sm:text-3xl tracking-tight text-text-primary md:text-5xl",
+          "font-display mt-3 max-w-3xl text-balance break-words text-[clamp(28px,4vw,44px)] font-extrabold leading-[1.08] tracking-[-0.02em] text-text-primary [hyphens:manual]",
           center && "mx-auto",
         )}
       >

@@ -43,7 +43,7 @@ function CopyLine({ text, label }: { text: string; label: string }) {
   const t = useT();
   const [copied, setCopied] = useState(false);
   return (
-    <div className="flex min-w-0 items-start gap-2 rounded-xl border border-border bg-[#0a0d24] py-1.5 pl-3.5 pr-1.5">
+    <div className="flex min-w-0 items-start gap-2 rounded-lg border border-border bg-bg-base py-1.5 pl-3.5 pr-1.5">
       {/* Uzun buyruq tor kartada o'raladi (gorizontal skroll yo'q); nusxa har doim aniq matn. */}
       <code className="min-w-0 flex-1 whitespace-pre-wrap py-1 font-mono text-[12.5px] leading-relaxed text-text-primary [overflow-wrap:anywhere]">
         <span aria-hidden="true" className="select-none text-text-muted">
@@ -64,7 +64,7 @@ function CopyLine({ text, label }: { text: string; label: string }) {
         }}
         aria-label={copied ? t("copied") : `${t("dlCopyCmd")}: ${label}`}
         title={copied ? t("copied") : t("copy")}
-        className="grid size-8 shrink-0 place-items-center rounded-lg text-text-secondary transition-colors hover:bg-white/10 hover:text-text-primary"
+        className="grid size-11 shrink-0 place-items-center rounded-md text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary md:size-8"
       >
         {copied ? <Check className="size-4 text-success" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
       </button>
@@ -92,15 +92,13 @@ function OptionCard({
   return (
     <li
       className={cn(
-        "relative flex min-w-0 flex-col rounded-2xl border p-5 transition-colors duration-300",
-        recommended
-          ? "border-primary/60 bg-primary/[0.07] shadow-[0_0_0_1px_rgba(91,80,240,0.25),0_12px_40px_-16px_rgba(91,80,240,0.55)]"
-          : "border-border bg-white/[0.015] hover:border-white/15",
+        "relative flex min-w-0 flex-col rounded-lg border p-5",
+        recommended ? "border-primary/60 bg-accent-bg" : "border-border bg-bg-base",
       )}
     >
       <div className="flex items-start gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-bg-elevated shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-          <Icon className="size-[18px] text-primary-soft" strokeWidth={1.7} aria-hidden="true" />
+        <span className="grid size-10 shrink-0 place-items-center rounded-md border border-border bg-bg-elevated">
+          <Icon className="size-[18px] text-text-secondary" strokeWidth={1.7} aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="font-display text-base font-bold text-text-primary">{title}</h3>
@@ -108,7 +106,7 @@ function OptionCard({
         </div>
       </div>
       {recommended && (
-        <span className="absolute -top-2.5 right-4 rounded-full bg-primary px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-glow">
+        <span className="absolute -top-2.5 right-4 rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-white">
           {t("dlRecommended")}
         </span>
       )}
@@ -124,10 +122,10 @@ function DownloadButton({ href, label, children, primary = true }: { href: strin
       aria-label={label}
       rel="nofollow"
       className={cn(
-        "inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold transition-colors",
+        "inline-flex h-11 w-full items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors duration-150",
         primary
-          ? "bg-text-primary text-bg-base hover:bg-white/85"
-          : "border border-border bg-white/[0.03] text-text-primary hover:border-white/25 hover:bg-white/[0.06]",
+          ? "bg-primary text-white hover:bg-primary-dark"
+          : "border border-[var(--border-strong)] text-text-primary hover:bg-surface-hover",
       )}
     >
       <DownloadIcon className="size-4" aria-hidden="true" />
@@ -142,7 +140,7 @@ function SmallLink({ href, label, children }: { href: string; label?: string; ch
       href={href}
       aria-label={label}
       rel="nofollow"
-      className="inline-flex items-center gap-1.5 rounded-md text-xs font-medium text-primary-soft underline-offset-4 hover:text-text-primary hover:underline"
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-accent-text underline-offset-4 hover:text-text-primary hover:underline md:min-h-0 md:text-xs"
     >
       <DownloadIcon className="size-3.5" aria-hidden="true" />
       {children}
@@ -183,7 +181,7 @@ export function DesktopPanel({ os }: { os: Os | null }) {
         </OptionCard>
       </ul>
 
-      <div className="mt-5 flex gap-3 rounded-2xl border border-border bg-white/[0.015] p-4 text-sm text-text-secondary">
+      <div className="mt-5 flex gap-3 rounded-lg border border-border bg-bg-base p-4 text-sm text-text-secondary">
         <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
         <div className="min-w-0">
           <p className="font-medium text-text-primary">{t("dlUnsignedTitle")}</p>
@@ -303,23 +301,21 @@ export function Download() {
                 tabIndex={selected ? 0 : -1}
                 onClick={() => setTab(x.id)}
                 className={cn(
-                  "group flex min-w-0 items-start gap-4 rounded-2xl border p-5 text-left transition-all duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-soft",
-                  selected
-                    ? "border-primary/70 bg-primary/[0.09] shadow-[0_0_0_1px_rgba(91,80,240,0.3),0_16px_48px_-20px_rgba(91,80,240,0.7)]"
-                    : "border-border bg-white/[0.015] hover:-translate-y-0.5 hover:border-white/20",
+                  "group flex min-w-0 items-start gap-4 rounded-2xl border p-5 text-left transition-colors duration-200",
+                  selected ? "border-primary/70 bg-accent-bg" : "border-border bg-bg-base hover:bg-surface-hover",
                 )}
               >
                 <span
                   className={cn(
-                    "grid size-12 shrink-0 place-items-center rounded-2xl border transition-colors",
-                    selected ? "border-primary/50 bg-primary text-white shadow-glow" : "border-white/10 bg-bg-elevated text-primary-soft",
+                    "grid size-12 shrink-0 place-items-center rounded-lg border transition-colors",
+                    selected ? "border-primary/50 bg-primary text-white" : "border-border bg-bg-elevated text-text-secondary",
                   )}
                 >
                   <x.icon className="size-5" strokeWidth={1.8} aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="font-display block text-lg font-bold text-text-primary">{t(x.title)}</span>
-                  <span className="mt-0.5 block font-mono text-xs text-primary-soft">{t(x.name)}</span>
+                  <span className="mt-0.5 block font-mono text-xs text-accent-text">{t(x.name)}</span>
                   <span className="mt-2 block text-sm leading-relaxed text-text-secondary">{t(x.desc)}</span>
                 </span>
               </button>
@@ -344,7 +340,7 @@ export function Download() {
       <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm">
         <a
           href={`${DOCS_URL}#${tab}`}
-          className="inline-flex items-center gap-1.5 text-text-secondary underline-offset-4 hover:text-text-primary hover:underline"
+          className="inline-flex min-h-11 items-center gap-1.5 text-text-secondary underline-offset-4 hover:text-text-primary hover:underline md:min-h-0"
         >
           {t("dlDocs")}
           <ExternalLink className="size-3.5" aria-hidden="true" />
@@ -353,7 +349,7 @@ export function Download() {
           href={RELEASES_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-text-secondary underline-offset-4 hover:text-text-primary hover:underline"
+          className="inline-flex min-h-11 items-center gap-1.5 text-text-secondary underline-offset-4 hover:text-text-primary hover:underline md:min-h-0"
         >
           {t("dlAllReleases")}
           <ExternalLink className="size-3.5" aria-hidden="true" />

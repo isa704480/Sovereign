@@ -47,9 +47,9 @@ function useActiveSection(ids: string[]): string | null {
 function NavList({ items, active, onNavigate }: { items: DocsNavItem[]; active: string | null; onNavigate?: () => void }) {
   const link = (id: string, isActive: boolean, sub: boolean) =>
     cn(
-      "block rounded-lg px-3 transition-colors",
+      "flex items-center rounded-md px-3 transition-colors max-lg:min-h-11",
       sub ? "py-1 text-[13px]" : "py-1.5 text-sm font-medium",
-      isActive ? "bg-primary/15 text-text-primary" : "text-text-secondary hover:bg-white/5 hover:text-text-primary",
+      isActive ? "bg-accent-bg text-text-primary" : "text-text-secondary hover:bg-surface-hover hover:text-text-primary",
     );
 
   return (
@@ -111,7 +111,7 @@ export function DocsMobileNav({ items }: { items: DocsNavItem[] }) {
 
   return (
     <details ref={ref} className="group">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm text-text-secondary [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-sm text-text-secondary [&::-webkit-details-marker]:hidden">
         <span className="min-w-0 truncate">
           <span className="text-text-muted">{t("p7bDOnThisPage")}</span>
           {current && <span className="text-text-primary"> · {current.label}</span>}

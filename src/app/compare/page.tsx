@@ -32,10 +32,12 @@ export const metadata: Metadata = {
 
 export default function ComparePage() {
   return (
-    <main className="flex-1">
+    <>
       <Navbar />
-      <CompareView />
+      <main id="main-content" className="flex-1">
+        <CompareView />
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

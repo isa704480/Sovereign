@@ -6,7 +6,29 @@
 
 /* ------------------------------------------------------------------
    SOVEREIGN AI design tokens (docs/DESIGN.md)
-   Dark-first. Light mode arrives in Phase 4.
+   Web is dark-only (color-scheme: dark). Cowork desktop has its own light theme.
+
+   RADIUS SCALE (rounded-*): one step = one role, nothing in between.
+     xs   4px   tags inside dense rows, kbd
+     sm   8px   chips, small inline controls
+     md  12px   buttons, inputs, icon buttons, menu items (shadcn --radius)
+     lg  16px   app cards, menus, popovers
+     xl  20px   dialogs, sheets
+     2xl 24px   marketing panels (landing sections)
+     full       pills, avatars, status dots
+   3xl/4xl are not part of the scale. They still resolve to Tailwind's defaults
+   (24px / 32px) so older markup keeps rendering; don't use them in new code.
+
+   ELEVATION: --sh-1 (raised row, button), --sh-2 (menu, popover),
+   --sh-3 (dialog). shadow-sm/md/lg map to the same three. --sh-glow is
+   reserved for the single primary CTA in the landing hero.
+
+   ACCENT: --primary (#5B50F0) is for FILLS only (white text on it: 5.45:1;
+   as text on --bg-base it is only 3.66:1). Indigo text uses --accent-text
+   (#978FFB, 7.27:1 on --bg-base); focus rings use --accent-ring (#8F86FA).
+
+   STATUS: --t-success / --t-warning / --t-danger / --t-info are text-safe on
+   the dark surfaces; the dashboard may override them per model theme.
 ------------------------------------------------------------------- */
 
 @theme inline {
@@ -65,15 +87,14 @@
   --color-error: var(--error);
   --color-research: var(--research);
   --color-verified: var(--verified);
+  --color-danger: var(--t-danger);
+  --color-info: var(--t-info);
 
-  /* Per-model brand colors */
-  --color-model-sovereign: #5b50f0;
-  --color-model-claude: #cc785c;
-  --color-model-chatgpt: #10a37f;
-  --color-model-gemini: #4285f4;
-  --color-model-perplexity: #20808d;
-  --color-model-mistral: #ff7000;
-  --color-model-llama: #7c3aed;
+  /* Accent roles: text-accent-text, outline-accent-ring, bg-accent-bg, bg-surface-hover */
+  --color-accent-text: var(--accent-text);
+  --color-accent-ring: var(--accent-ring);
+  --color-accent-bg: var(--accent-bg);
+  --color-surface-hover: var(--surface-hover);
 
   /* Fonts */
   --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
@@ -101,22 +122,20 @@
   --text-5xl: 58px;
   --text-5xl--line-height: 1;
 
-  /* Radius */
+  /* Radius: see the scale at the top of this file. */
   --radius-xs: 4px;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
-  --radius-xl: 24px;
-  --radius-2xl: 28px;
-  --radius-3xl: 32px;
-  --radius-4xl: 40px;
-  --radius-full: 100px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3);
-  --shadow-glow: 0 0 24px rgba(91, 80, 240, 0.3), 0 0 8px rgba(91, 80, 240, 0.2);
+  /* Shadows: three elevation steps (values live in :root as --sh-*). */
+  --shadow-sm: var(--sh-1);
+  --shadow-md: var(--sh-2);
+  --shadow-lg: var(--sh-3);
+  --shadow-glow: var(--sh-glow);
 
   /* Easing */
   --ease-sovereign: cubic-bezier(0.4, 0, 0.2, 1);
@@ -133,14 +152,29 @@
   /* Text */
   --text-primary: #f0f2ff;
   --text-secondary: #9ba3cc;
-  /* #5c6490 → #7a82b0: bg-base ustida ~4.9:1 (WCAG AA) */
-  --text-muted: #7a82b0;
+  /* #8a92c0: 6.61:1 on bg-base, 6.10:1 on bg-elevated, 5.63:1 on bg-floating
+     (the previous #7a82b0 fell to 4.57:1 on bg-floating). */
+  --text-muted: #8a92c0;
   --text-disabled: #3a3f6a;
 
   /* Brand */
   --primary-dark: #4338e0;
   --primary-soft: #7c6ff7;
   --primary-glow: rgba(91, 80, 240, 0.25);
+  --accent-text: #978ffb;
+  --accent-ring: #8f86fa;
+  --accent-bg: rgba(91, 80, 240, 0.16);
+
+  /* Hover surface for rows, ghost buttons and menu items. The dashboard
+     redefines it in .theme-root from the active model's text colour. */
+  --surface-hover: rgba(255, 255, 255, 0.06);
+  --surface-active: rgba(255, 255, 255, 0.1);
+
+  /* Elevation */
+  --sh-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-2: 0 2px 8px rgba(0, 0, 0, 0.3), 0 20px 50px rgba(0, 0, 0, 0.45);
+  --sh-3: 0 2px 8px rgba(0, 0, 0, 0.35), 0 30px 80px rgba(0, 0, 0, 0.55);
+  --sh-glow: 0 0 24px rgba(91, 80, 240, 0.3), 0 0 8px rgba(91, 80, 240, 0.2);
 
   /* Semantic */
   --success: #10d4a0;
@@ -148,6 +182,15 @@
   --error: #ef4444;
   --research: #20d4e8;
   --verified: #34d399;
+
+  /* Status defaults, text-safe on dark (on bg-base: success 10.4, warning 9.3,
+     danger 5.3, info 11.1 : 1). --t-danger-fill is for white-on-red buttons
+     (white on it: 5.46:1). */
+  --t-success: #10d4a0;
+  --t-warning: #f59e0b;
+  --t-danger: #ef4444;
+  --t-danger-fill: #c62f2f;
+  --t-info: #20d4e8;
 
   /* Borders */
   --border-subtle: rgba(255, 255, 255, 0.06);
@@ -173,13 +216,13 @@
   --destructive: var(--error);
   --border: var(--border-default);
   --input: var(--border-default);
-  --ring: #5b50f0;
+  --ring: var(--accent-ring);
   --chart-1: #5b50f0;
   --chart-2: #20d4e8;
   --chart-3: #a855f7;
   --chart-4: #ff7000;
   --chart-5: #10d4a0;
-  --radius: 14px;
+  --radius: 12px;
   --sidebar: var(--bg-elevated);
   --sidebar-foreground: var(--text-primary);
   --sidebar-primary: #5b50f0;
@@ -187,7 +230,7 @@
   --sidebar-accent: var(--bg-hover);
   --sidebar-accent-foreground: var(--text-primary);
   --sidebar-border: var(--border-subtle);
-  --sidebar-ring: #5b50f0;
+  --sidebar-ring: var(--accent-ring);
 
   /* Active model accent (Phase 2 will swap these on model change) */
   --model-primary: #5b50f0;
@@ -243,9 +286,19 @@
     background: var(--text-disabled);
   }
 
-  /* Global klaviatura fokusi — .theme-root ichida o'z uslubi bor (quyida). */
+  /* Keyboard focus: outline only, the element keeps its own shape. Inside the
+     dashboard (.theme-root) the ring takes the active model colour. Both rules
+     sit in @layer base, so focus-visible:* utilities can still override them. */
   :where(a, button, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
-    outline: 2px solid var(--primary-soft);
+    outline: 2px solid var(--accent-ring);
+    outline-offset: 2px;
+  }
+  /* The skip link moves focus to <main>; the whole page doesn't need a ring. */
+  main:focus-visible {
+    outline: none;
+  }
+  :where(.theme-root) :is(button, a, [role="button"]):focus-visible {
+    outline: 2px solid var(--t-primary, var(--accent-ring));
     outline-offset: 2px;
   }
 
@@ -274,15 +327,6 @@
   --surface-active: color-mix(in srgb, var(--t-text) 12%, transparent);
 }
 
-/* Apple a11y: har button uchun focus-visible ring — klaviatura foydalanuvchisi
-   uchun ko'rinishni ta'minlaydi. Sichqoncha bilan bosgan da chiqmaydi. */
-.theme-root button:focus-visible,
-.theme-root a:focus-visible,
-.theme-root [role="button"]:focus-visible {
-  outline: 2px solid var(--t-primary);
-  outline-offset: 2px;
-  border-radius: 6px;
-}
 .theme-root .tt,
 .theme-root .tt::before,
 .theme-root .tt::after {
@@ -441,11 +485,13 @@
     pointer-events: none;
   }
 
+  /* Glass only where layers overlap (sticky nav, overlays). 78% of --bg-base
+     stops the page from reading through; plain content uses solid surfaces. */
   .glass {
-    background: rgba(13, 16, 51, 0.55);
-    backdrop-filter: blur(22px) saturate(180%);
-    -webkit-backdrop-filter: blur(22px) saturate(180%);
-    border: 1px solid var(--border-default);
+    background: rgba(6, 8, 18, 0.78);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px); /* after the prefixed one: lightningcss keeps the last */
+    border: 1px solid var(--border-subtle);
   }
 
   .shadow-glow {
@@ -489,8 +535,8 @@
       linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
     background-size: 56px 56px;
-    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 100%);
     -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 100%);
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 100%);
   }
 }
 
@@ -500,13 +546,11 @@
 @keyframes hero-in {
   from {
     opacity: 0;
-    transform: translateY(16px);
-    filter: blur(4px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 }
 .hero-in {
@@ -518,8 +562,39 @@
   }
 }
 
+/* Hero orbit (OrbitField): CSS rotation, paused while off-screen. */
+@keyframes orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.orbit-ring {
+  animation: orbit-spin var(--orbit-dur, 180s) linear infinite;
+}
+.orbit-ring[data-reverse] {
+  animation-direction: reverse;
+}
+.orbit-counter {
+  animation: orbit-spin var(--orbit-dur, 180s) linear infinite reverse;
+}
+.orbit-ring[data-reverse] .orbit-counter {
+  animation-direction: normal;
+}
+.orbit-paused .orbit-ring,
+.orbit-paused .orbit-counter {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orbit-ring,
+  .orbit-counter {
+    animation: none;
+  }
+}
+
 /* Sozlamalar → "Animatsiyani kamaytirish" (MotionProvider <html data-reduced-motion> qo'yadi). */
-html[data-reduced-motion="true"] .hero-in {
+html[data-reduced-motion="true"] .hero-in,
+html[data-reduced-motion="true"] .orbit-ring,
+html[data-reduced-motion="true"] .orbit-counter {
   animation: none;
 }
 html[data-reduced-motion="true"] *,

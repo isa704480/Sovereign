@@ -39,21 +39,24 @@ export function BillingToggle({
             onClick={() => onChange(o.id)}
             className={cn(
               // Tor ekranda (375px, ruscha) ixchamroq — nishon ikki qatorga bo'linmaydi.
-              "inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition-colors sm:gap-2 sm:px-4",
-              on ? "text-white" : "hover:bg-white/5",
+              "inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition-colors sm:h-9 sm:gap-2 sm:px-4",
+              on ? "text-white" : "hover:bg-surface-hover",
             )}
             style={{
               // Landing'da --t-primary yo'q: to'q brend rangi (#5B50F0, oq matn bilan ~5.5:1, WCAG AA).
               background: on ? "var(--t-primary, #5B50F0)" : "transparent",
-              color: on ? "#fff" : "var(--t-text-muted, #9BA3CC)",
+              color: on ? "#fff" : "var(--t-text-muted, var(--text-secondary))",
             }}
           >
             {o.label}
             {o.id === "year" && (
               <span
-                className="whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-normal sm:px-2 sm:tracking-wide"
-                // Faol holatda oq ustida oq emas — to'qroq fon (kontrast AA).
-                style={{ background: on ? "rgba(0,0,0,0.28)" : "rgba(34,197,94,0.15)", color: on ? "#fff" : "#22C55E" }}
+                className="whitespace-nowrap rounded-full px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-normal sm:px-2 sm:tracking-wide"
+                // Faol holatda oq ustida oq emas — to'qroq fon (kontrast AA). Status rangi — token.
+                style={{
+                  background: on ? "rgba(0,0,0,0.28)" : "color-mix(in srgb, var(--t-success) 15%, transparent)",
+                  color: on ? "#fff" : "var(--t-success)",
+                }}
               >
                 {t("ldTwoMonthsFree")}
               </span>
