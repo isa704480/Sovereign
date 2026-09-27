@@ -18,6 +18,10 @@
   $ProgressPreference = 'SilentlyContinue'
   $pkg = '@islombekrrr/sov-cli'
   $repo = 'isa704480/Sovereign'
+  # SHA256SUMS imzosini tekshiruvchi ochiq kalit (RSA, .NET RSAKeyValue XML, bitta qator).
+  # Bo'sh - imzo tekshiruvi o'chiq (faqat SHA256). Kalit qo'yilgach, imzosiz/noto'g'ri imzoli
+  # binary O'RNATILMAYDI. Kalit: node cli/scripts/sign-sums.mjs keygen - docs/SIGNING.md.
+  $sumsPubKeyXml = ''
   $mode = if ($env:SOV_INSTALL) { $env:SOV_INSTALL } else { 'auto' }
 
   try {
@@ -131,14 +135,46 @@
       Write-Host "Downloading $name ..."
       $exe = Join-Path $tmp $name
       $sumFile = "$exe.sha256"
+      $sums = Join-Path $tmp 'SHA256SUMS'
+      $sigFile = "$sums.sig"
       try {
         Invoke-WebRequest -UseBasicParsing -Uri "$base/$name" -OutFile $exe
-        Invoke-WebRequest -UseBasicParsing -Uri "$base/$name.sha256" -OutFile $sumFile
+        if ($sumsPubKeyXml) {
+          Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS" -OutFile $sums
+          Invoke-WebRequest -UseBasicParsing -Uri "$base/SHA256SUMS.sig" -OutFile $sigFile
+        } else {
+          Invoke-WebRequest -UseBasicParsing -Uri "$base/$name.sha256" -OutFile $sumFile
+        }
       } catch {
         Write-Host "Download failed: $($_.Exception.Message)" -ForegroundColor Red
         return $false
       }
-      $expected = ((Get-Content -Raw $sumFile).Trim() -split '\s+')[0].ToLower()
+      if ($sumsPubKeyXml) {
+        # Imzolangan SHA256SUMS: avval imzo (RSA PKCS#1 v1.5 + SHA-256), keyin shu ro'yxatdagi hash.
+        $ok = $false
+        $rsa = New-Object System.Security.Cryptography.RSACryptoServiceProvider
+        try {
+          $rsa.FromXmlString($sumsPubKeyXml)
+          $sig = [Convert]::FromBase64String(((Get-Content -Raw $sigFile) -replace '\s', ''))
+          $ok = $rsa.VerifyData([IO.File]::ReadAllBytes($sums), 'SHA256', $sig)
+        } catch {
+          $ok = $false
+        } finally {
+          $rsa.Dispose()
+        }
+        if (-not $ok) {
+          Write-Host 'SHA256SUMS signature is INVALID - not installed.' -ForegroundColor Red
+          return $false
+        }
+        Write-Host 'Signature OK (SHA256SUMS)'
+        $expected = ''
+        foreach ($line in (Get-Content $sums)) {
+          $cols = "$line".Trim() -split '\s+'
+          if ($cols.Count -ge 2 -and ($cols[1] -replace '^\*', '') -eq $name) { $expected = $cols[0].ToLower(); break }
+        }
+      } else {
+        $expected = ((Get-Content -Raw $sumFile).Trim() -split '\s+')[0].ToLower()
+      }
       $actual = (Get-FileHash -Algorithm SHA256 -Path $exe).Hash.ToLower()
       if (-not $expected -or $expected -ne $actual) {
         Write-Host "SHA256 mismatch (expected $expected, got $actual) - not installed." -ForegroundColor Red

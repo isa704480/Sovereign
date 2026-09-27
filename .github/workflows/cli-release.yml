@@ -7,7 +7,9 @@
 #
 # Natija: sov-win-x64.exe, sov-linux-x64, sov-macos-arm64, sov-macos-x64,
 # har biriga <nom>.sha256 va umumiy SHA256SUMS — public/install.sh / install.ps1
-# shu fayllarni yuklab, checksum bilan tekshiradi.
+# shu fayllarni yuklab, checksum bilan tekshiradi. CLI_SIGNING_KEY secret'i bo'lsa
+# SHA256SUMS.sig ham qo'shiladi (installer'larda ochiq kalit bo'lsa — imzo majburiy).
+# Qo'llanma: docs/SIGNING.md.
 name: CLI release
 
 on:
@@ -94,6 +96,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Faqat imzo skripti va installer'larga o'rnatilgan ochiq kalit uchun (npm ishlamaydi).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          path: src
+          persist-credentials: false
+
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           path: out
@@ -106,6 +114,31 @@ jobs:
           for f in *.sha256; do sha256sum -c "$f"; done
           cat *.sha256 > SHA256SUMS
           chmod +x sov-linux-x64 sov-macos-arm64 sov-macos-x64
+
+      # SHA256SUMS imzosi (RSA-SHA256, docs/SIGNING.md). CLI_SIGNING_KEY yo'q va installer'larda
+      # kalit yo'q — o'tkazib yuboriladi (bugungidek). Installer'larda kalit bor-u secret yo'q —
+      # reliz YARATILMAYDI (aks holda install.sh / install.ps1 uni rad etadi).
+      - name: SHA256SUMS imzosi
+        shell: bash
+        env:
+          CLI_SIGNING_KEY: ${{ secrets.CLI_SIGNING_KEY }}
+        run: |
+          if [ -z "$CLI_SIGNING_KEY" ]; then
+            if grep -q "^SUMS_PUBKEY=''" src/public/install.sh; then
+              echo "::notice::CLI_SIGNING_KEY not set — SHA256SUMS is not signed (as before)"
+              exit 0
+            fi
+            echo "::error::public/install.sh has a SUMS_PUBKEY but the CLI_SIGNING_KEY secret is missing"
+            exit 1
+          fi
+          node src/cli/scripts/sign-sums.mjs sign --env out/SHA256SUMS
+          # install.sh aynan shunday tekshiradi (openssl) — kalit installer'ga hali qo'yilmagan
+          # bo'lsa ham, yopiq kalitdan olingan ochiq kalit bilan moslik sinovi.
+          umask 077
+          printf '%s\n' "$CLI_SIGNING_KEY" | sed 's/\\n/\n/g' | openssl pkey -pubout -out "$RUNNER_TEMP/sums.pub"
+          tr -d '\r\n ' < out/SHA256SUMS.sig | openssl base64 -d -A > "$RUNNER_TEMP/sums.sig.bin"
+          openssl dgst -sha256 -verify "$RUNNER_TEMP/sums.pub" -signature "$RUNNER_TEMP/sums.sig.bin" out/SHA256SUMS
+          rm -f "$RUNNER_TEMP/sums.pub" "$RUNNER_TEMP/sums.sig.bin"
 
       - name: Reliz yaratish
         env:
@@ -122,6 +155,9 @@ jobs:
 
           Har bir fayl yonida \`.sha256\` va umumiy \`SHA256SUMS\` bor.
           EOF
+          if [ -f out/SHA256SUMS.sig ]; then
+            echo "\`SHA256SUMS.sig\` — SHA256SUMS imzosi (RSA-SHA256); install.sh / install.ps1 uni avtomatik tekshiradi." >> notes.md
+          fi
           # --latest=false: "Latest" belgisi doim desktop-v* relizida qolsin — Cowork'ning
           # electron-updater'i /releases/latest orqali latest.yml'ni qidiradi.
           gh release create "$GITHUB_REF_NAME" out/* \

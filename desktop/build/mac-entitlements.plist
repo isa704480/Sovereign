@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened runtime huquqlari — FAQAT Developer ID bilan imzolangan build'da ishlatiladi
+  (scripts/signing-config.mjs). Ad-hoc (imzosiz) build bu faylni ishlatmaydi.
+  Nom ataylab "entitlements.mac.plist" EMAS: u nom electron-builder tomonidan avtomatik
+  olinib, imzosiz build'ni ham o'zgartirardi.
+  Electron (V8 JIT) uchun minimal to'plam; native modul yo'q — disable-library-validation kerak emas.
+-->
+<plist version="1.0">
+  <dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+  </dict>
+</plist>
