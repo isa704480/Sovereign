@@ -15,14 +15,24 @@ const ERRORS = ["empty", "duplicate", "unsafe", "too-long", "no-folder", "open",
 export default function ProjectMemory({ cwd, toast }) {
   const t = useT();
   const [info, setInfo] = useState(null);
+  // O'qib bo'lmadi (IPC xatosi yoki main "io") — bu "fayl yo'q" EMAS: "Yaratish" taklif qilinmaydi,
+  // aks holda foydalanuvchi mavjud SOVEREIGN.md ustiga shablon yozishga undaladi.
+  const [loadErr, setLoadErr] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
-      setInfo((await S().project?.info()) ?? null);
+      const r = await S().project?.info();
+      if (!r || r.error) throw new Error(r?.error || "io");
+      setInfo(r);
+      setLoadErr(false);
     } catch {
-      setInfo(null);
+      setLoadErr(true);
+    } finally {
+      setLoading(false);
     }
   }, []);
   useEffect(() => { load(); }, [load, cwd]);
@@ -66,6 +76,26 @@ export default function ProjectMemory({ cwd, toast }) {
         <Icon name="list" size={22} />
         <p>{t("project.title")}</p>
         <p className="faint small">{t("project.noFolder")}</p>
+      </div>
+    );
+  }
+
+  if (loadErr) {
+    return (
+      <div className="panel-empty" role="alert">
+        <Icon name="alert" size={22} />
+        <p>{t("project.loadError")}</p>
+        <p className="faint small">{t("project.loadErrorHint")}</p>
+        <button type="button" className="btn btn-sm" onClick={load} disabled={loading}>
+          {loading ? <span className="spinner sm" aria-hidden="true" /> : <Icon name="refresh" size={13} />} {t("common.retry")}
+        </button>
+      </div>
+    );
+  }
+  if (!info) {
+    return (
+      <div className="proj" role="status" aria-label={t("common.loading")}>
+        {[62, 88, 74, 40].map((w) => <span key={w} className="skeleton" style={{ width: `${w}%` }} />)}
       </div>
     );
   }

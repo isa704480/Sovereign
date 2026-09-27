@@ -58,13 +58,15 @@ function SandboxSection({ settings, setSetting }) {
   const t = useT();
   const [st, setSt] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false); // tekshiruv xatosi — abadiy "tekshirilmoqda" emas
   const mode = settings.sandbox ?? "auto";
   const load = (force = false) => {
-    if (!window.sovereign?.sandboxStatus) return;
+    if (!window.sovereign?.sandboxStatus) { setFailed(true); return; }
     setBusy(true);
+    setFailed(false);
     Promise.resolve(window.sovereign.sandboxStatus(force))
-      .then((s) => setSt(s ?? null))
-      .catch(() => setSt(null))
+      .then((s) => { if (s?.level) setSt(s); else { setSt(null); setFailed(true); } })
+      .catch(() => { setSt(null); setFailed(true); })
       .finally(() => setBusy(false));
   };
   useEffect(() => { load(false); }, [mode]);
@@ -75,7 +77,9 @@ function SandboxSection({ settings, setSetting }) {
     <div className="field">
       <span className="label-sm">{t("settings.sandbox")}</span>
       <div className="row gap-sm" role="status" aria-live="polite">
-        {busy || !st ? (
+        {!busy && failed ? (
+          <span className="grow small err"><Icon name="alert" size={12} /> {t("settings.sandboxError")}</span>
+        ) : busy || !st ? (
           <span className="grow small muted"><span className="spinner sm" aria-hidden="true" /> {t("settings.sandboxChecking")}</span>
         ) : (
           <>

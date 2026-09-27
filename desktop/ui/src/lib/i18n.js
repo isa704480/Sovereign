@@ -466,6 +466,9 @@ const uz = {
   "updCard.downloadingSr": "Yangilanish yuklab olinmoqda…",
   "changes.undoAllConfirm.title": "Barcha o‘zgarishlar qaytarilsinmi?",
   "changes.undoAllConfirm.body": "{n} ta o‘zgarish qaytariladi: fayllar agent tahrirlashidan oldingi holatiga keladi. Bu amalni ortga qaytarib bo‘lmaydi.",
+  "project.loadError": "Loyiha xotirasini (SOVEREIGN.md) o‘qib bo‘lmadi",
+  "project.loadErrorHint": "Fayl o‘zgartirilmadi. Papkaga kirish huquqini tekshirib, qayta urinib ko‘ring.",
+  "settings.sandboxError": "Sandbox holatini tekshirib bo‘lmadi.",
 };
 
 const en = {
@@ -904,6 +907,9 @@ const en = {
   "updCard.downloadingSr": "Downloading the update…",
   "changes.undoAllConfirm.title": "Undo all changes?",
   "changes.undoAllConfirm.body": "{n} changes will be reverted: files return to how they were before the agent edited them. This can’t be undone.",
+  "project.loadError": "Couldn’t read project memory (SOVEREIGN.md)",
+  "project.loadErrorHint": "Nothing was changed. Check that the folder is accessible and try again.",
+  "settings.sandboxError": "Couldn’t check the sandbox status.",
 };
 
 const ru = {
@@ -1342,6 +1348,9 @@ const ru = {
   "updCard.downloadingSr": "Загружается обновление…",
   "changes.undoAllConfirm.title": "Отменить все изменения?",
   "changes.undoAllConfirm.body": "Будет отменено изменений: {n}. Файлы вернутся к состоянию до правок агента. Это действие нельзя отменить.",
+  "project.loadError": "Не удалось прочитать память проекта (SOVEREIGN.md)",
+  "project.loadErrorHint": "Файл не изменён. Проверьте доступ к папке и попробуйте снова.",
+  "settings.sandboxError": "Не удалось проверить состояние песочницы.",
 };
 
 /**
@@ -1667,6 +1676,9 @@ const uzCyrl = {
   "updCard.downloadingSr": "Янгиланиш юклаб олинмоқда…",
   "changes.undoAllConfirm.title": "Барча ўзгаришлар қайтарилсинми?",
   "changes.undoAllConfirm.body": "{n} та ўзгариш қайтарилади: файллар агент таҳрирлашидан олдинги ҳолатига келади. Бу амални ортга қайтариб бўлмайди.",
+  "project.loadError": "Лойиҳа хотирасини (SOVEREIGN.md) ўқиб бўлмади",
+  "project.loadErrorHint": "Файл ўзгартирилмади. Папкага кириш ҳуқуқини текшириб, қайта уриниб кўринг.",
+  "settings.sandboxError": "Ҳимояланган муҳит ҳолатини текшириб бўлмади.",
 };
 
 const DICTS = { uz, en, ru };

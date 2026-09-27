@@ -164,14 +164,23 @@ export default function ModelPicker({ label, onSelect, disabled, placement = "up
     return () => document.removeEventListener("mousedown", onDown);
   }, [open]);
 
+  // Ro'yxat so'rovi xatosi "model topilmadi" deb ko'rsatilmaydi — alohida xato + Qayta urinish.
+  const [listErr, setListErr] = useState(false);
+  const [listReload, setListReload] = useState(0);
   useEffect(() => {
     if (!open || error || localView) return;
+    let alive = true;
+    const put = (d) => {
+      if (!alive) return;
+      setListErr(!!d.error);
+      setModels(d.error ? [] : d.models ?? []);
+    };
     const h = setTimeout(async () => {
-      if (q.trim()) setModels((await api(`?q=${encodeURIComponent(q)}&limit=60`)).models ?? []);
-      else if (fam && !fam.local) setModels((await api(`?family=${encodeURIComponent(fam.key)}&limit=80`)).models ?? []);
+      if (q.trim()) put(await api(`?q=${encodeURIComponent(q)}&limit=60`));
+      else if (fam && !fam.local) put(await api(`?family=${encodeURIComponent(fam.key)}&limit=80`));
     }, q ? 240 : 0);
-    return () => clearTimeout(h);
-  }, [q, fam, open, error]);
+    return () => { alive = false; clearTimeout(h); };
+  }, [q, fam, open, error, listReload]);
 
   // Mahalliy bo'lim ochilganda — o'rnatilgan modellar imkoniyatlari bilan (main → 127.0.0.1).
   useEffect(() => {
@@ -285,7 +294,7 @@ export default function ModelPicker({ label, onSelect, disabled, placement = "up
             <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("model.search")} aria-label={t("model.search")} />
           </div>
           {error && !localView ? (
-            <div className="empty small-empty">
+            <div className="empty small-empty" role="alert">
               <Icon name={error === "offline" ? "wifiOff" : "alert"} size={20} />
               <p>{error === "offline" ? t("model.offline") : t("model.error")}</p>
               {error !== "offline" && <button type="button" className="btn btn-sm" onClick={retry}>{t("common.retry")}</button>}
@@ -329,7 +338,14 @@ export default function ModelPicker({ label, onSelect, disabled, placement = "up
                   {localView ? localPane() : (
                     <>
                       {!models && <div className="muted small center pad">{t("common.loading")}</div>}
-                      {models && models.length === 0 && <div className="muted small center pad">{t("model.none")}</div>}
+                      {models && listErr && (
+                        <div className="small-empty" role="alert">
+                          <Icon name="alert" size={18} />
+                          <p>{t("model.error")}</p>
+                          <button type="button" className="btn btn-sm" onClick={() => { setModels(null); setListReload((n) => n + 1); }}><Icon name="refresh" size={13} /> {t("common.retry")}</button>
+                        </div>
+                      )}
+                      {models && !listErr && models.length === 0 && <div className="muted small center pad">{t("model.none")}</div>}
                       {(models || []).map((m) => (
                         <button key={m.id} type="button" className="picker-model" onClick={() => choose(m.id, m.id.split("/").pop())} title={m.id}>
                           <span className="grow" style={{ minWidth: 0 }}>
