@@ -28,11 +28,11 @@ const pct = (n: number | null) => (n == null ? "—" : `${n.toFixed(1)}%`);
 function Stat({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
     <div className="rounded-xl border border-white/5 bg-white/[0.02] p-4">
-      <div className="text-[11px] uppercase tracking-wider text-white/50">{label}</div>
+      <div className="text-[11px] uppercase tracking-wider text-white/60">{label}</div>
       <div className="mt-1.5 text-2xl font-semibold tabular-nums" style={{ color: color ?? "#EBEEFA" }}>
         {value}
       </div>
-      {sub && <div className="mt-1 text-xs text-white/50">{sub}</div>}
+      {sub && <div className="mt-1 text-xs text-white/60">{sub}</div>}
     </div>
   );
 }
@@ -44,7 +44,7 @@ function BreakdownTable({ title, rows, label }: { title: string; rows: Breakdown
       <div className="mb-2 text-sm text-white/70">{title}</div>
       <div className="max-h-64 overflow-y-auto rounded-xl border border-white/5">
         <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-[#0A0B12] text-[11px] uppercase tracking-wider text-white/40">
+          <thead className="sticky top-0 bg-[#0A0B12] text-[11px] uppercase tracking-wider text-white/60">
             <tr>
               <th className="px-3 py-2 text-left font-normal">{t("p13eColName")}</th>
               <th className="px-3 py-2 text-right font-normal">{t("p13eColAnswers")}</th>
@@ -88,10 +88,10 @@ function BudgetPanel({ budget }: { budget: BudgetSnapshot | null }) {
     <div className="mb-6 rounded-xl border border-white/5 bg-white/[0.02] p-4">
       <div className="mb-3 text-sm text-white/70">
         {t("p13eBudgetTitle")}
-        {s && <span className="ml-2 text-white/40 tabular-nums">{s.month}</span>}
+        {s && <span className="ml-2 text-white/60 tabular-nums">{s.month}</span>}
       </div>
       {!s ? (
-        <p className="text-sm text-white/50">{t("p13eBudgetUnavailable")}</p>
+        <p className="text-sm text-white/60">{t("p13eBudgetUnavailable")}</p>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
@@ -117,7 +117,7 @@ function BudgetPanel({ budget }: { budget: BudgetSnapshot | null }) {
               color={orLow ? "#FF6B6B" : undefined}
             />
           </div>
-          <div className="mt-3 space-y-1 text-xs text-white/50 tabular-nums">
+          <div className="mt-3 space-y-1 text-xs text-white/60 tabular-nums">
             <div>
               {fmtT(t("p13eBudgetAllowance"), {
                 allowance: usd(s.allowanceUsd),
@@ -133,7 +133,7 @@ function BudgetPanel({ budget }: { budget: BudgetSnapshot | null }) {
             {s.revenue.unconverted > 0 && (
               <div className="text-[#F5AA3C]">{fmtT(t("p13eBudgetRubNone"), { n: s.revenue.unconverted })}</div>
             )}
-            <div className="text-white/30">
+            <div className="text-white/60">
               {fmtT(t("p13eBudgetAsOf"), { time: new Date(s.at).toISOString().slice(0, 16).replace("T", " ") })}
             </div>
           </div>
@@ -162,13 +162,13 @@ export function UnitEconomicsCard({
     <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p13eTitle")}</div>
+          <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/60">{t("p13eTitle")}</h2>
           <span className="group relative inline-flex">
             <button
               type="button"
               aria-label={t("p13eMethodAria")}
               aria-describedby={tipId}
-              className="inline-flex size-5 items-center justify-center rounded-full border border-white/15 text-[11px] text-white/60 hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8B7DFF]"
+              className="inline-flex size-5 items-center justify-center rounded-full border border-white/15 text-[11px] text-white/60 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#8B7DFF]"
             >
               i
             </button>
@@ -189,7 +189,7 @@ export function UnitEconomicsCard({
               scroll={false}
               aria-current={n === days ? "page" : undefined}
               className={`rounded-full px-3 py-1 text-xs tabular-nums ${
-                n === days ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5"
+                n === days ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/[0.06]"
               }`}
             >
               {fmtT(t("p13eRangeDays"), { n })}
@@ -201,10 +201,10 @@ export function UnitEconomicsCard({
       <BudgetPanel budget={budget} />
 
       {!data ? (
-        <p className="text-sm text-white/50">{t("p13eUnavailable")}</p>
+        <p className="text-sm text-white/60">{t("p13eUnavailable")}</p>
       ) : data.totals.answers === 0 ? (
-        <p className="text-sm text-white/50">
-          {t("p13eNoData")} <span className="text-white/30">{fmtT(t("p13ePeriod"), { from: data.from, to: data.to })}</span>
+        <p className="text-sm text-white/60">
+          {t("p13eNoData")} <span className="text-white/60">{fmtT(t("p13ePeriod"), { from: data.from, to: data.to })}</span>
         </p>
       ) : (
         <>
@@ -226,7 +226,7 @@ export function UnitEconomicsCard({
             />
           </div>
 
-          <div className="mt-4 space-y-1 text-xs text-white/50 tabular-nums">
+          <div className="mt-4 space-y-1 text-xs text-white/60 tabular-nums">
             <div>{fmtT(t("p13ePeriod"), { from: data.from, to: data.to })}</div>
             {main && (
               <div>
@@ -253,7 +253,7 @@ export function UnitEconomicsCard({
               </div>
             )}
             {!data.servedColumns && <div className="text-[#F5AA3C]">{t("p13eNoServedCols")}</div>}
-            <div className="text-white/30">{fmtT(t("p13ePricesAsOf"), { date: PRICES_CHECKED })}</div>
+            <div className="text-white/60">{fmtT(t("p13ePricesAsOf"), { date: PRICES_CHECKED })}</div>
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-3">

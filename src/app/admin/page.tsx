@@ -1,11 +1,15 @@
 import { redirect } from "next/navigation";
+import { getServerT } from "@/lib/i18n-server";
 import { AdminDashboard, type OnboardingStats, type ModelStats } from "@/components/admin/AdminDashboard";
 import { createClient } from "@/lib/supabase/server";
 import { parseEconRange } from "@/lib/econ/unit-economics";
 import { getUnitEconomics } from "@/lib/econ/unit-economics.server";
 import { getBudgetSnapshot } from "@/lib/econ/budget.server";
 
-export const metadata = { title: "Admin · SOVEREIGN" };
+export async function generateMetadata() {
+  const t = await getServerT();
+  return { title: t("p21AdminTitle") };
+}
 
 export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   const econDays = parseEconRange((await searchParams).econ);

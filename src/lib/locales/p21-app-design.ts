@@ -5,6 +5,7 @@ import type { Dict } from "@/lib/i18n";
  * sahifalaridagi yangi matnlar, 4 tilda (uz / uz-cyrl / ru / en).
  */
 export const P21A = {
+  p21AdminTitle: { uz: "SOVEREIGN boshqaruv paneli", "uz-cyrl": "SOVEREIGN бошқарув панели", ru: "Панель администратора SOVEREIGN", en: "SOVEREIGN admin" },
   p21ShareNotFoundBody: {
     uz: "Havola o'chirilgan yoki noto'g'ri. Suhbat egasidan yangi havola so'rang.",
     "uz-cyrl": "Ҳавола ўчирилган ёки нотўғри. Суҳбат эгасидан янги ҳавола сўранг.",
