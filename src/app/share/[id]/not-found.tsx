@@ -17,7 +17,7 @@ export default function ShareNotFound() {
     >
       <title>{`${t("chShareNotFound")} · SOVEREIGN AI`}</title>
       <LogoMark size={44} />
-      <h1 className="t-display mt-6 text-balance text-2xl font-extrabold tracking-[-0.02em] md:text-3xl">{t("chShareNotFound")}</h1>
+      <h1 className="font-display mt-6 text-balance text-2xl font-extrabold tracking-[-0.02em] md:text-3xl">{t("chShareNotFound")}</h1>
       <p className="mt-2 max-w-md text-sm" style={{ color: "#9BA3CC" }}>
         {t("p21ShareNotFoundBody")}
       </p>
