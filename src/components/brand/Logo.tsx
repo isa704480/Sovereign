@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/store/chat";
 
@@ -20,6 +21,13 @@ interface LogoProps {
  * - Precise stroke widths, clean junctions, retina-crisp at any size
  */
 export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
+  // Har nusxaga alohida gradient id: sahifada bir nechta logo bo'lsa (masalan, mobil /login'da
+  // yashirin panel ichidagi nusxa) qat'iy id'lar birinchi — yashirin — nusxaga bog'lanib,
+  // ko'rinadigan logo bo'sh chiqardi.
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const shell = `${uid}-shell`;
+  const core = `${uid}-core`;
+  const glow = `${uid}-glow`;
   return (
     <svg
       width={size}
@@ -32,16 +40,16 @@ export function LogoMark({ size = 28, className }: { size?: number; className?: 
     >
       <defs>
         {/* Sokin indigo → chuqurroq indigo — bir rang oilasi */}
-        <linearGradient id="sov-shell" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
+        <linearGradient id={shell} x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#8B7DFF" />
           <stop offset="100%" stopColor="#5B50F0" />
         </linearGradient>
-        <linearGradient id="sov-core" x1="10" y1="9" x2="22" y2="23" gradientUnits="userSpaceOnUse">
+        <linearGradient id={core} x1="10" y1="9" x2="22" y2="23" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#6558E8" />
           <stop offset="100%" stopColor="#4238B8" />
         </linearGradient>
         {/* Nozik ichki nur — liquid glass depth */}
-        <radialGradient id="sov-glow" cx="0.35" cy="0.3" r="0.7">
+        <radialGradient id={glow} cx="0.35" cy="0.3" r="0.7">
           <stop offset="0%" stopColor="#B4AAFF" stopOpacity="0.4" />
           <stop offset="100%" stopColor="#B4AAFF" stopOpacity="0" />
         </radialGradient>
@@ -50,7 +58,7 @@ export function LogoMark({ size = 28, className }: { size?: number; className?: 
       {/* Tashqi hexagon — hairline stroke Apple uslubida */}
       <path
         d="M16 2.5 L27.6 9.25 L27.6 22.75 L16 29.5 L4.4 22.75 L4.4 9.25 Z"
-        stroke="url(#sov-shell)"
+        stroke={`url(#${shell})`}
         strokeWidth="1.75"
         strokeLinejoin="round"
       />
@@ -58,13 +66,13 @@ export function LogoMark({ size = 28, className }: { size?: number; className?: 
       {/* Ichki solid hexagon — brend accent */}
       <path
         d="M16 9 L21.9 12.5 L21.9 19.5 L16 23 L10.1 19.5 L10.1 12.5 Z"
-        fill="url(#sov-core)"
+        fill={`url(#${core})`}
       />
 
       {/* Liquid glass highlight */}
       <path
         d="M16 9 L21.9 12.5 L21.9 19.5 L16 23 L10.1 19.5 L10.1 12.5 Z"
-        fill="url(#sov-glow)"
+        fill={`url(#${glow})`}
       />
 
       {/* Markaziy nur nuqtasi — brend belgisi */}
