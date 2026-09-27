@@ -57,6 +57,80 @@ export function ToolStep({ it, awaiting }) {
   );
 }
 
+/**
+ * Reja kartasi (chek-ro'yxat). Qadam matni — model chiqishi: oddiy matn sifatida
+ * ko'rsatiladi (HTML/Markdown yo'q). Faqat model `plan` bilan BELGILAGAN qadam
+ * "bajarildi" ko'rinadi. Tugagach karta yig'iladi; ekran o'quvchiga faol qadam
+ * o'zgarganda (har tokenda emas) bir marta e'lon qilinadi.
+ */
+export function PlanCard({ it }) {
+  const t = useT();
+  const complete = it.total > 0 && it.done === it.total;
+  const [open, setOpen] = useState(!complete);
+  const [announce, setAnnounce] = useState("");
+  const prevActive = useRef(it.active);
+  const collapsed = useRef(complete);
+
+  useEffect(() => {
+    if (it.active && it.active !== prevActive.current) {
+      setAnnounce(t("plan.announce", { n: it.active, total: it.total, step: it.steps[it.active - 1]?.text ?? "" }));
+    }
+    prevActive.current = it.active;
+  }, [it.active, it.total, it.steps, t]);
+
+  // Reja tugagan paytda bir marta yig'iladi — keyin foydalanuvchi tanlovi saqlanadi.
+  useEffect(() => {
+    if (complete && !collapsed.current) {
+      collapsed.current = true;
+      setOpen(false);
+      setAnnounce(t("plan.announceDone", { total: it.total }));
+    }
+    if (!complete) collapsed.current = false;
+  }, [complete, it.total, t]);
+
+  return (
+    <section className={`plan ${complete ? "plan-complete" : ""}`} aria-label={t("plan.title")}>
+      <button type="button" className="plan-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="plan-mark"><Icon name="listCheck" size={14} /></span>
+        <span className="plan-title grow">{t("plan.title")}</span>
+        <span className={`pill ${complete ? "pill-ok" : "pill-running"} tnum`}>{t("plan.counter", { done: it.done, total: it.total })}</span>
+        <Icon name="chevron" size={12} className={`caret ${open ? "open" : ""}`} />
+      </button>
+      {open && (
+        <ol className="plan-list" role="list">
+          {it.steps.map((s, i) => {
+            const active = !s.done && i + 1 === it.active;
+            return (
+              <li key={i} className={`plan-item ${s.done ? "is-done" : active ? "is-active" : "is-todo"}`} aria-current={active ? "step" : undefined}>
+                <Icon name={s.done ? "checkSquare" : active ? "squareDot" : "square"} size={14} stroke={s.done ? 2 : 1.6} />
+                <span className="plan-text">{s.text}</span>
+                <span className="sr-only">{s.done ? t("plan.sr.done") : active ? t("plan.sr.active") : t("plan.sr.todo")}</span>
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <span className="sr-only" role="status" aria-live="polite">{announce}</span>
+    </section>
+  );
+}
+
+/** Jurnaldagi halol reja xulosasi: tugallanmagan qadamlar ochiq aytiladi. */
+function PlanSummary({ plan }) {
+  const t = useT();
+  if (!plan?.total) return null;
+  const left = plan.steps.filter((s) => !s.done).map((s) => s.text);
+  if (!left.length) {
+    return <div className="ledger-reads faint small"><Icon name="listCheck" size={12} /> {t("ledger.planDone", { total: plan.total })}</div>;
+  }
+  return (
+    <div className="banner banner-warn">
+      <Icon name="listCheck" size={14} />
+      <span>{t("ledger.planLeft", { done: plan.done, total: plan.total, steps: left.slice(0, 4).join("; ") + (left.length > 4 ? ` (+${left.length - 4})` : "") })}</span>
+    </div>
+  );
+}
+
 /** Jurnal izohi: noteCode → tanlangan tildagi matn (steps | loop | budget | error). */
 function ledgerNote(it, t) {
   switch (it.noteCode) {
@@ -120,7 +194,8 @@ export function LedgerCard({ it }) {
   const judgeHits = Array.isArray(it.judge?.unsupported) ? it.judge.unsupported.filter((s) => typeof s === "string" && s) : [];
   const judgeVendor = typeof it.judge?.vendor === "string" && it.judge.vendor ? it.judge.vendor : null;
   const projectBad = (it.project ?? []).some((p) => p.status !== "ok");
-  const bad = st.failed + st.declined > 0 || !!it.warning || !!it.testWarning || !!it.noteCode || judgeHits.length > 0 || projectBad || !!it.projectWarning;
+  const planLeft = it.plan?.total ? it.plan.total - it.plan.done : 0;
+  const bad = st.failed + st.declined > 0 || !!it.warning || !!it.testWarning || !!it.noteCode || judgeHits.length > 0 || projectBad || planLeft > 0 || !!it.projectWarning;
   return (
     <section className={`ledger ${bad ? "ledger-warn" : ""}`} aria-label={t("ledger.title")}>
       <header className="ledger-head">
@@ -150,6 +225,7 @@ export function LedgerCard({ it }) {
         </ul>
       )}
       {st.reads > 0 && <div className="ledger-reads faint small"><Icon name="eye" size={12} /> {t("ledger.reads", { n: st.reads })}</div>}
+      <PlanSummary plan={it.plan} />
       {it.noteCode && <div className="banner banner-warn"><Icon name={it.noteCode === "loop" ? "repeat" : "alert"} size={14} /><span>{ledgerNote(it, t)}</span></div>}
       {it.warning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.claimWarn")}</b> {ledgerWarning(it.warning, t)}</span></div>}
       {it.testWarning && <div className="banner banner-danger"><Icon name="alert" size={14} /><span><b>{t("ledger.testWarn")}</b> {testWarningText(it.testWarning, t)}</span></div>}
@@ -543,6 +619,8 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
                 return <LocalOfferCard key={it.id} it={it} mode={mode} />;
               case "local":
                 return <LocalMarker key={it.id} it={it} />;
+              case "plan":
+                return <PlanCard key={it.id} it={it} />;
               case "assistant":
                 return <Assistant key={it.id} text={it.text} />;
               case "tool":

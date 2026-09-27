@@ -3,7 +3,7 @@
 // Har qanday xato/offline/timeout — null (chaqiruvchi regex natijasida qoladi).
 // Hakam faqat QO'SHIMCHA ogohlantirish beradi: regex topgan muammoni u o'chira olmaydi.
 
-import { ledgerLines, SIDE_EFFECT_TOOLS } from "./tools.mjs";
+import { ledgerLines, planSummary, SIDE_EFFECT_TOOLS } from "./tools.mjs";
 
 const VERIFY_TIMEOUT_MS = 8_000;
 const ANSWER_MAX = 8_000;
@@ -26,11 +26,11 @@ const clean = (s, max) => (typeof s === "string" ? s.replace(/[\x00-\x1f\x7f-\x9
  * Hakam — MUSTAQIL: server `answerModel` (javobni bergan model) kompaniyasidan
  * BOSHQA kompaniyaning modelini tanlaydi va kimligini qaytaradi.
  * @param {object} config
- * @param {{answer?: string, entries?: object[], signal?: AbortSignal, answerModel?: string}} [p]
+ * @param {{answer?: string, entries?: object[], plan?: object|null, signal?: AbortSignal, answerModel?: string}} [p]
  * @returns {Promise<{ unsupported: string[], model?: string, judgeModel?: string,
  *   judgeVendor?: string, judgeVendorLabel?: string, answerVendor?: string } | null>}
  */
-export async function verifyClaims(config, { answer, entries, signal, answerModel, extraLines = [] } = {}) {
+export async function verifyClaims(config, { answer, entries, signal, answerModel, plan = null, extraLines = [] } = {}) {
   if (!config?.token || !config?.baseUrl || verifyDisabled()) return null;
   const text = String(answer ?? "").trim();
   if (!text) return null;
@@ -39,6 +39,10 @@ export async function verifyClaims(config, { answer, entries, signal, answerMode
   const ledger = [...extra.slice(0, 10), ...ledgerLines(entries)]
     .slice(0, 60)
     .map((l) => ({ status: l.status, text: String(l.text).slice(0, 300) }));
+  // Reja holati ham jurnal qatori sifatida: hakam tugallanmagan qadamlarni ko'rsin
+  // (bajarilmagan qadam — "failed", ya'ni "bu amal bo'lmagan").
+  const planLine = planSummary(plan);
+  if (planLine) ledger.push({ status: plan.done < plan.total ? "failed" : "ok", text: planLine.slice(0, 300) });
   const timeout = AbortSignal.timeout(VERIFY_TIMEOUT_MS);
   const combined = signal && typeof AbortSignal.any === "function" ? AbortSignal.any([signal, timeout]) : timeout;
   try {

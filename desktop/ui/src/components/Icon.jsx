@@ -57,6 +57,11 @@ const P = {
   braces: <><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1" /><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1" /></>,
   chart: <><path d="M3 3v18h18" /><path d="M8 17v-5M13 17V8M18 17V9" /></>,
   focus: <><circle cx="12" cy="12" r="3" /><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" /></>,
+  // Reja (chek-ro'yxat): bo'sh katak · faol katak (nuqta) · belgilangan katak · sarlavha ikoni.
+  square: <rect x="4" y="4" width="16" height="16" rx="3.5" />,
+  squareDot: <><rect x="4" y="4" width="16" height="16" rx="3.5" /><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none" /></>,
+  checkSquare: <><path d="M20 11.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" /><path d="M8.5 11.5l3 3 8-8.5" /></>,
+  listCheck: <><path d="M10 6h11M10 12h11M10 18h11" /><path d="M3 6.5l1.6 1.6L7.5 5" /><path d="M3 12.5l1.6 1.6L7.5 11" /><path d="M3 18.5l1.6 1.6L7.5 17" /></>,
   wifiOff: <><path d="M2 2l20 20" /><path d="M8.5 16.5a5 5 0 0 1 7 0" /><path d="M5 12.9a10 10 0 0 1 5.2-2.8M14.8 10.1A10 10 0 0 1 19 12.9" /><path d="M12 20h.01" /></>,
 };
 

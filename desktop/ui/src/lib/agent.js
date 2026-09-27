@@ -148,6 +148,29 @@ function localOf(ev) {
   };
 }
 
+// ---- Reja (plan) ------------------------------------------------------------
+// Qadam matni — ISHONCHSIZ model chiqishi: main allaqachon tozalagan, bu yerda yana
+// bir bor (oddiy matn, ≤80 belgi, ≤12 qadam). Karta hech qachon HTML/Markdown ko'rsatmaydi.
+export const PLAN_MAX_STEPS = 12;
+export const PLAN_STEP_MAX = 80;
+
+/** "plan" hodisasi → karta elementi (yaroqsiz bo'lsa null). `keep` — mavjud kartaning id'si saqlanadi. */
+export function planItem(ev, keep = null) {
+  const steps = (Array.isArray(ev?.steps) ? ev.steps.slice(0, PLAN_MAX_STEPS) : [])
+    .map((s) => ({ text: plainText(typeof s === "string" ? s : s?.text, PLAN_STEP_MAX), done: s?.done === true }))
+    .filter((s) => s.text);
+  if (!steps.length) return null;
+  const active = Number.isInteger(ev.active) && ev.active >= 1 && ev.active <= steps.length ? ev.active : 0;
+  return { id: keep ?? nid(), kind: "plan", steps, active, total: steps.length, done: steps.filter((s) => s.done).length };
+}
+
+/** Jurnal kartasidagi reja xulosasi uchun — tozalangan holat yoki null. */
+function planOf(v) {
+  if (!v || typeof v !== "object") return null;
+  const it = planItem(v);
+  return it ? { steps: it.steps, active: it.active, total: it.total, done: it.done } : null;
+}
+
 /** Javob kutayotgan kartalarni yopadi (navbat tugadi / to'xtatildi / xato / mahalliyga o'tildi). */
 function closeOpen(items, offerState = "closed") {
   let changed = false;
@@ -219,6 +242,19 @@ export function applyEvent(s, ev, { replay = false } = {}) {
       const ids = knownSkillIds(ev.skills);
       return ids.length ? { ...s, items: [...s.items, { id: nid(), kind: "skills", ids }] } : s;
     }
+    case "plan": {
+      // Bitta navbatda bitta karta: oxirgi foydalanuvchi xabaridan keyin kelgan reja JOYIDA yangilanadi.
+      let lastUser = -1;
+      s.items.forEach((it, i) => { if (it.kind === "user" && !it.inquiry) lastUser = i; });
+      const at = lastIndex(s.items, (it) => it.kind === "plan");
+      const reuse = at > lastUser ? at : -1;
+      const it = planItem(ev, reuse >= 0 ? s.items[reuse].id : null);
+      if (!it) return s;
+      if (reuse < 0) return { ...s, items: [...s.items, it] };
+      const items = s.items.slice();
+      items[reuse] = it;
+      return { ...s, items };
+    }
     case "tool":
       return { ...s, items: [...s.items, { id: nid(), kind: "tool", callId: ev.callId, name: ev.name, args: ev.args ?? {}, status: "running" }] };
     case "tool-done": {
@@ -284,7 +320,7 @@ export function applyEvent(s, ev, { replay = false } = {}) {
           ...s.items,
           // local — mahalliy model nomi: mustaqil tekshiruv (hakam) o'tkazilmadi.
           // project — SOVEREIGN.md tekshiruv buyruqlarining jurnal bo'yicha holati; projectWarning — "bajarildi" deb aytilgan bajarilmagan buyruqlar.
-          { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, testWarning: ev.testWarning ?? null, noteCode: ev.noteCode, maxSteps: ev.maxSteps, loop: ev.loop ?? null, budget: ev.budget ?? null, judge: ev.judge ?? null, local: plainText(ev.local, 100) || null, project: projectRows(ev.project), projectWarning: projectWarn(ev.projectWarning) },
+          { id: nid(), kind: "ledger", entries: ev.entries ?? [], warning: ev.warning, testWarning: ev.testWarning ?? null, noteCode: ev.noteCode, maxSteps: ev.maxSteps, loop: ev.loop ?? null, budget: ev.budget ?? null, judge: ev.judge ?? null, local: plainText(ev.local, 100) || null, plan: planOf(ev.plan), project: projectRows(ev.project), projectWarning: projectWarn(ev.projectWarning) },
         ],
       };
     case "project-check":

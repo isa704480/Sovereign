@@ -14,6 +14,10 @@ import {
   createUsageMeter,
   formatTokens,
   statusTag,
+  createPlan,
+  planChanges,
+  planSummary,
+  PLAN_RULE,
   HONESTY_RULE,
   FAILURE_EXPLAIN_RULE,
   FULL_AUTO_RULE,
@@ -44,6 +48,7 @@ const SYSTEM = [
   "Foydalanuvchi qaysi tilda yozsa, o'sha tilda javob ber (asosan o'zbek tili).",
   "Vazifa tushunarli bo'lsa DARHOL bajar: aytilmagan tafsilotlarga (uslub, tuzilma, nom) oqilona standart tanla va oxirida qanday taxmin qilganingni 1 qatorda ayt. Faqat natija foydalanuvchiga xos ma'lumotga bog'liq bo'lsa (uning ismi, aniq raqamlari, kalit, qaysi fayl yoki yo'l) 1-3 ta qisqa savol ber — bir vazifaga bir marta; foydalanuvchi javob bergan yoki \"qil/davom et\" degan bo'lsa, qayta so'ramay bajar.",
   "MUHIM: har bir qadamda nima qilayotganingni QISQA gap bilan tushuntirib bor — avval rejangni ayt, keyin vositani chaqir.",
+  PLAN_RULE,
   "Foydalanuvchidan 'davom et' deb yozishni SO'RAMA — vazifa berilgan bo'lsa, shu javobning o'zida vositani chaqir. Ism o'ylab topma: foydalanuvchiga faqat u o'zi aytgan ism bilan murojaat qil.",
   "Masalan: 'Avval package.json yarataman, keyin src papkasini ochaman.' — keyin write_file/make_dir chaqir.",
   "Kod toza, ishlaydigan va xavfsiz bo'lsin. Fayl uchun write_file, papka uchun make_dir vositasidan foydalan.",
@@ -88,6 +93,35 @@ function describe(name, args) {
     default:
       return `${c.teal("▸")} ${c.dim(name)}`;
   }
+}
+
+/** Reja chek-ro'yxati qatorlari: ✓ bajarilgan · ▸ hozirgi · ○ navbatdagi. */
+function planLines(snap) {
+  return snap.steps.map((s, i) => {
+    const n = c.dim(`${String(i + 1).padStart(2, " ")}.`);
+    if (s.done) return `     ${c.green("✓")} ${n} ${c.dim(visible(s.text))}`;
+    if (i + 1 === snap.active) return `     ${c.accent("▸")} ${n} ${c.white(visible(s.text))}`;
+    return `     ${c.faint("○")} ${n} ${c.faint(visible(s.text))}`;
+  });
+}
+
+/**
+ * Rejani chop etadi. Qadamlar ro'yxati o'zgarmagan va 1-2 qator yangilangan bo'lsa —
+ * faqat o'sha qatorlar; aks holda qisqa ro'yxat qaytadan.
+ */
+function printPlan(snap, prev) {
+  const lines = planLines(snap);
+  const changed = planChanges(snap, prev);
+  if (changed) {
+    if (!changed.length) return; // hech narsa o'zgarmadi
+    if (changed.length <= 2) {
+      for (const i of changed) console.log(lines[i]);
+      console.log(`     ${c.dim(`reja: ${snap.done}/${snap.total}`)}`);
+      return;
+    }
+  }
+  console.log(`  ${c.accent("▤")} ${c.white("Reja")} ${c.dim(`${snap.done}/${snap.total}`)}`);
+  for (const l of lines) console.log(l);
 }
 
 async function* sseLines(body) {
@@ -372,10 +406,10 @@ const PROJECT_STATUS = {
   notRun: ["○", "amber", "ishga tushirilmadi"],
 };
 
-function printLedger(entries, { note = "", regexWarn = null, judge = null, usage = null, project = null } = {}) {
+function printLedger(entries, { note = "", regexWarn = null, judge = null, usage = null, project = null, plan = null } = {}) {
   const worth = ledgerWorthShowing(entries);
   const judgeHits = judge?.unsupported ?? [];
-  if (!worth && !regexWarn && !note && !judgeHits.length && !project?.length) {
+  if (!worth && !regexWarn && !note && !judgeHits.length && !project?.length && !plan) {
     if (usage) console.log(usageLine(usage) + "\n");
     return;
   }
@@ -390,6 +424,11 @@ function printLedger(entries, { note = "", regexWarn = null, judge = null, usage
       const [mark, color, text] = PROJECT_STATUS[s.status] ?? PROJECT_STATUS.notRun;
       console.log(`     ${c[color](mark)} ${c.dim(`${visible(s.label)}: ${visible(s.command)} — ${text}`)}`);
     }
+  }
+  // Reja — faqat model o'zi `plan` bilan belgilagan holat (hech qachon taxmin qilinmaydi).
+  if (plan) {
+    const line = visible(planSummary(plan));
+    console.log("   " + (plan.done < plan.total ? c.amber("⚠ " + line) : c.green("✓ ") + c.dim(line)));
   }
   if (note) console.log("   " + c.amber("⚠ " + note));
   if (regexWarn) console.log("   " + c.amber("⚠ Diqqat: " + regexWarn + " Jurnalga ishoning."));
@@ -420,7 +459,7 @@ function usageLine(u) {
  * ogohlantirishni u bekor qila olmaydi (javob matnidagi prompt-injection hakamni
  * "hammasi joyida" deyishga majburlasa ham regex ogohlantirishi qoladi).
  */
-async function checkHonesty(entries, finalText, { config, signal, verify, print, answerModel = null, project = null }) {
+async function checkHonesty(entries, finalText, { config, signal, verify, print, answerModel = null, project = null, plan = null }) {
   // Har rejimda: "bajardim" da'vosi + "testlar o'tdi" da'vosi (test yo'q / eskirgan / yiqilgan)
   // + SOVEREIGN.md tekshiruvida bajarilmagan buyruq "✅" deb belgilanganmi.
   const tests = finalText ? testClaimIssue(finalText, entries) : null;
@@ -428,10 +467,10 @@ async function checkHonesty(entries, finalText, { config, signal, verify, print,
   const regexWarn = finalText ? [unsupportedClaim(finalText, entries), testClaimText(tests), projectClaimText(projectIssue)].filter(Boolean).join(" ") || null : null;
   let judge = null;
   // Mahalliy rejimda hakam (server) chaqirilmaydi — javob matni kompyuterdan chiqmasin.
-  if (verify && finalText && config?.token && !config?.local && !signal?.aborted && shouldVerify(entries, regexWarn)) {
+  if (verify && finalText && config?.token && !config?.local && !signal?.aborted && (shouldVerify(entries, regexWarn) || plan)) {
     const spin = print ? spinner("javob jurnal bilan solishtirilyapti...") : null;
     // Hakam ham ishga tushirilmagan / eskirgan SOVEREIGN.md buyrug'ini "bajarildi" deb qabul qilmasin.
-    judge = await verifyClaims(config, { answer: finalText, entries, signal, answerModel: answerModel ?? undefined, extraLines: projectJudgeLines(project) });
+    judge = await verifyClaims(config, { answer: finalText, entries, plan, signal, answerModel: answerModel ?? undefined, extraLines: projectJudgeLines(project) });
     spin?.stop();
   }
   return { regexWarn, judge, tests };
@@ -510,6 +549,8 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
   // Shell Undo (faqat interaktiv REPL'da — /undo shu sessiyada mavjud): "risky" buyruqdan
   // oldin ish papkasi nusxasi olinadi, o'zgarish bo'lsa buyruqdan keyin eslatma chiqadi.
   let snapNote = null;
+  // Shu navbatning rejasi (`plan` vositasi) — xotirada, diskka tegmaydi.
+  const plan = createPlan();
   // write_file ham /undo ro'yxatiga tushadi (files: true); uning izohi "✎ o'zgartirildi" qatorining o'zi.
   const run = snapshots ? withCommandSnapshots(runTool, cliSnapshotStore, { files: true, onChange: (s) => (snapNote = s.kind === "file" ? null : s) }) : runTool;
   const exec = (name, args) =>
@@ -523,10 +564,10 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
         return ok;
       },
       // fullAuto: run_command sandbox'da (sandbox.mjs: full / container / limited); config.sandbox — rejim.
-      { signal, fullAuto, sandbox: config?.sandbox, sandboxImage: config?.sandboxImage },
+      { signal, fullAuto, plan, sandbox: config?.sandbox, sandboxImage: config?.sandboxImage },
     );
   const sandboxNote = fullAuto ? await sandboxNoteFor(config) : "";
-  const tracker = createTurnTracker(exec);
+  const tracker = createTurnTracker(exec, { plan });
   const honestyOut = (h) => ({
     regex: h.regexWarn ?? null,
     judge: h.judge ? h.judge.unsupported : null,
@@ -572,8 +613,8 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
 
   const localName = () => (config.local && typeof config.local === "object" ? config.local.model : null);
   const finishAborted = () => {
-    printLedger(tracker.entries, { note: "Bekor qilindi (Ctrl+C) — navbat to'xtatildi, qolgan amallar bajarilmadi.", usage: usage() });
-    return { aborted: true, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty, local: localName() };
+    printLedger(tracker.entries, { note: "Bekor qilindi (Ctrl+C) — navbat to'xtatildi, qolgan amallar bajarilmadi.", usage: usage(), plan: tracker.planSnapshot() });
+    return { aborted: true, ledger: tracker.entries, final, plan: tracker.planSnapshot(), usage: usage(), honesty: noHonesty, local: localName() };
   };
 
   for (let step = 0; step < maxSteps; step++) {
@@ -583,8 +624,9 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
       printLedger(tracker.entries, {
         note: `Token byudjeti tugadi: ≈${formatTokens(meter.tokens)} / ${formatTokens(meter.budget)} token — navbat to'xtatildi, vazifa oxirigacha bajarilmagan bo'lishi mumkin. Davom etish uchun "davom et" deb yozing (yoki --budget ni oshiring).`,
         usage: usage(),
+        plan: tracker.planSnapshot(),
       });
-      return { done: true, budgetExceeded: true, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty, local: localName() };
+      return { done: true, budgetExceeded: true, ledger: tracker.entries, final, plan: tracker.planSnapshot(), usage: usage(), honesty: noHonesty, local: localName() };
     }
     const spin = spinner(step === 0 ? "o'ylayapti..." : "davom etyapti...");
     let round;
@@ -617,7 +659,7 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
         continue;
       }
       // Xatodan oldin bajarilgan amallar ham ko'rinsin.
-      printLedger(tracker.entries, { note: "Navbat xato bilan to'xtadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin.", usage: meter.rounds ? usage() : null });
+      printLedger(tracker.entries, { note: "Navbat xato bilan to'xtadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin.", usage: meter.rounds ? usage() : null, plan: tracker.planSnapshot() });
       return { error: err.message, errorKind: classifyServerError(err), ledger: tracker.entries, final, usage: usage(), honesty: noHonesty, local: localName() };
     }
     fallbackState.server = 0;
@@ -667,9 +709,9 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
       }
       if (print) process.stdout.write("\n");
       const project = projectStatus();
-      const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print, answerModel: finalModel, project });
-      printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge, usage: usage(), project });
-      return { done: true, ledger: tracker.entries, final: text, usage: usage(), honesty: honestyOut(h), local: localName(), projectCheck: project };
+      const h = await checkHonesty(tracker.entries, text, { config, signal, verify, print, answerModel: finalModel, project, plan: tracker.planSnapshot() });
+      printLedger(tracker.entries, { regexWarn: h.regexWarn, judge: h.judge, usage: usage(), project, plan: tracker.planSnapshot() });
+      return { done: true, ledger: tracker.entries, final: text, usage: usage(), honesty: honestyOut(h), local: localName(), projectCheck: project, plan: tracker.planSnapshot() };
     }
 
     // Model asked for tools — narrate & run each, then loop.
@@ -693,8 +735,12 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
         messages.push({ role: "tool", tool_call_id: call.id, content: `[HOLAT: RAD ETILDI — bu amal BAJARILMADI]\n${msg}` });
         continue;
       }
-      console.log("  " + describe(call.function.name, args));
+      // Reja — qadam qatori emas, chek-ro'yxat: chaqiruvdan KEYIN (yangi holat bilan) chiziladi.
+      const isPlan = call.function.name === "plan";
+      const planBefore = isPlan ? plan.snapshot() : null;
+      if (!isPlan) console.log("  " + describe(call.function.name, args));
       const r = await tracker.run(call.function.name, args);
+      if (isPlan && print && r.status === "ok") printPlan(plan.snapshot(), planBefore.total ? planBefore : null);
       toolSpin?.stop();
       toolSpin = null;
       if (snapNote) {
@@ -704,6 +750,7 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
         snapNote = null;
       }
       if (r.status === "declined") console.log("  " + c.amber("⊘ rad etildi — bajarilmadi"));
+      else if (r.status === "failed" && isPlan) console.log("  " + c.amber("⚠ " + visible(r.result)));
       else if (r.status === "failed") console.log("  " + c.red("✕ bajarilmadi / xato") + (r.entry?.exit != null ? c.dim(` (exit ${r.entry.exit})`) : ""));
       lastTool = { role: "tool", tool_call_id: call.id, content: r.content.slice(0, TOOL_RESULT_MAX) };
       messages.push(lastTool);
@@ -716,12 +763,12 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
     // yozildi — qadamlarni behuda yoqmasdan, halol izoh bilan to'xtaymiz.
     if (tracker.loop) {
       if (print) process.stdout.write("\n");
-      printLedger(tracker.entries, { note: loopText(tracker.loop), usage: usage() });
-      return { done: true, loop: tracker.loop, ledger: tracker.entries, final, usage: usage(), honesty: noHonesty, local: localName() };
+      printLedger(tracker.entries, { note: loopText(tracker.loop), usage: usage(), plan: tracker.planSnapshot() });
+      return { done: true, loop: tracker.loop, ledger: tracker.entries, final, plan: tracker.planSnapshot(), usage: usage(), honesty: noHonesty, local: localName() };
     }
   }
   const project = projectStatus();
-  const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print, answerModel: finalModel, project });
+  const h = await checkHonesty(tracker.entries, final, { config, signal, verify, print, answerModel: finalModel, project, plan: tracker.planSnapshot() });
   printLedger(tracker.entries, {
     note: `Qadamlar chegarasi (${maxSteps}) tugadi — vazifa oxirigacha bajarilmagan bo'lishi mumkin. "davom et" deb yozing.`,
     regexWarn: h.regexWarn,
@@ -729,7 +776,7 @@ async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, prin
     usage: usage(),
     project,
   });
-  return { done: true, ledger: tracker.entries, truncated: true, final, usage: usage(), honesty: honestyOut(h), local: localName(), projectCheck: project };
+  return { done: true, ledger: tracker.entries, truncated: true, final, usage: usage(), honesty: honestyOut(h), local: localName(), projectCheck: project, plan: tracker.planSnapshot() };
 }
 
 /** Bitta javob — vositalarsiz, oqimsiz. Parallel rejim uchun. */

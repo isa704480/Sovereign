@@ -535,8 +535,150 @@ export function fullAutoDenyReason(command) {
   return gitConfigEscape(verbs) ?? commandPathEscape(cmd);
 }
 
+// ---- Reja (plan) ---------------------------------------------------------
+// Ko'p qadamli vazifada model avval chek-ro'yxat ko'rsatadi, so'ng qadamlarni
+// belgilab boradi. Diskka va tizimga TEGMAYDI: tasdiq so'ralmaydi, Full auto
+// rad etish ro'yxati ham, sandbox ham unga taalluqli emas.
+// Reja matni — ISHONCHSIZ model chiqishi: faqat ko'rsatiladi, HECH QACHON
+// bajarilmaydi yoki buyruq sifatida talqin qilinmaydi.
+
+export const PLAN_MAX_STEPS = 12;
+export const PLAN_STEP_MAX = 80;
+
+/** Ko'rinmas formatlash belgilari (nol-kenglik, bidi, BOM) — kod nuqtalari bilan yoziladi. */
+const PLAN_HIDDEN = new RegExp(
+  `[${[[0x200b, 0x200f], [0x2028, 0x2029], [0x202a, 0x202e], [0x2060, 0x2064], [0x2066, 0x2069], [0xfeff, 0xfeff]]
+    .map(([a, b]) => `${String.fromCharCode(a)}-${String.fromCharCode(b)}`)
+    .join("")}]`,
+  "g",
+);
+
+/** Reja qadami matni: bidi/nol-kenglik olib tashlanadi, boshqaruv belgilari ko'rinadi, ≤80 belgi. */
+export function planText(s) {
+  const flat = String(s ?? "").replace(PLAN_HIDDEN, "").replace(/[\t\n\r\f\v]+/g, " ");
+  return visible(flat).replace(/\s+/g, " ").trim().slice(0, PLAN_STEP_MAX);
+}
+
+const asList = (v) => (Array.isArray(v) ? v : v == null ? [] : [v]);
+
+/**
+ * Bitta navbat (vazifa) rejasi — xotirada. `apply` model argumentlarini tozalab
+ * qo'llaydi va QISQA tasdiq matnini qaytaradi (reja matni takrorlanmaydi — token tejaladi).
+ */
+export function createPlan() {
+  let steps = []; // [{ text, done }]
+  let active = 0; // 1-based; 0 — yo'q
+
+  const snapshot = () => ({
+    steps: steps.map((s) => ({ text: s.text, done: s.done })),
+    active,
+    total: steps.length,
+    done: steps.filter((s) => s.done).length,
+  });
+
+  /** Yangi ro'yxat: tozalanadi, bo'shlari tashlanadi, ≤12 ta. Matni bir xil qadamning "bajarildi" belgisi saqlanadi. */
+  function rebuild(list) {
+    const wasDone = new Map(steps.map((s) => [s.text, s.done]));
+    const next = [];
+    for (const raw of list.slice(0, PLAN_MAX_STEPS * 4)) {
+      const text = planText(raw);
+      if (!text) continue;
+      next.push({ text, done: wasDone.get(text) === true });
+      if (next.length >= PLAN_MAX_STEPS) break;
+    }
+    return next;
+  }
+
+  return {
+    snapshot,
+    get total() {
+      return steps.length;
+    },
+    apply(args) {
+      const a = args && typeof args === "object" ? args : {};
+      if (Array.isArray(a.steps) && a.steps.length) {
+        const next = rebuild(a.steps);
+        if (!next.length) return { ok: false, result: "XATO: reja qadamlari bo'sh — 3–12 ta qisqa qadam yozing." };
+        steps = next;
+        active = 0;
+      }
+      if (!steps.length) return { ok: false, result: "XATO: reja hali yo'q — avval `steps` bilan reja yarating." };
+      let bad = 0;
+      for (const n of asList(a.done)) {
+        const i = Number(n);
+        if (Number.isInteger(i) && i >= 1 && i <= steps.length) steps[i - 1].done = true;
+        else bad++;
+      }
+      if (a.active != null) {
+        const i = Number(a.active);
+        if (Number.isInteger(i) && i >= 1 && i <= steps.length) active = i;
+        else bad++;
+      }
+      // Faol qadam belgilanmagan yoki allaqachon tugagan — birinchi tugallanmaganiga o'tamiz.
+      if (!active || steps[active - 1]?.done) {
+        const open = steps.findIndex((s) => !s.done);
+        active = open === -1 ? 0 : open + 1;
+      }
+      const snap = snapshot();
+      const tail = snap.done === snap.total ? "hammasi bajarildi" : `hozir: ${snap.active}-qadam`;
+      const note = bad ? ` (${bad} ta noto'g'ri raqam e'tiborsiz qoldirildi)` : "";
+      return { ok: true, result: `OK: reja ${snap.done}/${snap.total} — ${tail}.${note}` };
+    },
+  };
+}
+
+/**
+ * Ikki holat orasidagi farq — CLI qaysi qatorlarni qayta chizishini hal qiladi.
+ * Qadamlar ro'yxati o'zgargan (yoki avvalgi holat yo'q) bo'lsa — null (to'liq qayta chizish);
+ * aks holda ko'rinishi o'zgargan qatorlarning 0-dan boshlangan indekslari.
+ */
+export function planChanges(snap, prev) {
+  if (!prev || !snap || prev.total !== snap.total) return null;
+  if (prev.steps.some((s, i) => s.text !== snap.steps[i].text)) return null;
+  const out = [];
+  for (let i = 0; i < snap.steps.length; i++) {
+    const wasActive = prev.active === i + 1;
+    const isActive = snap.active === i + 1;
+    if (prev.steps[i].done !== snap.steps[i].done || wasActive !== isActive) out.push(i);
+  }
+  return out;
+}
+
+/** Jurnal/xulosa uchun reja holati (o'zbekcha) yoki null. */
+export function planSummary(snap) {
+  if (!snap?.total) return null;
+  const left = snap.steps.filter((s) => !s.done).map((s) => s.text);
+  if (!left.length) return `Reja: ${snap.total}/${snap.total} qadam bajarildi.`;
+  const shown = left.slice(0, 4).join("; ");
+  return `Reja: ${snap.done}/${snap.total} bajarildi — qolgani: ${shown}${left.length > 4 ? ` (+${left.length - 4})` : ""}.`;
+}
+
+/** SYSTEM qoidasi — CLI (agent.mjs) va Cowork (main.mjs) shu bitta matndan foydalanadi. */
+export const PLAN_RULE =
+  "REJA: vazifa 3 yoki undan ko'p qadamdan iborat bo'lsa — eng BIRINCHI bo'lib `plan` vositasini chaqirib qadamlar ro'yxatini ko'rsat (3–12 ta qisqa, buyruq shaklidagi qadam), keyin har qadam tugaganda `plan` ni `done` bilan yangilab, keyingisini `active` qil. Rejani javob matnida takrorlama. Bajarmagan qadamni `done` deb belgilama. Bir qadamli oddiy vazifada reja yaratma.";
+
 /** OpenAI-style tool schema advertised to the model. */
 export const TOOL_SCHEMA = [
+  {
+    type: "function",
+    function: {
+      name: "plan",
+      description:
+        "Ko'p qadamli vazifa rejasini (chek-ro'yxat) foydalanuvchiga ko'rsatadi va yangilaydi. 3+ qadamli vazifada BIRINCHI bo'lib chaqiriladi. Fayl yozmaydi, buyruq bajarmaydi — tasdiq so'ralmaydi.",
+      parameters: {
+        type: "object",
+        properties: {
+          steps: {
+            type: "array",
+            items: { type: "string" },
+            description: "Rejani yaratadi yoki to'liq almashtiradi: 3–12 ta qisqa qadam, har biri ≤80 belgi.",
+          },
+          done: { type: "array", items: { type: "integer" }, description: "Tugagan qadam raqamlari (1 dan boshlab)." },
+          active: { type: "integer", description: "Hozir bajarilayotgan qadam raqami (1 dan boshlab)." },
+        },
+      },
+    },
+  },
   {
     type: "function",
     function: {
@@ -800,12 +942,18 @@ export function childEnv(opts = {}) {
  * @param {string} name
  * @param {object} args
  * @param {(question: string, forcePrompt?: boolean, meta?: object) => Promise<boolean>} confirm
- * @param {{ signal?: AbortSignal, fullAuto?: boolean, sandbox?: "auto"|"off"|"required", sandboxImage?: string, sandboxInfo?: object }} [opts]
+ * @param {{ signal?: AbortSignal, fullAuto?: boolean, sandbox?: "auto"|"off"|"required", sandboxImage?: string, sandboxInfo?: object, plan?: object }} [opts]
  *   signal — Ctrl+C bilan run_command'ni to'xtatish; fullAuto — buyruq sandbox'da (sandbox.mjs);
- *   sandbox — config rejimi; sandboxInfo — oldindan aniqlangan daraja (testlar / Cowork).
+ *   sandbox — config rejimi; sandboxInfo — oldindan aniqlangan daraja (testlar / Cowork); plan — ko'rinadigan reja holati.
  */
 export async function runTool(name, args, confirm, opts = {}) {
   switch (name) {
+    // Reja — faqat ko'rsatish uchun: disk, tarmoq va tasdiq YO'Q, shuning uchun
+    // Full auto rad etish ro'yxati va sandbox bu vositani hech qachon to'smaydi.
+    case "plan": {
+      if (!opts.plan) return "XATO: reja vositasi bu rejimda mavjud emas.";
+      return opts.plan.apply(args).result;
+    }
     case "list_dir": {
       const r = resolvePath(args.path ?? ".");
       if (isProtected(r.real, { outside: r.outside })) return `XATO: "${args.path}" — himoyalangan yo'l, ochilmaydi.`;
@@ -1085,14 +1233,16 @@ export function ledgerForModel(entries) {
  * ishga tushirishni ham to'sardi.
  *
  * @param {(name: string, args: object) => Promise<string>} exec  vositani bajaruvchi
+ * @param {{ plan?: object }} [opts]  plan — shu navbatning rejasi (createPlan); jurnalga yakuniy holati qo'shiladi
  */
-export function createTurnTracker(exec) {
+export function createTurnTracker(exec, { plan = null } = {}) {
   const entries = [];
   const seen = new Map(); // fp -> { status, mutation, detail }
   const repeats = new Map(); // fp -> { fails, writes, skips } — takroriy sikl (doom loop) hisoblagichi
   let mutation = 0; // muvaffaqiyatli iz qoldiruvchi amallar soni
   const tracker = {
     entries,
+    plan,
     /** Takroriy sikl aniqlansa: { kind: "command"|"write"|"repeat", tool, target, count }. */
     loop: null,
     async run(name, args) {
@@ -1100,13 +1250,27 @@ export function createTurnTracker(exec) {
       if (!tracker.loop) tracker.loop = detectLoop(name, args, r.status, r.result);
       return r;
     },
+    /** Reja holati (yo'q bo'lsa null) — CLI jurnali va Cowork kartasi shundan chiqadi. */
+    planSnapshot() {
+      const snap = plan?.snapshot();
+      return snap?.total ? snap : null;
+    },
     /** Modelga beriladigan jurnal (ko'rsatishga arzimasa — bo'sh). */
     forModel() {
-      return ledgerWorthShowing(entries) ? ledgerForModel(entries) : "";
+      const parts = [];
+      if (ledgerWorthShowing(entries)) parts.push(ledgerForModel(entries));
+      const snap = tracker.planSnapshot();
+      if (snap) {
+        const warn = snap.done < snap.total ? " Bajarilmagan qadamlarni 'bajardim' dema — qolganini ochiq ayt." : "";
+        parts.push(`[REJA HOLATI — vosita bilan belgilangani] ${planSummary(snap)}${warn}`);
+      }
+      return parts.join("\n");
     },
   };
 
   function detectLoop(name, args, status, result) {
+    // Reja — iz qoldirmaydigan, takrorlanishi mumkin bo'lgan vosita: siklga qo'shilmaydi.
+    if (name === "plan") return null;
     const fp = `${name}:${JSON.stringify(args ?? {})}`;
     const cnt = repeats.get(fp) ?? { fails: 0, writes: 0, skips: 0 };
     repeats.set(fp, cnt);
@@ -1132,7 +1296,8 @@ export function createTurnTracker(exec) {
 
   async function runOnce(name, args) {
     const fp = `${name}:${JSON.stringify(args ?? {})}`;
-    const prev = seen.get(fp);
+    // Reja chaqiruvi takrorlanishi normal (qadamlarni belgilash) — "allaqachon bajarilgan" deyilmaydi.
+    const prev = name === "plan" ? null : seen.get(fp);
     if (prev && (prev.status === "declined" || prev.mutation === mutation)) {
       const msg =
         prev.status === "ok"
@@ -1149,6 +1314,8 @@ export function createTurnTracker(exec) {
       result = `XATO: ${err?.message ?? err}`;
     }
     const status = toolStatus(name, result);
+    // Reja jurnalga alohida yozuv sifatida tushmaydi — yakuniy holati planSnapshot() orqali ko'rsatiladi.
+    if (name === "plan") return { status, result, entry: null, content: `${statusTag(status)}\n${result}` };
     if (status === "ok" && SIDE_EFFECT_TOOLS.has(name)) mutation++;
     const entry = ledgerEntry(name, args, result, status);
     seen.set(fp, { status, mutation, detail: entry.detail || (entry.exit != null ? `exit ${entry.exit}` : "") });

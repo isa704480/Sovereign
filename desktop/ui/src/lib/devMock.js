@@ -189,7 +189,14 @@ export function install() {
       }
       return finish("done");
     }
-    emit({ type: "text", text: "Reja: avval loyiha tuzilmasini ko‘raman, keyin `src/server.js` yarataman va testni ishga tushiraman." });
+    emit({ type: "text", text: "Loyihani ko‘rib chiqaman va `/health` endpoint qo‘shaman." });
+    // Reja kartasi (`plan` vositasi). ?plan=partial — oxirgi qadam bajarilmay qoladi (halol xulosa).
+    const PLAN = ["Loyiha tuzilmasini ko‘rish", "src/server.js ga /health endpoint qo‘shish", "Testlarni ishga tushirish", "README ni yangilash"];
+    const planDone = new Set();
+    const planSnap = (active) => ({ steps: PLAN.map((text, i) => ({ text, done: planDone.has(i + 1) })), active, total: PLAN.length, done: planDone.size });
+    const planEv = (active) => emit({ type: "plan", ...planSnap(active) });
+    const planStep = (n) => { planDone.add(n); planEv(n < PLAN.length ? n + 1 : 0); };
+    planEv(1);
     const entries = [];
     const step = async (name, args, run) => {
       const callId = uuid();
@@ -201,11 +208,13 @@ export function install() {
     };
     await step("list_dir", { path: "." }, async () => { await sleep(500); return { status: "ok", result: "src/\npackage.json\nREADME.md" }; });
     if (aborted) return;
+    planStep(1);
     await step("write_file", { path: "src/server.js", contentLength: 214 }, async () => {
       const ok = await confirm({ tool: "write_file", path: "src/server.js", exists: true, existed: true, before: "import express from \"express\";\nconst app = express();\napp.listen(3000);\n", content: "import express from \"express\";\n\nconst app = express();\napp.use(express.json());\n\napp.get(\"/health\", (_req, res) => res.json({ ok: true }));\n\nconst port = process.env.PORT ?? 3000;\napp.listen(port, () => console.log(`listening on ${port}`));\n", backupId: uuid() });
       return ok ? { status: "ok", result: "OK: src/server.js yozildi." } : { status: "declined", result: "Foydalanuvchi rad etdi." };
     });
     if (aborted) return;
+    planStep(2);
     await step("run_command", { command: "npm test" }, async () => {
       // Haqiqiy classifyCommand'dagi kabi: npm faqat-o'qish ro'yxatida yo'q → risky; main riskReason qo'shadi.
       const ok = await confirm({ tool: "run_command", command: "npm test", risky: true, riskReason: "Faqat-o'qish ro'yxatida yo'q: npm" }, "⚠️  FAQAT-O'QISH RO'YXATIDA YO'Q: NPM — bajarilsinmi: npm test?");
@@ -218,6 +227,8 @@ export function install() {
       return { status: "ok", result: output, exit: "0" };
     });
     if (aborted) return;
+    planStep(3);
+    if (qs.get("plan") !== "partial") { await sleep(400); planStep(4); }
     await sleep(500);
     emit({ type: "text", text: "Tayyor: `/health` endpoint qo‘shildi va testlar o‘tdi." });
     emit({ type: "ledger", entries, warning: entries.some((e) => e.status === "declined") ? "Javobda tilga olingan, lekin aslida yozilmagan: src/server.js." : null, noteCode: null });
@@ -397,11 +408,14 @@ export function install() {
         return { task: h, cwd: h.cwd, recent: state().recent, events: [
           { type: "user", text: h.title, mode: h.mode },
           { type: "text", text: "Bu tarixdan tiklangan suhbat." },
+          // Reja hodisalari tarixga yoziladi (RECORDED) — karta joyida yangilanadi.
+          { type: "plan", steps: [{ text: "Hero komponentini yozish", done: false }, { text: "Lint’ni ishga tushirish", done: false }, { text: "Xatolarni tuzatish", done: false }], active: 1, total: 3, done: 0 },
+          { type: "plan", steps: [{ text: "Hero komponentini yozish", done: true }, { text: "Lint’ni ishga tushirish", done: true }, { text: "Xatolarni tuzatish", done: false }], active: 3, total: 3, done: 2 },
           { type: "tool", callId: "a", name: "write_file", args: { path: "src/components/Hero.jsx", contentLength: 880 } },
           { type: "tool-done", callId: "a", name: "write_file", status: "ok", result: "OK: src/components/Hero.jsx yozildi." },
           { type: "tool", callId: "b", name: "run_command", args: { command: "npm run lint" } },
           { type: "tool-done", callId: "b", name: "run_command", status: "failed", result: "XATO (exit 1):\n  12:5  error  'x' is defined but never used" },
-          { type: "ledger", entries: [{ tool: "write_file", target: "src/components/Hero.jsx", status: "ok" }, { tool: "run_command", target: "npm run lint", status: "failed", exit: "1" }], warning: null, noteCode: null },
+          { type: "ledger", entries: [{ tool: "write_file", target: "src/components/Hero.jsx", status: "ok" }, { tool: "run_command", target: "npm run lint", status: "failed", exit: "1" }], warning: null, noteCode: null, plan: { steps: [{ text: "Hero komponentini yozish", done: true }, { text: "Lint’ni ishga tushirish", done: true }, { text: "Xatolarni tuzatish", done: false }], active: 3, total: 3, done: 2 } },
         ] };
       },
       remove: async (id) => { const i = history.findIndex((h) => h.id === id); if (i >= 0) history.splice(i, 1); return [...history]; },
