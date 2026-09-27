@@ -12,17 +12,22 @@ interface FadeInProps extends HTMLMotionProps<"div"> {
   once?: boolean;
 }
 
+/**
+ * Kontent SSR'da darhol KO'RINADI (opacity/blur yo'q): JS yuklanmasa yoki kechiksa ham
+ * matn o'qiladi. Faqat 8px siljish animatsiya qilinadi; "harakatni kamaytirish"da
+ * MotionConfig uni o'chiradi.
+ */
 export function FadeIn({
   delay = 0,
-  y = 16,
-  duration = 0.6,
+  y = 8,
+  duration = 0.5,
   inView = false,
   once = true,
   children,
   ...rest
 }: FadeInProps) {
-  const hidden = { opacity: 0, y, filter: "blur(4px)" };
-  const shown = { opacity: 1, y: 0, filter: "blur(0px)" };
+  const hidden = { y };
+  const shown = { y: 0 };
   const transition = { duration, delay, ease: EASE_OUT_EXPO };
 
   if (inView) {

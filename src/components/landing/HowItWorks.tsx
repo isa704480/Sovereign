@@ -3,7 +3,8 @@
 import { motion } from "motion/react";
 import { Layers, MonitorSmartphone, UserPlus } from "lucide-react";
 import { fmt, type TKey } from "@/lib/i18n";
-import { fadeUp, staggerContainer } from "@/lib/motion";
+import { staggerContainer } from "@/lib/motion";
+import { reveal } from "@/components/motion/Stagger";
 import { useT } from "@/store/chat";
 import { SectionHeading } from "./SectionHeading";
 
@@ -39,7 +40,7 @@ export function HowItWorks() {
           {STEPS.map((s, i) => (
             <motion.li
               key={s.title}
-              variants={fadeUp}
+              variants={reveal}
               className="flex h-full flex-col items-start rounded-2xl border border-border bg-white/[0.015] p-6 transition-colors duration-300 hover:border-white/15 md:items-center md:text-center"
             >
               <div className="relative flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-bg-elevated shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
