@@ -115,7 +115,9 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: EASE }}
-            className="glass mx-auto mt-2 max-w-6xl rounded-2xl p-3 lg:hidden"
+            className="glass mx-auto mt-2 max-w-6xl rounded-2xl p-3 shadow-md lg:hidden"
+            // Menyu matn ustiga ochiladi: deyarli to'liq qoplama, orqadagi sarlavha o'qilmaydi.
+            style={{ background: "rgba(6, 8, 18, 0.96)" }}
           >
             <nav aria-label={t("p4dNavMain")}>
               {NAV.map((n) => (

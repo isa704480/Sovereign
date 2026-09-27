@@ -38,7 +38,7 @@ export function Hero({ signedIn: signedInProp = false }: { signedIn?: boolean })
           <div className="hero-in" style={{ animationDelay: "0.10s" }}>
             <h1
               id="hero-title"
-              className="font-display text-[clamp(44px,8vw,80px)] font-extrabold leading-[1.03] tracking-[-0.03em] text-text-primary"
+              className="font-display text-[clamp(40px,8vw,80px)] font-extrabold leading-[1.03] tracking-[-0.03em] text-text-primary"
             >
               {t("ldHeroTitle1")}
               <br />
