@@ -38,7 +38,7 @@ export function completeMention(token) {
     .map((e) => `@${dir}${e.name}${e.isDirectory() ? "/" : " "}`);
 }
 
-const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
+export const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"]);
 // Server (/api/cli/chat) butun so'rovni 1 500 000 belgidan oshsa 413 bilan rad etadi.
 // Rasm base64'da ~4/3 baravar kattalashadi va tarixda qolib HAR keyingi so'rovda
 // qayta yuboriladi — shuning uchun xom hajm ~900 KB bilan cheklanadi (qolgani matn/tarixga).
@@ -83,14 +83,32 @@ async function extractPdfText(buf) {
   const data = await fn(buf);
   return { text: data?.text ?? "" };
 }
-const TEXT_EXT = new Set([
+export const TEXT_EXT = new Set([
   ".txt", ".md", ".markdown", ".json", ".csv", ".tsv", ".xml", ".yml", ".yaml",
   ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".py", ".rb", ".go", ".rs",
   ".c", ".cpp", ".h", ".java", ".cs", ".php", ".sh", ".sql", ".html", ".htm",
   ".css", ".scss", ".vue", ".svelte", ".env",
+  ".log", ".ini", ".toml", ".cfg", ".conf", ".kt", ".swift", ".dart", ".lua",
+  ".hpp", ".cc", ".scala", ".graphql", ".proto", ".tex", ".rst", ".ps1", ".bat",
 ]);
 
-function mimeOf(ext) {
+/** Matn fayli va PDF hajm chegaralari (readAttachment; Cowork ham shularni ishlatadi). */
+export const TEXT_MAX_BYTES = 2 * 1024 * 1024;
+export const PDF_MAX_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Fayl turi kengaytma bo'yicha: "image" | "text" | "pdf" | null (qo'llab-quvvatlanmaydi).
+ * readAttachment() bilan bir xil ro'yxatlar — Cowork (desktop) ham shundan foydalanadi.
+ */
+export function attachmentKind(path) {
+  const ext = extname(String(path ?? "")).toLowerCase();
+  if (IMAGE_EXT.has(ext)) return "image";
+  if (TEXT_EXT.has(ext)) return "text";
+  if (ext === ".pdf") return "pdf";
+  return null;
+}
+
+export function mimeOf(ext) {
   switch (ext) {
     case ".png": return "image/png";
     case ".jpg":
@@ -133,16 +151,18 @@ export async function readAttachment(path, { maxChars = 40_000 } = {}) {
     };
   }
   if (TEXT_EXT.has(ext)) {
-    if (st.size > 2 * 1024 * 1024) throw new Error(`Matn fayli juda katta (max 2MB): ${path}`);
-    const text = readFileSync(path, "utf8").slice(0, maxChars);
+    if (st.size > TEXT_MAX_BYTES) throw new Error(`Matn fayli juda katta (max 2MB): ${path}`);
+    const full = readFileSync(path, "utf8");
+    const text = full.slice(0, maxChars);
     return {
       kind: "text",
       part: { type: "text", text: `[FAYL: ${name}]\n${text}\n[/FAYL]` },
       label: `📄  ${name}`,
+      truncated: full.length > maxChars,
     };
   }
   if (ext === ".pdf") {
-    if (st.size > 20 * 1024 * 1024) throw new Error(`PDF juda katta (max 20MB): ${path}`);
+    if (st.size > PDF_MAX_BYTES) throw new Error(`PDF juda katta (max 20MB): ${path}`);
     // Ixtiyoriy pdf-parse; o'rnatilmagan yoki xato bo'lsa — modelga va foydalanuvchiga aniq sabab.
     let note;
     try {
@@ -153,6 +173,7 @@ export async function readAttachment(path, { maxChars = 40_000 } = {}) {
           kind: "text",
           part: { type: "text", text: `[PDF: ${name}]\n${text}\n[/PDF]` },
           label: `📕  ${name}`,
+          truncated: (r.text || "").length > maxChars,
         };
       }
       note = IS_BINARY
@@ -165,6 +186,8 @@ export async function readAttachment(path, { maxChars = 40_000 } = {}) {
       kind: "text",
       part: { type: "text", text: `[PDF fayl biriktirildi: ${name}. ${note}.]` },
       label: `📕  ${name} (${note})`,
+      // Matn ajratilmadi — Cowork bunday PDF'ni yubormaydi (foydalanuvchiga aniq xabar beriladi).
+      unextracted: true,
     };
   }
   throw new Error(`Qo'llab-quvvatlanmaydigan fayl turi: ${ext || "?"} (${path})`);

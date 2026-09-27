@@ -47,6 +47,19 @@ import { startLogin } from "./electron/auth.mjs";
 import { initUpdater, checkForUpdates, downloadUpdate, installUpdate, updateState } from "./electron/updater.mjs";
 import { mt, mainLang } from "./electron/i18n.mjs";
 import * as ollama from "./electron/ollama.mjs";
+import {
+  LIMITS as ATTACH,
+  AttachmentStore,
+  readPicked,
+  publicItem,
+  buildUserContent,
+  textOf,
+  appendText,
+  budgetImages,
+  stripImages,
+  imagesInLastUser,
+  dialogExtensions,
+} from "./electron/attachments.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_ID = "app.sovereign.cowork";
@@ -143,7 +156,8 @@ const pendingChoices = new Map();
 // ---- Vazifa (task) va hodisalar --------------------------------------------
 // Joriy vazifaning UI hodisalari tarixga yoziladi — keyin ekranni qayta tiklash uchun.
 // inquiry / inquiry-state — savol kartasi va uning holati; local — "Mahalliy model · <nom>" belgisi (halollik).
-const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped", "inquiry", "inquiry-state", "local"]);
+// notice — kichik ochiq ogohlantirish (mas. mahalliy model rasmlarni ko'rmaydi — rasmlar yuborilmadi).
+const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped", "inquiry", "inquiry-state", "local", "notice"]);
 let currentTask = null;
 
 function send(type, payload = {}) {
@@ -337,6 +351,12 @@ const HISTORY_MAX = 44;
  * xabaridan boshlanadi — egasiz `tool` xabari provayderda 400 bermasin.
  */
 function forServer(messages) {
+  // Biriktirilgan rasmlar har qadamda qayta yuboriladi — eng yangilaridan boshlab byudjetgacha
+  // saqlanadi, eskilari matnli belgi bilan almashtiriladi (server 1.5 MB so'rovni 413 bilan rad etadi).
+  return budgetImages(trimHistory(messages), ATTACH.historyImageChars);
+}
+
+function trimHistory(messages) {
   const system = messages.filter((m) => m.role === "system");
   const rest = messages.filter((m) => m.role !== "system");
   if (rest.length <= HISTORY_MAX) return [...system, ...rest];
@@ -441,9 +461,13 @@ async function runRound(messages, config, withTools = true, signal = undefined, 
 async function runLocalRound(messages, local, withTools, signal, onProgress) {
   let chars = 0;
   let last = 0;
+  // Rasmlar faqat vision'li mahalliy modelga (capabilities()); aks holda belgi bilan almashtiriladi
+  // va massivlar satrga aylantiriladi (eski/oddiy Ollama modellari uchun eng mos shakl).
+  let sent = forServer(messages);
+  if (local.vision !== true) sent = stripImages(sent).messages;
   const r = await ollama.chat({
     model: local.model,
-    messages: forServer(messages),
+    messages: sent,
     tools: withTools && local.tools === true ? TOOL_SCHEMA : undefined,
     stream: true,
     signal,
@@ -559,6 +583,15 @@ async function recoverFromError(e, turn, state) {
   return "local";
 }
 
+/** Vision'siz mahalliy model — shu navbatdagi rasmlar yuborilmasligi haqida bir martalik ochiq ogohlantirish. */
+function noteLocalImages(turn, messages) {
+  if (!turn.local || turn.local.vision === true || turn.imageNotice) return;
+  const n = imagesInLastUser(messages);
+  if (!n) return;
+  turn.imageNotice = true;
+  send("notice", { code: "localNoVision", model: turn.local.model, n });
+}
+
 function progressFor(turn) {
   return turn.local ? (chars) => send("local-progress", { chars }) : null;
 }
@@ -649,6 +682,7 @@ async function agentTurn(messages, config, turn) {
     let round;
     try {
       const sent = withTurnSystem(messages, turn, { fullAuto });
+      noteLocalImages(turn, messages);
       round = await runRound(sent, config, true, turn.controller.signal, turn.local, progressFor(turn));
       meter.add(round.usage, sent, round.message);
       if (turn.local) turn.localRounds++;
@@ -670,24 +704,26 @@ async function agentTurn(messages, config, turn) {
     if (turn.aborted) return "stopped"; // to'xtatilgan navbat hech narsa yubormaydi/bajarmaydi
     capToolCalls(round);
     messages.push(round.message);
-    if (round.message.content && round.message.content.trim()) {
-      send("text", { text: round.message.content });
+    // Javob matni satr bo'lmasligi ham mumkin (content massivi) — faqat matn qismlari olinadi.
+    const said = textOf(round.message.content);
+    if (said.trim()) {
+      send("text", { text: said });
     }
     if (!round.toolCalls.length) {
       // FULL AUTO: oxirgi buyruq yiqilgan yoki model "tekshiraman" deb to'xtagan — so'ramasdan davom.
-      const nudge = fullAuto && nudges < FULL_AUTO_MAX_NUDGES ? fullAutoNudge(tracker.entries, round.message.content ?? "", nudgeState) : null;
+      const nudge = fullAuto && nudges < FULL_AUTO_MAX_NUDGES ? fullAutoNudge(tracker.entries, said, nudgeState) : null;
       if (nudge) {
         nudges++;
         messages.push({ role: "user", content: nudge });
         continue;
       }
       // Oddiy rejimda ham: "davom et deb yozing" bilan to'xtagan bo'lsa — bir marta o'zi boshlaydi.
-      const stall = stallNudge(tracker.entries, round.message.content ?? "", nudgeState);
+      const stall = stallNudge(tracker.entries, said, nudgeState);
       if (stall) {
         messages.push({ role: "user", content: stall });
         continue;
       }
-      const finalText = round.message.content ?? "";
+      const finalText = said;
       const judge = await judgeTurn(tracker.entries, finalText, config, turn, round.model);
       if (turn.aborted) return "stopped";
       sendLedger(tracker.entries, { finalText, judge, local: localName() });
@@ -765,6 +801,7 @@ async function chatTurn(messages, config, turn) {
   for (let attempt = 0; ; attempt++) {
     try {
       const sent = withTurnSystem(messages, turn, { chat: true });
+      noteLocalImages(turn, messages);
       round = await runRound(sent, config, /*withTools=*/ false, turn.controller.signal, turn.local, progressFor(turn));
       meter.add(round.usage, sent, round.message);
       if (turn.local) turn.localRounds++;
@@ -780,8 +817,9 @@ async function chatTurn(messages, config, turn) {
   }
   if (turn.aborted) return "stopped";
   messages.push(round.message);
-  if (round.message.content && round.message.content.trim()) {
-    send("text", { text: round.message.content });
+  const said = textOf(round.message.content);
+  if (said.trim()) {
+    send("text", { text: said });
   }
   sendUsage(meter, turn);
   send("done");
@@ -1126,7 +1164,9 @@ async function inquiryStep(turn, messages, userIndex, mode) {
   const context = inquiryContext();
   const askedSlots = [];
   for (let round = 0; ; round++) {
-    const content = String(messages[userIndex]?.content ?? "").slice(0, 8000);
+    // Biriktirmali xabar — content massivi: faqat foydalanuvchi matni (fayl/rasm tarkibi so'rovga ketmaydi).
+    const first = messages[userIndex]?.content;
+    const content = (Array.isArray(first) ? (first[0]?.type === "text" ? first[0].text : "") : textOf(first)).slice(0, 8000);
     if (!content.trim()) return none;
     const r = await fetchInquiry(config, turn, {
       messages: [{ role: "user", content }],
@@ -1154,7 +1194,7 @@ async function inquiryStep(turn, messages, userIndex, mode) {
       return { addendum: r.addendum, followup: null };
     }
     const block = clarificationText(reply.lines, ev.questions.length);
-    messages[userIndex] = { ...messages[userIndex], content: `${messages[userIndex].content}\n\n${block}` };
+    messages[userIndex] = { ...messages[userIndex], content: appendText(messages[userIndex].content, block) };
     send("inquiry-state", { inquiryId: ev.inquiryId, state: "answered" });
     send("user", { text: block, mode, inquiry: true });
     for (const q of ev.questions) if (!askedSlots.includes(q.slot)) askedSlots.push(q.slot);
@@ -1162,7 +1202,7 @@ async function inquiryStep(turn, messages, userIndex, mode) {
 }
 
 on("agent:send", async (_e, payload) => {
-  const { text, mode, retry } = typeof payload === "string" ? { text: payload, mode: "code" } : (payload ?? {});
+  const { text, mode, retry, attachments } = typeof payload === "string" ? { text: payload, mode: "code" } : (payload ?? {});
   const m = mode === "chat" ? "chat" : "code";
   // Mahalliy rejimda server kerak emas — kirmagan foydalanuvchi ham ishlata oladi.
   if (!session.config?.token && !session.local) {
@@ -1178,11 +1218,26 @@ on("agent:send", async (_e, payload) => {
     return;
   }
   const body = String(text ?? "").slice(0, 40_000);
-  if (!retry && !body.trim()) return;
+  // Biriktirmalar: rasmlar (renderer kichraytirgan data URL — MIME/magic qayta tekshiriladi) va
+  // main'dagi fayl tarkibi (id bo'yicha). Xato bo'lsa — hech narsa yuborilmaydi.
+  const built = retry ? { content: body, meta: [] } : buildUserContent(body, attachments, attachStore);
+  if (built.error) {
+    send("error", { code: "attach", message: built.error });
+    return;
+  }
+  if (!retry && !body.trim() && !built.meta.length) return;
   if (retry && !session.messages.some((x) => x.role === "user")) return;
+  const userMsg = { role: "user", content: built.content };
+  // Butun so'rov serverning 1.5 MB chegarasidan oshsa — yubormasdan oldin 413 kartasi (yangi vazifa / kamroq fayl).
+  if (!retry && built.meta.length && !session.local && JSON.stringify(forServer([...session.messages, userMsg])).length > ATTACH.requestChars) {
+    send("error", { code: "server", status: 413, message: "" });
+    return;
+  }
+  for (const a of Array.isArray(attachments) ? attachments : []) if (a?.kind === "file") attachStore.discard(a.id);
 
   if (!currentTask) {
-    currentTask = { id: randomUUID(), title: body.trim().slice(0, 80) || "…", cwd: workspace, mode: m, createdAt: Date.now(), updatedAt: Date.now(), status: "running", events: [] };
+    const title = body.trim().slice(0, 80) || built.meta[0]?.name || "…";
+    currentTask = { id: randomUUID(), title, cwd: workspace, mode: m, createdAt: Date.now(), updatedAt: Date.now(), status: "running", events: [] };
   }
   currentTask.status = "running";
   currentTask.updatedAt = Date.now();
@@ -1196,8 +1251,9 @@ on("agent:send", async (_e, payload) => {
   const messages = session.messages;
   const firstOfTask = !messages.some((x) => x.role === "user");
   if (!retry) {
-    messages.push({ role: "user", content: body });
-    send("user", { text: body, mode: m });
+    messages.push(userMsg);
+    // UI (va tarix) uchun faqat meta: nom, hajm, kichik ko'rinish — to'liq rasm/fayl tarkibi emas.
+    send("user", { text: body, mode: m, ...(built.meta.length ? { attachments: built.meta } : {}) });
   }
   if (local) send("local", localEvent(local, local.reason ?? "manual", runMode !== m ? { toolsOff: true } : {}));
   let outcome = "error";
@@ -1263,6 +1319,53 @@ on("agent:confirm-reply", (_e, msg) => {
     resolve(!!ok);
   }
 });
+
+// ---- Biriktirmalar (fayl va rasmlar) ------------------------------------------------
+// Faqat foydalanuvchi tanlagan yo'llar: native dialog (attach:pick) yoki preload webUtils.getPathForFile()
+// bilan haqiqiy File obyektidan olingan yo'l (drag&drop / Explorer'dan nusxa — attach:paths).
+// Tekshiruvlar (symlink realpath, himoyalangan joylar, UNC, hajm, tur, magic bytes) — electron/attachments.mjs.
+// Matn/PDF tarkibi main'da (attachStore) qoladi; renderer'ga faqat id va meta. Hech narsa diskka yozilmaydi.
+const attachStore = new AttachmentStore();
+const ATTACH_EXTS = dialogExtensions(); // CLI readAttachment bilan bir xil ro'yxatlar
+
+async function attachPaths(paths) {
+  const list = Array.isArray(paths) ? paths.filter((p) => typeof p === "string").slice(0, ATTACH.maxPathsPerCall) : [];
+  const items = [];
+  const errors = [];
+  for (const p of list) {
+    const r = await readPicked(p);
+    if (r.error) {
+      errors.push({ name: r.name, code: r.error });
+      continue;
+    }
+    // Rasm renderer'da kichraytiriladi (yuborishda qayta tekshiriladi) — store'ga faqat matn/PDF.
+    const id = r.item.kind === "file" ? attachStore.add(r.item) : randomUUID();
+    items.push(publicItem(id, r.item));
+  }
+  if (Array.isArray(paths) && paths.length > list.length) errors.push({ name: "", code: "too-many" });
+  return { items, errors };
+}
+
+handle("attach:pick", async () => {
+  const r = await dialog.showOpenDialog(win, {
+    title: mt("dialog.attach"),
+    properties: ["openFile", "multiSelections"],
+    filters: [
+      { name: mt("dialog.attachAll"), extensions: [...ATTACH_EXTS.image, ...ATTACH_EXTS.text, ...ATTACH_EXTS.pdf] },
+      { name: mt("dialog.attachImages"), extensions: ATTACH_EXTS.image },
+      { name: mt("dialog.attachText"), extensions: ATTACH_EXTS.text },
+      { name: "PDF", extensions: ATTACH_EXTS.pdf },
+    ],
+  });
+  if (r.canceled || !r.filePaths.length) return { items: [], errors: [] };
+  return attachPaths(r.filePaths);
+});
+
+// Yo'llar faqat preload'dan (webUtils.getPathForFile — haqiqiy drop/paste qilingan File); renderer
+// JS'i ipcRenderer'ga bevosita kira olmaydi (contextIsolation + sandbox).
+handle("attach:paths", async (_e, paths) => attachPaths(paths));
+
+handle("attach:discard", async (_e, id) => ({ ok: attachStore.discard(id) }));
 
 on("agent:remember", (_e, fact) => {
   if (session.config && netAllowed(session.config.baseUrl)) addMemory(session.config, String(fact));

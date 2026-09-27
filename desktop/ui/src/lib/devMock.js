@@ -5,6 +5,7 @@
 // Chuqur so'rash / Ollama (T11): ?inquiry=1 — birinchi xabarda savol kartasi (+ javobdan keyin follow-up);
 // ?blocking=1 — Full auto'dagi bloklovchi savol (needs-input); ?limit=1 — limit → "mahalliy model" taklifi;
 // ?limit=noollama | ?limit=nomodels — Ollama yo'q / modeli yo'q kartasi; ?local=<model> — mahalliy rejimda boshlash.
+// Biriktirmalar: qisqich tugmasi soxta rasm + matn + PDF qaytaradi; ?attachErr=1 — rad etilgan fayllar toast'lari.
 
 const qs = new URLSearchParams(location.search);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -35,10 +36,29 @@ export function install() {
     { id: uuid(), title: "Landing sahifaga hero bo‘limi qo‘sh", cwd: "D:\\Projects\\demo-shop", mode: "code", createdAt: Date.now() - 3600e3, updatedAt: Date.now() - 3500e3, status: "done" },
     { id: uuid(), title: "SQL indekslar haqida savol", cwd: null, mode: "chat", createdAt: Date.now() - 2 * 86400e3, updatedAt: Date.now() - 2 * 86400e3, status: "stopped" },
     { id: uuid(), title: "Ijara shartnomasini bekor qilish", cwd: null, mode: "chat", createdAt: Date.now() - 3 * 86400e3, updatedAt: Date.now() - 3 * 86400e3, status: "done", demo: "inquiry" },
+    { id: uuid(), title: "Bu xato nima degani?", cwd: null, mode: "chat", createdAt: Date.now() - 4 * 86400e3, updatedAt: Date.now() - 4 * 86400e3, status: "done", demo: "attach" },
   ];
   const pending = new Map();
   let task = null;
   let aborted = false;
+  const mockFiles = new Map(); // soxta attach store: id -> {sub, name, size, chars, truncated}
+  // Soxta "skrinshot" (canvas'da chizilgan PNG) — biriktirma oqimini brauzerda ko'rish uchun.
+  const mockImage = () => {
+    const c = document.createElement("canvas");
+    c.width = 640;
+    c.height = 400;
+    const g = c.getContext("2d");
+    const grad = g.createLinearGradient(0, 0, 640, 400);
+    grad.addColorStop(0, "#5b50f0");
+    grad.addColorStop(1, "#10d4a0");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 640, 400);
+    g.fillStyle = "rgba(255,255,255,0.85)";
+    g.fillRect(40, 40, 560, 60);
+    g.fillRect(40, 130, 360, 24);
+    g.fillRect(40, 170, 420, 24);
+    return c.toDataURL("image/png");
+  };
 
   const state = () => ({
     authed, email: authed ? "islombek@example.com" : "", baseUrl: "https://api.example.invalid", cwd, model, modelId: "", version: "0.5.0-dev",
@@ -116,13 +136,27 @@ export function install() {
     emit({ type: "text", text });
   }
 
-  async function runTurn(text, mode) {
+  async function runTurn(text, mode, attachments = []) {
     aborted = false;
     const first = !task;
-    if (!task) { task = { id: uuid(), title: text.slice(0, 80), cwd, mode, createdAt: Date.now(), updatedAt: Date.now(), status: "running" }; }
+    // Biriktirmalar (main'dagi buildUserContent kabi): UI'ga faqat meta — nom, hajm, kichik ko'rinish.
+    const meta = (attachments ?? []).map((a) => (a.kind === "image"
+      ? { kind: "image", name: a.name, size: Math.round((a.dataUrl?.length ?? 0) * 0.75), ...(a.thumb ? { thumb: a.thumb } : {}) }
+      : { kind: "file", ...(mockFiles.get(a.id) ?? { sub: "text", name: "file.txt", size: 0 }) }));
+    for (const a of attachments ?? []) if (a.kind === "file") mockFiles.delete(a.id);
+    if (!task) { task = { id: uuid(), title: text.slice(0, 80) || meta[0]?.name || "…", cwd, mode, createdAt: Date.now(), updatedAt: Date.now(), status: "running" }; }
     emit({ type: "task", task: { ...task, status: "running" } });
-    emit({ type: "user", text, mode });
+    emit({ type: "user", text, mode, ...(meta.length ? { attachments: meta } : {}) });
     if (localActive) emit(localEv(localActive, mode === "code" && !localActive.tools ? { toolsOff: true } : {}));
+    const images = meta.filter((m) => m.kind === "image").length;
+    if (localActive && !localActive.vision && images) emit({ type: "notice", code: "localNoVision", model: localActive.model, n: images });
+    if (meta.length && !localActive && mode === "chat") {
+      await sleep(700);
+      if (aborted) return;
+      emit({ type: "text", text: `Biriktirmalar qabul qilindi (soxta): ${meta.map((m) => m.name).join(", ")}.` });
+      emit({ type: "done" });
+      return finish("done");
+    }
     if (first && !localActive && settings.inquiryMode !== "off" && (qs.has("inquiry") || qs.has("blocking"))) {
       if (!(await inquiryStep(mode))) return;
     }
@@ -242,7 +276,44 @@ export function install() {
       if (q.includes("families")) return { families: [{ key: "claude", label: "Claude", count: 12 }, { key: "gemini", label: "Gemini", count: 9 }, { key: "deepseek", label: "DeepSeek", count: 5 }], featured: [{ id: "free/llama-3.3-70b", label: "Llama 3.3 70B" }, { id: "free/qwen3-coder", label: "Qwen3 Coder" }] };
       return { models: [{ id: "dva/claude-opus-5-high", owner: "anthropic", context: 200000, tools: true, reasoning: true }, { id: "dva/claude-sonnet-5", owner: "anthropic", context: 200000, tools: true }] };
     },
-    send: (text, mode) => { runTurn(text, mode); },
+    send: (text, mode, attachments) => { runTurn(text, mode, attachments); },
+    // Soxta biriktirmalar (main: attach:pick / attach:paths). Brauzerda disk yo'li yo'q: tashlangan
+    // matn fayllari soxta element bo'ladi, rasmlar esa `rest` orqali renderer'ning o'zida kichraytiriladi.
+    attach: {
+      pick: async () => {
+        await sleep(250);
+        const shot = mockImage();
+        const note = { sub: "text", name: "notes.md", size: 2150, chars: 2180, truncated: false };
+        const pdf = { sub: "pdf", name: "spec.pdf", size: 184_320, chars: 30_000, truncated: true };
+        const idA = uuid();
+        const idB = uuid();
+        mockFiles.set(idA, note);
+        mockFiles.set(idB, pdf);
+        return {
+          items: [
+            { id: uuid(), kind: "image", name: "screenshot.png", size: Math.round(shot.length * 0.75), mime: "image/png", dataUrl: shot },
+            { id: idA, kind: "file", ...note },
+            { id: idB, kind: "file", ...pdf },
+          ],
+          errors: qs.has("attachErr") ? [{ name: "id_rsa", code: "protected" }, { name: "app.exe", code: "unsupported" }] : [],
+        };
+      },
+      files: async (files) => {
+        const items = [];
+        const errors = [];
+        const rest = [];
+        Array.from(files ?? []).forEach((f, i) => {
+          if (/^image\//.test(f.type)) { rest.push(i); return; }
+          if (!/\.(txt|md|json|js|ts|py|csv|pdf|html|css)$/i.test(f.name)) { errors.push({ name: f.name, code: "unsupported" }); return; }
+          const id = uuid();
+          const it = { sub: /\.pdf$/i.test(f.name) ? "pdf" : "text", name: f.name, size: f.size, chars: Math.min(f.size, 30_000), truncated: f.size > 30_000 };
+          mockFiles.set(id, it);
+          items.push({ id, kind: "file", ...it });
+        });
+        return { items, errors, rest };
+      },
+      discard: async (id) => ({ ok: mockFiles.delete(id) }),
+    },
     retry: () => {},
     remember: () => {},
     confirmReply: (id, ok) => { const r = pending.get(id); if (r) { pending.delete(id); r(!!ok); } },
@@ -291,6 +362,21 @@ export function install() {
             { type: "local", active: true, model: "llama3.2:3b", tools: true, vision: false, reason: "fallback", kind: "user_limit" },
             { type: "text", text: "Bu tarixdan tiklangan suhbat (mahalliy model javobi)." },
             { type: "usage", tokens: 900, rounds: 1, estimated: true, budget: 0, local: "llama3.2:3b", localRounds: 1 },
+          ] };
+        }
+        // Tarixdan tiklangan biriktirmali xabar: kichik ko'rinish (thumb) + fayl meta'si.
+        if (h.demo === "attach") {
+          const c = document.createElement("canvas");
+          c.width = 160;
+          c.height = 100;
+          const g = c.getContext("2d");
+          g.fillStyle = "#5b50f0";
+          g.fillRect(0, 0, 160, 100);
+          g.fillStyle = "#ffffff";
+          g.fillRect(12, 12, 136, 16);
+          return { task: h, cwd: h.cwd, recent: state().recent, events: [
+            { type: "user", text: h.title, mode: "chat", attachments: [{ kind: "image", name: "error-dialog.png", size: 182_400, thumb: c.toDataURL("image/jpeg", 0.7) }, { kind: "file", sub: "text", name: "server.log", size: 12_800 }] },
+            { type: "text", text: "Skrinshotdagi xato: `ECONNREFUSED 127.0.0.1:5432` — PostgreSQL ishlamayapti. Logda ham xuddi shu." },
           ] };
         }
         return { task: h, cwd: h.cwd, recent: state().recent, events: [

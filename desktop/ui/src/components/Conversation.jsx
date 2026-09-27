@@ -5,6 +5,7 @@ import { ledgerStats, formatTokens } from "../lib/agent.js";
 import { useT } from "../lib/i18n.js";
 import { localizeResult, localizeBody, ledgerWarning } from "../lib/cliText.js";
 import InquiryCard, { InquiryFollowups } from "./InquiryCard.jsx";
+import { ATTACH_LIMITS, attachErrKey, formatSize } from "../lib/attachments.js";
 
 const S = () => window.sovereign;
 
@@ -130,12 +131,51 @@ export function LedgerCard({ it }) {
   );
 }
 
+/** Yuborilgan xabardagi biriktirmalar: rasm — kichik ko'rinish, fayl — ikon + nom + hajm (tarixdan ham tiklanadi). */
+function SentAttachments({ list }) {
+  const t = useT();
+  return (
+    <ul className="sent-atts" aria-label={t("attach.list")}>
+      {list.map((a, i) => {
+        const size = formatSize(a.size, t);
+        if (a.kind === "image" && a.thumb) {
+          return (
+            <li key={i} className="sent-img" title={`${a.name} · ${size}`}>
+              <img src={a.thumb} alt={a.name} draggable={false} />
+            </li>
+          );
+        }
+        return (
+          <li key={i} className="sent-file" title={`${a.name} · ${size}${a.truncated ? ` · ${t("attach.truncated")}` : ""}`}>
+            <Icon name={a.kind === "image" ? "image" : a.sub === "pdf" ? "fileText" : "file"} size={14} />
+            <span className="trunc">{a.name}</span>
+            <span className="faint small tnum">{size}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function ErrorCard({ it, onAction, last }) {
   const t = useT();
   const [cloud, setCloud] = useState(false);
   // 413: so'rov juda katta — alohida lokallashtirilgan karta (server matni CLI'ning /clear buyrug'ini tavsiya qiladi).
   const code = it.code === "server" && it.status === 413 ? "tooLarge"
-    : ["auth", "network", "offline", "limit", "no-folder", "busy", "server", "local"].includes(it.code) ? it.code : "server";
+    : ["auth", "network", "offline", "limit", "no-folder", "busy", "server", "local", "attach"].includes(it.code) ? it.code : "server";
+  // Biriktirma xatosi (main tekshiruvi): aniq sababli kodlar uchun — o'sha matn, qolganlari — umumiy tavsif.
+  if (code === "attach") {
+    const specific = ["too-many", "too-large-total", "expired"].includes(it.message);
+    return (
+      <div className="msg msg-error" role="alert">
+        <span className="avatar avatar-err"><Icon name="paperclip" size={14} /></span>
+        <div className="grow">
+          <div className="strong">{t("err.attach.title")}</div>
+          <div className="muted small">{specific ? t(attachErrKey(it.message), { n: ATTACH_LIMITS.maxAttachments }) : t("err.attach.desc")}</div>
+        </div>
+      </div>
+    );
+  }
   // Mahalliy model xatosi: localKind — unreachable | not-found | failed.
   const key = code === "local" ? `local.${it.localKind ?? "failed"}` : code;
   // Limit (402/429) matnlari CLI buyrug'ini (/upgrade) tavsiya qiladi — Cowork'da u yo'q; lokallashtirilgan
@@ -423,12 +463,19 @@ export default function Conversation({ agent, mode, info, onAction, onPick, onSi
               case "user":
                 return (
                   <div key={it.id} className="msg msg-user">
-                    <div className={`bubble ${it.inquiry ? "bubble-inq" : ""}`}>
-                      {it.inquiry && <span className="bubble-tag"><Icon name="chat" size={11} /> {t("inquiry.clarification")}</span>}
-                      {it.text}
+                    <div className="msg-user-col">
+                      {it.attachments?.length > 0 && <SentAttachments list={it.attachments} />}
+                      {(it.text || it.inquiry || !it.attachments?.length) && (
+                        <div className={`bubble ${it.inquiry ? "bubble-inq" : ""}`}>
+                          {it.inquiry && <span className="bubble-tag"><Icon name="chat" size={11} /> {t("inquiry.clarification")}</span>}
+                          {it.text}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
+              case "notice":
+                return <div key={it.id} className="divider-note notice-note" role="status"><Icon name="info" size={12} /> {t(`notice.${it.code}`, { model: it.model, n: it.n })}</div>;
               case "inquiry":
                 return it.phase === "followup"
                   ? <InquiryFollowups key={it.id} it={it} disabled={busy || idx < lastUserIdx} onSend={sendFollowup} />
