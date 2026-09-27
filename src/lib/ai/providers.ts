@@ -73,7 +73,7 @@ export type StreamEvent =
    * model bilan javob bera boshladi. `substituted` — foydalanuvchi tanlagan
    * modeldan boshqa model; `rescue` — tekin zaxira shlyuz.
    */
-  | { type: "served"; model: string; substituted: boolean; rescue?: boolean }
+  | { type: "served"; model: string; substituted: boolean; rescue?: boolean; provider?: string }
   /** Javob yakunidagi shaffoflik: haqiqiy model + server hisoblagan token (chat route yuboradi). */
   | ({ type: "meta" } & AnswerMeta)
   | { type: "error"; message: string }

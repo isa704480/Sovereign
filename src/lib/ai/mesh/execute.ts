@@ -914,7 +914,7 @@ async function* streamOnce(
               `[region] upstream cheklangan modelga yo'naltirdi: ${c.offer.wire} → ${served.model} (${input.req.country})`,
             );
           }
-          yield { type: "served", model: served.model, substituted: served.substituted, ...(served.rescue ? { rescue: true } : {}) };
+          yield { type: "served", model: served.model, substituted: served.substituted, provider: served.provider, ...(served.rescue ? { rescue: true } : {}) };
         }
       }
       if (ev.type === "text") text += ev.text;

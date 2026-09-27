@@ -198,7 +198,15 @@ async function main() {
     return events;
   }
   const textOf = (evs: Ev[]) => evs.filter((e) => e.type === "text").map((e) => e.text).join("");
-  const served = (evs: Ev[]) => evs.filter((e) => e.type === "served");
+  // "served" endi haqiqiy provayderni ham beradi (unit economics) — u alohida tekshiriladi,
+  // bu yordamchi esa model/substituted/rescue halolligini solishtiradi.
+  const served = (evs: Ev[]) =>
+    evs.filter((e) => e.type === "served").map((e) => {
+      assert.equal(typeof (e as { provider?: unknown }).provider, "string", "served.provider bo'lishi kerak");
+      const rest = { ...(e as Ev & { provider?: string }) };
+      delete rest.provider;
+      return rest;
+    });
 
   const groq = adapter("groq", [offer("llama-3.3-70b-versatile", [LLAMA])]);
   const cerebras = adapter("cerebras", [offer("llama-3.3-70b", [LLAMA])]);

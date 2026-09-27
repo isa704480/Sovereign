@@ -103,7 +103,10 @@ async function main() {
     }
     // Sog'liq yozuvi fire-and-forget — keyingi so'rov uni ko'rishi uchun bir lahza.
     await new Promise((r) => setTimeout(r, 5));
-    const served = events.find((e) => e.type === "served") as { model: string; substituted: boolean; rescue?: boolean } | undefined;
+    const servedRaw = events.find((e) => e.type === "served") as { model: string; substituted: boolean; rescue?: boolean; provider?: string } | undefined;
+    // provayder (unit economics) alohida maydon — model halolligi solishtiruvidan ajratiladi.
+    const served = servedRaw ? { ...servedRaw } : undefined;
+    if (served) delete served.provider;
     const text = events.filter((e) => e.type === "text").map((e) => e.text).join("");
     const error = events.find((e) => e.type === "error") as { message: string } | undefined;
     return { events, served, text, error };

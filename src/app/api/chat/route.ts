@@ -36,6 +36,7 @@ import { effectivePlan, getProfile } from "@/lib/auth/profile";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { createClient } from "@/lib/supabase/server";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { inferProvider } from "@/lib/econ/unit-economics";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -509,6 +510,8 @@ export async function POST(req: Request) {
       const answerStep = steps.find((s) => s.kind === "answer") ?? steps[steps.length - 1];
       let servedId = answerStep?.modelId ?? modelId;
       let servedUpstream: string | undefined;
+      // Mesh aytgan haqiqiy provayder (groq, cloudflare ...) — unit economics uchun.
+      let servedProvider: string | undefined;
       let servedSubstituted = false;
       let servedRescue = false;
       let cachedFrom: string | null = null;
@@ -527,13 +530,20 @@ export async function POST(req: Request) {
       const recordUsage = async (u: { input: number; output: number }) => {
         if (!authed || modelCalls === 0) return;
         const supabase = await createClient();
-        const { error } = await supabase.rpc("record_token_usage", {
+        const base = {
           p_input_tokens: u.input,
           p_output_tokens: u.output,
           // Haqiqatda javob bergan model (zaxiraga o'tilgan bo'lsa — o'sha).
           p_model: servedId,
-          p_provider: null,
+          // Unit economics (0036): provayder faqat id'dan ishonchli aniqlansa, aks holda null.
+          p_provider: cachedFrom ? null : (servedProvider || inferProvider(servedUpstream ?? "") || inferProvider(servedId) || null),
+        };
+        let { error } = await supabase.rpc("record_token_usage", {
+          ...base,
+          p_upstream_model: cachedFrom ? null : (servedUpstream ?? null),
         });
+        // 0036 hali qo'llanmagan — eski imzo (p_upstream_model yo'q).
+        if (error?.code === "PGRST202") ({ error } = await supabase.rpc("record_token_usage", base));
         if (error) console.error("[chat] record_token_usage:", error.message);
       };
 
@@ -704,7 +714,7 @@ ${connectorContext}`
             let failure = "";
             modelCalls++;
             // Bu nomzod upstream'dan qaysi model bilan javob berdi ("served" — faqat server ichida).
-            let candServed: { model: string; substituted: boolean; rescue?: boolean } | null = null;
+            let candServed: { model: string; substituted: boolean; rescue?: boolean; provider?: string } | null = null;
             for await (const ev of streamCompletion({
               modelId: candidate,
               research: step.kind === "research",
@@ -723,7 +733,7 @@ ${connectorContext}`
             })) {
               if (ev.type === "done") break;
               if (ev.type === "served") {
-                candServed = { model: ev.model, substituted: ev.substituted, rescue: ev.rescue };
+                candServed = { model: ev.model, substituted: ev.substituted, rescue: ev.rescue, provider: ev.provider };
                 continue;
               }
               if (ev.type === "error") {
@@ -747,6 +757,7 @@ ${connectorContext}`
             if (step === answerStep && (candServed || !failure)) {
               servedId = candidate;
               servedUpstream = candServed?.model;
+              servedProvider = candServed?.provider;
               servedSubstituted = candServed?.substituted ?? false;
               servedRescue = candServed?.rescue ?? false;
             }
