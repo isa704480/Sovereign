@@ -14,6 +14,7 @@ import { meshComplete } from "@/lib/ai/mesh/execute";
 import { enabledAdapters } from "@/lib/ai/mesh/registry";
 import { plan as meshPlan } from "@/lib/ai/mesh/scheduler";
 import { cliRouteRequest, isGeneralAdapter, meshMode, requiredPlanTier } from "@/lib/ai/mesh/request";
+import { sanitizeHistory } from "@/lib/cli/sanitize-history";
 import { limitErrorResponse } from "@/lib/ai/inquiry/limit-codes";
 import { lastUserText, skillSystemMessage, withSkillMessage } from "@/config/skills";
 
@@ -164,8 +165,7 @@ const messageSchema = z.object({
     .array(z.any())
     .max(32)
     .nullable()
-    .optional()
-    .transform((v) => (Array.isArray(v) && v.length ? v : undefined)),
+    .optional(), // null / [] — sanitizeHistory olib tashlaydi
   name: z.string().max(100).optional(),
 });
 const toolSchema = z.object({
@@ -257,6 +257,8 @@ export async function POST(req: Request) {
     const where = issue?.path.join(".") || "body";
     return Response.json({ error: `${t("chBadRequest")} (${where})` }, { status: 400 });
   }
+  // Zaif modellar qoldirgan buzuq tarix (id'siz / bo'sh chaqiruvlar, egasiz tool) provayderda 400 bermasin.
+  const history = sanitizeHistory(parsed.data.messages);
 
   // Kamida bitta provider kaliti kerak (mesh: umumiy chatga yaraydigan, rescue bo'lmagan adapter).
   const mesh = meshMode() === "on";
@@ -351,7 +353,7 @@ export async function POST(req: Request) {
   // Bitta system xabar mijozning boshlang'ich system blokidan keyin qo'shiladi. Mijoz system xabarlari
   // baribir foydalanuvchi nazoratida — bu yerda ular ustidan hech narsa "ishonchli" deb hisoblanmaydi.
   const skill = skillSystemMessage(enabledSkills, lastUserText(parsed.data.messages));
-  const messages = skill ? withSkillMessage(parsed.data.messages, skill.content) : parsed.data.messages;
+  const messages = skill ? withSkillMessage(history, skill.content) : history;
   const needsTools = Boolean(parsed.data.tools?.length);
   const routeReq = cliRouteRequest({ chosen, planTier: planId, country, tools: needsTools, messages });
   const cands = mesh ? [] : regionCandidates(candidates(planId, chosen, needsTools), country, planId === "pro" || planId === "ultra");

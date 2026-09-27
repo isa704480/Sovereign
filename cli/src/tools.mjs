@@ -758,6 +758,21 @@ export function visible(s) {
 }
 
 /**
+ * Paket o'rnatish buyrug'i (tarmoq kerak): bitta buyruq, zanjirsiz, global/registry o'zgartirishsiz.
+ * Full auto'da faqat shularga proxy to'sig'i qo'yilmaydi (aks holda `npm install` ishlamasdi).
+ */
+export function isPackageInstall(command) {
+  const c = String(command ?? "").trim();
+  if (!c || /[;&|$<>%\n\r`]/.test(c)) return false;
+  if (/(^|\s)(-g|--global|--location[= ]global|--registry|--index-url|--extra-index-url|--target|--prefix)(\s|=|$)/i.test(c)) return false;
+  if (/(^|\s)-i\s+https?:/i.test(c)) return false;
+  return (
+    /^(npm|pnpm|yarn|bun)(\.cmd|\.exe)?\s+(install|i|add|ci)(\s|$)/i.test(c) ||
+    /^(pip3?|python3?\s+-m\s+pip|py\s+-m\s+pip)(\.exe)?\s+install(\s|$)/i.test(c)
+  );
+}
+
+/**
  * run_command bolasi uchun muhit (sandbox'siz yo'l — oddiy rejim): SOVEREIGN_TOKEN bolaga hech
  * qachon berilmaydi. Full auto'da buyruq sandbox.mjs orqali ishlaydi (full / container / limited:
  * allowlist env, HOME yo'naltirilgan, o'lik proxy) — bu funksiya faqat zaxira. `fullAuto` bo'lsa
@@ -769,9 +784,11 @@ export function childEnv(opts = {}) {
   if (opts.fullAuto) {
     delete env.OPENROUTER_API_KEY;
     delete env.PERPLEXITY_API_KEY;
-    for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) env[k] = "http://127.0.0.1:9";
-    // Faqat mahalliy manzillar proxy'siz (dev server / testlar ishlashi uchun).
-    env.NO_PROXY = env.no_proxy = "localhost,127.0.0.1,::1";
+    if (!isPackageInstall(opts.command)) {
+      for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) env[k] = "http://127.0.0.1:9";
+      // Faqat mahalliy manzillar proxy'siz (dev server / testlar ishlashi uchun).
+      env.NO_PROXY = env.no_proxy = "localhost,127.0.0.1,::1";
+    }
   }
   // Windows cmd.exe buyruqni avval JORIY papkadan qidiradi — agent yaratgan git.bat
   // "xavfsiz" git status o'rniga ishga tushmasin.
@@ -898,7 +915,7 @@ export async function runTool(name, args, confirm, opts = {}) {
           // POSIX: alohida jarayon guruhi — bekor qilinganda butun daraxt to'xtaydi.
           detached: !IS_WIN,
           // Sandbox: allowlist env, HOME yo'naltirilgan (sandbox.mjs); oddiy rejim: kalitlarsiz muhit.
-          env: spec.env ?? childEnv(opts),
+          env: spec.env ?? childEnv({ ...opts, command: args.command }),
         };
         const done = (err, stdout, stderr) => {
           clearTimeout(timer);
