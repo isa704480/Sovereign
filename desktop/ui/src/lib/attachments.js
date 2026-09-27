@@ -53,7 +53,7 @@ export function toSendPayload(list) {
 
 /** Xato kodi (main yoki renderer) → i18n kaliti. */
 export function attachErrKey(code) {
-  const known = ["unsupported", "too-large", "protected", "not-found", "not-file", "binary", "bad-image", "bad-pdf", "pdf-unavailable", "pdf-empty", "empty", "unc", "too-many", "too-large-total", "expired", "processing"];
+  const known = ["unsupported", "too-large", "protected", "not-found", "not-file", "binary", "bad-image", "bad-pdf", "pdf-unavailable", "pdf-unreadable", "pdf-empty", "empty", "unc", "too-many", "too-large-total", "expired", "processing"];
   return `attach.err.${known.includes(code) ? code : "io"}`;
 }
 

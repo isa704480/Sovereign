@@ -471,6 +471,7 @@ const uz = {
   "project.loadErrorHint": "Fayl o‘zgartirilmadi. Papkaga kirish huquqini tekshirib, qayta urinib ko‘ring.",
   "settings.sandboxError": "Sandbox holatini tekshirib bo‘lmadi.",
   "model.auto": "Avto",
+  "attach.err.pdf-unreadable": "«{name}» — PDF’ni o‘qib bo‘lmadi (fayl shikastlangan yoki parol bilan himoyalangan).",
 };
 
 const en = {
@@ -913,6 +914,7 @@ const en = {
   "project.loadErrorHint": "Nothing was changed. Check that the folder is accessible and try again.",
   "settings.sandboxError": "Couldn’t check the sandbox status.",
   "model.auto": "Auto",
+  "attach.err.pdf-unreadable": "“{name}” — couldn’t read the PDF (the file is damaged or password-protected).",
 };
 
 const ru = {
@@ -1355,6 +1357,7 @@ const ru = {
   "project.loadErrorHint": "Файл не изменён. Проверьте доступ к папке и попробуйте снова.",
   "settings.sandboxError": "Не удалось проверить состояние песочницы.",
   "model.auto": "Авто",
+  "attach.err.pdf-unreadable": "«{name}» — не удалось прочитать PDF (файл повреждён или защищён паролем).",
 };
 
 /**
@@ -1685,6 +1688,7 @@ const uzCyrl = {
   "settings.sandboxError": "Ҳимояланган муҳит ҳолатини текшириб бўлмади.",
   "model.auto": "Авто",
   "model.useAuto": "Автодан фойдаланиш",
+  "attach.err.pdf-unreadable": "«{name}» — PDF’ни ўқиб бўлмади (файл шикастланган ёки пароль билан ҳимояланган).",
 };
 
 const DICTS = { uz, en, ru };
