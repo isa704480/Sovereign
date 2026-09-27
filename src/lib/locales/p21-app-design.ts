@@ -5,6 +5,12 @@ import type { Dict } from "@/lib/i18n";
  * sahifalaridagi yangi matnlar, 4 tilda (uz / uz-cyrl / ru / en).
  */
 export const P21A = {
+  p21ShareNotFoundBody: {
+    uz: "Havola o'chirilgan yoki noto'g'ri. Suhbat egasidan yangi havola so'rang.",
+    "uz-cyrl": "Ҳавола ўчирилган ёки нотўғри. Суҳбат эгасидан янги ҳавола сўранг.",
+    ru: "Ссылка удалена или неверна. Попросите автора чата прислать новую.",
+    en: "This link was removed or is incorrect. Ask the person who shared it for a new one.",
+  },
   p21AuthTrustLine: {
     uz: "Shifrlangan ulanish · Ismlar modelga yuborilishidan oldin yashiriladi",
     "uz-cyrl": "Шифрланган уланиш · Исмлар моделга юборилишидан олдин яширилади",

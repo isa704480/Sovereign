@@ -1,7 +1,7 @@
 "use client";
 
-import { MODEL_BY_ID } from "@/config/models";
 import { Markdown } from "@/components/dashboard/Markdown";
+import { ModelAvatar } from "@/components/dashboard/ModelAvatar";
 
 interface Msg {
   role: "user" | "assistant";
@@ -18,19 +18,16 @@ export function SharedMessages({ messages }: { messages: Msg[] }) {
           <div key={i} className="flex justify-end">
             <div
               className="max-w-[78%] whitespace-pre-wrap px-4 py-2.5 text-[15px] leading-relaxed"
-              style={{ background: "#1C1F42", borderRadius: "18px 18px 4px 18px" }}
+              style={{ background: "var(--t-user-bubble)", borderRadius: "18px 18px 4px 18px" }}
             >
               {m.content}
             </div>
           </div>
         ) : (
           <div key={i} className="flex gap-3">
-            <span
-              className="mt-1 grid size-7 shrink-0 place-items-center rounded-lg text-sm"
-              style={{ background: "rgba(91,80,240,0.2)", color: "#7C6FF7" }}
-            >
-              {(m.modelId && MODEL_BY_ID[m.modelId]?.glyph) || "⬡"}
-            </span>
+            <div className="mt-1">
+              <ModelAvatar modelId={m.modelId ?? undefined} size={28} />
+            </div>
             <div className="min-w-0 flex-1">
               <Markdown content={m.content} ugc />
             </div>

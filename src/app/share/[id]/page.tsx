@@ -4,6 +4,8 @@ import { cache } from "react";
 import { headers } from "next/headers";
 import { after } from "next/server";
 import { notFound } from "next/navigation";
+import { AlertTriangle } from "lucide-react";
+import { LogoMark } from "@/components/brand/Logo";
 import { MODEL_BY_ID } from "@/config/models";
 import { MODEL_THEMES, themeVars } from "@/config/model-themes";
 import { createAnonClient } from "@/lib/supabase/anon";
@@ -120,16 +122,23 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
   const date = new Date(row.created_at).toLocaleDateString(localeOf(lang), { year: "numeric", month: "long", day: "numeric" });
 
   return (
-    <main className="theme-root min-h-svh" style={{ ...themeVars(MODEL_THEMES.sovereign), background: "#060812", color: "#F0F2FF" }}>
-      <header className="sticky top-0 z-10 border-b" style={{ borderColor: "rgba(255,255,255,0.08)", background: "rgba(6,8,18,0.85)", backdropFilter: "blur(12px)" }}>
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
-          <Link href="/" className="font-display text-sm font-bold tracking-[0.12em]">⬡ SOVEREIGN</Link>
+    <div className="theme-root min-h-svh" style={{ ...themeVars(MODEL_THEMES.sovereign), background: "var(--t-bg)", color: "var(--t-text)" }}>
+      {/* Yopishqoq navigatsiya — ostidan kontent o'tadi, shuning uchun shisha (glass) shu yerda o'rinli. */}
+      <header
+        className="sticky top-0 z-10 border-b"
+        style={{ borderColor: "var(--t-border)", background: "rgba(6,8,18,0.78)", backdropFilter: "saturate(180%) blur(20px)" }}
+      >
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-2.5">
+          <Link href="/" className="inline-flex min-h-11 items-center gap-2" aria-label={t("chLogoHomeAria")}>
+            <LogoMark size={22} />
+            <span className="font-display text-sm font-bold tracking-[0.12em]">SOVEREIGN</span>
+          </Link>
           <div className="flex items-center gap-2">
             <ShareLangSwitcher serverLang={lang} />
             <Link
               href="/register"
-              className="rounded-full px-3.5 py-1.5 text-xs font-semibold text-white"
-              style={{ background: "#5B50F0" }}
+              className="inline-flex min-h-9 items-center rounded-full px-3.5 text-xs font-semibold transition-opacity hover:opacity-90 [@media(pointer:coarse)]:min-h-11"
+              style={{ background: "var(--t-primary-fill)", color: "var(--t-on-primary)" }}
             >
               {t("chShareTry")}
             </Link>
@@ -137,25 +146,30 @@ export default async function SharePage({ params }: { params: Promise<{ id: stri
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl px-4 py-8 md:py-10">
-        <h1 className="t-display text-2xl font-extrabold tracking-[-0.02em] md:text-3xl">{convTitle(row.title, t)}</h1>
-        <p className="mt-1 text-xs" style={{ color: "#9BA3CC" }}>
+      <main className="mx-auto max-w-3xl px-4 py-8 md:py-10">
+        <h1 className="t-display text-balance text-2xl font-extrabold tracking-[-0.02em] md:text-3xl">{convTitle(row.title, t)}</h1>
+        <p className="mt-1 text-xs" style={{ color: "var(--t-text-muted)" }}>
           {date}
-          {model ? ` · ${model.name}` : ""} · {t("chShareNote")}
+          {model ? ` · ${model.name} · ${model.provider}` : ""} · {t("chShareNote")}
         </p>
         {notice && (
           <p
             role="note"
-            className="mt-4 rounded-xl border px-3.5 py-2.5 text-xs leading-relaxed"
-            style={{ borderColor: "rgba(245,158,11,0.35)", background: "rgba(245,158,11,0.08)", color: "#F5C26B" }}
+            className="mt-4 flex items-start gap-2 rounded-lg border px-3.5 py-2.5 text-xs leading-relaxed"
+            style={{
+              borderColor: "color-mix(in srgb, var(--t-warning) 35%, transparent)",
+              background: "color-mix(in srgb, var(--t-warning) 8%, transparent)",
+              color: "var(--t-text)",
+            }}
           >
-            ⚠ {notice}
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" style={{ color: "var(--t-warning)" }} aria-hidden />
+            <span>{notice}</span>
           </p>
         )}
         <div className="mt-8">
           <SharedMessages messages={row.messages} />
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

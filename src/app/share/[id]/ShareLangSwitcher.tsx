@@ -28,6 +28,6 @@ export function ShareLangSwitcher({ serverLang }: { serverLang: Lang }) {
   }, [hydrated, lang, serverLang, router]);
 
   return (
-    <LangSwitcher className="h-8 border-white/10 px-1.5 text-xs text-[#9BA3CC] focus-visible:outline-[#5B50F0]" />
+    <LangSwitcher className="h-9 border-[var(--t-border)] px-1.5 text-[16px] text-[var(--t-text-muted)] focus-visible:outline-[var(--t-primary)] md:text-xs [@media(pointer:coarse)]:h-11" />
   );
 }

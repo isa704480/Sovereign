@@ -69,7 +69,8 @@ export function ConnectApproval({ loginRef, mode, name, email, plan, info }: Con
     if (!canApprove || !loginRef) return;
     setError(null);
     startTransition(async () => {
-      const res = await approveCliDevice(loginRef, typed);
+      // Tarmoq uzilsa server action reject bo'ladi — tugma "ulanmoqda"da qotib qolmasin.
+      const res = await approveCliDevice(loginRef, typed).catch(() => ({ ok: false as const, error: t("auErrNetwork"), final: false }));
       if (res.ok) setState("done");
       else {
         setError(res.error);
@@ -96,29 +97,29 @@ export function ConnectApproval({ loginRef, mode, name, email, plan, info }: Con
         initial={{ opacity: 0, y: 16, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
-        className="w-full max-w-md rounded-3xl border border-border bg-bg-elevated/70 p-8 text-center shadow-lg"
+        className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated p-6 text-center shadow-lg sm:p-8"
       >
-        <div className="mb-6 flex items-center justify-center gap-2">
+        <div className="mb-6 flex items-center justify-center gap-2" aria-hidden>
           <LogoMark size={28} />
           <span className="text-text-muted">×</span>
-          <TerminalSquare className="size-6 text-primary-soft" />
+          <TerminalSquare className="size-6 text-text-secondary" />
         </div>
 
         {state === "done" ? (
           <>
-            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-success/15 text-success shadow-[0_0_28px_rgba(16,212,160,0.35)]">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-success/15 text-success" aria-hidden>
               <Check className="size-7" strokeWidth={3} />
             </div>
             <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary">{t("auCliConnected")}</h1>
             <p className="mt-2 text-sm text-text-secondary">{t("auCliConnectedDesc")}</p>
-            <p className="mt-4 text-xs text-text-muted">{t("auCliCanClose")}</p>
-            <Link href="/cli/sessions" className="mt-3 inline-block text-xs text-primary-soft hover:underline">
+            <p className="mt-4 text-xs text-text-secondary">{t("auCliCanClose")}</p>
+            <Link href="/cli/sessions" className="mt-2 inline-flex min-h-11 items-center text-sm text-primary-soft hover:underline">
               {t("auCliManageDevices")}
             </Link>
           </>
         ) : state === "denied" ? (
           <>
-            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-error/15 text-error">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-error/15 text-error" aria-hidden>
               <X className="size-7" strokeWidth={3} />
             </div>
             <h1 className="font-display mt-5 text-2xl font-extrabold text-text-primary">{t("auCliDenied")}</h1>
@@ -127,8 +128,8 @@ export function ConnectApproval({ loginRef, mode, name, email, plan, info }: Con
         ) : gone ? (
           <>
             <h1 className="font-display text-2xl font-extrabold text-text-primary">{t("auCliTitle")}</h1>
-            <p className="mt-4 text-sm text-error">{t("auCliErrExpired")}</p>
-            <p className="mt-2 text-xs text-text-muted">{t("p17dStartAgain")}</p>
+            <p className="mt-4 text-sm text-error" role="alert">{t("auCliErrExpired")}</p>
+            <p className="mt-2 text-xs text-text-secondary">{t("p17dStartAgain")}</p>
           </>
         ) : mode === "legacy_disabled" ? (
           <>
@@ -139,7 +140,7 @@ export function ConnectApproval({ loginRef, mode, name, email, plan, info }: Con
               type="button"
               onClick={deny}
               disabled={pending}
-              className="mt-6 h-11 w-full rounded-xl border border-border text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+              className="mt-6 h-11 w-full rounded-lg border border-border text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover"
             >
               {t("auCliCancel")}
             </button>
@@ -149,10 +150,10 @@ export function ConnectApproval({ loginRef, mode, name, email, plan, info }: Con
             <h1 className="font-display text-2xl font-extrabold text-text-primary">{t("auCliTitle")}</h1>
             <p className="mt-2 text-sm text-text-secondary">{t("auCliRequest")}</p>
 
-            <div className="mt-5 rounded-2xl border border-border bg-bg-base/60 p-4 text-left">
+            <div className="mt-5 rounded-xl border border-border bg-bg-base/60 p-4 text-left">
               <div className="text-sm font-medium text-text-primary">{name}</div>
-              <div className="text-xs text-text-muted">{email}</div>
-              <div className="mt-2 inline-flex rounded-full bg-primary/15 px-2.5 py-0.5 text-[11px] font-semibold text-primary-soft">
+              <div className="text-xs text-text-secondary">{email}</div>
+              <div className="mt-2 inline-flex rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary-soft">
                 {fmt(t("auCliPlan"), { plan: planName })}
               </div>
             </div>
@@ -206,7 +207,7 @@ export function ConnectApproval({ loginRef, mode, name, email, plan, info }: Con
                   <AlertTriangle className="mt-0.5 size-4 shrink-0 text-error" aria-hidden />
                   <span>{fmt(t("auCliNetOtherCountry"), { country: place ?? info?.startCountry ?? "?" })}</span>
                 </div>
-                <label className="mt-2 flex cursor-pointer items-center gap-2 text-text-secondary">
+                <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-2 text-text-secondary">
                   <input
                     type="checkbox"
                     checked={confirmed}
@@ -232,10 +233,10 @@ export function ConnectApproval({ loginRef, mode, name, email, plan, info }: Con
               <KeyRound className="size-4 text-primary-soft" aria-hidden />
               {t("p17dTypeTitle")}
             </label>
-            <p id="cli-user-code-desc" className="mt-1 text-xs text-text-muted">
+            <p id="cli-user-code-desc" className="mt-1 text-xs text-text-secondary">
               {legacy ? t("p17dTypeDescLegacy") : t("p17dTypeDesc")}
             </p>
-            {legacy && <p className="mt-1 font-mono text-[11px] text-text-muted">{t("p17dUpdateHint")}</p>}
+            {legacy && <p className="mt-1 font-mono text-xs text-text-secondary">{t("p17dUpdateHint")}</p>}
             <input
               id="cli-user-code"
               name="user-code"
@@ -253,13 +254,13 @@ export function ConnectApproval({ loginRef, mode, name, email, plan, info }: Con
               inputMode="text"
               maxLength={16}
               placeholder={legacy ? t("p17dPlaceholderLegacy") : t("p17dPlaceholder")}
-              aria-describedby="cli-user-code-desc"
+              aria-describedby={error ? "cli-user-code-desc cli-user-code-error" : "cli-user-code-desc"}
               aria-invalid={!!error}
-              className="mt-3 h-14 w-full rounded-xl border border-border bg-bg-base/70 text-center font-mono text-2xl font-bold tracking-[0.25em] text-text-primary uppercase placeholder:text-base placeholder:font-normal placeholder:tracking-normal placeholder:normal-case placeholder:text-text-muted focus:border-primary focus:outline-none disabled:opacity-60"
+              className="mt-3 h-14 w-full rounded-xl border border-border bg-bg-base/70 text-center font-mono text-2xl font-bold tracking-[0.25em] text-text-primary uppercase placeholder:text-base placeholder:font-normal placeholder:tracking-normal placeholder:normal-case placeholder:text-text-muted focus-visible:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-60"
             />
 
             {error && (
-              <p role="alert" className="mt-3 text-sm text-error">
+              <p id="cli-user-code-error" role="alert" className="mt-3 text-sm text-error">
                 {error}
               </p>
             )}
@@ -269,19 +270,20 @@ export function ConnectApproval({ loginRef, mode, name, email, plan, info }: Con
                 type="button"
                 onClick={deny}
                 disabled={pending}
-                className="h-11 rounded-xl border border-border text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover"
+                className="h-11 rounded-lg border border-border text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover"
               >
                 {t("auCliCancel")}
               </button>
               <button
                 type="submit"
                 disabled={!canApprove}
-                className="h-11 rounded-xl bg-primary text-sm font-semibold text-white shadow-glow transition-colors hover:bg-primary-dark disabled:opacity-60"
+                aria-busy={pending || undefined}
+                className="h-11 rounded-lg bg-primary text-sm font-semibold text-white transition-colors hover:bg-primary-dark disabled:opacity-60"
               >
                 {pending ? t("auCliConnecting") : t("auCliAllow")}
               </button>
             </div>
-            <p className="mt-4 text-xs text-text-muted">{t("auCliWarning")}</p>
+            <p className="mt-4 text-xs text-text-secondary">{t("auCliWarning")}</p>
           </form>
         )}
       </motion.div>
