@@ -181,7 +181,7 @@ export function InquiryCard({ messageId, inquiry, state, actions, memory }: Inqu
       }}
     >
       <div className="flex items-start gap-2">
-        <MessageCircleQuestion className="mt-0.5 size-4 shrink-0" style={{ color: "var(--t-accent)" }} aria-hidden />
+        <MessageCircleQuestion className="mt-0.5 size-4 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />
         <div className="min-w-0">
           <h3 id={titleId} className="text-[15px] font-semibold leading-snug" style={{ color: "var(--t-text)" }}>
             {t("p14iCardIntro")}
@@ -210,7 +210,7 @@ export function InquiryCard({ messageId, inquiry, state, actions, memory }: Inqu
 
       {pro && (
         <p className="flex items-start gap-1.5 text-xs" style={{ color: "var(--t-text-muted)" }}>
-          <ShieldAlert className="mt-px size-3.5 shrink-0" style={{ color: "var(--warning, #F59E0B)" }} aria-hidden />
+          <ShieldAlert className="mt-px size-3.5 shrink-0" style={{ color: "var(--t-warning, #F59E0B)" }} aria-hidden />
           <span>{t(pro)}</span>
         </p>
       )}
@@ -233,7 +233,7 @@ export function InquiryCard({ messageId, inquiry, state, actions, memory }: Inqu
             {sensitive && (
               <>
                 {" "}
-                <span style={{ color: "var(--warning, #F59E0B)" }}>{t("p14iRememberSensitive")}</span>
+                <span style={{ color: "var(--t-warning, #F59E0B)" }}>{t("p14iRememberSensitive")}</span>
               </>
             )}
           </p>
@@ -248,8 +248,8 @@ export function InquiryCard({ messageId, inquiry, state, actions, memory }: Inqu
               onClick={submit}
               disabled={disabled || !answered}
               aria-describedby={!answered ? hintId : undefined}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold text-white transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ background: "var(--t-primary)" }}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
             >
               <Send className="size-3.5" aria-hidden /> {t("p14iSubmit")}
             </button>
@@ -258,7 +258,7 @@ export function InquiryCard({ messageId, inquiry, state, actions, memory }: Inqu
               onClick={skip}
               disabled={disabled}
               title={t("p14iSkipTitle")}
-              className="inline-flex min-h-9 items-center rounded-lg border px-3.5 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-9 items-center rounded-lg border px-3.5 text-sm font-medium transition-colors hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] disabled:cursor-not-allowed disabled:opacity-50"
               style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
             >
               {t("p14iSkip")}
@@ -285,9 +285,9 @@ export function InquiryCard({ messageId, inquiry, state, actions, memory }: Inqu
         </div>
       ) : (
         <p role="status" className="inline-flex items-center gap-1.5 text-xs" style={{ color: "var(--t-text-muted)" }}>
-          <Check className="size-3.5" style={{ color: "var(--t-accent)" }} aria-hidden /> {t(STATE_KEY[state])}
+          <Check className="size-3.5" style={{ color: "var(--t-accent-text)" }} aria-hidden /> {t(STATE_KEY[state])}
           {memory && (
-            <span style={{ color: memory === "failed" ? "var(--warning, #F59E0B)" : undefined }}>
+            <span style={{ color: memory === "failed" ? "var(--t-warning, #F59E0B)" : undefined }}>
               {" · "}
               {t(memory === "saved" ? "p14iMemorySaved" : "p14iMemoryFailed")}
             </span>
@@ -366,8 +366,8 @@ function QuestionField({ index, q, pick, disabled, onChange, onInputKey }: Quest
           </span>
           {q.critical && (
             <span
-              className="rounded-full px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide"
-              style={{ background: "color-mix(in srgb, var(--warning, #F59E0B) 16%, transparent)", color: "var(--warning, #F59E0B)" }}
+              className="rounded-full px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide"
+              style={{ background: "color-mix(in srgb, var(--t-warning, #F59E0B) 16%, transparent)", color: "var(--t-warning, #F59E0B)" }}
               title={t("p14iCriticalHint")}
             >
               {t("p14iCritical")}
@@ -419,7 +419,7 @@ function QuestionField({ index, q, pick, disabled, onChange, onInputKey }: Quest
                 className={chipBase}
                 style={chipStyle(on)}
               >
-                {on && <Check className="size-3.5 shrink-0" style={{ color: "var(--t-accent)" }} aria-hidden />}
+                {on && <Check className="size-3.5 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />}
                 <span className="min-w-0 break-words">{v ?? t("p14iOther")}</span>
               </button>
             );
@@ -441,7 +441,7 @@ function QuestionField({ index, q, pick, disabled, onChange, onInputKey }: Quest
                 className={chipBase}
                 style={chipStyle(on)}
               >
-                {on && <Check className="size-3.5 shrink-0" style={{ color: "var(--t-accent)" }} aria-hidden />}
+                {on && <Check className="size-3.5 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />}
                 <span className="min-w-0 break-words">{v}</span>
               </button>
             );
@@ -460,7 +460,7 @@ function QuestionField({ index, q, pick, disabled, onChange, onInputKey }: Quest
             className={chipBase}
             style={chipStyle(pick.otherOn)}
           >
-            {pick.otherOn && <Check className="size-3.5 shrink-0" style={{ color: "var(--t-accent)" }} aria-hidden />}
+            {pick.otherOn && <Check className="size-3.5 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />}
             {t("p14iOther")}
           </button>
         </div>
@@ -512,7 +512,7 @@ export function InquiryFollowups({ messageId, inquiry, state, actions }: Inquiry
       data-inquiry-state={state}
     >
       <h3 id={titleId} className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "var(--t-text-muted)" }}>
-        <MessageCircleQuestion className="size-3.5" style={{ color: "var(--t-accent)" }} aria-hidden />
+        <MessageCircleQuestion className="size-3.5" style={{ color: "var(--t-accent-text)" }} aria-hidden />
         {t("p14iFollowTitle")}
       </h3>
       {questions.map((q, i) => (
@@ -603,8 +603,8 @@ function FollowupRow({ q, disabled, onPick }: { q: InquiryQuestion; disabled: bo
             disabled={disabled || !draft.trim()}
             aria-label={t("p14iFollowSend")}
             title={t("p14iFollowSend")}
-            className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ background: "var(--t-primary)" }}
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+            style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
           >
             <Send className="size-3.5" aria-hidden />
           </button>

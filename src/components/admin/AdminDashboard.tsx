@@ -31,6 +31,8 @@ import { useLang, useT } from "@/store/chat";
 import type { EconRange, UnitEconomics } from "@/lib/econ/unit-economics";
 import type { BudgetSnapshot } from "@/lib/econ/budget";
 import { UnitEconomicsCard } from "./UnitEconomicsCard";
+import { LogoMark } from "@/components/brand/Logo";
+import { ModelAvatar } from "@/components/dashboard/ModelAvatar";
 
 interface DailyStat {
   day: string;
@@ -148,21 +150,21 @@ function fmtMoney(n: number) {
   return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** Model id -> ko'rinadigan nom, belgi va rang (katalogdan). */
-function modelMeta(id: string): { name: string; glyph: string; color: string } {
-  if (id === AUTO_MODEL_ID) return { name: AUTO_MODEL.name, glyph: AUTO_MODEL.glyph, color: AUTO_MODEL.primary };
+/** Model id -> ko'rinadigan nom va grafik rangi (katalogdan). Belgi — ModelAvatar/ProviderMark. */
+function modelMeta(id: string): { name: string; color: string } {
+  if (id === AUTO_MODEL_ID) return { name: AUTO_MODEL.name, color: AUTO_MODEL.primary };
   const m = MODEL_BY_ID[id];
-  return m ? { name: m.name, glyph: m.glyph, color: m.primary } : { name: id, glyph: "•", color: "#9BA3CC" };
+  return m ? { name: m.name, color: m.primary } : { name: id, color: "#9BA3CC" };
 }
 
 function KPI({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-5">
-      <div className="text-[11px] uppercase tracking-wider text-white/50">{label}</div>
+      <div className="text-[11px] uppercase tracking-wider text-white/60">{label}</div>
       <div className="mt-2 text-3xl font-semibold tracking-tight tabular-nums" style={{ color: color ?? "#EBEEFA" }}>
         {value}
       </div>
-      {sub && <div className="mt-1 text-xs text-white/50">{sub}</div>}
+      {sub && <div className="mt-1 text-xs text-white/60">{sub}</div>}
     </div>
   );
 }
@@ -224,16 +226,17 @@ export function AdminDashboard({
   return (
     <div className="min-h-svh bg-[#060812] text-white/90">
       {/* Header */}
-      <header className="border-b border-white/5 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <span className="text-lg font-semibold tracking-tight">SOVEREIGN Admin</span>
+      <header className="border-b border-white/5 bg-[#060812]">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <LogoMark size={24} />
+            <h1 className="text-lg font-semibold tracking-tight">{t("p21AdminTitle")}</h1>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-white/60">{admin.email}</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-3 sm:gap-4">
+            <span className="min-w-0 truncate text-sm text-white/60">{admin.email}</span>
             <Link
               href="/app"
-              className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-white/70 hover:bg-white/5"
+              className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-3 text-sm text-white/70 hover:bg-white/[0.06] md:min-h-9"
             >
               {t("p7cAdBack")}
             </Link>
@@ -241,7 +244,7 @@ export function AdminDashboard({
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-6 py-8">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {/* KPI grid */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -263,7 +266,7 @@ export function AdminDashboard({
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
             <div className="mb-1 flex items-center justify-between">
               <div>
-                <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdRevenue30")}</div>
+                <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/60">{t("p7cAdRevenue30")}</h2>
                 <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: "#10D4A0" }}>
                   {fmtMoney(totalRevenue)}
                 </div>
@@ -299,7 +302,7 @@ export function AdminDashboard({
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
             <div className="mb-1 flex items-center justify-between">
               <div>
-                <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdTokens30")}</div>
+                <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/60">{t("p7cAdTokens30")}</h2>
                 <div className="mt-1 text-2xl font-semibold tabular-nums" style={{ color: "#5B50F0" }}>
                   {fmt(totalTokens)}
                 </div>
@@ -331,7 +334,7 @@ export function AdminDashboard({
         {/* Faol foydalanuvchilar (line) + Plan taqsimoti (pie) */}
         <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 lg:col-span-2">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdActivity30")}</div>
+            <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/60">{t("p7cAdActivity30")}</h2>
             <div className="mt-4 h-56">
               <ResponsiveContainer>
                 <LineChart data={daily30}>
@@ -351,7 +354,7 @@ export function AdminDashboard({
           </section>
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdPlanSplit")}</div>
+            <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/60">{t("p7cAdPlanSplit")}</h2>
             <div className="mt-4 h-56">
               <ResponsiveContainer>
                 <PieChart>
@@ -383,12 +386,12 @@ export function AdminDashboard({
         {/* Auditoriya: yosh va davlat (onboarding'dan) */}
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdAgeSplit")}</div>
+            <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/60">{t("p7cAdAgeSplit")}</h2>
             {onboarding ? (
               <>
                 <div className="mt-2 flex items-baseline gap-2">
                   <span className="text-3xl font-semibold tabular-nums">{onboarding.avg_age ?? "—"}</span>
-                  <span className="text-xs text-white/50">
+                  <span className="text-xs text-white/60">
                     {t("p7cAdAvgAge")} · {plural(lang, onboarding.with_age, { one: "p7cAdAnswersOne", few: "p7cAdAnswersFew", many: "p7cAdAnswersMany" })}
                   </span>
                 </div>
@@ -405,23 +408,23 @@ export function AdminDashboard({
                 </div>
               </>
             ) : (
-              <p className="mt-3 text-sm text-white/50">{fmtT(t("p7cAdNoDataMigration"), { m: "0020" })}</p>
+              <p className="mt-3 text-sm text-white/60">{fmtT(t("p7cAdNoDataMigration"), { m: "0020" })}</p>
             )}
           </section>
 
           <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 lg:col-span-2">
             <div className="mb-4 flex items-center justify-between">
-              <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdByCountry")}</div>
-              <div className="text-xs text-white/50 tabular-nums">
+              <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/60">{t("p7cAdByCountry")}</h2>
+              <div className="text-xs text-white/60 tabular-nums">
                 {plural(lang, countryRows.length, { one: "p7cAdCountriesOne", few: "p7cAdCountriesFew", many: "p7cAdCountriesMany" })} ·{" "}
                 {plural(lang, countryTotal, { one: "p7cAdUsersOne", few: "p7cAdUsersFew", many: "p7cAdUsersMany" })}
                 {onboarding ? ` · ${fmtT(t("p7cAdLast30"), { n: onboarding.signups_30d })}` : ""}
               </div>
             </div>
             {countryRows.length ? (
-              <div className="max-h-72 overflow-y-auto rounded-xl border border-white/5">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-[#0A0B12] text-[11px] uppercase tracking-wider text-white/40">
+              <div className="max-h-72 overflow-auto rounded-xl border border-white/5">
+                <table className="w-full min-w-[420px] text-sm">
+                  <thead className="sticky top-0 bg-[#0A0B12] text-[11px] uppercase tracking-wider text-white/60">
                     <tr>
                       <th className="px-3 py-2 text-left">#</th>
                       <th className="px-3 py-2 text-left">{t("p7cAdCountry")}</th>
@@ -432,10 +435,10 @@ export function AdminDashboard({
                   <tbody>
                     {countryRows.map((r, i) => (
                       <tr key={r.country} className="border-t border-white/5">
-                        <td className="px-3 py-2 tabular-nums text-white/40">{i + 1}</td>
+                        <td className="px-3 py-2 tabular-nums text-white/60">{i + 1}</td>
                         <td className="px-3 py-2">
                           {countryFlag(r.country)} {countryName(r.country, lang)}{" "}
-                          <span className="text-white/40">{r.country}</span>
+                          <span className="text-white/60">{r.country}</span>
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums">{r.users}</td>
                         <td className="px-3 py-2 text-right tabular-nums text-white/60">
@@ -447,7 +450,7 @@ export function AdminDashboard({
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-white/50">{t("p7cAdNoCountries")}</p>
+              <p className="text-sm text-white/60">{t("p7cAdNoCountries")}</p>
             )}
           </section>
         </div>
@@ -455,9 +458,9 @@ export function AdminDashboard({
         {/* Modellar: ishlatilishi va sifati (messages jadvalidan) */}
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdModelsTitle")}</div>
+            <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/60">{t("p7cAdModelsTitle")}</h2>
             {models && (
-              <div className="text-xs text-white/50 tabular-nums">
+              <div className="text-xs text-white/60 tabular-nums">
                 {fmtT(t("p7cAdModelsSummary"), { answers: fmt(models.total_messages), models: models.active_models, tokens: fmt(models.total_tokens) })}
               </div>
             )}
@@ -508,7 +511,7 @@ export function AdminDashboard({
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <p className="text-sm text-white/40">{t("p7cAdNotEnoughTokens")}</p>
+                    <p className="text-sm text-white/60">{t("p7cAdNotEnoughTokens")}</p>
                   )}
                 </div>
               </div>
@@ -516,8 +519,8 @@ export function AdminDashboard({
               <div className="mt-6">
                 <div className="mb-2 text-sm text-white/70">{t("p7cAdAllModels")}</div>
                 <div className="overflow-x-auto rounded-xl border border-white/5">
-                  <table className="w-full text-sm">
-                    <thead className="bg-white/[0.02] text-[11px] uppercase tracking-wider text-white/50">
+                  <table className="w-full min-w-[560px] text-sm">
+                    <thead className="bg-white/[0.02] text-[11px] uppercase tracking-wider text-white/60">
                       <tr>
                         <th className="p-3 text-left font-normal">{t("p7cAdModel")}</th>
                         <th className="p-3 text-right font-normal">{t("p7cAdAnswers")}</th>
@@ -536,12 +539,7 @@ export function AdminDashboard({
                           <tr key={r.model_id} className="hover:bg-white/[0.02]">
                             <td className="p-3">
                               <span className="inline-flex items-center gap-2">
-                                <span
-                                  className="inline-flex size-5 items-center justify-center rounded-[6px] text-[11px]"
-                                  style={{ background: `${meta.color}22`, color: meta.color }}
-                                >
-                                  {meta.glyph}
-                                </span>
+                                <ModelAvatar modelId={r.model_id} size={20} />
                                 <span className="text-white/80">{meta.name}</span>
                               </span>
                             </td>
@@ -557,7 +555,7 @@ export function AdminDashboard({
                             <td className="p-3 text-right tabular-nums text-white/60">{fmt(r.users)}</td>
                             <td className="p-3 text-right tabular-nums text-white/60">{fmt(r.avg_out)}</td>
                             <td className="p-3 text-right tabular-nums text-white/60">{fmt(r.total_tokens)}</td>
-                            <td className="p-3 text-right text-white/50 tabular-nums">
+                            <td className="p-3 text-right text-white/60 tabular-nums">
                               {r.last_used ? new Date(r.last_used).toLocaleDateString(locale) : "—"}
                             </td>
                           </tr>
@@ -569,7 +567,7 @@ export function AdminDashboard({
               </div>
             </>
           ) : (
-            <p className="mt-4 text-sm text-white/50">
+            <p className="mt-4 text-sm text-white/60">
               {models ? t("p7cAdNoModelsYet") : fmtT(t("p7cAdNoDataMigration"), { m: "0021_admin_model_stats" })}
             </p>
           )}
@@ -581,14 +579,14 @@ export function AdminDashboard({
         {/* Oxirgi to'lovlar jadvali */}
         <section className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-6">
           <div className="mb-4 flex items-center justify-between">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">{t("p7cAdRecentPayments")}</div>
-            <div className="text-xs text-white/50 tabular-nums">
+            <h2 className="text-[11px] font-medium uppercase tracking-wider text-white/60">{t("p7cAdRecentPayments")}</h2>
+            <div className="text-xs text-white/60 tabular-nums">
               {plural(lang, recentOrders.length, { one: "p7cAdRecordsOne", few: "p7cAdRecordsFew", many: "p7cAdRecordsMany" })}
             </div>
           </div>
-          <div className="overflow-hidden rounded-xl border border-white/5">
-            <table className="w-full text-sm">
-              <thead className="bg-white/[0.02] text-[11px] uppercase tracking-wider text-white/50">
+          <div className="overflow-x-auto rounded-xl border border-white/5">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead className="bg-white/[0.02] text-[11px] uppercase tracking-wider text-white/60">
                 <tr>
                   <th className="p-3 text-left font-normal">{t("p7cAdDate")}</th>
                   <th className="p-3 text-left font-normal">{t("p7cAdUser")}</th>
@@ -600,7 +598,7 @@ export function AdminDashboard({
               <tbody className="divide-y divide-white/5">
                 {recentOrders.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-white/40">
+                    <td colSpan={5} className="p-8 text-center text-white/60">
                       {t("p7cAdNoPayments")}
                     </td>
                   </tr>
@@ -623,7 +621,7 @@ export function AdminDashboard({
                       </span>
                     </td>
                     <td className="p-3 text-right tabular-nums">
-                      ${o.amount} <span className="text-white/40">{o.currency}</span>
+                      ${o.amount} <span className="text-white/60">{o.currency}</span>
                     </td>
                     <td className="p-3 text-right">
                       <span

@@ -1,11 +1,10 @@
 "use client";
 
-import { AlertTriangle, Check, ChevronDown, Copy, Globe, Lightbulb, Pencil, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, ChevronDown, Copy, CornerDownLeft, Globe, Lightbulb, Pencil, RefreshCw, ThumbsDown, ThumbsUp, Volume2, VolumeX, Zap } from "lucide-react";
 import { motion } from "motion/react";
 import { memo, useMemo, useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
 import { SKILL_BY_ID, canonicalSkillId } from "@/config/skills";
-import { attachmentGlyph } from "@/lib/chat/attachments";
 import { useLang, useT, type ChatMessage } from "@/store/chat";
 import { fmt, type Lang } from "@/lib/i18n";
 import { localeOf } from "@/lib/locales/chat-data";
@@ -17,7 +16,9 @@ import { AnswerMetaBadge } from "./AnswerMetaBadge";
 import { ConnectorConfirmList } from "./ConnectorConfirmCard";
 import { InquiryCard, InquiryFollowups, type InquiryActions } from "./InquiryCard";
 import { Markdown } from "./Markdown";
-import { ModelAvatar } from "./ModelAvatar";
+import { LogoMark } from "@/components/brand/Logo";
+import { ModelAvatar, ProviderMark } from "./ModelAvatar";
+import { AttachmentIcon } from "./glyph-icons";
 import { SkillIcon } from "./SkillIcon";
 import { TypingIndicator } from "./TypingIndicator";
 import { ClaimsWarning, isFactIssue, VerifierPanel } from "./VerifierPanel";
@@ -62,8 +63,9 @@ function writeFeedback(id: string, v: Feedback | null) {
   }
 }
 
-/** Xabar ostidagi kichik ikonka-tugma: 32px nishon. */
-const ACTION_BTN = "inline-flex size-8 items-center justify-center rounded-md hover:bg-white/10";
+/** Xabar ostidagi kichik ikonka-tugma: 32px nishon, sensorli ekranda 44px. */
+const ACTION_BTN =
+  "inline-flex size-8 items-center justify-center rounded-md hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:size-11";
 
 /** Iqtibos domeni; noto'g'ri URL render'da xato otib butun ro'yxatni buzmasin. */
 function hostOf(url: string): string {
@@ -87,7 +89,7 @@ function timeLabel(iso: string, lang: Lang) {
  * saqlaydi, shuning uchun qolganlari har token'da qayta render qilinmaydi.
  */
 export const MessageItem = memo(function MessageItem({ message, isLast, onRegenerate, onEdit, onTts, ttsSpeaking = false, inquiry }: MessageItemProps) {
-  const { theme, model: activeModel } = useTheme();
+  const { model: activeModel } = useTheme();
   const t = useT();
   const lang = useLang();
   const [copied, setCopied] = useState(false);
@@ -100,6 +102,7 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
     if (text && text !== message.content) onEdit?.(message.id, text);
   }
   const [showReasoning, setShowReasoning] = useState(false);
+  const [showRoute, setShowRoute] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(() => readFeedback(message.id));
   function rate(v: Feedback) {
     const next = feedback === v ? null : v;
@@ -138,21 +141,6 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
 
   /* ---------- user ---------- */
   if (isUser) {
-    if (!theme.layout.userBubble) {
-      // Perplexity: the query becomes the section heading.
-      return (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, ease: EASE }}
-          className="group pt-2"
-        >
-          <h2 className="t-display text-2xl font-semibold leading-snug md:text-[28px]" style={{ color: "var(--t-text)" }}>
-            {message.content}
-          </h2>
-        </motion.div>
-      );
-    }
     return (
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -183,7 +171,8 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
                     className="tt inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs"
                     style={{ background: "var(--t-user-bubble)", color: "var(--t-text)" }}
                   >
-                    {attachmentGlyph(a.kind)} <span className="max-w-[160px] truncate">{a.name}</span>
+                    <AttachmentIcon kind={a.kind} className="size-3.5 text-[var(--t-text-muted)]" />
+                    <span className="max-w-[160px] truncate">{a.name}</span>
                   </span>
                 ),
               )}
@@ -209,20 +198,25 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
                 }}
                 rows={Math.min(8, Math.max(2, draft.split("\n").length))}
                 aria-label={t("edit")}
-                className="tt w-full resize-none rounded-2xl border px-4 py-2.5 text-base leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] md:text-[15px]"
+                className="tt w-full resize-none rounded-2xl border px-4 py-2.5 text-[16px] leading-relaxed outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] md:text-[15px]"
                 style={{ background: "var(--t-user-bubble)", color: "var(--t-text)", borderColor: "var(--t-primary)" }}
               />
               <div className="mt-1.5 flex justify-end gap-2 text-xs">
-                <button type="button" onClick={() => setEditing(false)} className="rounded-lg px-2.5 py-1" style={{ color: "var(--t-text-muted)" }}>
+                <button
+                  type="button"
+                  onClick={() => setEditing(false)}
+                  className="min-h-8 rounded-md px-2.5 py-1 hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
+                  style={{ color: "var(--t-text-muted)" }}
+                >
                   {t("cancel")}
                 </button>
                 <button
                   type="button"
                   onClick={submitEdit}
-                  className="rounded-lg px-2.5 py-1 font-semibold text-white"
-                  style={{ background: "var(--t-primary)" }}
+                  className="inline-flex min-h-8 items-center gap-1 rounded-md px-2.5 py-1 font-semibold [@media(pointer:coarse)]:min-h-11"
+                  style={{ background: "var(--t-primary-fill)", color: "var(--t-on-primary)" }}
                 >
-                  {t("send")} ↵
+                  {t("send")} <CornerDownLeft className="size-3" aria-hidden />
                 </button>
               </div>
             </div>
@@ -235,10 +229,7 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
                   fontSize: "var(--chat-fs, 15px)",
                   background: "var(--t-user-bubble)",
                   color: "var(--t-text)",
-                  borderRadius:
-                    theme.id === "chatgpt" || theme.id === "gemini"
-                      ? "var(--t-input-radius)"
-                      : "18px 18px 4px 18px",
+                  borderRadius: "18px 18px 4px 18px",
                 }}
               >
                 {message.content}
@@ -250,9 +241,9 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
               className="flex items-center gap-0.5 pr-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"
               style={{ color: "var(--t-text-muted)" }}
             >
-              <span className="mr-1 text-[11px]">{timeLabel(message.createdAt, lang)}</span>
+              <span className="mr-1 text-xs tabular-nums">{timeLabel(message.createdAt, lang)}</span>
               <button type="button" onClick={copy} className={ACTION_BTN} title={t("copy")} aria-label={copied ? t("copied") : t("copy")}>
-                {copied ? <Check className="size-3.5" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-3.5" />}
+                {copied ? <Check className="size-3.5" style={{ color: "var(--t-success)" }} aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
               </button>
               {onEdit && (
                 <button
@@ -265,7 +256,7 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
                   title={t("edit")}
                   aria-label={t("edit")}
                 >
-                  <Pencil className="size-3.5" />
+                  <Pencil className="size-3.5" aria-hidden />
                 </button>
               )}
             </div>
@@ -276,45 +267,91 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
   }
 
   /* ---------- assistant ---------- */
-  const flat = !theme.layout.aiBubble;
-  const showAvatar = theme.layout.avatar !== "none";
+  const lastSwitch = message.switched?.length ? message.switched[message.switched.length - 1] : null;
+  const hasMeta = !!(message.route || message.reading?.length || lastSwitch || message.cache);
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12, filter: "blur(4px)" }}
-      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-      transition={{ type: "spring", stiffness: 340, damping: 28, mass: 0.7 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2, ease: EASE }}
       className="group flex gap-3"
     >
-      {showAvatar && (
-        <div className="pt-1">
-          <ModelAvatar model={model} size={28} glow={streaming} />
-        </div>
-      )}
+      <div className="pt-1">
+        <ModelAvatar model={model} size={28} glow={streaming} />
+      </div>
 
-      <div className={cn("min-w-0 flex-1", flat ? "max-w-full" : "max-w-[85%]")}>
-        {message.route && (
-          <div className="mb-3 rounded-xl border px-3 py-2 text-xs" style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-primary) 6%, transparent)" }}>
-            <div className="flex items-center gap-1.5 font-medium" style={{ color: "var(--t-accent)" }}>
-              ✦ SOVEREIGN Auto
+      <div className="min-w-0 max-w-full flex-1">
+        {hasMeta && (
+          <div className="mb-2 text-xs" style={{ color: "var(--t-text-muted)" }}>
+            {/* Bitta meta qator: Auto yo'nalishi · o'qilgan sahifalar · model almashdi · keshdan. */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              {message.route && (
+                <button
+                  type="button"
+                  onClick={() => setShowRoute((o) => !o)}
+                  aria-expanded={showRoute}
+                  className="inline-flex min-h-7 items-center gap-1.5 rounded-md font-medium hover:text-[var(--t-text)] [@media(pointer:coarse)]:min-h-11"
+                  style={{ color: "var(--t-text)" }}
+                >
+                  <LogoMark size={12} />
+                  SOVEREIGN Auto
+                  <ChevronDown
+                    className="size-3 transition-transform motion-reduce:transition-none"
+                    style={{ transform: showRoute ? "rotate(180deg)" : "none" }}
+                    aria-hidden
+                  />
+                </button>
+              )}
+              {message.reading?.length ? (
+                <span className="inline-flex items-center gap-1" title={message.reading.join("\n")}>
+                  {message.route && <span aria-hidden>·</span>}
+                  <Globe className="size-3" aria-hidden />
+                  {message.reading.length === 1
+                    ? t("pageRead")
+                    : plural(lang, message.reading.length, { one: "p8bPagesOne", few: "p8bPagesFew", many: "p8bPagesMany" })}
+                </span>
+              ) : null}
+              {lastSwitch && (
+                <span
+                  className="inline-flex items-center gap-1"
+                  title={message.switched!.map((s) => `${s.from} → ${s.to}: ${s.reason}`).join("\n")}
+                >
+                  {(message.route || message.reading?.length) && <span aria-hidden>·</span>}
+                  <RefreshCw className="size-3" style={{ color: "var(--t-warning)" }} aria-hidden />
+                  {t("modelSwitched")} · {MODEL_BY_ID[lastSwitch.to]?.shortName ?? shortModelId(lastSwitch.to)}
+                </span>
+              )}
+              {message.cache && (
+                <span className="inline-flex items-center gap-1" title={fmt(t("chCacheTitle"), { n: Math.round(message.cache.similarity * 100) })}>
+                  {(message.route || message.reading?.length || lastSwitch) && <span aria-hidden>·</span>}
+                  <Zap className="size-3" aria-hidden />
+                  {t("fromCache")} · <span className="tabular-nums">{Math.round(message.cache.similarity * 100)}%</span> {t("cacheMatch")}
+                </span>
+              )}
             </div>
-            <p className="mt-1" style={{ color: "var(--t-text-muted)" }}>{message.route.reason}</p>
-            {message.route.steps.length > 1 && (
-              <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                {message.route.steps.map((st, i) => {
-                  const sm = MODEL_BY_ID[st.modelId];
-                  return (
-                    <span key={i} className="inline-flex items-center gap-1">
-                      {i > 0 && <span style={{ color: "var(--t-text-muted)" }}>→</span>}
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5"
-                        style={{ borderColor: `${sm?.primary ?? "#5B50F0"}55`, color: sm?.primary ?? "var(--t-text)" }}
-                      >
-                        {st.kind === "research" ? "🌐" : sm?.glyph} {sm?.shortName ?? shortModelId(st.modelId)}
-                      </span>
-                    </span>
-                  );
-                })}
+            {message.route && showRoute && (
+              <div className="mt-1.5 rounded-lg border px-3 py-2" style={{ borderColor: "var(--t-border)" }}>
+                <p>{message.route.reason}</p>
+                {message.route.steps.length > 1 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {message.route.steps.map((st, i) => {
+                      const sm = MODEL_BY_ID[st.modelId];
+                      return (
+                        <span key={i} className="inline-flex items-center gap-1">
+                          {i > 0 && <ArrowRight className="size-3" aria-hidden />}
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5"
+                            style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
+                          >
+                            {st.kind === "research" ? <Globe className="size-3" aria-hidden /> : <ProviderMark model={sm} modelId={st.modelId} px={12} />}
+                            {sm?.shortName ?? shortModelId(st.modelId)}
+                          </span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -322,10 +359,16 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
 
         {message.reasoning ? (
           <div className="mb-3 overflow-hidden rounded-xl border" style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}>
-            <button type="button" onClick={() => setShowReasoning((o) => !o)} className="flex w-full items-center gap-2 px-3 py-2 text-xs" style={{ color: "var(--t-text-muted)" }}>
-              <Lightbulb className="size-3.5" style={{ color: "var(--t-accent)" }} />
+            <button
+              type="button"
+              onClick={() => setShowReasoning((o) => !o)}
+              aria-expanded={showReasoning}
+              className="flex min-h-9 w-full items-center gap-2 px-3 py-2 text-xs hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
+              style={{ color: "var(--t-text-muted)" }}
+            >
+              <Lightbulb className="size-3.5" aria-hidden />
               <span className="flex-1 text-left font-medium">{t("chThinking")}{streaming && !message.content ? "..." : ""}</span>
-              <ChevronDown className="size-3.5 transition-transform" style={{ transform: showReasoning ? "rotate(180deg)" : "none" }} />
+              <ChevronDown className="size-3.5 transition-transform motion-reduce:transition-none" style={{ transform: showReasoning ? "rotate(180deg)" : "none" }} aria-hidden />
             </button>
             {showReasoning && (
               <div className="max-h-64 overflow-y-auto whitespace-pre-wrap px-3 pb-3 text-[12px] leading-relaxed" style={{ color: "var(--t-text-muted)" }}>
@@ -335,76 +378,19 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
           </div>
         ) : null}
 
-        {message.reading?.length ? (
-          <div
-            className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]"
-            style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
-            title={message.reading.join("\n")}
-          >
-            <Globe className="size-3" style={{ color: "var(--t-accent)" }} />
-            {message.reading.length === 1
-              ? t("pageRead")
-              : plural(lang, message.reading.length, { one: "p8bPagesOne", few: "p8bPagesFew", many: "p8bPagesMany" })}
-          </div>
-        ) : null}
-
-        {message.switched?.length ? (
-          <div
-            className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]"
-            style={{ borderColor: "var(--warning, #F59E0B)55", color: "var(--t-text-muted)" }}
-            title={message.switched.map((s) => `${s.from} → ${s.to}: ${s.reason}`).join("\n")}
-          >
-            <RefreshCw className="size-3" style={{ color: "var(--warning, #F59E0B)" }} />
-            {t("modelSwitched")} ·{" "}
-            {MODEL_BY_ID[message.switched[message.switched.length - 1].to]?.shortName ??
-              shortModelId(message.switched[message.switched.length - 1].to)}
-          </div>
-        ) : null}
-
-        {message.cache && (
-          <div
-            className="mb-2 inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px]"
-            style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
-            title={fmt(t("chCacheTitle"), { n: Math.round(message.cache.similarity * 100) })}
-          >
-            <Zap className="size-3" style={{ color: "var(--t-accent)" }} />
-            {t("fromCache")} · {Math.round(message.cache.similarity * 100)}% {t("cacheMatch")}
-          </div>
-        )}
-
-        {theme.layout.showCitations && (
-          <div className="mb-2 flex items-center gap-2 text-xs font-medium" style={{ color: "var(--t-text-muted)" }}>
-            <span style={{ color: model.primary }}>{model.glyph}</span> {t("answer")}
-            {message.citations?.length ? (
-              <span>· {plural(lang, message.citations.length, { one: "p15aSourcesOne", few: "p15aSourcesFew", many: "p15aSourcesMany" })}</span>
-            ) : null}
-          </div>
-        )}
-
-        <div
-          className={cn("tt", !flat && "px-4 py-3")}
-          style={
-            flat
-              ? undefined
-              : {
-                  background: "var(--t-ai-bubble)",
-                  borderRadius: "4px 18px 18px 18px",
-                  borderLeft: `3px solid ${model.primary}`,
-                }
-          }
-        >
+        <div className="tt">
           {failed ? (
-            <div className="flex flex-wrap items-start gap-2 text-sm" style={{ color: "var(--error)" }} role="alert">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <div className="flex flex-wrap items-start gap-2 text-sm" style={{ color: "var(--t-danger, #EF4444)" }} role="alert">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
               <span className="min-w-0 flex-1">{message.error ?? t("answerError")}</span>
               {canRetry && (
                 <button
                   type="button"
                   onClick={onRegenerate}
-                  className="inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold transition-colors hover:bg-white/10"
+                  className="inline-flex min-h-8 items-center gap-1.5 rounded-md border px-3 text-xs font-semibold transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
                   style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                 >
-                  <RefreshCw className="size-3.5" /> {t("uxRetry")}
+                  <RefreshCw className="size-3.5" aria-hidden /> {t("uxRetry")}
                 </button>
               )}
             </div>
@@ -421,17 +407,18 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
               <Markdown content={message.content} citations={message.citations} unsourced={unsourced} />
               {streaming && (
                 <span
-                  className="ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[3px] animate-pulse"
-                  style={{ background: model.primary }}
+                  aria-hidden
+                  className="ml-0.5 inline-block h-[1.1em] w-[2px] translate-y-[3px] animate-pulse motion-reduce:animate-none"
+                  style={{ background: "var(--t-text-muted)" }}
                 />
               )}
               {interrupted && (
                 <div
                   className="mt-3 flex flex-wrap items-center gap-2 border-t pt-2.5 text-xs"
-                  style={{ borderColor: "var(--t-border)", color: "var(--warning, #F59E0B)" }}
+                  style={{ borderColor: "var(--t-border)", color: "var(--t-warning, #F59E0B)" }}
                   role="status"
                 >
-                  <AlertTriangle className="size-3.5 shrink-0" />
+                  <AlertTriangle className="size-3.5 shrink-0" aria-hidden />
                   <span title={message.error}>{t("uxInterrupted")}</span>
                   {canRetry && (
                     <>
@@ -439,10 +426,10 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
                       <button
                         type="button"
                         onClick={onRegenerate}
-                        className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 font-semibold underline-offset-2 hover:underline"
-                        style={{ color: "var(--t-accent)" }}
+                        className="inline-flex min-h-8 items-center gap-1 rounded-md px-1.5 font-semibold underline-offset-2 hover:underline [@media(pointer:coarse)]:min-h-11"
+                        style={{ color: "var(--t-accent-text)" }}
                       >
-                        <RefreshCw className="size-3" /> {t("uxRetry")}
+                        <RefreshCw className="size-3" aria-hidden /> {t("uxRetry")}
                       </button>
                     </>
                   )}
@@ -476,8 +463,8 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
               return (
                 <span
                   key={id}
-                  className="tt inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium"
-                  style={{ borderColor: `${sk.color}55`, color: sk.color, background: `color-mix(in srgb, ${sk.color} 10%, transparent)` }}
+                  className="tt inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium"
+                  style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
                   title={skt.description}
                 >
                   <SkillIcon name={sk.icon} className="size-3" /> {skt.name}
@@ -487,7 +474,7 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
           </div>
         ) : null}
 
-        {message.citations?.length && !theme.layout.showCitations ? (
+        {message.citations?.length ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {message.citations.map((url, i) => (
               <a
@@ -495,10 +482,10 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
                 href={url}
                 target="_blank"
                 rel="noreferrer"
-                className="tt inline-flex max-w-[220px] items-center gap-1.5 truncate rounded-full border px-2.5 py-1 text-[11px]"
+                className="tt inline-flex min-h-7 max-w-[220px] items-center gap-1.5 truncate rounded-full border px-2.5 py-1 text-xs transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
                 style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
               >
-                <span className="font-semibold" style={{ color: model.primary }}>
+                <span className="font-semibold tabular-nums" style={{ color: "var(--t-accent-text)" }}>
                   {i + 1}
                 </span>
                 <span className="truncate">{hostOf(url)}</span>
@@ -512,13 +499,13 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
             className={cn(
               "mt-1.5 flex items-center gap-1 text-xs transition-opacity",
               isLast
-                ? "opacity-70 focus-within:opacity-100"
-                : "opacity-0 group-hover:opacity-70 group-focus-within:opacity-100 [@media(hover:none)]:opacity-70",
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100",
             )}
             style={{ color: "var(--t-text-muted)" }}
           >
             <button type="button" onClick={copy} className={ACTION_BTN} title={t("copy")} aria-label={copied ? t("copied") : t("copy")}>
-              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
             </button>
             {onTts && (
               <button
@@ -528,14 +515,14 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
                 title={ttsSpeaking ? t("stop") : t("readAloud")}
                 aria-label={ttsSpeaking ? t("stop") : t("readAloud")}
                 aria-pressed={ttsSpeaking}
-                style={ttsSpeaking ? { color: model.primary } : undefined}
+                style={ttsSpeaking ? { color: "var(--t-accent-text)" } : undefined}
               >
-                {ttsSpeaking ? <VolumeX className="size-3.5" /> : <Volume2 className="size-3.5" />}
+                {ttsSpeaking ? <VolumeX className="size-3.5" aria-hidden /> : <Volume2 className="size-3.5" aria-hidden />}
               </button>
             )}
             {isLast && onRegenerate && (
               <button type="button" onClick={onRegenerate} className={ACTION_BTN} title={t("regenerate")} aria-label={t("regenerate")}>
-                <RefreshCw className="size-3.5" />
+                <RefreshCw className="size-3.5" aria-hidden />
               </button>
             )}
             <button
@@ -545,9 +532,9 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
               title={t("helpful")}
               aria-label={t("helpful")}
               aria-pressed={feedback === "up"}
-              style={feedback === "up" ? { color: "var(--t-accent)" } : undefined}
+              style={feedback === "up" ? { color: "var(--t-accent-text)" } : undefined}
             >
-              <ThumbsUp className={cn("size-3.5", feedback === "up" && "fill-current")} />
+              <ThumbsUp className={cn("size-3.5", feedback === "up" && "fill-current")} aria-hidden />
             </button>
             <button
               type="button"
@@ -556,9 +543,9 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
               title={t("notHelpful")}
               aria-label={t("notHelpful")}
               aria-pressed={feedback === "down"}
-              style={feedback === "down" ? { color: "var(--t-accent)" } : undefined}
+              style={feedback === "down" ? { color: "var(--t-accent-text)" } : undefined}
             >
-              <ThumbsDown className={cn("size-3.5", feedback === "down" && "fill-current")} />
+              <ThumbsDown className={cn("size-3.5", feedback === "down" && "fill-current")} aria-hidden />
             </button>
             {!message.meta && <span className="ml-2 hidden sm:inline">{model.name}</span>}
           </div>

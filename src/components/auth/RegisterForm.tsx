@@ -108,10 +108,11 @@ export function RegisterForm() {
             autoComplete="email"
             placeholder="email@example.com"
             aria-invalid={!!form.formState.errors.email}
+            aria-describedby={form.formState.errors.email ? "register-email-error" : undefined}
             className={inputClass}
             {...form.register("email")}
           />
-          <FieldError message={form.formState.errors.email?.message} />
+          <FieldError id="register-email-error" message={form.formState.errors.email?.message} />
         </div>
 
         <div className="space-y-1.5">
@@ -121,10 +122,11 @@ export function RegisterForm() {
             autoComplete="new-password"
             placeholder={t("auPasswordMinPlaceholder")}
             aria-invalid={!!form.formState.errors.password}
+            aria-describedby={form.formState.errors.password ? "register-password-error" : undefined}
             className={inputClass}
             {...form.register("password")}
           />
-          <FieldError message={form.formState.errors.password?.message} />
+          <FieldError id="register-password-error" message={form.formState.errors.password?.message} />
         </div>
 
         <div className="space-y-1.5">
@@ -134,10 +136,11 @@ export function RegisterForm() {
             autoComplete="new-password"
             placeholder={t("auConfirmPasswordPlaceholder")}
             aria-invalid={!!form.formState.errors.confirmPassword}
+            aria-describedby={form.formState.errors.confirmPassword ? "register-confirmPassword-error" : undefined}
             className={inputClass}
             {...form.register("confirmPassword")}
           />
-          <FieldError message={form.formState.errors.confirmPassword?.message} />
+          <FieldError id="register-confirmPassword-error" message={form.formState.errors.confirmPassword?.message} />
         </div>
 
         <Controller
@@ -150,6 +153,7 @@ export function RegisterForm() {
                   checked={field.value}
                   onCheckedChange={(v) => field.onChange(v === true)}
                   aria-invalid={!!form.formState.errors.acceptTerms}
+                  aria-describedby={form.formState.errors.acceptTerms ? "register-acceptTerms-error" : undefined}
                   className="mt-0.5"
                 />
                 <span>
@@ -164,7 +168,7 @@ export function RegisterForm() {
                   {t("auAcceptSuffix")}
                 </span>
               </label>
-              <FieldError message={form.formState.errors.acceptTerms?.message} />
+              <FieldError id="register-acceptTerms-error" message={form.formState.errors.acceptTerms?.message} />
             </div>
           )}
         />
@@ -174,9 +178,9 @@ export function RegisterForm() {
         <AnimatePresence>{serverError && <FormAlert message={serverError} />}</AnimatePresence>
 
         <SubmitButton pending={pending}>
-          {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+          {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
           {t("auContinue")}
-          {!pending && <ArrowRight className="size-4" />}
+          {!pending && <ArrowRight className="size-4" aria-hidden />}
         </SubmitButton>
       </form>
     </div>

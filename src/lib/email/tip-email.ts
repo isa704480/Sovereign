@@ -109,7 +109,7 @@ export function buildTipEmail(input: TipEmailInput): TipEmail {
   const e = escapeHtml;
   const html = `<!doctype html>
 <html lang="${lang === "uz-cyrl" ? "uz-Cyrl" : lang}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${e(subject)}</title></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><style>:root{color-scheme:dark;supported-color-schemes:dark}</style><title>${e(subject)}</title></head>
 <body style="margin:0;padding:0;background:#060812;color:#F0F2FF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#060812;">
 <tr><td align="center" style="padding:32px 16px;">
@@ -127,7 +127,7 @@ ${
     : ""
 }
 </td></tr>
-<tr><td style="padding:20px 4px 0;font-size:12px;line-height:1.6;color:#6B739C;">
+<tr><td style="padding:20px 4px 0;font-size:12px;line-height:1.6;color:#8A92C0;">
 <p style="margin:0 0 8px;">${e(pick(lang, COPY.why))}</p>
 <p style="margin:0 0 8px;"><a href="${e(input.unsubscribeUrl)}" style="color:#9BA3CC;">${e(pick(lang, COPY.unsubscribe))}</a></p>
 <p style="margin:0;">${e(pick(lang, COPY.address))}</p>

@@ -3,9 +3,10 @@
 import { ArrowRight, Check } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { COMPLETION_LINES } from "@/config/onboarding";
 import { MODEL_BY_ID } from "@/config/models";
+import { ModelAvatar } from "@/components/dashboard/ModelAvatar";
 import { BurstScene } from "@/components/three/scenes";
 import { MagneticButton } from "@/components/motion/MagneticButton";
 import { EASE, EASE_OUT_EXPO, spring } from "@/lib/motion";
@@ -25,6 +26,11 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
   const model = MODEL_BY_ID[modelId] ?? MODEL_BY_ID["claude-sonnet-4-5"];
   const [line, setLine] = useState(0);
   const done = line >= COMPLETION_LINES.length;
+  // Ko'rinish almashganda fokus sarlavhaga — ekran o'quvchi yakunlanganini eshitadi.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    headingRef.current?.focus({ preventScroll: true });
+  }, []);
 
   useEffect(() => {
     if (done) return;
@@ -41,7 +47,7 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
       initial={{ opacity: 0, scale: 0.96 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
-      className="relative w-full max-w-[600px] overflow-hidden rounded-3xl border border-[var(--border-subtle)] bg-bg-elevated p-8 text-center shadow-lg sm:p-12"
+      className="relative w-full max-w-[600px] overflow-hidden rounded-2xl border border-[var(--border-subtle)] bg-bg-elevated p-6 text-center shadow-lg sm:p-12"
     >
       <BurstScene className="pointer-events-none absolute inset-0" />
 
@@ -49,21 +55,24 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
         initial={{ scale: 0, rotate: -30 }}
         animate={{ scale: 1, rotate: 0 }}
         transition={{ ...spring.bouncy, delay: 0.1 }}
-        className="relative mx-auto flex size-16 items-center justify-center rounded-full bg-success/15 text-success shadow-[0_0_32px_rgba(16,212,160,0.35)]"
+        className="relative mx-auto flex size-16 items-center justify-center rounded-full bg-success/15 text-success"
+        aria-hidden
       >
         <Check className="size-8" strokeWidth={3} />
       </motion.div>
 
-      <motion.h2
+      <motion.h1
+        ref={headingRef}
+        tabIndex={-1}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: EASE_OUT_EXPO, delay: 0.3 }}
-        className="font-display relative mt-6 text-2xl font-extrabold text-text-primary sm:text-3xl"
+        className="font-display relative mt-6 text-2xl font-extrabold tracking-[-0.02em] text-text-primary outline-none sm:text-3xl"
       >
         {t("onbComplete")}
-      </motion.h2>
+      </motion.h1>
 
-      <div className="relative mt-6 min-h-[28px]">
+      <div className="relative mt-6 min-h-[28px]" role="status" aria-live="polite">
         <AnimatePresence mode="wait">
           {!done ? (
             <motion.p
@@ -82,18 +91,12 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
-              className="mx-auto max-w-md rounded-2xl border p-4 text-left"
-              style={{ borderColor: `${model.primary}55`, background: `${model.primary}12` }}
+              className="mx-auto max-w-md rounded-xl border border-border bg-bg-base/40 p-4 text-left"
             >
               <div className="flex items-center gap-3">
-                <span
-                  className="flex size-10 items-center justify-center rounded-xl text-lg"
-                  style={{ background: `${model.primary}26`, color: model.primary }}
-                >
-                  {model.glyph}
-                </span>
+                <ModelAvatar model={model} size={40} />
                 <div>
-                  <div className="text-xs text-text-muted">{t("onbRecommendation")}</div>
+                  <div className="text-xs text-text-secondary">{t("onbRecommendation")}</div>
                   <div className="font-display text-base font-bold text-text-primary">{model.name}</div>
                 </div>
               </div>
@@ -118,10 +121,10 @@ export function Completion({ modelId, reason, onEnter }: CompletionProps) {
                   onEnter?.();
                   router.push("/app");
                 }}
-                className="group inline-flex h-12 items-center gap-2 rounded-2xl bg-primary px-6 text-base font-semibold text-white shadow-glow transition-colors hover:bg-primary-dark"
+                className="group inline-flex h-12 items-center gap-2 rounded-full bg-primary px-6 text-base font-semibold text-white transition-colors hover:bg-primary-dark"
               >
                 {t("onbEnter")}
-                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" aria-hidden />
               </button>
             </MagneticButton>
           </motion.div>

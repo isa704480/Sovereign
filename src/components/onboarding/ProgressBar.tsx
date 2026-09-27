@@ -12,13 +12,21 @@ export function ProgressBar({ step }: { step: number }) {
   return (
     <div className="w-full max-w-[600px]">
       <div className="mb-2 flex items-center justify-end text-xs">
-        <span className="text-text-secondary">
+        <span className="tabular-nums text-text-secondary" aria-hidden>
           {t("auOnbQuestion")} <span className="font-medium text-text-primary">{current}</span> / {TOTAL_STEPS}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-bg-hover">
+      <div
+        role="progressbar"
+        aria-label={t("auOnbQuestion")}
+        aria-valuemin={1}
+        aria-valuemax={TOTAL_STEPS}
+        aria-valuenow={current}
+        aria-valuetext={`${current} / ${TOTAL_STEPS}`}
+        className="h-1.5 overflow-hidden rounded-full bg-bg-hover"
+      >
         <motion.div
-          className="h-full rounded-full bg-primary shadow-glow"
+          className="h-full rounded-full bg-primary"
           initial={false}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.6, ease: EASE_OUT_EXPO }}

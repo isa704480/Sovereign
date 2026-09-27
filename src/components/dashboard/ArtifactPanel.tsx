@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Code2, Copy, Download, Eye, RefreshCw, X } from "lucide-react";
+import { AppWindow, Check, Code2, Copy, Download, Eye, FileText, RefreshCw, Shapes, X } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { Markdown } from "./Markdown";
@@ -14,6 +14,10 @@ interface ArtifactPanelProps {
   artifact: ArtifactPayload;
   onClose: () => void;
 }
+
+/** Sarlavhadagi ikonka-tugma: 32px, sensorli ekranda 44px. */
+const ICON_BTN =
+  "flex size-8 items-center justify-center rounded-lg hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:size-11";
 
 // Live edit lets the user tweak the artifact and re-render immediately.
 const HTML_TABS = ["preview", "code"] as const;
@@ -164,8 +168,8 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
     >
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2.5" style={{ borderColor: "var(--t-border)" }}>
         <div className="flex min-w-0 items-center gap-2">
-          <span className="flex size-6 items-center justify-center rounded-md" style={{ background: "color-mix(in srgb, var(--t-primary) 18%, transparent)", color: "var(--t-primary)" }}>
-            {isMarkdown ? "📄" : l === "svg" ? "✦" : "◎"}
+          <span aria-hidden className="flex size-6 shrink-0 items-center justify-center rounded-md" style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)", color: "var(--t-text-muted)" }}>
+            {isMarkdown ? <FileText className="size-3.5" /> : l === "svg" ? <Shapes className="size-3.5" /> : <AppWindow className="size-3.5" />}
           </span>
           <span className="truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>
             {title || (isMarkdown ? t("artifactDocument") : l === "svg" ? t("artifactSvg") : t("artifactSite"))}
@@ -174,39 +178,41 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
 
         <div className="flex items-center gap-1">
           {canPreview && (
-            <div className="mr-1 flex rounded-lg p-0.5" style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}>
+            <div role="tablist" aria-label={t("view")} className="mr-1 flex rounded-lg p-0.5" style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}>
               {HTML_TABS.map((tab2) => (
                 <button
                   key={tab2}
                   type="button"
+                  role="tab"
+                  aria-selected={tab === tab2}
                   onClick={() => setTab(tab2)}
-                  className={cn("inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors")}
+                  className={cn("inline-flex min-h-7 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-colors [@media(pointer:coarse)]:min-h-10")}
                   style={{
                     background: tab === tab2 ? "var(--t-surface)" : "transparent",
                     color: tab === tab2 ? "var(--t-text)" : "var(--t-text-muted)",
                     boxShadow: tab === tab2 ? "0 1px 2px rgba(0,0,0,0.2)" : undefined,
                   }}
                 >
-                  {tab2 === "preview" ? <Eye className="size-3.5" /> : <Code2 className="size-3.5" />}
+                  {tab2 === "preview" ? <Eye className="size-3.5" aria-hidden /> : <Code2 className="size-3.5" aria-hidden />}
                   {tab2 === "preview" ? t("view") : t("editTab")}
                 </button>
               ))}
             </div>
           )}
           {canPreview && tab === "preview" && (
-            <button type="button" onClick={() => setReloadKey((k) => k + 1)} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title={t("refresh")}>
-              <RefreshCw className="size-4" />
+            <button type="button" onClick={() => setReloadKey((k) => k + 1)} className={ICON_BTN} style={{ color: "var(--t-text-muted)" }} title={t("refresh")} aria-label={t("refresh")}>
+              <RefreshCw className="size-4" aria-hidden />
             </button>
           )}
-          <button type="button" onClick={copy} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title={t("copy")}>
-            {copied ? <Check className="size-4" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-4" />}
+          <button type="button" onClick={copy} className={ICON_BTN} style={{ color: "var(--t-text-muted)" }} title={t("copy")} aria-label={copied ? t("copied") : t("copy")}>
+            {copied ? <Check className="size-4" style={{ color: "var(--t-success)" }} aria-hidden /> : <Copy className="size-4" aria-hidden />}
           </button>
-          <button type="button" onClick={download} className="rounded-lg p-1.5 hover:bg-white/10" style={{ color: "var(--t-text-muted)" }} title={t("download")}>
-            <Download className="size-4" />
+          <button type="button" onClick={download} className={ICON_BTN} style={{ color: "var(--t-text-muted)" }} title={t("download")} aria-label={t("download")}>
+            <Download className="size-4" aria-hidden />
           </button>
           {/* Mobil to'liq ekranda yagona chiqish — 44px nishon, boshqa amallardan ajratilgan. */}
-          <button type="button" onClick={onClose} className="ml-1 flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:ml-0 md:size-8" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")} title={t("close")}>
-            <X className="size-4" />
+          <button type="button" onClick={onClose} className="ml-1 flex size-11 items-center justify-center rounded-lg hover:bg-[var(--surface-hover)] md:ml-0 md:size-8 [@media(pointer:coarse)]:md:size-11" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")} title={t("close")}>
+            <X className="size-4" aria-hidden />
           </button>
         </div>
       </div>
@@ -239,11 +245,11 @@ export function ArtifactPanel({ artifact, onClose }: ArtifactPanelProps) {
               style={{ color: "var(--t-text)" }}
             />
             <div
-              className="flex items-center justify-between border-t px-3 py-1.5 text-[11px]"
+              className="flex items-center justify-between border-t px-3 py-1.5 text-xs"
               style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
             >
               <span>{t("artifactAutoUpdate")}</span>
-              <span>{plural(uiLang, code.length, { one: "p8bCharsOne", few: "p8bCharsFew", many: "p8bCharsMany" })}</span>
+              <span className="tabular-nums">{plural(uiLang, code.length, { one: "p8bCharsOne", few: "p8bCharsFew", many: "p8bCharsMany" })}</span>
             </div>
           </div>
         )}

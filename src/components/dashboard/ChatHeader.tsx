@@ -9,7 +9,7 @@ import { useT } from "@/store/chat";
 import { CreditIndicator } from "./CreditIndicator";
 import { LangSwitcher } from "@/components/LangSwitcher";
 import { ModelSwitcher } from "./ModelSwitcher";
-import { useTheme } from "./theme-context";
+import { ProviderMark } from "./ModelAvatar";
 
 interface ChatHeaderProps {
   title: string;
@@ -42,7 +42,6 @@ export function ChatHeader({
   onShare,
   shareState = "idle",
 }: ChatHeaderProps) {
-  const { model } = useTheme();
   const t = useT();
   const quick = [...HERO_DEMO_MODELS.slice(0, 3)];
   // Mintaqa siyosati: yopiq modellarning tezkor tugmalari o'chiq (sababi — title'da).
@@ -51,19 +50,19 @@ export function ChatHeader({
 
   return (
     <header
-      className="tt flex flex-wrap items-center gap-2 border-b px-3 py-2.5 md:px-5"
-      style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-bg) 85%, transparent)", backdropFilter: "blur(12px)" }}
+      className="tt flex min-w-0 flex-nowrap items-center gap-1.5 border-b px-2 py-2 sm:gap-2 sm:px-3 sm:py-2.5 md:px-5"
+      style={{ borderColor: "var(--t-border)", background: "var(--t-bg)" }}
     >
       <button
         type="button"
         onClick={onOpenSidebar}
         data-sidebar-menu
-        className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-white/10 md:hidden"
+        className="flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-hover)] md:hidden"
         style={{ color: "var(--t-text-muted)" }}
         aria-label={t("menu")}
         aria-expanded={sidebarOpen}
       >
-        <Menu className="size-5" />
+        <Menu className="size-5" aria-hidden />
       </button>
 
       <ModelSwitcher value={modelId} onChange={onModelChange} plan={plan} />
@@ -80,14 +79,14 @@ export function ChatHeader({
               aria-pressed={active}
               disabled={off}
               title={off ? t("p10RegionUnavailable") : undefined}
-              className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+              className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
               style={{
-                borderColor: active ? m.primary : "var(--t-border)",
-                color: active ? m.primary : "var(--t-text-muted)",
-                background: active ? `color-mix(in srgb, ${m.primary} 14%, transparent)` : "transparent",
+                borderColor: active ? `color-mix(in srgb, ${m.primary} 60%, transparent)` : "var(--t-border)",
+                color: active ? "var(--t-text)" : "var(--t-text-muted)",
+                background: active ? "var(--surface-active)" : "transparent",
               }}
             >
-              <span>{m.glyph}</span>
+              <ProviderMark model={m} px={14} />
               {m.shortName}
             </button>
           );
@@ -98,18 +97,18 @@ export function ChatHeader({
           aria-pressed={modelId === RESEARCH_MODEL_ID}
           disabled={blocked(RESEARCH_MODEL_ID)}
           title={blocked(RESEARCH_MODEL_ID) ? t("p10RegionUnavailable") : undefined}
-          className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          className="tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
           style={{
-            borderColor: modelId === RESEARCH_MODEL_ID ? "#20808D" : "var(--t-border)",
-            color: modelId === RESEARCH_MODEL_ID ? "#29A0AD" : "var(--t-text-muted)",
-            background: modelId === RESEARCH_MODEL_ID ? "rgba(32,128,141,0.14)" : "transparent",
+            borderColor: modelId === RESEARCH_MODEL_ID ? "var(--t-primary)" : "var(--t-border)",
+            color: modelId === RESEARCH_MODEL_ID ? "var(--t-text)" : "var(--t-text-muted)",
+            background: modelId === RESEARCH_MODEL_ID ? "var(--surface-active)" : "transparent",
           }}
         >
-          <Globe className="size-3.5" /> {t("uxResearch")}
+          <Globe className="size-3.5" aria-hidden /> {t("uxResearch")}
         </button>
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
         <CreditIndicator plan={plan} onUpgrade={onUpgrade} />
         <span className="mr-2 hidden max-w-[220px] truncate text-sm md:inline" style={{ color: "var(--t-text-muted)" }} title={title}>
           {title}
@@ -118,27 +117,27 @@ export function ChatHeader({
           <button
             type="button"
             onClick={onToggleSources}
-            className="hidden rounded-lg p-2 transition-colors hover:bg-white/10 lg:block"
-            style={{ color: sourcesOpen ? model.primary : "var(--t-text-muted)" }}
+            className="hidden rounded-lg p-2 transition-colors hover:bg-[var(--surface-hover)] lg:block"
+            style={{ color: sourcesOpen ? "var(--t-accent-text)" : "var(--t-text-muted)" }}
             title={t("sourcesPanel")}
             aria-label={t("sourcesPanel")}
             aria-pressed={sourcesOpen}
           >
-            <PanelRight className="size-4" />
+            <PanelRight className="size-4" aria-hidden />
           </button>
         )}
         {/* Til — har doim ko'rinadigan joyda (Sozlamalarga kirmasdan). */}
-        <LangSwitcher className="h-8 border-[var(--t-border)] text-xs text-[var(--t-text-muted)]" />
+        <LangSwitcher className="hidden h-8 border-[var(--t-border)] text-xs text-[var(--t-text-muted)] sm:inline-block" />
         <button
           type="button"
           onClick={onShare}
           disabled={!onShare || shareState === "busy"}
-          className="inline-flex items-center gap-1.5 rounded-lg p-2 text-xs transition-colors hover:bg-white/10 disabled:opacity-50"
-          style={{ color: shareState === "done" ? "var(--t-accent)" : "var(--t-text-muted)" }}
+          className="inline-flex min-h-9 min-w-9 items-center justify-center gap-1.5 rounded-lg p-2 text-xs transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-50 [@media(pointer:coarse)]:size-11"
+          style={{ color: shareState === "done" ? "var(--t-success)" : "var(--t-text-muted)" }}
           title={t("share")}
           aria-label={t("share")}
         >
-          {shareState === "done" ? <Check className="size-4" /> : <Share2 className="size-4" />}
+          {shareState === "done" ? <Check className="size-4" aria-hidden /> : <Share2 className="size-4" aria-hidden />}
           {shareState === "done" && <span className="hidden sm:inline">{t("linkCopied")}</span>}
         </button>
       </div>

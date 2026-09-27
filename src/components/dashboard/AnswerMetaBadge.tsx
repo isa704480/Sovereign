@@ -45,7 +45,7 @@ export function AnswerMetaBadge({ meta }: { meta: AnswerMeta }) {
   return (
     <div
       className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-5"
-      style={{ color: meta.fallback ? "var(--warning, #F59E0B)" : "var(--t-text-muted)" }}
+      style={{ color: meta.fallback ? "var(--t-warning, #F59E0B)" : "var(--t-text-muted)" }}
       title={title || undefined}
       data-testid="answer-meta"
     >

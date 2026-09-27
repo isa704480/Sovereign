@@ -149,20 +149,20 @@ export function PlanStatusBanner({ planState, daysLeft, expiresAt = null, paidPl
   let cta: string | null;
   let Icon = Clock;
   if (view.kind === "expired") {
-    color = "#EB5A64";
+    color = "var(--t-danger, #EF4444)";
     Icon = AlertCircle;
     title = fmt(t("subEndedTitle"), { plan: planName });
     desc = fmt(t("subEndedDesc"), { plan: planName });
     cta = t("subRenew");
   } else if (view.kind === "renews") {
-    color = "var(--t-accent, #7C6FF7)";
+    color = "var(--t-accent-text, #978FFB)";
     Icon = RefreshCw;
     title = fmt(t("subRenewsOn"), { plan: planName, date: fmtDate(view.renewAt) });
     desc = t("subRenewsDesc");
     cta = null;
   } else {
     const d = view.days;
-    color = d <= 1 ? "#EB5A64" : d <= 3 ? "#F5873C" : "#F5AA3C";
+    color = d <= 1 ? "var(--t-danger, #EF4444)" : "var(--t-warning, #F59E0B)";
     if (d <= 1) Icon = AlertCircle;
     title =
       d <= 0
@@ -189,16 +189,16 @@ export function PlanStatusBanner({ planState, daysLeft, expiresAt = null, paidPl
       role={urgent ? "alert" : "status"}
     >
       <div
-        className="flex items-center gap-3 rounded-2xl border px-4 py-3 backdrop-blur"
+        className="flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3 sm:flex-nowrap"
         style={{
-          borderColor: `color-mix(in srgb, ${color} 20%, transparent)`,
-          background: `color-mix(in srgb, ${color} 8%, transparent)`,
+          borderColor: `color-mix(in srgb, ${color} 30%, transparent)`,
+          background: `color-mix(in srgb, ${color} 8%, var(--t-bg, #060812))`,
           color: "var(--t-text)",
         }}
       >
         <Icon className="size-5 shrink-0" style={{ color }} aria-hidden />
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 basis-40">
           <div className="text-sm font-medium" style={{ color }}>
             {title}
           </div>
@@ -211,7 +211,7 @@ export function PlanStatusBanner({ planState, daysLeft, expiresAt = null, paidPl
           <button
             type="button"
             onClick={() => onRenew(paidPlan)}
-            className="shrink-0 rounded-full px-4 py-1.5 text-xs font-medium transition-opacity hover:opacity-90"
+            className="min-h-9 shrink-0 rounded-md px-4 py-1.5 text-xs font-semibold transition-opacity hover:opacity-90 [@media(pointer:coarse)]:min-h-11"
             style={{ background: color, color: "#0A0A0F" }}
           >
             {cta}
@@ -221,12 +221,12 @@ export function PlanStatusBanner({ planState, daysLeft, expiresAt = null, paidPl
         <button
           type="button"
           onClick={dismiss}
-          className="shrink-0 rounded-full p-1.5 opacity-60 hover:opacity-100"
+          className="flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-[var(--surface-hover)] hover:text-[var(--t-text)] [@media(pointer:coarse)]:size-11"
           aria-label={view.kind === "warn" ? t("subHideToday") : t("close")}
           title={view.kind === "warn" ? t("subHideToday") : undefined}
           style={{ color: "var(--t-text-muted)" }}
         >
-          <X className="size-4" />
+          <X className="size-4" aria-hidden />
         </button>
       </div>
     </motion.div>

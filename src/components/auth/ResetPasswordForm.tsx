@@ -53,10 +53,11 @@ export function ResetPasswordForm() {
           autoFocus
           placeholder={t("auPasswordMinPlaceholder")}
           aria-invalid={!!form.formState.errors.password}
+          aria-describedby={form.formState.errors.password ? "reset-password-error" : undefined}
           className={inputClass}
           {...form.register("password")}
         />
-        <FieldError message={form.formState.errors.password?.message} />
+        <FieldError id="reset-password-error" message={form.formState.errors.password?.message} />
       </div>
 
       <div className="space-y-1.5">
@@ -66,18 +67,19 @@ export function ResetPasswordForm() {
           autoComplete="new-password"
           placeholder={t("auConfirmPasswordPlaceholder")}
           aria-invalid={!!form.formState.errors.confirmPassword}
+          aria-describedby={form.formState.errors.confirmPassword ? "reset-confirmPassword-error" : undefined}
           className={inputClass}
           {...form.register("confirmPassword")}
         />
-        <FieldError message={form.formState.errors.confirmPassword?.message} />
+        <FieldError id="reset-confirmPassword-error" message={form.formState.errors.confirmPassword?.message} />
       </div>
 
       <AnimatePresence>{serverError && <FormAlert message={serverError} />}</AnimatePresence>
 
       <SubmitButton pending={pending}>
-        {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+        {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
         {t("auSaveNewPassword")}
-        {!pending && <ArrowRight className="size-4" />}
+        {!pending && <ArrowRight className="size-4" aria-hidden />}
       </SubmitButton>
     </form>
   );

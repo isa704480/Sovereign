@@ -1,11 +1,10 @@
 "use client";
 
-import { Brain, ChevronDown, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LayoutGrid, LogOut, MessageSquareHeart, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Plug, Search, Sparkles, Settings, Trash2 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { ArrowUpRight, Brain, ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, FolderTree, Globe, LayoutGrid, LogOut, MessageSquareHeart, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Plug, Search, Sparkles, Settings, Trash2 } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotionConfig } from "motion/react";
 import Link from "next/link";
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { signOut } from "@/app/actions/auth";
-import { MODEL_BY_ID } from "@/config/models";
 import type { Plan } from "@/config/plans";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { EASE } from "@/lib/motion";
@@ -13,7 +12,8 @@ import { cn } from "@/lib/utils";
 import { groupByDate, useChat, useChatHydrated, useT, type Conversation } from "@/store/chat";
 import { fmt } from "@/lib/i18n";
 import { convTitle } from "@/lib/locales/chat-data";
-import { useTheme } from "./theme-context";
+import { LogoMark } from "@/components/brand/Logo";
+import { Switch } from "./Switch";
 import { FeedbackDialog } from "./FeedbackDialog";
 
 interface SidebarProps {
@@ -42,29 +42,14 @@ interface SidebarProps {
 
 /**
  * Suhbat qatoridagi amal tugmalari (papka, o'chirish): sichqonchada hover'da,
- * klaviaturada fokusda, sensorli ekranda (hover yo'q) doim ko'rinadi. 32px nishon.
+ * klaviaturada fokusda, sensorli ekranda (hover yo'q) doim ko'rinadi. 32px nishon, sensorda 44px.
  */
 const ROW_ACTION =
-  "absolute top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-white/10 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100";
+  "absolute top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-[var(--surface-hover)] focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100 [@media(pointer:coarse)]:size-11";
 
-function Toggle({ on, onChange, label }: { on: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={() => onChange(!on)}
-      className="tt relative h-5 w-9 shrink-0 rounded-full p-0 transition-colors"
-      style={{ background: on ? "var(--t-primary)" : "color-mix(in srgb, var(--t-text) 18%, transparent)" }}
-    >
-      <span
-        className="absolute left-0.5 top-0.5 size-4 rounded-full bg-white transition-transform duration-200"
-        style={{ transform: on ? "translateX(16px)" : "translateX(0)" }}
-      />
-    </button>
-  );
-}
+/** Sidebar pastki panelidagi qator (hairline ajratgichli yagona panel ichida). */
+const PANEL_ROW =
+  "tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11";
 
 export function Sidebar({
   open,
@@ -89,7 +74,7 @@ export function Sidebar({
   onOpenCowork,
   onOpenConnectors,
 }: SidebarProps) {
-  const { theme, model } = useTheme();
+  const still = useReducedMotionConfig() === true;
   const [toolsOpen, setToolsOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -114,6 +99,8 @@ export function Sidebar({
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const [newProject, setNewProject] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  // Loyihani o'chirish — brauzer confirm() o'rniga joyida ikki bosqichli tasdiq.
+  const [confirmProjectDelete, setConfirmProjectDelete] = useState(false);
 
   // Mobil drawer: dialog sifatida — ochilganda fokus ichiga kiradi, Esc yopadi, Tab ichida aylanadi,
   // yopilganda fokus menyu tugmasiga qaytadi.
@@ -195,23 +182,11 @@ export function Sidebar({
     <div className="flex h-full flex-col" style={{ color: "var(--t-text)" }}>
       {/* header */}
       <div className="flex items-center justify-between px-3 pb-2 pt-3">
-        <Link href="/" className="flex items-center gap-2 rounded-lg transition-opacity hover:opacity-80" title={t("chHome")}>
-          <span
-            className="flex size-7 items-center justify-center rounded-lg text-sm"
-            style={{ background: `color-mix(in srgb, ${model.primary} 20%, transparent)`, color: model.primary }}
-          >
-            {theme.glyph}
-          </span>
-          <span className={cn("text-[15px] font-semibold", theme.id === "sovereign" && "font-display tracking-[0.12em]")}>
-            {theme.wordmark}
-          </span>
-          {theme.badge && (
-            <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ background: `color-mix(in srgb, ${model.primary} 22%, transparent)`, color: model.accent }}>
-              {theme.badge}
-            </span>
-          )}
+        <Link href="/" className="flex min-h-9 items-center gap-2 rounded-lg transition-opacity hover:opacity-80" aria-label={t("chHome")} title={t("chHome")}>
+          <LogoMark size={24} />
+          <span className="font-display text-[15px] font-semibold tracking-[0.12em]">SOVEREIGN</span>
         </Link>
-        <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-white/10 md:size-8" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")}>
+        <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-hover)] md:size-8 [@media(pointer:coarse)]:md:size-11" style={{ color: "var(--t-text-muted)" }} aria-label={t("close")}>
           <PanelLeftClose className="size-4" />
         </button>
       </div>
@@ -221,16 +196,16 @@ export function Sidebar({
           type="button"
           onClick={onNew}
           data-drawer-autofocus
-          className="tt flex w-full items-center gap-2 px-3 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
-          style={{ background: model.primary, borderRadius: "var(--t-radius)", boxShadow: `0 0 20px color-mix(in srgb, ${model.primary} 35%, transparent)` }}
+          className="tt flex min-h-10 w-full items-center gap-2 px-3 py-2.5 text-sm font-medium transition-opacity hover:opacity-90 [@media(pointer:coarse)]:min-h-11"
+          style={{ background: "var(--t-primary-fill)", color: "var(--t-on-primary)", borderRadius: "var(--t-radius)" }}
         >
-          <MessageSquarePlus className="size-4" /> {t("newChat")}
+          <MessageSquarePlus className="size-4" aria-hidden /> {t("newChat")}
         </button>
         <label
           className="tt mt-2 flex items-center gap-2 border px-2.5 py-2 text-sm focus-within:ring-2 focus-within:ring-[var(--t-primary)]"
           style={{ borderColor: "var(--t-border)", borderRadius: "var(--t-radius)", background: "color-mix(in srgb, var(--t-text) 4%, transparent)" }}
         >
-          <Search className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
+          <Search className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} aria-hidden />
           <input
             data-sidebar-search
             value={q}
@@ -249,7 +224,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={() => setNewProject("")}
-            className="rounded-md p-1 transition-colors hover:bg-white/10"
+            className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:size-11"
             style={{ color: "var(--t-text-muted)" }}
             aria-label={t("newProject")}
             title={t("newProject")}
@@ -275,6 +250,7 @@ export function Sidebar({
             }}
             onBlur={() => setNewProject(null)}
             placeholder={t("projectName")}
+            aria-label={t("projectName")}
             className="tt mt-1.5 w-full border bg-transparent px-2.5 py-1.5 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] md:text-sm"
             style={{ borderColor: "var(--t-primary)", borderRadius: "var(--t-radius)" }}
           />
@@ -288,15 +264,16 @@ export function Sidebar({
                   key={p.id}
                   type="button"
                   onClick={() => setActiveProject(on ? null : p.id)}
-                  className="tt inline-flex h-7 max-w-full items-center gap-1 rounded-full border px-2.5 text-xs transition-colors"
+                  className="tt inline-flex h-7 max-w-full items-center gap-1 rounded-full border px-2.5 text-xs transition-colors [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:px-3.5"
                   style={{
                     borderColor: on ? "var(--t-primary)" : "var(--t-border)",
                     background: on ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : "transparent",
-                    color: on ? "var(--t-accent)" : "var(--t-text-muted)",
+                    color: on ? "var(--t-accent-text)" : "var(--t-text-muted)",
                   }}
+                  aria-pressed={on}
                   title={on ? t("chLeaveProject") : t("chOpenProject")}
                 >
-                  <Folder className="size-3" />
+                  <Folder className="size-3" aria-hidden />
                   <span className="truncate">{p.name}</span>
                 </button>
               );
@@ -308,11 +285,16 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => setShowInstructions((v) => !v)}
-              className="flex w-full items-center justify-between px-2.5 py-1.5 text-xs"
+              aria-expanded={showInstructions}
+              className="flex min-h-8 w-full items-center justify-between px-2.5 py-1.5 text-xs [@media(pointer:coarse)]:min-h-11"
               style={{ color: "var(--t-text-muted)" }}
             >
               <span>{t("projectInstructions")}{activeProject.instructions ? ` · ${t("present")}` : ""}</span>
-              <span>{showInstructions ? "▾" : "▸"}</span>
+              <ChevronRight
+                className="size-3.5 transition-transform motion-reduce:transition-none"
+                style={{ transform: showInstructions ? "rotate(90deg)" : "none" }}
+                aria-hidden
+              />
             </button>
             {showInstructions && (
               <div className="px-2.5 pb-2">
@@ -326,18 +308,46 @@ export function Sidebar({
                   className="w-full resize-none rounded bg-transparent text-base leading-relaxed outline-none placeholder:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] md:text-xs"
                   style={{ color: "var(--t-text)" }}
                 />
-                <div className="mt-1 flex items-center justify-between text-xs" style={{ color: "var(--t-text-muted)" }}>
-                  <span>{t("projectAppliesNote")}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (window.confirm(fmt(t("chDeleteProjectConfirm"), { name: activeProject.name }))) deleteProject(activeProject.id);
-                    }}
-                    className="hover:underline"
-                    style={{ color: "var(--error, #EF4444)" }}
-                  >
-                    {t("delete")}
-                  </button>
+                <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs" style={{ color: "var(--t-text-muted)" }}>
+                  {confirmProjectDelete ? (
+                    <>
+                      <span role="alert" className="min-w-0 flex-1" style={{ color: "var(--t-text)" }}>
+                        {fmt(t("chDeleteProjectConfirm"), { name: activeProject.name })}
+                      </span>
+                      <span className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setConfirmProjectDelete(false)}
+                          className="min-h-8 rounded-md px-2 hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
+                        >
+                          {t("cancel")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmProjectDelete(false);
+                            deleteProject(activeProject.id);
+                          }}
+                          className="min-h-8 rounded-md px-2 font-medium [@media(pointer:coarse)]:min-h-11"
+                          style={{ background: "var(--t-danger-fill, #C62F2F)", color: "#fff" }}
+                        >
+                          {t("delete")}
+                        </button>
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{t("projectAppliesNote")}</span>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmProjectDelete(true)}
+                        className="min-h-8 rounded-md px-1 hover:underline [@media(pointer:coarse)]:min-h-11"
+                        style={{ color: "var(--t-danger, #EF4444)" }}
+                      >
+                        {t("delete")}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             )}
@@ -359,21 +369,28 @@ export function Sidebar({
             </div>
             {g.ids.map((id) => {
               const c = conversations[id];
-              const m = MODEL_BY_ID[c.modelId];
               const active = id === activeId;
               return (
                 <div key={id} className="group relative">
                   <button
                     type="button"
                     onClick={() => onSelect(id)}
-                    className="tt flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "tt flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors [@media(pointer:coarse)]:min-h-11",
+                      !active && "hover:bg-[var(--surface-hover)]",
+                    )}
                     style={{
                       borderRadius: "var(--t-radius)",
-                      background: active ? `color-mix(in srgb, ${model.primary} 16%, transparent)` : "transparent",
+                      background: active ? "var(--surface-active)" : undefined,
                       color: active ? "var(--t-text)" : "var(--t-text-muted)",
                     }}
                   >
-                    <span className="size-2 shrink-0 rounded-full" style={{ background: m?.primary ?? "var(--t-primary)" }} />
+                    <span
+                      aria-hidden
+                      className="size-1.5 shrink-0 rounded-full"
+                      style={{ background: active ? "var(--t-text)" : "color-mix(in srgb, var(--t-text-muted) 60%, transparent)" }}
+                    />
                     <span className={cn("min-w-0 flex-1", projects.length > 0 ? "pr-[72px]" : "pr-10")}>
                       <span className="block truncate">{convTitle(c.title, t)}</span>
                       {snippets[id] && (
@@ -386,11 +403,11 @@ export function Sidebar({
                       type="button"
                       onClick={() => moveToProject(id, c.projectId ? null : activeProjectId ?? projects[0].id)}
                       className={cn(ROW_ACTION, "right-9")}
-                      style={{ color: c.projectId ? "var(--t-accent)" : "var(--t-text-muted)" }}
+                      style={{ color: c.projectId ? "var(--t-accent-text)" : "var(--t-text-muted)" }}
                       aria-label={c.projectId ? t("chRemoveFromProject") : t("chAddToProject")}
                       title={c.projectId ? t("chRemoveFromProject") : fmt(t("chAddToProjectNamed"), { name: (activeProject ?? projects[0]).name })}
                     >
-                      <Folder className="size-3.5" />
+                      <Folder className="size-3.5" aria-hidden />
                     </button>
                   )}
                   <button
@@ -401,7 +418,7 @@ export function Sidebar({
                     aria-label={fmt(t("uxDeleteChatNamed"), { name: convTitle(c.title, t) })}
                     title={t("delete")}
                   >
-                    <Trash2 className="size-3.5" />
+                    <Trash2 className="size-3.5" aria-hidden />
                   </button>
                 </div>
               );
@@ -425,12 +442,12 @@ export function Sidebar({
             type="button"
             onClick={() => setToolsOpen((o) => !o)}
             aria-expanded={toolsOpen}
-            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+            className={PANEL_ROW}
             style={{ color: "var(--t-text)" }}
           >
-            <LayoutGrid className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <LayoutGrid className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
             <span className="flex-1 text-left">{t("chTools")}</span>
-            <ChevronDown className="size-4 transition-transform" style={{ color: "var(--t-text-muted)", transform: toolsOpen ? "rotate(180deg)" : "none" }} />
+            <ChevronDown aria-hidden className="size-4 transition-transform motion-reduce:transition-none" style={{ color: "var(--t-text-muted)", transform: toolsOpen ? "rotate(180deg)" : "none" }} />
           </button>
 
           <AnimatePresence initial={false}>
@@ -439,7 +456,7 @@ export function Sidebar({
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.22, ease: EASE }}
+                transition={still ? { duration: 0 } : { duration: 0.22, ease: EASE }}
                 style={{ overflow: "hidden" }}
               >
                 <div style={{ height: 1, background: "var(--t-border)" }} />
@@ -447,10 +464,10 @@ export function Sidebar({
             <button
               type="button"
               onClick={onOpenMemory}
-              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              className={PANEL_ROW}
               style={{ color: "var(--t-text)" }}
             >
-              <Brain className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <Brain className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
               <span className="flex-1 text-left">{t("memory")}</span>
             </button>
 
@@ -460,10 +477,10 @@ export function Sidebar({
             <button
               type="button"
               onClick={onOpenKnowledge}
-              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              className={PANEL_ROW}
               style={{ color: "var(--t-text)" }}
             >
-              <FolderOpen className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <FolderOpen className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
               <span className="flex-1 text-left">{t("knowledgeBase")}</span>
             </button>
 
@@ -473,10 +490,10 @@ export function Sidebar({
             <button
               type="button"
               onClick={onOpenCowork}
-              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              className={PANEL_ROW}
               style={{ color: "var(--t-text)" }}
             >
-              <FolderTree className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <FolderTree className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
               <span className="flex-1 text-left">{t("coworkFolder")}</span>
             </button>
 
@@ -486,10 +503,10 @@ export function Sidebar({
             <button
               type="button"
               onClick={onOpenSkills}
-              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              className={PANEL_ROW}
               style={{ color: "var(--t-text)" }}
             >
-              <Sparkles className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <Sparkles className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
               <span className="flex-1 text-left">{t("skills")}</span>
             </button>
 
@@ -499,20 +516,20 @@ export function Sidebar({
             <button
               type="button"
               onClick={onOpenConnectors}
-              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              className={PANEL_ROW}
               style={{ color: "var(--t-text)" }}
             >
-              <Plug className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <Plug className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
               <span className="flex-1 text-left">{t("chConnectors")}</span>
             </button>
 
             <div style={{ height: 1, background: "var(--t-border)" }} />
 
             {/* Research rejim (toggle qatori) */}
-            <div className="flex items-center gap-2.5 px-3 py-2.5 text-sm" style={{ color: "var(--t-text)" }}>
-              <Globe className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <div className="flex items-center gap-2.5 px-3 py-2 text-sm" style={{ color: "var(--t-text)" }}>
+              <Globe className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
               <span className="flex-1">{t("researchMode")}</span>
-              <Toggle on={research} onChange={onToggleResearch} label={t("researchMode")} />
+              <Switch on={research} onChange={onToggleResearch} label={t("researchMode")} size="sm" />
             </div>
 
             <div style={{ height: 1, background: "var(--t-border)" }} />
@@ -521,10 +538,10 @@ export function Sidebar({
             <button
               type="button"
               onClick={() => setFeedbackOpen(true)}
-              className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+              className={PANEL_ROW}
               style={{ color: "var(--t-text)" }}
             >
-              <MessageSquareHeart className="size-4" style={{ color: "var(--t-text-muted)" }} />
+              <MessageSquareHeart className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
               <span className="flex-1 text-left">{t("fbButton")}</span>
             </button>
               </motion.div>
@@ -537,10 +554,10 @@ export function Sidebar({
           <button
             type="button"
             onClick={onOpenSettings}
-            className="tt flex w-full items-center gap-2.5 px-3 py-2.5 text-sm transition-colors hover:bg-white/5"
+            className={PANEL_ROW}
             style={{ color: "var(--t-text)" }}
           >
-            <Settings className="size-4" style={{ color: "var(--t-text-muted)" }} />
+            <Settings className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
             <span className="flex-1 text-left">{t("settings")}</span>
           </button>
 
@@ -560,8 +577,8 @@ export function Sidebar({
                 <img src={user.avatarUrl} alt="" className="size-8 rounded-full object-cover" />
               ) : (
                 <span
-                  className="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
-                  style={{ background: model.primary }}
+                  className="flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-bold"
+                  style={{ background: "var(--t-primary-fill)", color: "var(--t-on-primary)" }}
                 >
                   {initials || "S"}
                 </span>
@@ -571,7 +588,7 @@ export function Sidebar({
                   {user.name}
                 </span>
                 <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>
-                  <span style={{ color: plan.color }}>{plan.name}</span>
+                  <span>{plan.name}</span>
                   {isDev ? " · Dev" : ""}
                 </span>
               </span>
@@ -581,23 +598,24 @@ export function Sidebar({
               <button
                 type="button"
                 onClick={onUpgrade}
-                className="tt shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors hover:bg-[color:var(--surface-hover)]"
-                style={{ color: model.accent }}
+                className="tt inline-flex min-h-8 shrink-0 items-center gap-0.5 rounded-md px-2 text-xs font-medium transition-colors hover:bg-[color:var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
+                style={{ color: "var(--t-accent-text)" }}
                 title={t("upgrade")}
               >
-                {t("upgrade")} →
+                {t("upgrade")}
+                <ArrowUpRight className="size-3.5" aria-hidden />
               </button>
             )}
 
             <form action={signOut} className="shrink-0">
               <button
                 type="submit"
-                className="rounded-md p-1.5 opacity-60 transition-all hover:bg-[color:var(--surface-hover)] hover:opacity-100"
+                className="flex size-8 items-center justify-center rounded-md transition-colors hover:bg-[color:var(--surface-hover)] hover:text-[var(--t-text)] [@media(pointer:coarse)]:size-11"
                 style={{ color: "var(--t-text-muted)" }}
                 title={t("logout")}
                 aria-label={t("logout")}
               >
-                <LogOut className="size-4" />
+                <LogOut className="size-4" aria-hidden />
               </button>
             </form>
           </div>
@@ -623,12 +641,12 @@ export function Sidebar({
       <button
         type="button"
         onClick={onOpen}
-        className="mb-1 rounded-lg p-2 transition-colors hover:bg-white/10"
+        className="mb-1 flex size-10 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:size-11"
         style={{ color: "var(--t-text-muted)" }}
         aria-label={t("chOpenPanel")}
         title={t("chOpenPanel")}
       >
-        <PanelLeftOpen className="size-5" />
+        <PanelLeftOpen className="size-5" aria-hidden />
       </button>
       {railItems.map(({ label, Icon, onClick, primary, active }) => (
         <button
@@ -638,23 +656,26 @@ export function Sidebar({
           aria-label={label}
           title={label}
           aria-pressed={active}
-          className={cn("tt flex size-10 items-center justify-center rounded-xl transition-all hover:scale-105", !primary && "hover:bg-white/10")}
+          className={cn(
+            "tt flex size-10 items-center justify-center rounded-lg transition-colors [@media(pointer:coarse)]:size-11",
+            primary ? "hover:opacity-90" : "hover:bg-[var(--surface-hover)]",
+          )}
           style={
             primary
-              ? { background: "var(--t-primary)", color: "#fff", boxShadow: "0 0 16px color-mix(in srgb, var(--t-primary) 35%, transparent)" }
+              ? { background: "var(--t-primary-fill)", color: "var(--t-on-primary)" }
               : {
                   color: active ? "var(--t-primary)" : "var(--t-text-muted)",
                   background: active ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : undefined,
                 }
           }
         >
-          <Icon className="size-[18px]" />
+          <Icon className="size-[18px]" aria-hidden />
         </button>
       ))}
       <button
         type="button"
         onClick={onOpenSettings}
-        className="mt-auto rounded-full transition-transform hover:scale-105"
+        className="mt-auto rounded-full transition-opacity hover:opacity-85"
         aria-label={t("chOpenSettings")}
         title={`${user.name} · ${plan.name}`}
       >
@@ -662,7 +683,7 @@ export function Sidebar({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={user.avatarUrl} alt="" className="size-9 rounded-full object-cover" />
         ) : (
-          <span className="flex size-9 items-center justify-center rounded-full text-xs font-bold text-white" style={{ background: "var(--t-primary)" }}>
+          <span className="flex size-9 items-center justify-center rounded-full text-xs font-bold" style={{ background: "var(--t-primary-fill)", color: "var(--t-on-primary)" }}>
             {initials || "S"}
           </span>
         )}
@@ -676,7 +697,7 @@ export function Sidebar({
       <motion.aside
         initial={false}
         animate={{ width: open ? 264 : 60 }}
-        transition={{ type: "spring", stiffness: 320, damping: 34, mass: 0.9 }}
+        transition={still ? { duration: 0 } : { type: "spring", stiffness: 320, damping: 34, mass: 0.9 }}
         className="tt relative hidden h-full shrink-0 overflow-hidden border-r md:block"
         style={{ background: "var(--t-sidebar)", borderColor: "var(--t-border)" }}
       >
@@ -712,7 +733,7 @@ export function Sidebar({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden"
+            className="fixed inset-0 z-40 bg-black/60 md:hidden"
             onClick={onClose}
           >
             <motion.div
@@ -724,7 +745,7 @@ export function Sidebar({
               initial={{ x: -280 }}
               animate={{ x: 0 }}
               exit={{ x: -280 }}
-              transition={{ duration: 0.28, ease: EASE }}
+              transition={still ? { duration: 0 } : { duration: 0.28, ease: EASE }}
               onClick={(e) => e.stopPropagation()}
               className="tt h-full w-[280px] max-w-[85vw] border-r"
               style={{ background: "var(--t-sidebar)", borderColor: "var(--t-border)" }}

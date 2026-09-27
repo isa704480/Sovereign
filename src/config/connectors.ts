@@ -6,13 +6,26 @@
 
 export type ConnectorAuth = "token" | "oauth-google" | "mcp" | "builtin";
 export type ConnectorCategory = "google" | "design" | "dev" | "builtin";
+export type ConnectorIconName =
+  | "gmail"
+  | "googledrive"
+  | "googlesheets"
+  | "googleslides"
+  | "googledocs"
+  | "googlecalendar"
+  | "figma"
+  | "github"
+  | "mcp"
+  | "terminal"
+  | "globe"
+  | "puzzle";
 
 export interface ConnectorSpec {
   id: string;
   name: string;
   category: ConnectorCategory;
-  /** Emoji/glyph — panelda belgi sifatida. */
-  glyph: string;
+  /** Belgi nomi — panelda bir rangli ikon (simple-icons yoki lucide), emoji emas. */
+  icon: ConnectorIconName;
   auth: ConnectorAuth;
   description: string;
   /** token turi uchun — kiritish maydonchasi yorlig'i. */
@@ -45,7 +58,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "gmail",
     name: "Gmail",
     category: "google",
-    glyph: "✉️",
+    icon: "gmail",
     auth: "oauth-google",
     description: "Xatlarni o'qish.",
     sensitive: true,
@@ -56,7 +69,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "gdrive",
     name: "Google Disk",
     category: "google",
-    glyph: "📁",
+    icon: "googledrive",
     auth: "oauth-google",
     description: "Fayllarni ko'rish.",
     // Chatda Drive vositasi hali yo'q — scope so'ralmaydi (tez orada).
@@ -66,7 +79,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "gsheets",
     name: "Google Sheets",
     category: "google",
-    glyph: "📊",
+    icon: "googlesheets",
     auth: "oauth-google",
     description: "Jadvallarni o'qish va tahrirlash.",
     scopes: [G + "spreadsheets"],
@@ -75,7 +88,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "gslides",
     name: "Google Slides",
     category: "google",
-    glyph: "📽️",
+    icon: "googleslides",
     auth: "oauth-google",
     description: "Taqdimot yaratish.",
     scopes: [G + "presentations"],
@@ -84,7 +97,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "gdocs",
     name: "Google Docs",
     category: "google",
-    glyph: "📄",
+    icon: "googledocs",
     auth: "oauth-google",
     description: "Hujjatlarni o'qish.",
     // Chatda Docs vositasi hali yo'q — scope so'ralmaydi (tez orada).
@@ -94,7 +107,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "gcalendar",
     name: "Google Kalendar",
     category: "google",
-    glyph: "📅",
+    icon: "googlecalendar",
     auth: "oauth-google",
     description: "Voqealarni ko'rish.",
     // Faqat o'qish: gcalendar_list tooli voqea qo'shmaydi.
@@ -105,7 +118,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "figma",
     name: "Figma",
     category: "design",
-    glyph: "🎨",
+    icon: "figma",
     auth: "token",
     description: "Fayl va freymlarni o'qish (dizayndan kod).",
     tokenLabel: "Figma Personal Access Token",
@@ -116,7 +129,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "github",
     name: "GitHub",
     category: "dev",
-    glyph: "🐙",
+    icon: "github",
     auth: "token",
     description: "Repozitoriy va fayllarni o'qish.",
     tokenLabel: "GitHub Personal Access Token",
@@ -126,7 +139,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "mcp",
     name: "MCP server",
     category: "dev",
-    glyph: "🔌",
+    icon: "mcp",
     auth: "mcp",
     description: "Istalgan MCP serverni URL orqali ulash.",
     tokenLabel: "MCP server URL",
@@ -136,7 +149,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "cli-terminal",
     name: "CLI terminal",
     category: "builtin",
-    glyph: "⌨️",
+    icon: "terminal",
     auth: "builtin",
     description: "`sov` CLI kompyuterda buyruq ishga tushiradi (xavf tekshiruvi bilan).",
   },
@@ -144,7 +157,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "browser",
     name: "Brauzer",
     category: "builtin",
-    glyph: "🌐",
+    icon: "globe",
     auth: "builtin",
     description: "Loyihani brauzerda ochib test qilish (preview).",
   },
@@ -152,7 +165,7 @@ export const CONNECTORS: ConnectorSpec[] = [
     id: "public-apis",
     name: "Ommaviy API'lar",
     category: "builtin",
-    glyph: "🧩",
+    icon: "puzzle",
     auth: "builtin",
     description: "Kalitsiz (loginsiz) API'lar: ob-havo, valyuta, davlat, kripto, vaqt, lug'at — AI real ma'lumot oladi.",
   },

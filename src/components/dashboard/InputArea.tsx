@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowUp, Brain, ChevronDown, Clapperboard, FileText, FolderOpen, FolderTree, Globe, ImageIcon, Loader2, Mic, Music, Paperclip, Plus, ShieldCheck, Square, X } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { ArrowUp, Brain, Check, ChevronDown, Clapperboard, FileText, FolderOpen, FolderTree, Globe, ImageIcon, Loader2, Mic, Music, Paperclip, Plus, ShieldCheck, Square, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotionConfig } from "motion/react";
 import {
   useCallback,
   useEffect,
@@ -14,7 +14,7 @@ import {
 } from "react";
 import { EASE } from "@/lib/motion";
 import { listKnowledge, type KbDoc } from "@/app/actions/knowledge";
-import { attachmentGlyph, processFile, type Attachment } from "@/lib/chat/attachments";
+import { processFile, type Attachment } from "@/lib/chat/attachments";
 import { matchFiles, type CoworkFile } from "@/lib/cowork/folder";
 import { videoAvailable } from "@/lib/chat/video-intent";
 import { useChat, useLang, useT } from "@/store/chat";
@@ -27,6 +27,8 @@ import { useSpeech } from "@/hooks/use-speech";
 import { cn } from "@/lib/utils";
 import { SkillPicker } from "./SkillPicker";
 import { useTheme } from "./theme-context";
+import { ProviderMark } from "./ModelAvatar";
+import { AgentModeIcon, AttachmentIcon } from "./glyph-icons";
 
 /** Imperative handle so suggestion chips can prefill the box. */
 export interface InputAreaHandle {
@@ -78,7 +80,9 @@ function Chip({
   label,
   onClick,
   title,
+  className,
 }: {
+  className?: string;
   active?: boolean;
   disabled?: boolean;
   icon: React.ReactNode;
@@ -92,14 +96,17 @@ function Chip({
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-pressed={onClick ? !!active : undefined}
       className={cn(
-        "tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors",
+        "tt inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors [@media(pointer:coarse)]:h-11",
+        !active && "hover:bg-[var(--surface-hover)]",
         disabled && "cursor-not-allowed opacity-50",
+        className,
       )}
       style={{
         borderColor: active ? "var(--t-primary)" : "var(--t-border)",
         background: active ? "color-mix(in srgb, var(--t-primary) 18%, transparent)" : "transparent",
-        color: active ? "var(--t-accent)" : "var(--t-text-muted)",
+        color: active ? "var(--t-accent-text)" : "var(--t-text-muted)",
       }}
     >
       {icon}
@@ -125,7 +132,8 @@ export function InputArea({
   onOpenKnowledge,
   onOpenMemory,
 }: InputAreaProps) {
-  const { theme, model } = useTheme();
+  const { model } = useTheme();
+  const still = useReducedMotionConfig() === true;
   const [value, setValue] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
@@ -366,21 +374,17 @@ export function InputArea({
 
   const removeAttachment = (id: string) => setAttachments((prev) => prev.filter((a) => a.id !== id));
 
-  const style = theme.layout.input;
-  const isPill = style === "pill";
-  const isSearch = style === "search";
-
   const attachBtn = (
     <button
       type="button"
       onClick={openPicker}
-      className={cn("rounded-lg p-2 transition-colors hover:bg-white/10", TOUCH_44)}
+      className={cn("rounded-lg p-2 transition-colors hover:bg-[var(--surface-hover)]", TOUCH_44)}
       style={{ color: "var(--t-text-muted)" }}
       title={t("chAttachTitle")}
       aria-label={t("chAttachTitle")}
       aria-busy={busy || undefined}
     >
-      {busy ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+      {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Paperclip className="size-4" aria-hidden />}
     </button>
   );
 
@@ -388,18 +392,18 @@ export function InputArea({
     <button
       type="button"
       onClick={speech.toggle}
-      className={cn("rounded-lg p-2 transition-colors hover:bg-white/10", TOUCH_44)}
-      style={{ color: speech.listening ? model.primary : "var(--t-text-muted)" }}
+      className={cn("rounded-lg p-2 transition-colors hover:bg-[var(--surface-hover)]", TOUCH_44)}
+      style={{ color: speech.listening ? "var(--t-danger, #EF4444)" : "var(--t-text-muted)" }}
       title={speech.listening ? t("stop") : t("chVoiceInput")}
       aria-label={speech.listening ? t("stop") : t("chVoiceInput")}
       aria-pressed={speech.listening}
     >
-      {speech.listening ? (
-        <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}>
-          <Mic className="size-4" />
+      {speech.listening && !still ? (
+        <motion.span className="block" animate={{ opacity: [1, 0.3, 1] }} transition={{ duration: 1, repeat: Infinity }}>
+          <Mic className="size-4" aria-hidden />
         </motion.span>
       ) : (
-        <Mic className="size-4" />
+        <Mic className="size-4" aria-hidden />
       )}
     </button>
   );
@@ -412,11 +416,11 @@ export function InputArea({
       onClick={() => (mediaMode === "image" ? setImageMode(false) : setVideoMode(false))}
       aria-label={t(mediaMode === "image" ? "uxImageModeOff" : "p4eVideoModeOff")}
       title={t(mediaMode === "image" ? "uxImageModeOff" : "p4eVideoModeOff")}
-      className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium"
-      style={{ background: "color-mix(in srgb, var(--t-accent) 18%, transparent)", color: "var(--t-accent)" }}
+      className="inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-medium [@media(pointer:coarse)]:h-11"
+      style={{ background: "color-mix(in srgb, var(--t-accent) 18%, transparent)", color: "var(--t-accent-text)" }}
     >
-      {mediaMode === "image" ? <ImageIcon className="size-3.5" /> : <Clapperboard className="size-3.5" />}{" "}
-      {t(mediaMode === "image" ? "uxImageMode" : "p4eVideoMode")} <X className="size-3" />
+      {mediaMode === "image" ? <ImageIcon className="size-3.5" aria-hidden /> : <Clapperboard className="size-3.5" aria-hidden />}{" "}
+      {t(mediaMode === "image" ? "uxImageMode" : "p4eVideoMode")} <X className="size-3" aria-hidden />
     </button>
   );
 
@@ -429,14 +433,18 @@ export function InputArea({
     <div
       role="group"
       aria-label={t("p8bModeLabel")}
-      className="tt inline-flex shrink-0 items-center gap-0.5 rounded-full p-0.5 text-xs font-medium"
+      className={cn(
+        "tt shrink-0 items-center gap-0.5 rounded-full p-0.5 text-xs font-medium",
+        // Telefonda Cowork "+" menyusida; faol bo'lsa qaytish uchun ko'rinib turadi.
+        coworkActive ? "inline-flex" : "hidden sm:inline-flex",
+      )}
       style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)" }}
     >
       <button
         type="button"
         aria-pressed={!coworkActive}
         onClick={() => cowork.deactivate()}
-        className="min-h-8 rounded-full px-2.5 py-1 transition-colors"
+        className="min-h-8 rounded-full px-2.5 py-1 transition-colors [@media(pointer:coarse)]:min-h-10"
         style={{ background: coworkActive ? "transparent" : "var(--t-surface)", color: coworkActive ? "var(--t-text-muted)" : "var(--t-text)" }}
         title={t("chModeChatTitle")}
       >
@@ -449,11 +457,11 @@ export function InputArea({
           // Faol bo'lsa — panel (papka ulash / o'zgarishlar); aks holda eslab qolingan tanlov bilan yoqamiz.
           if (coworkActive || !cowork.activate()) onOpenCowork?.();
         }}
-        className="inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 transition-colors"
-        style={{ background: coworkActive ? "var(--t-surface)" : "transparent", color: coworkActive ? "var(--t-accent)" : "var(--t-text-muted)" }}
+        className="inline-flex min-h-8 items-center gap-1 rounded-full px-2.5 py-1 transition-colors [@media(pointer:coarse)]:min-h-10"
+        style={{ background: coworkActive ? "var(--t-surface)" : "transparent", color: coworkActive ? "var(--t-accent-text)" : "var(--t-text-muted)" }}
         title={coworkActive && cowork.noFolder && !cowork.folder ? t("p8bCwNoFolderActive") : t("chModeCoworkTitle")}
       >
-        <FolderTree className="size-3" /> Cowork
+        <FolderTree className="size-3" aria-hidden /> Cowork
         {coworkActive && cowork.noFolder && !cowork.folder && (
           <span className="hidden opacity-70 sm:inline">· {t("p8bCwNoFolderShort")}</span>
         )}
@@ -461,23 +469,19 @@ export function InputArea({
     </div>
   );
 
-  // Composer ichidagi model tanlagich — nomi + brend belgisi, mavjud ModelSwitcher'ni ochadi.
+  // Composer ichidagi model tanlagich — provayder belgisi + nomi, mavjud ModelSwitcher'ni ochadi.
   const modelChip = (
     <button
       type="button"
       onClick={() => window.dispatchEvent(new Event("sovereign:open-model"))}
-      className="tt inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium transition-colors hover:bg-white/5"
+      className="tt inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs font-medium transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:h-11"
       style={{ color: "var(--t-text-muted)" }}
       title={t("chSelectModelTitle")}
+      aria-label={`${t("chSelectModelTitle")}: ${model.name}`}
     >
-      <span
-        className="inline-flex size-4 items-center justify-center rounded-[5px] text-[10px] leading-none"
-        style={{ background: `color-mix(in srgb, ${model.primary} 22%, transparent)`, color: model.primary }}
-      >
-        {model.glyph}
-      </span>
-      <span className="max-w-[120px] truncate" style={{ color: "var(--t-text)" }}>{model.shortName}</span>
-      <ChevronDown className="size-3.5 opacity-70" />
+      <ProviderMark model={model} px={14} className="text-[var(--t-text)]" />
+      <span className="max-w-[88px] truncate sm:max-w-[120px]" style={{ color: "var(--t-text)" }}>{model.shortName}</span>
+      <ChevronDown className="size-3.5 opacity-70" aria-hidden />
     </button>
   );
 
@@ -489,31 +493,37 @@ export function InputArea({
         type="button"
         onClick={() => setModeMenu((o) => !o)}
         aria-expanded={modeMenu}
-        className="tt inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors hover:bg-white/5"
-        style={{ borderColor: cur.id !== "general" ? "var(--t-primary)" : "var(--t-border)", color: cur.id !== "general" ? "var(--t-accent)" : "var(--t-text-muted)" }}
+        aria-haspopup="menu"
+        aria-label={`${t("chAgentMode")}: ${agentModeName(lang, cur)}`}
+        className="tt inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:h-11"
+        style={{ borderColor: cur.id !== "general" ? "var(--t-primary)" : "var(--t-border)", color: cur.id !== "general" ? "var(--t-accent-text)" : "var(--t-text-muted)" }}
         title={t("chAgentMode")}
       >
-        <span>{cur.glyph}</span>
-        <span className="max-w-[90px] truncate">{agentModeName(lang, cur)}</span>
-        <ChevronDown className="size-3 opacity-70" />
+        <AgentModeIcon name={cur.icon} />
+        <span className="hidden max-w-[90px] truncate sm:inline">{agentModeName(lang, cur)}</span>
+        <ChevronDown className="size-3 opacity-70" aria-hidden />
       </button>
       {modeMenu && (
         <div
-          className="tt absolute bottom-full left-0 z-30 mb-2 w-60 overflow-hidden rounded-[18px] border"
+          role="menu"
+          aria-label={t("chAgentMode")}
+          className="tt absolute bottom-full left-0 z-30 mb-2 w-60 max-w-[calc(100vw-24px)] overflow-hidden rounded-lg border"
           style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.45)" }}
         >
           {AGENT_MODES.map((m, i) => (
             <button
               key={m.id}
               type="button"
+              role="menuitemradio"
+              aria-checked={m.id === agentMode}
               onClick={() => {
                 setAgentMode(m.id);
                 setModeMenu(false);
               }}
-              className="flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-white/5"
+              className="flex min-h-11 w-full items-center gap-2.5 px-3 py-2 text-left transition-colors hover:bg-[var(--surface-hover)]"
               style={{ background: m.id === agentMode ? "color-mix(in srgb, var(--t-primary) 14%, transparent)" : "transparent", borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)" }}
             >
-              <span className="text-base">{m.glyph}</span>
+              <AgentModeIcon name={m.icon} className="size-4 shrink-0 text-[var(--t-text-muted)]" />
               <span className="min-w-0">
                 <span className="block text-sm" style={{ color: "var(--t-text)" }}>{agentModeName(lang, m)}</span>
                 <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{agentModeDescription(lang, m)}</span>
@@ -542,21 +552,21 @@ export function InputArea({
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={a.dataUrl} alt="" className="size-8 rounded-md object-cover" />
               ) : (
-                <span className="text-base">{attachmentGlyph(a.kind)}</span>
+                <AttachmentIcon kind={a.kind} className="size-4 text-[var(--t-text-muted)]" />
               )}
               <span className="max-w-[140px] truncate">{a.name}</span>
               <button
                 type="button"
                 onClick={() => removeAttachment(a.id)}
-                className="rounded-full p-0.5 hover:bg-white/10"
+                className="flex size-6 items-center justify-center rounded-full hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:size-11"
                 style={{ color: "var(--t-text-muted)" }}
-                aria-label={t("chRemove")}
+                aria-label={`${t("chRemove")}: ${a.name}`}
               >
-                <X className="size-3.5" />
+                <X className="size-3.5" aria-hidden />
               </button>
             </span>
           ))}
-          {fileError && <span className="text-xs" style={{ color: "var(--error)" }}>{fileError}</span>}
+          {fileError && <span role="alert" className="text-xs" style={{ color: "var(--t-danger, #EF4444)" }}>{fileError}</span>}
         </div>
       )}
 
@@ -564,7 +574,7 @@ export function InputArea({
         <div
           role="listbox"
           aria-label={t("chKbDocsAria")}
-          className="tt mb-2 overflow-hidden rounded-[18px] border"
+          className="tt mb-2 overflow-hidden rounded-lg border"
           style={{
             background: "var(--t-surface)",
             borderColor: "var(--t-border)",
@@ -589,12 +599,12 @@ export function InputArea({
               }}
             >
               {m.kind === "file" ? (
-                <FolderOpen className="size-4 shrink-0" style={{ color: "var(--t-accent)" }} />
+                <FolderOpen className="size-4 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />
               ) : (
-                <FileText className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
+                <FileText className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} aria-hidden />
               )}
               <span className="min-w-0 flex-1 truncate" style={{ color: "var(--t-text)" }}>{m.label}</span>
-              <span className="shrink-0 text-[10px] uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
+              <span className="shrink-0 text-[11px] uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
                 {m.kind === "file" ? "Cowork" : t("kbShort")}
               </span>
             </button>
@@ -606,31 +616,16 @@ export function InputArea({
       )}
 
       <div
-        className={cn(
-          "tt relative border shadow-md focus-within:shadow-lg",
-          isPill ? "flex items-end gap-2 px-2 py-1.5" : "px-3 pb-2 pt-3",
-        )}
+        className="tt relative border px-3 pb-2 pt-3 shadow-md focus-within:shadow-lg"
         style={{ background: "var(--t-input)", borderColor: "var(--t-border)", borderRadius: "var(--t-input-radius)" }}
         onFocusCapture={(e) => (e.currentTarget.style.borderColor = "var(--t-primary)")}
         onBlurCapture={(e) => (e.currentTarget.style.borderColor = "var(--t-border)")}
       >
-        {isPill && <div className="flex shrink-0 items-center self-center">{attachBtn}</div>}
-
-        {isSearch && (
-          <div className="mb-2 flex flex-wrap gap-1.5">
-            <Chip active icon={<Globe className="size-3.5" />} label={t("chChipWeb")} />
-            <Chip icon={<span className="text-[13px]">🎓</span>} label={t("chChipAcademic")} disabled title={t("chSoon")} />
-            <Chip icon={<span className="text-[13px]">📰</span>} label={t("chChipNews")} disabled title={t("chSoon")} />
+        <div className="flex items-end gap-2">
+          <div className="flex shrink-0 items-center gap-0.5 pb-1">
+            {attachBtn}
+            {micBtn}
           </div>
-        )}
-
-        <div className={cn("flex gap-2", isPill ? "flex-1 items-center" : "items-end")}>
-          {!isPill && (
-            <div className="flex shrink-0 items-center gap-0.5 pb-1">
-              {attachBtn}
-              {micBtn}
-            </div>
-          )}
 
           <textarea
             ref={taRef}
@@ -650,73 +645,59 @@ export function InputArea({
             rows={1}
             autoFocus={autoFocus}
             enterKeyHint="enter"
-            className={cn(
-              // Mobilda 16px — iOS Safari fokusda sahifani kattalashtirmasin.
-              "chat-textarea min-h-[40px] w-full resize-none bg-transparent px-1 py-2 text-base leading-relaxed outline-none placeholder:opacity-60 md:text-[15px]",
-              isSearch && "min-h-[56px] text-base md:text-base",
-            )}
+            // Mobilda 16px — iOS Safari fokusda sahifani kattalashtirmasin.
+            className="chat-textarea min-h-[40px] w-full min-w-0 resize-none bg-transparent px-1 py-2 text-[16px] leading-relaxed outline-none placeholder:opacity-60 md:text-[15px]"
             style={{ color: "var(--t-text)" }}
           />
-
-          {isPill && (
-            <div className="flex shrink-0 items-center gap-1 self-center">
-              {mediaChip}
-              {modeChip}
-              {modeToggle}
-              {modelChip}
-              {micBtn}
-            </div>
-          )}
 
           {isStreaming ? (
             <motion.button
               type="button"
               onClick={onStop}
-              whileTap={{ scale: 0.95 }}
+              whileTap={still ? undefined : { scale: 0.95 }}
               className="mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full [@media(pointer:coarse)]:size-11"
               style={{ background: "var(--t-text)", color: "var(--t-bg)" }}
               title={t("stop")}
               aria-label={t("stop")}
             >
-              <Square className="size-3.5 fill-current" />
+              <Square className="size-3.5 fill-current" aria-hidden />
             </motion.button>
           ) : (
             <motion.button
               type="button"
               onClick={submit}
               disabled={!canSend}
-              whileTap={{ scale: 0.95 }}
-              className="tt mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed [@media(pointer:coarse)]:size-11"
+              whileTap={still ? undefined : { scale: 0.95 }}
+              className="tt mb-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors disabled:cursor-not-allowed [@media(pointer:coarse)]:size-11"
               style={{
-                background: canSend ? model.primary : "color-mix(in srgb, var(--t-text) 12%, transparent)",
-                color: canSend ? "#fff" : "var(--t-text-muted)",
-                boxShadow: canSend ? `0 0 18px color-mix(in srgb, ${model.primary} 45%, transparent)` : undefined,
+                background: canSend ? "var(--t-primary-fill)" : "color-mix(in srgb, var(--t-text) 12%, transparent)",
+                color: canSend ? "var(--t-on-primary)" : "var(--t-text-muted)",
               }}
               title={t("chSendEnter")}
               aria-label={t("send")}
             >
-              <ArrowUp className="size-4" strokeWidth={2.5} />
+              <ArrowUp className="size-4" strokeWidth={2.5} aria-hidden />
             </motion.button>
           )}
         </div>
 
-        {!isPill && !isSearch && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
             {/* "+" — qo'shimcha manbalar: Cowork papka, fayl, bilim bazasi, xotira. */}
             <div ref={plusRef} className="relative">
               <button
                 type="button"
                 onClick={() => setPlusOpen((o) => !o)}
                 aria-expanded={plusOpen}
+                aria-haspopup="menu"
                 aria-label={t("addSource")}
-                className="tt inline-flex size-8 items-center justify-center rounded-full border transition-transform"
+                className="tt inline-flex size-8 items-center justify-center rounded-full border transition-transform motion-reduce:transition-none [@media(pointer:coarse)]:size-11"
                 style={{
                   borderColor: plusOpen ? "var(--t-primary)" : "var(--t-border)",
-                  color: plusOpen ? "var(--t-accent)" : "var(--t-text-muted)",
+                  color: plusOpen ? "var(--t-accent-text)" : "var(--t-text-muted)",
                   transform: plusOpen ? "rotate(45deg)" : "none",
                 }}
               >
-                <Plus className="size-4" />
+                <Plus className="size-4" aria-hidden />
               </button>
               <AnimatePresence>
                 {plusOpen && (
@@ -724,8 +705,8 @@ export function InputArea({
                     initial={{ opacity: 0, y: 6, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.96 }}
-                    transition={{ duration: 0.18, ease: EASE }}
-                    className="tt absolute bottom-full left-0 z-30 mb-2 w-60 overflow-hidden rounded-[18px] border"
+                    transition={still ? { duration: 0 } : { duration: 0.18, ease: EASE }}
+                    className="tt absolute bottom-full left-0 z-30 mb-2 w-60 max-w-[calc(100vw-24px)] overflow-hidden rounded-lg border"
                     style={{
                       background: "var(--t-surface)",
                       borderColor: "var(--t-border)",
@@ -777,14 +758,41 @@ export function InputArea({
                             taRef.current?.focus();
                           }
                         }}
-                        className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-white/5 disabled:opacity-40"
+                        className="flex min-h-11 w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-40"
                         style={{ borderTop: i === 0 ? "none" : "1px solid var(--border-subtle)" }}
                       >
-                        <Icon className="size-4 shrink-0" style={{ color: "var(--t-accent)" }} />
+                        <Icon className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} aria-hidden />
                         <span className="min-w-0">
                           <span className="block truncate text-sm" style={{ color: "var(--t-text)" }}>{label}</span>
                           <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{hint}</span>
                         </span>
+                      </button>
+                    ))}
+                    {/* Telefonda Research / Maxfiy chiplari shu menyuda (qator 1 qatorga sig'sin). */}
+                    {(
+                      [
+                        { id: "research", label: t("researchMode"), hint: t("chResearchTitle"), Icon: Globe, on: research, toggle: () => onToggleResearch(!research) },
+                        { id: "private", label: t("privateMode"), hint: t("chPrivateTitle"), Icon: ShieldCheck, on: blindPrompting, toggle: () => onToggleBlindPrompting(!blindPrompting) },
+                      ] as const
+                    ).map(({ id, label, hint, Icon, on, toggle }) => (
+                      <button
+                        key={id}
+                        type="button"
+                        role="menuitemcheckbox"
+                        aria-checked={on}
+                        onClick={() => {
+                          setPlusOpen(false);
+                          toggle();
+                        }}
+                        className="flex min-h-11 w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[var(--surface-hover)] sm:hidden"
+                        style={{ borderTop: "1px solid var(--border-subtle)" }}
+                      >
+                        <Icon className="size-4 shrink-0" style={{ color: on ? "var(--t-accent-text)" : "var(--t-text-muted)" }} aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm" style={{ color: "var(--t-text)" }}>{label}</span>
+                          <span className="block truncate text-xs" style={{ color: "var(--t-text-muted)" }}>{hint}</span>
+                        </span>
+                        {on && <Check className="size-4 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />}
                       </button>
                     ))}
                   </motion.div>
@@ -797,42 +805,31 @@ export function InputArea({
             <SkillPicker enabled={enabledSkills} onToggle={onToggleSkill} />
             <Chip
               active={research}
-              icon={<Globe className="size-3.5" />}
+              icon={<Globe className="size-3.5" aria-hidden />}
               label={t("researchMode")}
               onClick={() => onToggleResearch(!research)}
               title={t("chResearchTitle")}
+              className={research ? "" : "hidden sm:inline-flex"}
             />
             <Chip
               active={blindPrompting}
-              icon={<ShieldCheck className="size-3.5" />}
+              icon={<ShieldCheck className="size-3.5" aria-hidden />}
               label={t("privateMode")}
               onClick={() => onToggleBlindPrompting(!blindPrompting)}
               title={t("chPrivateTitle")}
+              className={blindPrompting ? "" : "hidden sm:inline-flex"}
             />
             {/* Xotira va Tez javob — hozircha shipp qilinmagan; Apple: disabled affordances chiqarmaymiz */}
             <div className="ml-auto">{modelChip}</div>
-          </div>
-        )}
-      </div>
-
-      {(isPill || isSearch) && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1">
-          <SkillPicker enabled={enabledSkills} onToggle={onToggleSkill} />
         </div>
-      )}
+      </div>
 
       <div className="mt-2 hidden justify-center gap-4 text-xs sm:flex" style={{ color: "var(--t-text-muted)" }}>
         <span>
           <kbd className="rounded border px-1 py-0.5" style={{ borderColor: "var(--t-border)" }}>↵</kbd> {t("send")}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <span
-            className="inline-flex size-4 items-center justify-center rounded-[5px] text-[10px] leading-none"
-            style={{ background: `color-mix(in srgb, ${model.primary} 22%, transparent)`, color: model.primary }}
-            aria-hidden
-          >
-            {model.glyph}
-          </span>
+          <ProviderMark model={model} px={12} />
           {model.name} · {t("aiDisclaimer")}
         </span>
       </div>

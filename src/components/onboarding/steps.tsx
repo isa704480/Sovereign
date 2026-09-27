@@ -1,12 +1,14 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Globe, Plus } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 import { countryFlag, countryName, searchCountries } from "@/config/countries";
 import { useChat, useLang, useT } from "@/store/chat";
-import { optionText, zoneText } from "@/lib/locales/onboarding-data";
+import { optionText, stepText, zoneText } from "@/lib/locales/onboarding-data";
 import {
+  ONBOARDING_STEPS,
+  type OnboardingStepId,
   AGE_GROUPS,
   EXPERIENCE_ZONES,
   INDUSTRIES,
@@ -23,16 +25,22 @@ import { cn } from "@/lib/utils";
 import { Chip } from "./Chip";
 import { OptionCard } from "./OptionCard";
 
+/** Guruh yorlig'i — qadam sarlavhasi (ekran o'quvchi uchun). */
+function stepLabel(id: OnboardingStepId, lang: ReturnType<typeof useLang>): string {
+  const meta = ONBOARDING_STEPS.find((s) => s.id === id)!;
+  return stepText(id, lang, meta).title;
+}
+
 export function StepPurpose() {
   const lang = useLang();
   const purposes = useOnboarding((s) => s.purposes);
   const toggle = useOnboarding((s) => s.toggle);
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label={stepLabel("purpose", lang)}>
       {PURPOSES.map((o) => (
         <OptionCard
           key={o.id}
-          emoji={o.emoji}
+          icon={o.icon}
           {...optionText("purposes", o, lang)}
           selected={purposes.includes(o.id)}
           onToggle={() => toggle("purposes", o.id)}
@@ -69,7 +77,7 @@ function OtherInput({
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             maxLength={80}
-            className="h-11 rounded-xl border-border bg-bg-base/60 px-3.5 text-[15px] focus-visible:border-primary focus-visible:ring-primary/30 md:text-[15px]"
+            className="h-11 rounded-xl border-border bg-bg-base/60 px-3.5 text-[16px] focus-visible:border-primary focus-visible:ring-primary/30 md:text-[15px]"
           />
         </motion.div>
       )}
@@ -88,7 +96,7 @@ export function StepIndustry() {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-label={stepLabel("industry", lang)}>
         {INDUSTRIES.map((o) => (
           <Chip key={o.id} label={optionText("industries", o, lang).label} selected={industries.includes(o.id)} onToggle={() => toggle("industries", o.id)} />
         ))}
@@ -111,11 +119,11 @@ export function StepPriorities() {
   const priorities = useOnboarding((s) => s.priorities);
   const toggle = useOnboarding((s) => s.toggle);
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" role="group" aria-label={stepLabel("priorities", lang)}>
       {PRIORITIES.map((o) => (
         <OptionCard
           key={o.id}
-          emoji={o.emoji}
+          icon={o.icon}
           {...optionText("priorities", o, lang)}
           selected={priorities.includes(o.id)}
           onToggle={() => toggle("priorities", o.id)}
@@ -136,10 +144,22 @@ export function StepLanguages() {
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2">
-        {LANGUAGES.map((o) => (
-          <Chip key={o.id} emoji={o.emoji} label={optionText("languages", o, lang).label} selected={languages.includes(o.id)} onToggle={() => toggle("languages", o.id)} />
-        ))}
+      <div className="flex flex-wrap gap-2" role="group" aria-label={stepLabel("languages", lang)}>
+        {LANGUAGES.map((o) => {
+          // Tilning o'z nomi (bayroq emas); interfeys tilidagi nomi farq qilsa — kichik izoh.
+          const local = optionText("languages", o, lang).label;
+          const native = o.nativeName ?? local;
+          return (
+            <Chip
+              key={o.id}
+              label={native}
+              labelLang={o.id}
+              hint={local !== native ? local : undefined}
+              selected={languages.includes(o.id)}
+              onToggle={() => toggle("languages", o.id)}
+            />
+          );
+        })}
         <button
           type="button"
           onClick={() => {
@@ -147,11 +167,11 @@ export function StepLanguages() {
             setOtherOpen((v) => !v);
           }}
           className={cn(
-            "inline-flex h-10 items-center gap-1.5 rounded-full border border-dashed px-4 text-sm transition-colors",
+            "inline-flex h-10 items-center gap-1.5 rounded-full border border-dashed px-4 text-sm transition-colors [@media(pointer:coarse)]:h-11",
             otherOpen ? "border-primary text-primary-soft" : "border-[var(--border-strong)] text-text-muted hover:text-text-primary",
           )}
         >
-          <Plus className="size-4" /> {t("onbAddOther")}
+          <Plus className="size-4" aria-hidden /> {t("onbAddOther")}
         </button>
       </div>
       <OtherInput open={otherOpen} value={other} placeholder={t("onbLangPlaceholder")} onChange={(v) => setOther("otherLanguage", v)} />
@@ -169,7 +189,7 @@ export function StepAge() {
       {AGE_GROUPS.map((o) => (
         <OptionCard
           key={o.id}
-          emoji={o.emoji}
+          mode="radio"
           {...optionText("age", o, lang)}
           selected={ageGroup === o.id}
           onToggle={() => setAgeGroup(o.id)}
@@ -198,12 +218,13 @@ export function StepCountry() {
         onChange={(e) => setQ(e.target.value)}
         placeholder={t("onbCountryPlaceholder")}
         aria-label={t("auOnbCountrySearch")}
-        className="mb-3 h-11 rounded-xl"
+        className="mb-3 h-11 rounded-xl text-[16px] md:text-[15px]"
       />
       <div className="flex max-h-[260px] flex-wrap gap-2 overflow-y-auto pr-1" role="radiogroup" aria-label={t("auOnbCountry")}>
         {shown.map((code) => (
           <Chip
             key={code}
+            mode="radio"
             emoji={countryFlag(code)}
             label={countryName(code, lang)}
             selected={country === code}
@@ -213,8 +234,8 @@ export function StepCountry() {
         {shown.length === 0 && <p className="py-4 text-sm text-text-muted">{t("onbCountryEmpty")}</p>}
       </div>
       {country && (
-        <p className="mt-3 text-xs text-text-muted">
-          {t("onbSelected")}: {countryFlag(country)} {countryName(country, lang)}
+        <p className="mt-3 flex items-center gap-1 text-xs text-text-secondary" role="status">
+          {t("onbSelected")}: {countryFlag(country) || <Globe className="size-3.5" aria-hidden />} {countryName(country, lang)}
         </p>
       )}
     </div>
@@ -254,8 +275,9 @@ export function StepExperience() {
               key={z.id}
               type="button"
               onClick={() => setExperience(z.from + 16)}
+              aria-pressed={active}
               className={cn(
-                "rounded-xl border px-3 py-2.5 text-center text-xs font-medium transition-colors",
+                "min-h-11 rounded-xl border px-3 py-2.5 text-center text-xs font-medium transition-colors",
                 active
                   ? "border-[var(--border-accent)] bg-primary/10 text-text-primary"
                   : "border-border text-text-muted hover:text-text-secondary",
@@ -276,7 +298,7 @@ export function StepExperience() {
           transition={{ duration: 0.2, ease: EASE }}
           className="mt-5 flex items-center gap-2 text-sm text-text-secondary"
         >
-          <span className="size-1.5 rounded-full bg-primary" />
+          <span className="size-1.5 rounded-full bg-primary" aria-hidden />
           {zoneText(zone, lang).hint}
         </motion.p>
       </AnimatePresence>

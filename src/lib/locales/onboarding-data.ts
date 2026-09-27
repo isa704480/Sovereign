@@ -229,7 +229,7 @@ const COMPLETION: L10n[] = [
     ru: "Настраиваем систему памяти...",
     en: "Setting up the memory system...",
   },
-  { uz: "Tayyor! 🎉", "uz-cyrl": "Тайёр! 🎉", ru: "Готово! 🎉", en: "All set! 🎉" },
+  { uz: "Tayyor!", "uz-cyrl": "Тайёр!", ru: "Готово!", en: "All set!" },
 ];
 
 export function completionLine(index: number, lang: Lang, fallback: string): string {

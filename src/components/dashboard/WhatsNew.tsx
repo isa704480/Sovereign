@@ -63,14 +63,14 @@ export function WhatsNew() {
           style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", borderRadius: 16, color: "var(--t-text)" }}
         >
           <div className="flex items-start gap-2">
-            <Sparkles className="mt-0.5 size-4 shrink-0" style={{ color: "var(--t-accent)" }} aria-hidden />
+            <Sparkles className="mt-0.5 size-4 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />
             <h2 id="whats-new-title" className="min-w-0 flex-1 font-semibold">
               {t("wnTitle")}
             </h2>
             <button
               type="button"
               onClick={dismiss}
-              className="-mr-1 -mt-1 inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+              className="-mr-1 -mt-1 inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-hover)]"
               style={{ color: "var(--t-text-muted)" }}
               aria-label={t("close")}
               title={t("close")}
@@ -84,8 +84,8 @@ export function WhatsNew() {
               <li key={u.id}>
                 <div className="flex items-center gap-2">
                   <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-                    style={{ background: "color-mix(in srgb, var(--t-primary) 18%, transparent)", color: "var(--t-accent)" }}
+                    className="rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
+                    style={{ background: "color-mix(in srgb, var(--t-primary) 18%, transparent)", color: "var(--t-accent-text)" }}
                   >
                     {t(TAG_KEY[u.tag])}
                   </span>
@@ -105,15 +105,15 @@ export function WhatsNew() {
               rel="noopener"
               onClick={markSeen}
               className="text-xs font-medium underline-offset-2 hover:underline"
-              style={{ color: "var(--t-accent)" }}
+              style={{ color: "var(--t-accent-text)" }}
             >
               {t("wnSeeAll")} →
             </a>
             <button
               type="button"
               onClick={dismiss}
-              className="min-h-8 rounded-lg px-3 text-xs font-semibold text-white"
-              style={{ background: "var(--t-primary)" }}
+              className="min-h-8 rounded-lg px-3 text-xs font-semibold"
+              style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
             >
               {t("wnGotIt")}
             </button>

@@ -24,6 +24,8 @@ export function OnboardingFlow() {
   const state = useOnboarding();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  // Xato bo'lsa "Qayta urinish" oxirgi amalni (yakunlash yoki o'tkazib yuborish) takrorlaydi.
+  const [lastAction, setLastAction] = useState<"finish" | "skip">("finish");
   const [result, setResult] = useState<{ modelId: string; reason: string } | null>(null);
 
   const step = Math.min(state.step, TOTAL_STEPS - 1);
@@ -40,6 +42,7 @@ export function OnboardingFlow() {
       return;
     }
     setError(null);
+    setLastAction("finish");
     startTransition(async () => {
       const res = await completeOnboarding({
         purposes: state.purposes,
@@ -52,9 +55,9 @@ export function OnboardingFlow() {
         ageGroup: state.ageGroup ?? "",
         country: state.country ?? "",
         otherCountry: state.otherCountry ?? "",
-      });
+      }).catch(() => ({ ok: false as const, error: t("p7cOnbSaveFailed") }));
       if (!res.ok) {
-        setError(res.error);
+        setError(res.error || t("p7cOnbSaveFailed"));
         return;
       }
       setResult({ modelId: res.modelId, reason: res.reason });
@@ -69,6 +72,7 @@ export function OnboardingFlow() {
     if (pending) return;
     setError(null);
     const uiLang = lang === "ru" ? "ru" : lang === "en" ? "en" : "uz";
+    setLastAction("skip");
     startTransition(async () => {
       const res = await completeOnboarding({
         purposes: state.purposes.length ? state.purposes : ["personal"],
@@ -81,9 +85,9 @@ export function OnboardingFlow() {
         ageGroup: state.ageGroup ?? "",
         country: state.country ?? "",
         otherCountry: state.otherCountry ?? "",
-      });
+      }).catch(() => ({ ok: false as const, error: t("p7cOnbSaveFailed") }));
       if (!res.ok) {
-        setError(res.error);
+        setError(res.error || t("p7cOnbSaveFailed"));
         return;
       }
       state.reset();
@@ -114,7 +118,7 @@ export function OnboardingFlow() {
                 type="button"
                 onClick={handleSkip}
                 disabled={pending}
-                className="-mb-2 inline-flex h-9 shrink-0 items-center rounded-lg px-3 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50"
+                className="-mb-2 inline-flex h-11 shrink-0 items-center rounded-lg px-3 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-50 md:h-9"
               >
                 {t("uxSkip")}
               </button>
@@ -125,7 +129,7 @@ export function OnboardingFlow() {
 
       <div className="flex w-full flex-1 items-start justify-center">
         {!hydrated ? (
-          <div className="h-[420px] w-full max-w-[600px] animate-pulse rounded-3xl border border-[var(--border-subtle)] bg-bg-elevated/60" />
+          <div aria-hidden className="h-[420px] w-full max-w-[600px] animate-pulse rounded-2xl border border-[var(--border-subtle)] bg-bg-elevated/60 motion-reduce:animate-none" />
         ) : result ? (
           <Completion modelId={result.modelId} reason={result.reason} onEnter={() => state.reset()} />
         ) : (
@@ -146,15 +150,23 @@ export function OnboardingFlow() {
               <Step />
               <AnimatePresence>
                 {error && (
-                  <motion.p
+                  <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0 }}
-                    className="mt-4 rounded-xl border border-error/30 bg-error/10 px-3.5 py-2.5 text-sm text-error"
+                    className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-error/30 bg-error/10 px-3.5 py-2.5 text-sm text-error"
                     role="alert"
                   >
-                    {error}
-                  </motion.p>
+                    <span className="min-w-0 flex-1">{error}</span>
+                    <button
+                      type="button"
+                      onClick={lastAction === "skip" ? handleSkip : handleNext}
+                      disabled={pending}
+                      className="inline-flex min-h-9 items-center rounded-md border border-error/40 px-3 text-sm font-medium text-text-primary hover:bg-error/10 disabled:opacity-50 [@media(pointer:coarse)]:min-h-11"
+                    >
+                      {t("uxRetry")}
+                    </button>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </StepShell>

@@ -257,7 +257,7 @@ export function ConnectorConfirmCard({ messageId, card }: { messageId: string; c
       )}
 
       {rows && rows.formulas > 0 && (
-        <p className="mt-2 flex items-start gap-1.5 text-xs" style={{ color: "var(--warning, #F59E0B)" }}>
+        <p className="mt-2 flex items-start gap-1.5 text-xs" style={{ color: "var(--t-warning, #F59E0B)" }}>
           <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden />
           <span>{fmt(t("p16cFormulas"), { n: rows.formulas })}</span>
         </p>
@@ -284,8 +284,8 @@ export function ConnectorConfirmCard({ messageId, card }: { messageId: string; c
             onClick={confirm}
             disabled={running}
             aria-label={t("p16cConfirmAria")}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold text-white transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
-            style={{ background: "var(--t-primary)" }}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
+            style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
           >
             {running ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : <Check className="size-3.5" aria-hidden />}
             {running ? t("p16cRunning") : t("p16cConfirm")}
@@ -295,7 +295,7 @@ export function ConnectorConfirmCard({ messageId, card }: { messageId: string; c
             onClick={reject}
             disabled={running}
             aria-label={t("p16cRejectAria")}
-            className="inline-flex min-h-9 items-center rounded-lg border px-3.5 text-sm font-medium transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-9 items-center rounded-lg border px-3.5 text-sm font-medium transition-colors hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] disabled:cursor-not-allowed disabled:opacity-50"
             style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
           >
             {t("p16cReject")}
@@ -309,7 +309,7 @@ export function ConnectorConfirmCard({ messageId, card }: { messageId: string; c
             {running ? t("p16cRunning") : ""}
           </span>
           {notice && !running && (
-            <p role="alert" className="flex w-full items-start gap-1.5 text-xs" style={{ color: "var(--warning, #F59E0B)" }}>
+            <p role="alert" className="flex w-full items-start gap-1.5 text-xs" style={{ color: "var(--t-warning, #F59E0B)" }}>
               <AlertTriangle className="mt-px size-3.5 shrink-0" aria-hidden />
               <span>
                 {t("p16cError")} · {t(ERR_KEY[notice])}
@@ -325,7 +325,7 @@ export function ConnectorConfirmCard({ messageId, card }: { messageId: string; c
             role="status"
             aria-live="polite"
             className="inline-flex flex-wrap items-center gap-1.5 rounded text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)]"
-            style={{ color: state === "error" || state === "partial" ? "var(--warning, #F59E0B)" : "var(--t-text-muted)" }}
+            style={{ color: state === "error" || state === "partial" ? "var(--t-warning, #F59E0B)" : "var(--t-text-muted)" }}
           >
             <StateIcon state={state} />
             <span>{stateText(state, t)}</span>
@@ -337,7 +337,7 @@ export function ConnectorConfirmCard({ messageId, card }: { messageId: string; c
                 rel="noopener noreferrer nofollow"
                 aria-label={t("p16cOpenAria")}
                 className="inline-flex items-center gap-1 rounded font-semibold underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)]"
-                style={{ color: "var(--t-accent)" }}
+                style={{ color: "var(--t-accent-text)" }}
               >
                 {t("p16cOpen")} <ExternalLink className="size-3" aria-hidden />
               </a>
@@ -380,7 +380,7 @@ function stateText(state: ConfirmState, t: (k: TKey) => string): string {
 }
 
 function StateIcon({ state }: { state: ConfirmState }) {
-  if (state === "done") return <Check className="size-3.5" style={{ color: "var(--t-accent)" }} aria-hidden />;
+  if (state === "done") return <Check className="size-3.5" style={{ color: "var(--t-accent-text)" }} aria-hidden />;
   if (state === "error" || state === "partial") return <AlertTriangle className="size-3.5" aria-hidden />;
   if (state === "expired") return <Clock className="size-3.5" aria-hidden />;
   return <XCircle className="size-3.5" aria-hidden />;

@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Bitcoin, Check, CreditCard, HardDrive, Loader2, QrCode, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatRub, PLAN_BY_ID, PLANS, planPriceRub, type BillingPeriod, type PlanId } from "@/config/plans";
 import { BillingToggle, priceFontSize, priceLabel, usePriceHint } from "@/components/pricing/BillingToggle";
 import { EASE, EASE_OUT_EXPO } from "@/lib/motion";
@@ -11,6 +11,8 @@ import type { TKey } from "@/lib/i18n";
 import { planText } from "@/lib/locales/plans";
 import { cn } from "@/lib/utils";
 import { useRegion } from "@/hooks/use-region";
+import { accessibleFill } from "@/config/model-themes";
+import { useDialogA11y } from "./use-dialog-a11y";
 
 interface PricingDialogProps {
   open: boolean;
@@ -74,7 +76,6 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
   const lang = useLang();
   // Mintaqa siyosati: cheklangan mintaqada tarifga faqat ruxsat etilgan modellar kiradi.
   const region = useRegion();
-  const titleId = useId();
   const [selected, setSelected] = useState<PlanId | null>(null);
   const [period, setPeriod] = useState<BillingPeriod>("month");
 
@@ -115,27 +116,25 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
     onClose();
   }
 
+  // Esc: to'lov bosqichida — tariflarga qaytadi, aks holda yopadi (to'lov ketayotganda — hech narsa).
+  // useDialogA11y: fokus panelga o'tadi, Tab ichida aylanadi, yopilganda ochgan tugmaga qaytadi.
+  const onEscape = () => {
+    if (loading) return;
+    if (selected) setSelected(null);
+    else {
+      setMessage(null);
+      onClose();
+    }
+  };
+  const { panelRef, titleId, dialogProps } = useDialogA11y(open, onEscape);
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || loading) return;
-      // Dashboard'ning global Esc (oqimni to'xtatish) ishlamasin.
-      e.preventDefault();
-      if (selected) setSelected(null);
-      else {
-        setMessage(null);
-        onClose();
-      }
-    };
     // Back button from the checkout page restores this page from bfcache with the spinner still on.
     const onShow = (e: PageTransitionEvent) => e.persisted && setLoading(null);
-    document.addEventListener("keydown", onKey);
     window.addEventListener("pageshow", onShow);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("pageshow", onShow);
-    };
-  }, [open, onClose, selected, loading]);
+    return () => window.removeEventListener("pageshow", onShow);
+  }, [open]);
 
   async function pay(method: Method) {
     if (!selected || loading) return;
@@ -197,11 +196,10 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
           transition={{ duration: 0.2 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
           onClick={close}
-          role="dialog"
-          aria-modal
-          aria-labelledby={titleId}
         >
           <motion.div
+            ref={panelRef}
+            {...dialogProps}
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -209,7 +207,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
             onClick={(e) => e.stopPropagation()}
             className={cn(
               // svh: iOS Safari'da toolbar ko'ringanda ham yopish (X) tugmasi ekrandan chiqmaydi.
-              "tt relative max-h-[calc(100svh-2rem)] w-full overflow-y-auto rounded-[22px] border p-6 transition-[max-width] duration-300 md:max-h-[92vh] md:p-8",
+              "tt relative max-h-[calc(100svh-2rem)] w-full overflow-y-auto rounded-xl border p-5 outline-none transition-[max-width] duration-300 sm:p-6 md:max-h-[92vh] md:p-8",
               plan ? "max-w-xl" : "max-w-6xl",
             )}
             style={{
@@ -223,11 +221,11 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
               type="button"
               onClick={close}
               disabled={!!loading}
-              className="absolute right-3 top-3 flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-white/10 disabled:opacity-40"
+              className="absolute right-3 top-3 flex size-11 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-40"
               aria-label={t("close")}
               style={{ color: "var(--t-text-muted, #9BA3CC)" }}
             >
-              <X className="size-5" />
+              <X className="size-5" aria-hidden />
             </button>
 
             <AnimatePresence mode="wait" initial={false}>
@@ -240,14 +238,14 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                   transition={{ duration: 0.2, ease: EASE }}
                 >
                   <div className="mb-6 text-center">
-                    <p className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: "var(--t-accent, #7C6FF7)" }}>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: "var(--t-accent-text, #978FFB)" }}>
                       {t("pricingPlans")}
                     </p>
                     <h2 id={titleId} className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em] md:text-3xl">
                       {t("pricingHeadline")}
                     </h2>
                     {reason && (
-                      <p className="mx-auto mt-3 max-w-xl rounded-xl px-4 py-2 text-sm" style={{ background: "rgba(245,158,11,0.12)", color: "#F59E0B" }}>
+                      <p className="mx-auto mt-3 max-w-xl rounded-lg px-4 py-2 text-sm" role="status" style={{ background: "color-mix(in srgb, var(--t-warning, #F59E0B) 12%, transparent)", color: "var(--t-warning, #F59E0B)" }}>
                         {reason}
                       </p>
                     )}
@@ -257,7 +255,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                         style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))", background: "color-mix(in srgb, var(--t-primary, #5B50F0) 8%, transparent)" }}
                         data-testid="local-model-cta"
                       >
-                        <HardDrive className="size-5 shrink-0" style={{ color: "var(--t-accent, #7C6FF7)" }} aria-hidden />
+                        <HardDrive className="size-5 shrink-0" style={{ color: "var(--t-accent-text, #978FFB)" }} aria-hidden />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold">{t("p14iLocalCtaTitle")}</p>
                           <p className="mt-0.5 text-xs leading-relaxed" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
@@ -268,7 +266,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           href={COWORK_DOWNLOAD_URL}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex min-h-9 shrink-0 items-center rounded-lg border px-3 text-xs font-semibold transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary,#5B50F0)]"
+                          className="inline-flex min-h-9 shrink-0 items-center rounded-md border px-3 text-xs font-semibold transition-colors hover:bg-[var(--surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary,#5B50F0)] [@media(pointer:coarse)]:min-h-11"
                           style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
                         >
                           {t("p14iLocalCtaBtn")}
@@ -293,6 +291,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                       const lower = idx < PLANS.findIndex((x) => x.id === currentPlan) && p.price > 0;
                       const suggested = p.id === suggestedPlan;
                       const tx = planText(lang, p);
+                      // Reja rangi to'ldirishda oq matn bilan ≥ 4.5:1 bo'lsin (Starter #10D4A0 → to'qroq).
+                      const fill = accessibleFill(p.color);
                       return (
                         <div
                           key={p.id}
@@ -307,8 +307,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                         >
                           {(p.highlight || suggested) && (
                             <span
-                              className="absolute -top-2.5 left-4 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white"
-                              style={{ background: p.color }}
+                              className="absolute -top-2.5 left-4 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider"
+                              style={{ background: fill.fill, color: fill.on }}
                             >
                               {suggested ? t("planNeeded") : t("planPopular")}
                             </span>
@@ -334,7 +334,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           <ul className="mt-4 flex-1 space-y-2 text-[13px]">
                             {tx.features.map((f) => (
                               <li key={f} className="flex items-start gap-2">
-                                <Check className="mt-0.5 size-3.5 shrink-0" style={{ color: p.color }} />
+                                <Check className="mt-0.5 size-3.5 shrink-0" style={{ color: p.color }} aria-hidden />
                                 <span>{f}</span>
                               </li>
                             ))}
@@ -350,13 +350,13 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                               setSelected(p.id);
                             }}
                             className={cn(
-                              "mt-5 h-10 w-full rounded-xl text-sm font-semibold transition-opacity disabled:cursor-default",
+                              "mt-5 h-11 w-full rounded-md text-sm font-semibold transition-opacity disabled:cursor-default",
                               lower || p.price === 0 ? "opacity-60" : "hover:opacity-90",
                             )}
                             style={
                               lower || p.price === 0
                                 ? { border: "1px solid var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text-muted, #9BA3CC)" }
-                                : { background: p.color, color: "#fff" }
+                                : { background: fill.fill, color: fill.on }
                             }
                           >
                             {lower
@@ -386,13 +386,13 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     type="button"
                     onClick={() => setSelected(null)}
                     disabled={!!loading}
-                    className="-ml-2 mb-4 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm transition-colors hover:bg-white/10 disabled:opacity-40"
+                    className="-ml-2 mb-4 inline-flex min-h-9 items-center gap-1.5 rounded-md px-2 py-1 text-sm transition-colors hover:bg-[var(--surface-hover)] disabled:opacity-40 [@media(pointer:coarse)]:min-h-11"
                     style={{ color: "var(--t-text-muted, #9BA3CC)" }}
                   >
-                    <ArrowLeft className="size-4" /> {t("pricingPlans")}
+                    <ArrowLeft className="size-4" aria-hidden /> {t("pricingPlans")}
                   </button>
 
-                  <p className="text-xs font-medium uppercase tracking-[0.2em]" style={{ color: plan.color }}>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.14em]" style={{ color: plan.color }}>
                     {plan.name} · {priceLabel(plan, period)}/{period === "year" ? t("ldPerYear") : t("perMonth")}
                   </p>
                   <h2 id={titleId} ref={methodHeadingRef} tabIndex={-1} className="t-display mt-2 text-2xl font-extrabold tracking-[-0.03em] outline-none">
@@ -410,8 +410,8 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                       autoComplete="off"
                       spellCheck={false}
                       placeholder={t("chPromoPlaceholder")}
-                      className="tt h-11 w-full rounded-xl bg-transparent px-4 text-sm tracking-wider outline-none transition-colors focus:border-[var(--t-accent,#7C6FF7)] disabled:opacity-40"
-                      style={{ border: "1px solid var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
+                      className="tt h-11 w-full rounded-md border border-[var(--t-border,rgba(255,255,255,0.1))] bg-transparent px-4 text-[16px] tracking-wider outline-none transition-colors focus-visible:border-[var(--t-primary,#5B50F0)] focus-visible:ring-2 focus-visible:ring-[var(--t-primary,#5B50F0)]/40 disabled:opacity-40 md:text-sm"
+                      style={{ color: "var(--t-text, #F0F2FF)" }}
                     />
                     <span className="mt-1.5 block text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
                       {/* Karta (Dodo) va kripto/СБП kodlari alohida — "hamma usulga" deb va'da bermaymiz. */}
@@ -424,7 +424,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                     role="group"
                     aria-label={t("paymentMethod")}
                     className="tt mt-4 overflow-hidden"
-                    style={{ border: "1px solid var(--t-border)", borderRadius: 18 }}
+                    style={{ border: "1px solid var(--t-border)", borderRadius: 12 }}
                   >
                     {(preferredMethod
                       ? [...METHODS.filter((m) => m.id === preferredMethod), ...METHODS.filter((m) => m.id !== preferredMethod)]
@@ -445,7 +445,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                           autoFocus={id === preferredMethod}
                           className={cn(
                             "group flex w-full items-center gap-4 p-4 text-left transition-colors",
-                            "hover:bg-white/5 disabled:cursor-default",
+                            "hover:bg-[var(--surface-hover)] disabled:cursor-default",
                             loading && !busy && "opacity-40",
                           )}
                           style={{
@@ -462,7 +462,7 @@ export function PricingDialog({ open, onClose, currentPlan, reason, suggestedPla
                             className="grid size-12 shrink-0 place-items-center rounded-xl"
                             style={{ background: `color-mix(in srgb, ${plan.color} 18%, transparent)`, color: plan.color }}
                           >
-                            {busy ? <Loader2 className="size-5 animate-spin" /> : <Icon className="size-5" />}
+                            {busy ? <Loader2 className="size-5 animate-spin" aria-hidden /> : <Icon className="size-5" aria-hidden />}
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block font-semibold">{t(titleKey)}</span>

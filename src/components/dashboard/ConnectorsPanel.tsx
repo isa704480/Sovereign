@@ -17,27 +17,13 @@ import { fmt } from "@/lib/i18n";
 import { connectorCategoryLabel, connectorText } from "@/lib/locales/panels-data";
 import { useLang, useT } from "@/store/chat";
 import { useDialogA11y } from "./use-dialog-a11y";
+import { ConnectorIcon } from "./glyph-icons";
+import { LoadError, SkeletonRows } from "./LoadState";
+import { Switch } from "./Switch";
 
 interface ConnectorsPanelProps {
   open: boolean;
   onClose: () => void;
-}
-
-function Toggle({ on, onChange, disabled, label }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      disabled={disabled}
-      onClick={() => onChange(!on)}
-      className="relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-40"
-      style={{ background: on ? "var(--t-primary, #5B50F0)" : "color-mix(in srgb, var(--t-text, #fff) 18%, transparent)" }}
-    >
-      <span className="absolute left-0.5 top-0.5 size-4 rounded-full bg-white transition-transform" style={{ transform: on ? "translateX(16px)" : "translateX(0)" }} />
-    </button>
-  );
 }
 
 export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
@@ -45,6 +31,8 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
   const lang = useLang();
   const [states, setStates] = useState<Record<string, ConnectorState>>({});
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [reload, setReload] = useState(0);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<Record<string, string>>({});
@@ -56,14 +44,20 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
     listConnectors()
       .then((rows) => {
         if (!alive) return;
+        setLoadError(false);
         setStates(Object.fromEntries(rows.map((r) => [r.connectorId, r])));
         setLoaded(true);
       })
-      .catch(() => alive && setLoaded(true));
+      .catch(() => {
+        // Holatlarni o'qib bo'lmadi — "hammasi uzilgan" deb ko'rsatmaymiz.
+        if (!alive) return;
+        setLoaded(false);
+        setLoadError(true);
+      });
     return () => {
       alive = false;
     };
-  }, [open]);
+  }, [open, reload]);
 
   const stateOf = (id: string): ConnectorState => states[id] ?? { connectorId: id, enabled: false, connected: false };
 
@@ -147,16 +141,21 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-xl flex-col rounded-3xl border shadow-lg outline-none md:max-h-[88vh]"
-            style={{ background: "var(--t-surface, #0D1033)", borderColor: "var(--t-border, rgba(255,255,255,0.1))", color: "var(--t-text, #F0F2FF)" }}
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-xl flex-col rounded-xl border outline-none md:max-h-[88vh]"
+            style={{
+              background: "var(--t-surface, #0D1033)",
+              borderColor: "var(--t-border, rgba(255,255,255,0.1))",
+              color: "var(--t-text, #F0F2FF)",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.35), 0 30px 80px rgba(0,0,0,0.55)",
+            }}
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
               <div className="flex items-center gap-2">
-                <Plug className="size-5" style={{ color: "var(--t-accent, #7C6FF7)" }} />
+                <Plug className="size-5" style={{ color: "var(--t-text-muted, #9BA3CC)" }} aria-hidden />
                 <h2 id={titleId} className="font-display text-lg font-bold">{t("pnConnectorsTitle")}</h2>
               </div>
-              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
-                <X className="size-5" />
+              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-[var(--surface-hover)] md:size-9 [@media(pointer:coarse)]:md:size-11" aria-label={t("close")} style={{ color: "var(--t-text-muted, #9BA3CC)" }}>
+                <X className="size-5" aria-hidden />
               </button>
             </div>
 
@@ -165,17 +164,25 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                 {t("pnConnectorsIntro")}
               </p>
 
-              {!loaded ? (
-                <div className="flex justify-center py-10"><Loader2 className="size-5 animate-spin" style={{ color: "var(--t-text-muted)" }} /></div>
+              {loadError ? (
+                <LoadError
+                  onRetry={() => {
+                    setLoadError(false);
+                    setReload((n) => n + 1);
+                  }}
+                />
+              ) : !loaded ? (
+                <SkeletonRows rows={4} rowClassName="h-14" />
               ) : (
                 CONNECTOR_CATEGORIES.map((cat) => {
                   const items = CONNECTORS.filter((c) => c.category === cat.id);
                   if (!items.length) return null;
                   return (
                     <div key={cat.id} className="mb-5">
-                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{connectorCategoryLabel(lang, cat)}</div>
-                      <div className="flex flex-col gap-2">
-                        {items.map((spec) => {
+                      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{connectorCategoryLabel(lang, cat)}</h3>
+                      {/* Kategoriya — bitta panel, connectorlar hairline qatorlar (alohida kartalar emas). */}
+                      <div className="overflow-hidden rounded-lg border" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))" }}>
+                        {items.map((spec, idx) => {
                           const st = stateOf(spec.id);
                           const isGoogle = spec.auth === "oauth-google";
                           const isBuiltin = spec.auth === "builtin";
@@ -191,27 +198,29 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                 ? fmt(t("p8bPersonalToken"), { name: tx.name })
                                 : t("pnToken");
                           return (
-                            <div key={spec.id} className="rounded-2xl border p-3.5" style={{ borderColor: "var(--t-border, rgba(255,255,255,0.1))", background: "color-mix(in srgb, var(--t-text, #fff) 3%, transparent)" }}>
+                            <div key={spec.id} className="p-3.5" style={{ borderTop: idx === 0 ? "none" : "1px solid var(--t-border, rgba(255,255,255,0.1))" }}>
                               <div className="flex items-start gap-3">
-                                <span className="text-xl leading-none">{spec.glyph}</span>
+                                <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg" style={{ background: "color-mix(in srgb, var(--t-text, #fff) 6%, transparent)" }}>
+                                  <ConnectorIcon name={spec.icon} />
+                                </span>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
                                     <span className="text-sm font-semibold">{tx.name}</span>
                                     {soon && (
-                                      <span className="rounded-full px-1.5 py-0.5 text-[10px]" style={{ background: "color-mix(in srgb, var(--t-text, #fff) 8%, transparent)", color: "var(--t-text-muted, #9BA3CC)" }}>
+                                      <span className="rounded-full px-1.5 py-0.5 text-[11px]" style={{ background: "color-mix(in srgb, var(--t-text, #fff) 8%, transparent)", color: "var(--t-text-muted, #9BA3CC)" }}>
                                         {t("p19ConnSoonBadge")}
                                       </span>
                                     )}
                                     {st.connected && !soon && (
-                                      <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]" style={{ background: "color-mix(in srgb, var(--t-primary) 20%, transparent)", color: "var(--t-accent)" }}>
-                                        <Check className="size-3" /> {st.meta || t("pnConnected")}
+                                      <span className="inline-flex min-w-0 items-center gap-1 truncate rounded-full px-1.5 py-0.5 text-[11px]" style={{ background: "color-mix(in srgb, var(--t-success) 14%, transparent)", color: "var(--t-success)" }}>
+                                        <Check className="size-3 shrink-0" aria-hidden /> {st.meta || t("pnConnected")}
                                       </span>
                                     )}
                                   </div>
                                   <div className="text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>{tx.description}</div>
                                 </div>
                                 {(st.connected || isBuiltin) && !soon && (
-                                  <Toggle on={st.enabled} onChange={(v) => toggle(spec, v)} label={tx.name} />
+                                  <Switch size="sm" on={st.enabled} onChange={(v) => toggle(spec, v)} label={tx.name} />
                                 )}
                               </div>
 
@@ -225,21 +234,21 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                       onChange={(e) => setDraft((d) => ({ ...d, [spec.id]: e.target.value }))}
                                       placeholder={tokenHint}
                                       aria-label={`${tx.name}: ${tokenHint}`}
-                                      className="min-w-0 flex-1 rounded-lg border bg-transparent px-2.5 py-1.5 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-xs"
+                                      className="min-h-9 min-w-0 flex-1 rounded-md border bg-transparent px-2.5 py-1.5 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-xs [@media(pointer:coarse)]:min-h-11"
                                       style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                                     />
                                     <button
                                       type="button"
                                       onClick={() => connect(spec)}
                                       disabled={busy === spec.id || !(draft[spec.id] ?? "").trim()}
-                                      className="rounded-lg px-3 py-1.5 text-xs font-medium text-white transition-opacity disabled:opacity-40"
-                                      style={{ background: "var(--t-primary, #5B50F0)" }}
+                                      className="min-h-9 rounded-md px-3 py-1.5 text-xs font-medium transition-opacity disabled:opacity-40 [@media(pointer:coarse)]:min-h-11"
+                                      style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
                                     >
-                                      {busy === spec.id ? <Loader2 className="size-3.5 animate-spin" /> : t("pnConnect")}
+                                      {busy === spec.id ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : t("pnConnect")}
                                     </button>
                                   </div>
                                   {spec.docsUrl && (
-                                    <a href={spec.docsUrl} target="_blank" rel="noreferrer" className="text-[11px] underline" style={{ color: "var(--t-text-muted)" }}>
+                                    <a href={spec.docsUrl} target="_blank" rel="noreferrer" className="self-start text-xs underline" style={{ color: "var(--t-text-muted)" }}>
                                       {t("pnTokenWhere")}
                                     </a>
                                   )}
@@ -248,7 +257,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
 
                               {/* token connected — uzish */}
                               {isTokenish && st.connected && (
-                                <button type="button" onClick={() => disconnect(spec)} className="mt-2 text-[11px] underline" style={{ color: "var(--t-text-muted)" }}>
+                                <button type="button" onClick={() => disconnect(spec)} className="mt-2 min-h-8 text-xs underline [@media(pointer:coarse)]:min-h-11" style={{ color: "var(--t-text-muted)" }}>
                                   {t("pnDisconnect")}
                                 </button>
                               )}
@@ -260,25 +269,25 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                     type="button"
                                     onClick={() => void linkGoogle(spec)}
                                     disabled={busy === spec.id}
-                                    className="inline-flex min-h-8 items-center gap-1.5 self-start rounded-lg px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
-                                    style={{ background: "var(--t-primary, #5B50F0)" }}
+                                    className="inline-flex min-h-9 items-center gap-1.5 self-start rounded-md px-3 py-1.5 text-xs font-medium disabled:opacity-60 [@media(pointer:coarse)]:min-h-11"
+                                    style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
                                   >
-                                    {busy === spec.id && <Loader2 className="size-3.5 animate-spin" />}
+                                    {busy === spec.id && <Loader2 className="size-3.5 animate-spin" aria-hidden />}
                                     {t("pnConnectGoogle")}
                                   </button>
-                                  <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+                                  <span className="text-xs" style={{ color: "var(--t-text-muted)" }}>
                                     {fmt(t("pnGoogleOauthNote"), { extra: spec.sensitive ? t("pnGoogleReviewNote") : "" })}
                                   </span>
                                 </div>
                               )}
                               {isGoogle && st.connected && (
-                                <button type="button" onClick={() => disconnect(spec)} className="mt-2 text-[11px] underline" style={{ color: "var(--t-text-muted)" }}>
+                                <button type="button" onClick={() => disconnect(spec)} className="mt-2 min-h-8 text-xs underline [@media(pointer:coarse)]:min-h-11" style={{ color: "var(--t-text-muted)" }}>
                                   {t("pnDisconnect")}
                                 </button>
                               )}
                               {/* Ulash / uzish / yoqish xatosi — har qanday turdagi ulanish uchun */}
                               {error[spec.id] && (
-                                <p role="alert" className="mt-1.5 text-[11px]" style={{ color: "#EB5A64" }}>
+                                <p role="alert" className="mt-1.5 text-xs" style={{ color: "var(--t-danger, #EF4444)" }}>
                                   {error[spec.id]}
                                 </p>
                               )}

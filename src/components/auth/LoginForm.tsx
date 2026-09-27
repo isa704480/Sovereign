@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { AnimatePresence } from "motion/react";
@@ -96,10 +96,11 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
             autoComplete="email"
             placeholder="email@example.com"
             aria-invalid={!!form.formState.errors.email}
+            aria-describedby={form.formState.errors.email ? "login-email-error" : undefined}
             className={inputClass}
             {...form.register("email")}
           />
-          <FieldError message={form.formState.errors.email?.message} />
+          <FieldError id="login-email-error" message={form.formState.errors.email?.message} />
         </div>
 
         {!resetMode && (
@@ -109,7 +110,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
               <button
                 type="button"
                 onClick={() => setResetMode(true)}
-                className="text-xs text-text-muted transition-colors hover:text-primary-soft"
+                className="-mr-1 inline-flex min-h-11 items-center px-1 text-sm text-text-secondary transition-colors hover:text-primary-soft"
               >
                 {t("auForgotPassword")}
               </button>
@@ -119,10 +120,11 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
               autoComplete="current-password"
               placeholder={t("auPasswordPlaceholder")}
               aria-invalid={!!form.formState.errors.password}
+              aria-describedby={form.formState.errors.password ? "login-password-error" : undefined}
               className={inputClass}
               {...form.register("password")}
             />
-            <FieldError message={form.formState.errors.password?.message} />
+            <FieldError id="login-password-error" message={form.formState.errors.password?.message} />
           </div>
         )}
 
@@ -134,17 +136,18 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
         </AnimatePresence>
 
         <SubmitButton pending={pending}>
-          {pending ? <Loader2 className="size-4 animate-spin" /> : null}
+          {pending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
           {resetMode ? t("auSendResetLink") : t("login")}
-          {!pending && <ArrowRight className="size-4" />}
+          {!pending && <ArrowRight className="size-4" aria-hidden />}
         </SubmitButton>
 
         {resetMode && (
           <button
             type="button"
             onClick={() => setResetMode(false)}
-            className="w-full text-center text-xs text-text-muted transition-colors hover:text-text-primary"
+            className="inline-flex min-h-11 w-full items-center justify-center text-sm text-text-secondary transition-colors hover:text-text-primary"
           >
+            <ArrowLeft className="mr-1.5 size-3.5" aria-hidden />
             {t("auBackToPasswordLogin")}
           </button>
         )}

@@ -12,11 +12,11 @@ export const AUTH = {
     en: "Log in to your account to continue",
   },
   auNoAccount: { uz: "Hisobingiz yo'qmi?", "uz-cyrl": "Ҳисобингиз йўқми?", ru: "Нет аккаунта?", en: "Don't have an account?" },
-  auSignUpLink: { uz: "Ro'yxatdan o'ting →", "uz-cyrl": "Рўйхатдан ўтинг →", ru: "Зарегистрируйтесь →", en: "Sign up →" },
+  auSignUpLink: { uz: "Ro'yxatdan o'ting", "uz-cyrl": "Рўйхатдан ўтинг", ru: "Зарегистрируйтесь", en: "Sign up" },
   auRegisterTitle: { uz: "Hisobingizni yarating", "uz-cyrl": "Ҳисобингизни яратинг", ru: "Создайте аккаунт", en: "Create your account" },
   auRegisterSubtitle: { uz: "30 soniyada tayyor", "uz-cyrl": "30 сонияда тайёр", ru: "Готово за 30 секунд", en: "Ready in 30 seconds" },
   auHaveAccount: { uz: "Hisobingiz bormi?", "uz-cyrl": "Ҳисобингиз борми?", ru: "Уже есть аккаунт?", en: "Already have an account?" },
-  auSignInLink: { uz: "Kiring →", "uz-cyrl": "Киринг →", ru: "Войдите →", en: "Log in →" },
+  auSignInLink: { uz: "Kiring", "uz-cyrl": "Киринг", ru: "Войдите", en: "Log in" },
 
   // ── Trust badges / vizual panel ──
   auBadgeEncryption: { uz: "Shifrlangan ulanish (TLS)", "uz-cyrl": "Шифрланган уланиш (TLS)", ru: "Шифрованное соединение (TLS)", en: "Encrypted connection (TLS)" },
@@ -54,10 +54,10 @@ export const AUTH = {
   auPasswordPlaceholder: { uz: "Parolingiz", "uz-cyrl": "Паролингиз", ru: "Ваш пароль", en: "Your password" },
   auSendResetLink: { uz: "Tiklash havolasini yuborish", "uz-cyrl": "Тиклаш ҳаволасини юбориш", ru: "Отправить ссылку для сброса", en: "Send reset link" },
   auBackToPasswordLogin: {
-    uz: "← Parol bilan kirishga qaytish",
-    "uz-cyrl": "← Парол билан киришга қайтиш",
-    ru: "← Вернуться ко входу по паролю",
-    en: "← Back to password login",
+    uz: "Parol bilan kirishga qaytish",
+    "uz-cyrl": "Парол билан киришга қайтиш",
+    ru: "Вернуться ко входу по паролю",
+    en: "Back to password login",
   },
   auResetSent: {
     uz: "Parolni tiklash havolasi emailingizga yuborildi.",

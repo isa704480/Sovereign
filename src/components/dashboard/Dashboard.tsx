@@ -521,7 +521,6 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
   );
 
   const empty = messages.length === 0;
-  const centered = empty && theme.layout.centeredEmptyInput;
 
   return (
     <ThemeProvider value={ctx}>
@@ -602,12 +601,7 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
                 <div className="flex-1" />
               ) : empty ? (
                 <AnimatePresence mode="wait">
-                  <Welcome
-                    key={theme.id}
-                    userName={user.name}
-                    onSuggestion={(text) => inputRef.current?.setDraft(text)}
-                    input={centered ? <div className="w-full">{inputEl}</div> : undefined}
-                  />
+                  <Welcome key="welcome" userName={user.name} onSuggestion={(text) => inputRef.current?.setDraft(text)} />
                 </AnimatePresence>
               ) : (
                 // Butun ro'yxat live region emas (suhbat almashtirilganda butun tarix o'qilardi);
@@ -617,17 +611,15 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
                 </div>
               )}
 
-              {!centered && (
-                <motion.div
-                  layout
-                  // Faqat joylashuv haqiqatan o'zgarganda o'lchaydi — har token'da reflow bo'lmasin.
-                  layoutDependency={`${!!artifact}-${showSources}`}
-                  transition={{ duration: 0.3, ease: EASE }}
-                  className="px-3 pb-3 pt-2 md:px-6 md:pb-5"
-                >
-                  {inputEl}
-                </motion.div>
-              )}
+              <motion.div
+                layout
+                // Faqat joylashuv haqiqatan o'zgarganda o'lchaydi — har token'da reflow bo'lmasin.
+                layoutDependency={`${!!artifact}-${showSources}`}
+                transition={{ duration: 0.3, ease: EASE }}
+                className="px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 md:px-6 md:pb-5"
+              >
+                {inputEl}
+              </motion.div>
             </div>
 
             <AnimatePresence>
@@ -672,15 +664,16 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
               exit={{ opacity: 0, y: 12 }}
               transition={{ duration: 0.2, ease: EASE }}
               role="status"
-              className="tt fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 border py-2 pl-4 pr-2 text-sm shadow-lg"
-              style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", borderRadius: 14, color: "var(--t-text)" }}
+              // Telefonda kiritish maydoni ustida, safe-area hisobga olinadi.
+              className="tt fixed bottom-[calc(env(safe-area-inset-bottom)+7rem)] left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl border py-2 pl-4 pr-2 text-sm md:bottom-[max(1.25rem,env(safe-area-inset-bottom))]"
+              style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", color: "var(--t-text)", boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.45)" }}
             >
               <span>{t("uxDeleted")}</span>
               <button
                 type="button"
                 onClick={() => undoDelete(undoToast)}
-                className="min-h-8 rounded-lg px-3 font-semibold transition-colors hover:bg-white/10"
-                style={{ color: "var(--t-accent)" }}
+                className="min-h-8 rounded-md px-3 font-semibold transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
+                style={{ color: "var(--t-accent-text)" }}
               >
                 {t("uxUndo")}
               </button>
@@ -698,12 +691,12 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.2, ease: EASE }}
               role={payShown === "failed" ? "alert" : "status"}
-              className="tt fixed left-1/2 top-4 z-50 flex w-[min(92vw,520px)] -translate-x-1/2 items-start gap-3 border py-2.5 pl-4 pr-2 text-sm shadow-lg"
+              className="tt fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-50 flex w-[min(92vw,520px)] -translate-x-1/2 items-start gap-3 rounded-xl border py-2.5 pl-4 pr-2 text-sm"
               style={{
                 background: "var(--t-surface)",
-                borderColor: payShown === "failed" ? "var(--error, #E0554E)" : "var(--t-border)",
-                borderRadius: 14,
+                borderColor: payShown === "failed" ? "var(--t-danger)" : "var(--t-border)",
                 color: "var(--t-text)",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.45)",
               }}
             >
               <span className="min-w-0 flex-1 py-1">
@@ -716,8 +709,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
                     setPayNotice(null);
                     openPricing();
                   }}
-                  className="min-h-8 shrink-0 rounded-lg px-3 font-semibold transition-colors hover:bg-white/10"
-                  style={{ color: "var(--t-accent)" }}
+                  className="min-h-8 shrink-0 rounded-md px-3 font-semibold transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
+                  style={{ color: "var(--t-accent-text)" }}
                 >
                   {t("p3bPaidRetry")}
                 </button>
@@ -725,12 +718,12 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
               <button
                 type="button"
                 onClick={() => setPayNotice(null)}
-                className="min-h-8 shrink-0 rounded-lg px-2 transition-colors hover:bg-white/10"
+                className="flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:size-11"
                 style={{ color: "var(--t-text-muted)" }}
                 aria-label={t("p3bDismiss")}
                 title={t("p3bDismiss")}
               >
-                <X className="size-4" />
+                <X className="size-4" aria-hidden />
               </button>
             </motion.div>
           )}
@@ -746,8 +739,8 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.2, ease: EASE }}
               role="alert"
-              className="tt fixed left-1/2 top-4 z-50 flex w-[min(92vw,520px)] -translate-x-1/2 items-start gap-3 border py-2.5 pl-4 pr-2 text-sm shadow-lg"
-              style={{ background: "var(--t-surface)", borderColor: "var(--error, #E0554E)", borderRadius: 14, color: "var(--t-text)" }}
+              className="tt fixed left-1/2 top-[max(1rem,env(safe-area-inset-top))] z-50 flex w-[min(92vw,520px)] -translate-x-1/2 items-start gap-3 rounded-xl border py-2.5 pl-4 pr-2 text-sm"
+              style={{ background: "var(--t-surface)", borderColor: "var(--t-danger)", color: "var(--t-text)", boxShadow: "0 2px 8px rgba(0,0,0,0.3), 0 20px 50px rgba(0,0,0,0.45)" }}
             >
               <span className="min-w-0 flex-1 py-1">
                 {connectNotice === "server" ? t("p19ConnKeyMissing") : t("p19ConnSaveFailed")}
@@ -755,12 +748,12 @@ export function Dashboard({ user, defaultModelId, initialConversations, isDev, p
               <button
                 type="button"
                 onClick={() => setConnectNotice(null)}
-                className="min-h-8 shrink-0 rounded-lg px-2 transition-colors hover:bg-white/10"
+                className="flex min-h-8 min-w-8 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:size-11"
                 style={{ color: "var(--t-text-muted)" }}
                 aria-label={t("p3bDismiss")}
                 title={t("p3bDismiss")}
               >
-                <X className="size-4" />
+                <X className="size-4" aria-hidden />
               </button>
             </motion.div>
           )}
