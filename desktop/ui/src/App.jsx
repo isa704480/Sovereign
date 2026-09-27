@@ -84,6 +84,36 @@ export default function App() {
     setTimeout(() => setToasts((l) => l.filter((x) => x.id !== id)), action ? 7000 : 4200);
   }, []);
   const dismissToast = (id) => setToasts((l) => l.filter((x) => x.id !== id));
+  const tRef = useRef(t);
+  tRef.current = t;
+
+  // ---- Yangilanishni o'rnatish (qayta ishga tushirish) ----
+  // Agent ishlayotganda HECH QACHON qayta ishga tushirilmaydi: so'rov eslab qolinadi va vazifa
+  // tugagach (bekor qilish imkoni bilan) bajariladi. main ham ishlayotgan vazifada "busy" qaytaradi.
+  const pendingInstall = useRef(false);
+  const restartTimer = useRef(null);
+  const deferInstall = useCallback(() => {
+    if (!pendingInstall.current) toast(tRef.current("update.deferred"), "info");
+    pendingInstall.current = true;
+  }, [toast]);
+  const requestInstall = useCallback(async () => {
+    if (busyRef.current) { deferInstall(); return; }
+    const r = await S().updates.install().catch(() => null);
+    if (r?.error === "busy") deferInstall();
+  }, [deferInstall]);
+  const installRef = useRef(requestInstall);
+  installRef.current = requestInstall;
+  useEffect(() => {
+    if (agent.busy || !pendingInstall.current) return;
+    pendingInstall.current = false;
+    clearTimeout(restartTimer.current);
+    const cancel = () => { clearTimeout(restartTimer.current); restartTimer.current = null; };
+    toast(t("update.restartingSoon"), "info", { label: t("common.cancel"), run: cancel });
+    restartTimer.current = setTimeout(() => {
+      restartTimer.current = null;
+      installRef.current();
+    }, 6000);
+  }, [agent.busy]);
 
   const refreshTree = useCallback(async () => {
     const r = await S()?.fsTree().catch(() => null);
@@ -125,7 +155,7 @@ export default function App() {
         setUpdate(ev);
         if (ev.state === "ready" && installWhenReady.current) {
           installWhenReady.current = false;
-          if (!busyRef.current) S().updates.install();
+          installRef.current();
         }
         return;
       }
@@ -194,7 +224,7 @@ export default function App() {
     const r = await S().newTask();
     dispatch({ type: "reset" });
     setActiveTaskId(null);
-    if (r?.history) setHistory(r.history);
+    if (r?.history) setHistory(r.history.filter((x) => !pendingRemovals.current.has(x.id)));
     setMode(settings?.defaultMode ?? "code");
     setInput("");
     setTimeout(() => composerRef.current?.focus(), 0);
@@ -213,12 +243,42 @@ export default function App() {
     refreshTree();
     if (r.folderMissing) toast(t("tasks.folderMissing"), "err");
   };
+  // Vazifani o'chirish — qaytarib bo'ladigan: ro'yxatdan darhol yashiriladi, diskdan esa
+  // 7 soniyadan keyin o'chiriladi ("Qaytarish" bosilsa — joyiga qaytadi). Ilova shu orada yopilsa —
+  // vazifa saqlanib qoladi (xavfsiz tomonga).
+  const pendingRemovals = useRef(new Map());
   const removeTask = async (id) => {
-    const list = await S().history.remove(id);
-    setHistory(list ?? []);
-    if (id === activeTaskId) { dispatch({ type: "reset" }); setActiveTaskId(null); }
+    const item = history.find((h) => h.id === id);
+    if (!item || pendingRemovals.current.has(id)) return;
+    const wasActive = id === activeTaskId;
+    if (wasActive) {
+      if (agent.busy) return; // ishlayotgan vazifa avval to'xtatiladi (tugma ham o'chiq)
+      await S().newTask().catch(() => null); // main joriy vazifadan chiqadi, fayl hali o'chmaydi
+      dispatch({ type: "reset" });
+      setActiveTaskId(null);
+    }
+    setHistory((h) => h.filter((x) => x.id !== id));
+    const commit = async () => {
+      pendingRemovals.current.delete(id);
+      const list = await S().history.remove(id).catch(() => null);
+      if (list) setHistory(list.filter((x) => !pendingRemovals.current.has(x.id)));
+    };
+    const undo = () => {
+      const p = pendingRemovals.current.get(id);
+      if (!p) return;
+      clearTimeout(p.timer);
+      pendingRemovals.current.delete(id);
+      setHistory((h) => [...h.filter((x) => x.id !== id), item].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0)));
+      if (wasActive) openTaskRef.current?.(id);
+    };
+    pendingRemovals.current.set(id, { timer: setTimeout(commit, 7000) });
+    toast(t("tasks.removed", { title: item.title || "" }), "info", { label: t("common.undo"), run: undo });
   };
+  const openTaskRef = useRef(null);
+  openTaskRef.current = openTask;
   const clearHistory = async () => {
+    for (const p of pendingRemovals.current.values()) clearTimeout(p.timer);
+    pendingRemovals.current.clear();
     await S().history.clear();
     setHistory([]);
     dispatch({ type: "reset" });
@@ -398,7 +458,7 @@ export default function App() {
   const updateAction = async (what) => {
     if (what === "check") setUpdate(await S().updates.check());
     else if (what === "download") setUpdate(await S().updates.download());
-    else if (what === "install") S().updates.install();
+    else if (what === "install") requestInstall();
     else if (what === "download-install") {
       // Sidebar kartasi: yuklab olish → tayyor bo'lganda o'rnatib, qayta ishga tushirish.
       installWhenReady.current = true;
@@ -406,7 +466,7 @@ export default function App() {
       setUpdate(st);
       if (st?.state === "ready" && installWhenReady.current) {
         installWhenReady.current = false;
-        if (!busyRef.current) S().updates.install();
+        requestInstall();
       }
     } else if (what === "open-download") S().openLink("download"); // macOS: sayt orqali
   };

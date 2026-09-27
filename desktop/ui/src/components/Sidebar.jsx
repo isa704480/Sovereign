@@ -37,7 +37,12 @@ function TaskList({ history, activeId, onOpen, onRemove, busy }) {
                   </span>
                 </span>
               </button>
-              <button type="button" className="icon-btn task-del" aria-label={t("tasks.remove")} title={t("tasks.remove")} onClick={() => onRemove(h.id)}>
+              <button
+                type="button" className="icon-btn task-del" onClick={() => onRemove(h.id)}
+                disabled={busy && activeId === h.id}
+                aria-label={`${t("tasks.remove")}: ${h.title}`}
+                title={busy && activeId === h.id ? t("tasks.removeRunning") : t("tasks.remove")}
+              >
                 <Icon name="trash" size={13} />
               </button>
             </div>
@@ -65,10 +70,12 @@ function UpdateCard({ update, platform, onAction }) {
   if (s === "downloading") {
     const p = Math.max(0, Math.min(100, Number(update?.percent) || 0));
     return (
-      <div className="update-card busy" role="status">
+      <div className="update-card busy">
+        {/* Ekran o'quvchisi bosqichni bir marta eshitadi (har foizni emas); foiz — progressbar'da. */}
+        <span className="sr-only" role="status">{t("updCard.downloadingSr")}</span>
         <Icon name="download" size={16} className="accent" />
         <span className="grow" style={{ minWidth: 0 }}>
-          <span className="trunc block strong small">{t("update.state.downloading", { p })}</span>
+          <span className="trunc block strong small tnum" aria-hidden="true">{t("update.state.downloading", { p })}</span>
           <span className="update-bar" role="progressbar" aria-label={t("updCard.progress")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={p}>
             <span style={{ width: `${p}%` }} />
           </span>

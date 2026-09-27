@@ -488,7 +488,9 @@ export default function Settings({ initial = "general", onClose, info, settings,
               <div className="field mt">
                 <span className="label-sm">{t("update.title")}</span>
                 <div className="row gap-sm">
-                  <span className="grow small muted" role="status">{t(`update.state.${update?.state ?? "idle"}`, { v: update?.version ?? "", p: update?.percent ?? 0 })}</span>
+                  <span className="grow small muted tnum" aria-hidden={update?.state === "downloading" ? "true" : undefined}>{t(`update.state.${update?.state ?? "idle"}`, { v: update?.version ?? "", p: update?.percent ?? 0 })}</span>
+                  {/* Holat e'loni: yuklash paytida har foiz emas — bosqich bir marta aytiladi. */}
+                  <span className="sr-only" role="status">{update?.state === "downloading" ? t("updCard.downloadingSr") : t(`update.state.${update?.state ?? "idle"}`, { v: update?.version ?? "", p: 0 })}</span>
                   {update?.state === "available" && <button type="button" className="btn btn-sm btn-primary" onClick={() => onUpdateAction("download")}><Icon name="download" size={13} /> {t("update.download")}</button>}
                   {update?.state === "ready" && <button type="button" className="btn btn-sm btn-primary" onClick={() => onUpdateAction("install")}>{t("update.restart")}</button>}
                   {!["disabled", "checking", "downloading", "ready", "available"].includes(update?.state) && <button type="button" className="btn btn-sm" onClick={() => onUpdateAction("check")}><Icon name="refresh" size={13} /> {t("update.check")}</button>}

@@ -1664,6 +1664,8 @@ handle("auth:logout", async () => {
 handle("update:check", async () => checkForUpdates());
 handle("update:download", async () => downloadUpdate());
 handle("update:install", async () => {
+  // Ishlayotgan agent vazifasi uzilmasin: UI o'rnatishni vazifa tugaguncha kechiktiradi.
+  if (activeTurn) return { ok: false, error: "busy" };
   persistCurrentTask();
   installUpdate();
   return { ok: true };

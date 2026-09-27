@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Icon from "./Icon.jsx";
 import DiffView from "./DiffView.jsx";
+import Modal from "./Modal.jsx";
 import ProjectMemory from "./ProjectMemory.jsx";
 import { lineDiff, diffStats } from "../lib/diff.js";
 import { useT } from "../lib/i18n.js";
@@ -114,8 +115,24 @@ function Terminal({ term, onClear }) {
 export default function RightPanel({ tab, setTab, changes, term, onUndo, onUndoAll, onClearTerm, onClose, cwd, toast }) {
   const t = useT();
   const [openPath, setOpenPath] = useState(null);
+  // "Hammasini qaytarish" — ko'p fayl birdan qayta yoziladi va bu amalni o'zini qaytarib bo'lmaydi:
+  // shuning uchun xavfli-amal tasdig'i (bitta faylni qaytarish — tasdiqsiz).
+  const [confirmAll, setConfirmAll] = useState(false);
   return (
     <aside className="rpanel" aria-label={t("panel.label")}>
+      {confirmAll && (
+        <Modal
+          title={t("changes.undoAllConfirm.title")} tone="danger" width={480} onClose={() => setConfirmAll(false)}
+          footer={(
+            <span className="foot-actions">
+              <button type="button" className="btn" data-autofocus onClick={() => setConfirmAll(false)}>{t("common.cancel")}</button>
+              <button type="button" className="btn btn-danger" onClick={() => { setConfirmAll(false); onUndoAll(); }}><Icon name="undo" size={14} /> {t("changes.undoAll")}</button>
+            </span>
+          )}
+        >
+          <p>{t("changes.undoAllConfirm.body", { n: changes.length })}</p>
+        </Modal>
+      )}
       <div className="tabs" role="tablist">
         {[["changes", t("panel.changes"), changes.length], ["terminal", t("panel.terminal"), term.length], ["project", t("panel.project"), 0]].map(([k, l, n]) => (
           <button key={k} type="button" role="tab" aria-selected={tab === k} className={`tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
@@ -138,7 +155,7 @@ export default function RightPanel({ tab, setTab, changes, term, onUndo, onUndoA
             <>
               <div className="panel-toolbar">
                 <span className="faint small">{t("changes.count", { n: changes.length })}</span>
-                <button type="button" className="btn btn-sm" onClick={onUndoAll}><Icon name="undo" size={13} /> {t("changes.undoAll")}</button>
+                <button type="button" className="btn btn-sm" onClick={() => setConfirmAll(true)}><Icon name="undo" size={13} /> {t("changes.undoAll")}</button>
               </div>
               {changes.map((c) => {
                 const key = c.kind === "command" ? `cmd:${c.snapId}` : c.path;

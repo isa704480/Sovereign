@@ -458,6 +458,14 @@ const uz = {
   "skill.no-ai-slop.desc": "Jonli, aniq matn: sun’iy intellekt qoliplarisiz yozish va tahrir",
   "skill.data-viz.desc": "Grafik, jadval va ma’lumot vizualizatsiyasi tamoyillari",
   "skill.focus-mode.desc": "Avval harakat, raqamlangan qadamlar, bitta keyingi qadam — kirish va xulosa so‘zlarisiz",
+  "common.undo": "Qaytarish",
+  "tasks.removed": "«{title}» o‘chirildi",
+  "tasks.removeRunning": "Bajarilayotgan vazifani o‘chirishdan oldin to‘xtating",
+  "update.deferred": "Agent ishlayapti — yangilanish vazifa tugagach o‘rnatiladi.",
+  "update.restartingSoon": "Vazifa tugadi — yangilanishni o‘rnatish uchun ilova bir necha soniyada qayta ishga tushadi.",
+  "updCard.downloadingSr": "Yangilanish yuklab olinmoqda…",
+  "changes.undoAllConfirm.title": "Barcha o‘zgarishlar qaytarilsinmi?",
+  "changes.undoAllConfirm.body": "{n} ta o‘zgarish qaytariladi: fayllar agent tahrirlashidan oldingi holatiga keladi. Bu amalni ortga qaytarib bo‘lmaydi.",
 };
 
 const en = {
@@ -888,6 +896,14 @@ const en = {
   "skill.no-ai-slop.desc": "Sharp, human writing and editing without AI patterns",
   "skill.data-viz.desc": "Principles of charts, tables and data visualization",
   "skill.focus-mode.desc": "Action first, numbered steps, one next action — no preamble or closers",
+  "common.undo": "Undo",
+  "tasks.removed": "“{title}” deleted",
+  "tasks.removeRunning": "Stop the running task before deleting it",
+  "update.deferred": "The agent is working — the update will install when the task finishes.",
+  "update.restartingSoon": "Task finished — the app will restart in a few seconds to install the update.",
+  "updCard.downloadingSr": "Downloading the update…",
+  "changes.undoAllConfirm.title": "Undo all changes?",
+  "changes.undoAllConfirm.body": "{n} changes will be reverted: files return to how they were before the agent edited them. This can’t be undone.",
 };
 
 const ru = {
@@ -1318,6 +1334,14 @@ const ru = {
   "skill.no-ai-slop.desc": "Живой, точный текст: письмо и редактура без шаблонов ИИ",
   "skill.data-viz.desc": "Принципы графиков, таблиц и визуализации данных",
   "skill.focus-mode.desc": "Сначала действие, нумерованные шаги, один следующий шаг — без вступлений и дежурных фраз",
+  "common.undo": "Отменить",
+  "tasks.removed": "«{title}» удалена",
+  "tasks.removeRunning": "Остановите задачу, прежде чем удалять её",
+  "update.deferred": "Агент работает — обновление установится, когда задача завершится.",
+  "update.restartingSoon": "Задача завершена — через несколько секунд приложение перезапустится, чтобы установить обновление.",
+  "updCard.downloadingSr": "Загружается обновление…",
+  "changes.undoAllConfirm.title": "Отменить все изменения?",
+  "changes.undoAllConfirm.body": "Будет отменено изменений: {n}. Файлы вернутся к состоянию до правок агента. Это действие нельзя отменить.",
 };
 
 /**
@@ -1635,6 +1659,14 @@ const uzCyrl = {
   "skill.no-ai-slop.desc": "Жонли, аниқ матн: сунъий интеллект қолипларисиз ёзиш ва таҳрир",
   "skill.data-viz.desc": "График, жадвал ва маълумот визуализацияси тамойиллари",
   "skill.focus-mode.desc": "Аввал ҳаракат, рақамланган қадамлар, битта кейинги қадам — кириш ва хулоса сўзларисиз",
+  "common.undo": "Қайтариш",
+  "tasks.removed": "«{title}» ўчирилди",
+  "tasks.removeRunning": "Бажарилаётган вазифани ўчиришдан олдин тўхтатинг",
+  "update.deferred": "Агент ишлаяпти — янгиланиш вазифа тугагач ўрнатилади.",
+  "update.restartingSoon": "Вазифа тугади — янгиланишни ўрнатиш учун илова бир неча сонияда қайта ишга тушади.",
+  "updCard.downloadingSr": "Янгиланиш юклаб олинмоқда…",
+  "changes.undoAllConfirm.title": "Барча ўзгаришлар қайтарилсинми?",
+  "changes.undoAllConfirm.body": "{n} та ўзгариш қайтарилади: файллар агент таҳрирлашидан олдинги ҳолатига келади. Бу амални ортга қайтариб бўлмайди.",
 };
 
 const DICTS = { uz, en, ru };

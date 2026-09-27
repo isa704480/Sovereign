@@ -1,4 +1,5 @@
 import React, { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useT } from "../lib/i18n.js";
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -96,7 +97,8 @@ export default function Modal({ title, onClose, children, width = 640, className
   const hid = useId();
   const t = useT();
   useFocusTrap(ref, { onEscape: onClose });
-  return (
+  // Portal: ota element (masalan, suzuvchi .rpanel) transform/stacking konteksti dialogni qirqmasin.
+  return createPortal(
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div
         ref={ref}
@@ -121,6 +123,7 @@ export default function Modal({ title, onClose, children, width = 640, className
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
