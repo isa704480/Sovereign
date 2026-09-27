@@ -6,7 +6,8 @@ import { clientIp, rateLimit } from "@/lib/rate-limit";
 import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 import { getServerT } from "@/lib/i18n-server";
 import { fmt } from "@/lib/i18n";
-import { hostAllowedIn, modelAllowedIn, REGION_SAFE } from "@/lib/ai/region";
+import { hostAllowedIn, modelAllowedIn, REGION_SAFE, REGION_SAFE_CF } from "@/lib/ai/region";
+import { CF, cfId, cfSameModel } from "@/lib/ai/cloudflare";
 import { resolveUserRegion } from "@/lib/ai/region-server";
 
 export const runtime = "nodejs";
@@ -23,7 +24,25 @@ const MISTRAL = "https://api.mistral.ai/v1/chat/completions";
 /** CLI: bitta foydalanuvchi vazifasi bir necha model qadamidan iborat. */
 const CLI_STEP_MULTIPLIER = 4;
 
-type Cand = { provider: string; model: string; url: string; auth: string; referer?: boolean };
+/** `model` — SOVEREIGN id (hisob, mintaqa, javobdagi "model"); `wire` — provayderga yuboriladigan id. */
+type Cand = { provider: string; model: string; url: string; auth: string; referer?: boolean; wire?: string };
+
+/**
+ * Cloudflare Workers AI (OpenAI-mos endpoint) — OpenRouter/OmniRoute krediti tugaganda ham
+ * ishlaydi (alohida hisob, kuniga 10k neuron tekin). Kalitlar bo'lmasa — null.
+ */
+function cloudflareCand(model: string): Cand | null {
+  const account = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
+  const token = process.env.CLOUDFLARE_AI_TOKEN?.trim();
+  if (!account || !token) return null;
+  return {
+    provider: "cloudflare",
+    model: cfId(model),
+    wire: model,
+    url: `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/v1/chat/completions`,
+    auth: token,
+  };
+}
 
 /**
  * Fallback zanjiri: bittasi band bo'lsa (rate-limit/5xx/kalit xatosi) —
@@ -42,6 +61,10 @@ function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
   if (chosen && OMNIROUTE && omniKey) {
     list.push({ provider: "omniroute", model: chosen, url: `${OMNIROUTE}/chat/completions`, auth: omniKey });
   }
+  // Tanlangan model Cloudflare'da ham bo'lsa (aynan shu og'irliklar) — OmniRoute band/kreditsiz bo'lganda.
+  const same = chosen ? cfSameModel(chosen) : null;
+  const sameCand = same ? cloudflareCand(same) : null;
+  if (sameCand) list.push(sameCand);
 
   const mistral = process.env.MISTRAL_API_KEY;
 
@@ -57,6 +80,11 @@ function candidates(plan: string, chosen?: string, needsTools = false): Cand[] {
   if (groq) list.push({ provider: "groq", model: "openai/gpt-oss-120b", url: GROQ, auth: groq });
   if (mistral) list.push({ provider: "mistral", model: "mistral-small-latest", url: MISTRAL, auth: mistral });
   if (groq) list.push({ provider: "groq", model: "openai/gpt-oss-20b", url: GROQ, auth: groq });
+  // Cloudflare — tool-calling qo'llaydigan kod modellari (Groq TPM tugasa, OpenRouter bo'sh bo'lsa ham).
+  for (const m of big ? [CF.kimiCode, CF.deepseekPro, CF.glm] : [CF.qwen, CF.glm]) {
+    const c = cloudflareCand(m);
+    if (c && !list.some((x) => x.model === c.model)) list.push(c);
+  }
   // Pullik zaxiralar (balans bo'lsa).
   if (big && openai) list.push({ provider: "openai", model: "gpt-4o", url: OPENAI, auth: openai });
   // OpenRouter.
@@ -86,9 +114,13 @@ function regionCandidates(list: Cand[], country: string | null, big: boolean): C
           .filter((m) => !allowed.some((c) => c.model === m))
           .map((model) => ({ provider: "omniroute", model, url: `${OMNIROUTE}/chat/completions`, auth: omniKey }))
       : [];
+  // OmniRoute/OpenRouter bo'sh bo'lsa ham mintaqa foydalanuvchisi modelsiz qolmasin — Cloudflare'dagi xuddi shu oilalar.
+  const cfSafe = (big ? [REGION_SAFE_CF.kimiCode, REGION_SAFE_CF.deepseekPro, REGION_SAFE_CF.glm] : [REGION_SAFE_CF.qwen, REGION_SAFE_CF.glm])
+    .map((id) => cloudflareCand(id.replace(/^cloudflare\//, "")))
+    .filter((c): c is Cand => !!c && !allowed.some((a) => a.model === c.model) && modelAllowedIn(c.model, country));
   // Foydalanuvchi o'zi tanlagan (ruxsat etilgan) model birinchi qoladi.
   const [first, ...rest] = allowed;
-  return first?.provider === "omniroute" ? [first, ...safe, ...rest] : [...safe, ...allowed];
+  return first?.provider === "omniroute" ? [first, ...safe, ...rest, ...cfSafe] : [...safe, ...allowed, ...cfSafe];
 }
 
 // Cost-DoS'ni to'sish: strict schema. Provider'ga o'zboshimchalik parametrlar
@@ -341,7 +373,7 @@ export async function POST(req: Request) {
 
     let res: Response;
     try {
-      res = await fetch(cand.url, { method: "POST", headers, body: body(cand.model) });
+      res = await fetch(cand.url, { method: "POST", headers, body: body(cand.wire ?? cand.model) });
     } catch (e) {
       if (cand.provider === "omniroute") healOmniRouteIfStuck(502, "network");
       failures.push(`${cand.provider}/${cand.model}: ${short(e instanceof Error ? e.message : "ulanish xatosi")}`);
