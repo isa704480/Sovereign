@@ -113,9 +113,9 @@ export function TipCard({ onOpenPanel, onResearch, onDraft }: TipCardProps) {
           style={{ background: "var(--t-surface)", borderColor: "var(--t-border)", borderRadius: 16, color: "var(--t-text)" }}
         >
           <div className="flex items-start gap-2">
-            <Lightbulb className="mt-0.5 size-4 shrink-0" style={{ color: "var(--t-accent)" }} aria-hidden />
+            <Lightbulb className="mt-0.5 size-4 shrink-0" style={{ color: "var(--t-accent-text)" }} aria-hidden />
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
+              <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
                 {t("tipEyebrow")}
               </p>
               <h2 id="tip-card-title" className="mt-0.5 font-semibold">
@@ -125,7 +125,7 @@ export function TipCard({ onOpenPanel, onResearch, onDraft }: TipCardProps) {
             <button
               type="button"
               onClick={close}
-              className="-mr-1 -mt-1 inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-white/10"
+              className="-mr-1 -mt-1 inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-hover)]"
               style={{ color: "var(--t-text-muted)" }}
               aria-label={t("tipDismiss")}
               title={t("tipDismiss")}
@@ -141,8 +141,8 @@ export function TipCard({ onOpenPanel, onResearch, onDraft }: TipCardProps) {
               <button
                 type="button"
                 onClick={run}
-                className="min-h-8 rounded-lg px-3 text-xs font-semibold text-white"
-                style={{ background: "var(--t-primary)" }}
+                className="min-h-8 rounded-lg px-3 text-xs font-semibold"
+                style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
               >
                 {done ?? (tip.action.kind === "copy" ? t("tipCopy") : t("tipTry"))}
               </button>

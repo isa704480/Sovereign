@@ -35,9 +35,12 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    setLoadError(false);
     listMemories()
-      .then((r) => alive && setItems(r))
+      .then((r) => {
+        if (!alive) return;
+        setItems(r);
+        setLoadError(false);
+      })
       .catch(() => {
         if (!alive) return;
         setItems(null);
@@ -150,7 +153,12 @@ export function MemoryPanel({ open, onClose, enabled, onEnabledChange }: MemoryP
 
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {loadError ? (
-                <LoadError onRetry={() => setReload((n) => n + 1)} />
+                <LoadError
+                  onRetry={() => {
+                    setLoadError(false);
+                    setReload((n) => n + 1);
+                  }}
+                />
               ) : items === null ? (
                 <SkeletonRows className="p-2" />
               ) : items.length === 0 ? (

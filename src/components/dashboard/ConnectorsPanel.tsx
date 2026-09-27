@@ -41,10 +41,10 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    setLoadError(false);
     listConnectors()
       .then((rows) => {
         if (!alive) return;
+        setLoadError(false);
         setStates(Object.fromEntries(rows.map((r) => [r.connectorId, r])));
         setLoaded(true);
       })
@@ -165,7 +165,12 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
               </p>
 
               {loadError ? (
-                <LoadError onRetry={() => setReload((n) => n + 1)} />
+                <LoadError
+                  onRetry={() => {
+                    setLoadError(false);
+                    setReload((n) => n + 1);
+                  }}
+                />
               ) : !loaded ? (
                 <SkeletonRows rows={4} rowClassName="h-14" />
               ) : (

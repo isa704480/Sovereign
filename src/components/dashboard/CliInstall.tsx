@@ -50,7 +50,7 @@ function CopyLine({ text }: { text: string }) {
             window.setTimeout(() => setCopied(false), 1500);
           });
         }}
-        className="grid size-8 shrink-0 place-items-center rounded-lg transition-colors hover:bg-white/10"
+        className="grid size-8 shrink-0 place-items-center rounded-lg transition-colors hover:bg-[var(--surface-hover)]"
         aria-label={copied ? t("copied") : t("copy")}
         title={copied ? t("copied") : t("copy")}
         style={{ color: copied ? "#22C55E" : "var(--t-text-muted)" }}
@@ -90,7 +90,7 @@ export function CliInstall() {
             role="tab"
             aria-selected={os === tab.id}
             onClick={() => setOs(tab.id)}
-            className={cn("shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors", os !== tab.id && "hover:bg-white/5")}
+            className={cn("shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors", os !== tab.id && "hover:bg-[var(--surface-hover)]")}
             style={
               os === tab.id
                 ? { background: "color-mix(in srgb, var(--t-primary) 20%, transparent)", color: "var(--t-text)" }

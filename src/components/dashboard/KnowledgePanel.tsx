@@ -46,9 +46,12 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
   useEffect(() => {
     if (!open) return;
     let alive = true;
-    setLoadError(false);
     listKnowledge()
-      .then((r) => alive && setItems(r))
+      .then((r) => {
+        if (!alive) return;
+        setItems(r);
+        setLoadError(false);
+      })
       .catch(() => {
         if (!alive) return;
         setItems(null);
@@ -173,7 +176,12 @@ export function KnowledgePanel({ open, onClose }: KnowledgePanelProps) {
 
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
               {loadError ? (
-                <LoadError onRetry={() => setReload((n) => n + 1)} />
+                <LoadError
+                  onRetry={() => {
+                    setLoadError(false);
+                    setReload((n) => n + 1);
+                  }}
+                />
               ) : items === null ? (
                 <SkeletonRows rows={2} className="p-2" rowClassName="h-14" />
               ) : items.length === 0 ? (

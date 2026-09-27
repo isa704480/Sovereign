@@ -22,7 +22,7 @@ const REASON_KEY: Record<NonNullable<VerifierIssue["reason"]>, TKey> = {
   not_performed: "clmReasonNotPerformed",
 };
 
-const WARN = "var(--warning, #F59E0B)";
+const WARN = "var(--t-warning, #F59E0B)";
 
 /** Fakt bahosi (eski xabarlarda `kind` yo'q). */
 export const isFactIssue = (i: Issue) => !i.kind || i.kind === "fact";

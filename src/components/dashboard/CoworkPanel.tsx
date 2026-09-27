@@ -86,9 +86,9 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
     <div className="mb-4">
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <FileCode2 className="size-4" style={{ color: "#10D4A0" }} />
+          <FileCode2 className="size-4" style={{ color: "var(--t-text-muted)" }} aria-hidden />
           <span className="text-sm font-semibold">{t("pnCwChanges")}</span>
-          <span className="nums rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)", color: "var(--t-text-muted)" }}>
+          <span className="nums rounded-full px-1.5 py-0.5 text-[11px] font-semibold" style={{ background: "color-mix(in srgb, var(--t-text) 8%, transparent)", color: "var(--t-text-muted)" }}>
             {changes.length}
           </span>
         </div>
@@ -97,16 +97,16 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
             type="button"
             onClick={applyAll}
             disabled={!!busy}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-            style={{ background: "var(--t-primary)" }}
+            className="flex min-h-8 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-60 [@media(pointer:coarse)]:min-h-11"
+            style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
           >
-            {busy ? <Loader2 className="size-3.5 animate-spin" /> : <CheckCheck className="size-3.5" />}
+            {busy ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : <CheckCheck className="size-3.5" aria-hidden />}
             {t("pnCwApplyAll")}
           </button>
         )}
       </div>
 
-      <ul className="tt overflow-hidden" style={{ border: "1px solid var(--t-border)", borderRadius: 16, background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}>
+      <ul className="tt overflow-hidden" style={{ border: "1px solid var(--t-border)", borderRadius: 12 }}>
         {changes.map((c, i) => {
           const done = isApplied(c);
           const lines = c.content.split("\n").length;
@@ -118,41 +118,41 @@ function CoworkChanges({ changes }: { changes: Change[] }) {
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-mono text-xs" style={{ color: "var(--t-text)" }} title={c.path}>{c.path}</span>
-                <span className="nums text-[10px]" style={{ color: "var(--t-text-muted)" }}>{plural(lang, lines, { one: "p7cLinesOne", few: "p7cLinesFew", many: "p7cLinesMany" })}</span>
+                <span className="nums text-xs" style={{ color: "var(--t-text-muted)" }}>{plural(lang, lines, { one: "p7cLinesOne", few: "p7cLinesFew", many: "p7cLinesMany" })}</span>
               </span>
               {done ? (
-                <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "#10D4A0" }}>
-                  <Check className="size-3.5" /> {t("pnCwApplied")}
+                <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--t-success, #10D4A0)" }}>
+                  <Check className="size-3.5" aria-hidden /> {t("pnCwApplied")}
                 </span>
               ) : canWrite ? (
                 <button
                   type="button"
                   onClick={() => applyOne(c)}
                   disabled={busy === c.path}
-                  className="rounded-lg border px-2.5 py-1 text-xs font-semibold disabled:opacity-60"
-                  style={{ borderColor: "var(--t-border)", color: "var(--t-primary)" }}
+                  className="min-h-8 rounded-md border px-2.5 py-1 text-xs font-semibold hover:bg-[var(--surface-hover)] disabled:opacity-60 [@media(pointer:coarse)]:min-h-11"
+                  style={{ borderColor: "var(--t-border)", color: "var(--t-accent-text)" }}
                   aria-label={fmt(t("pnCwApplyAria"), { path: c.path })}
                 >
-                  {busy === c.path ? <Loader2 className="size-3.5 animate-spin" /> : t("pnCwApply")}
+                  {busy === c.path ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : t("pnCwApply")}
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => download(c)}
-                  className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium"
+                  className="flex min-h-8 items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium [@media(pointer:coarse)]:min-h-11"
                   style={{ background: "color-mix(in srgb, var(--t-text) 10%, transparent)", color: "var(--t-text)" }}
                   aria-label={fmt(t("pnCwDownloadAria"), { path: c.path })}
                 >
-                  <FileDown className="size-3.5" /> {t("pnCwDownload")}
+                  <FileDown className="size-3.5" aria-hidden /> {t("pnCwDownload")}
                 </button>
               )}
             </li>
           );
         })}
       </ul>
-      {err && <div role="alert" className="mt-2 whitespace-pre-line text-xs" style={{ color: "#EF4444" }}>{err}</div>}
+      {err && <div role="alert" className="mt-2 whitespace-pre-line text-xs" style={{ color: "var(--t-danger, #EF4444)" }}>{err}</div>}
       {!canWrite && (
-        <div className="mt-2 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+        <div className="mt-2 text-xs" style={{ color: "var(--t-text-muted)" }}>
           {t("pnCwConnectHint")}
         </div>
       )}
@@ -233,7 +233,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-xl flex-col rounded-[22px] border outline-none md:max-h-[88vh]"
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-xl flex-col rounded-xl border outline-none md:max-h-[88vh]"
             style={{
               background: "var(--t-surface, #0D1033)",
               borderColor: "var(--t-border)",
@@ -243,11 +243,11 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border)" }}>
               <div className="flex items-center gap-2">
-                <FolderOpen className="size-5" style={{ color: "var(--t-accent)" }} />
+                <FolderOpen className="size-5" style={{ color: "var(--t-text-muted)" }} aria-hidden />
                 <h2 id={titleId} className="font-display text-lg font-bold">Cowork</h2>
               </div>
-              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
-                <X className="size-5" />
+              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-[var(--surface-hover)] md:size-9 [@media(pointer:coarse)]:md:size-11" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
+                <X className="size-5" aria-hidden />
               </button>
             </div>
 
@@ -262,14 +262,14 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                       className="mx-auto mb-4 flex max-w-sm items-start gap-2 rounded-xl border p-3 text-left text-xs"
                       style={{ borderColor: "var(--t-primary)", color: "var(--t-text)" }}
                     >
-                      <Info className="mt-0.5 size-3.5 shrink-0" style={{ color: "var(--t-accent)" }} />
+                      <Info className="mt-0.5 size-3.5 shrink-0" style={{ color: "var(--t-accent-text)" }} />
                       {t("p8bCwNoFolderNote")}
                     </p>
                   ) : (
                     <p className="text-sm" style={{ color: "var(--t-text-muted)" }}>
                       {t("coworkIntro1")}
                       <br />
-                      {t("coworkIntro2a")} <span style={{ color: "var(--t-accent)" }}>{t("pnCwExampleFile")}</span> {t("coworkIntro2b")}
+                      {t("coworkIntro2a")} <span style={{ color: "var(--t-accent-text)" }}>{t("pnCwExampleFile")}</span> {t("coworkIntro2b")}
                     </p>
                   )}
                   <div className="mt-5 flex flex-col items-center gap-2">
@@ -281,7 +281,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                           onClose();
                         }}
                         className="min-h-10 rounded-xl border px-4 py-2 text-sm font-semibold"
-                        style={{ borderColor: "var(--t-primary)", color: "var(--t-accent)" }}
+                        style={{ borderColor: "var(--t-primary)", color: "var(--t-accent-text)" }}
                       >
                         {fmt(t("p8bCwUseAgain"), { name: rememberedName })}
                       </button>
@@ -291,8 +291,8 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                         <button
                           type="button"
                           onClick={pick}
-                          className="min-h-10 rounded-xl px-4 py-2 text-sm font-semibold text-white"
-                          style={{ background: "var(--t-primary)" }}
+                          className="min-h-10 rounded-xl px-4 py-2 text-sm font-semibold"
+                          style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
                         >
                           {t("coworkPickFolder")}
                         </button>
@@ -314,12 +314,12 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                         <button
                           type="button"
                           onClick={() => inputRef.current?.click()}
-                          className="rounded-xl px-4 py-2 text-sm font-semibold text-white"
-                          style={{ background: "var(--t-primary)" }}
+                          className="rounded-xl px-4 py-2 text-sm font-semibold"
+                          style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
                         >
                           {t("coworkPickFolder")}
                         </button>
-                        <span className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+                        <span className="text-xs" style={{ color: "var(--t-text-muted)" }}>
                           {t("coworkNoLiveFolder")}
                         </span>
                       </>
@@ -362,24 +362,24 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                             placeholder={t("p8bCwNamePlaceholder")}
                             aria-invalid={!!createMsg}
                             aria-describedby={createMsg ? "cowork-new-folder-msg" : "cowork-new-folder-hint"}
-                            className="min-w-0 flex-1 rounded-lg border bg-transparent px-3 py-2 text-base outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-sm"
+                            className="min-w-0 flex-1 rounded-lg border bg-transparent px-3 py-2 text-[16px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--t-primary)] sm:text-sm"
                             style={{ borderColor: "var(--t-border)", color: "var(--t-text)" }}
                           />
                           <button
                             type="submit"
                             disabled={creating || !newName.trim()}
-                            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-white disabled:opacity-50"
-                            style={{ background: "var(--t-primary)" }}
+                            className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold disabled:opacity-50"
+                            style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
                           >
                             {creating && <Loader2 className="size-3.5 animate-spin" />}
                             {t("p8bCwCreateBtn")}
                           </button>
                         </div>
-                        <span id="cowork-new-folder-hint" className="text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+                        <span id="cowork-new-folder-hint" className="text-xs" style={{ color: "var(--t-text-muted)" }}>
                           {t("p8bCwCreateHint")}
                         </span>
                         {createMsg && (
-                          <span id="cowork-new-folder-msg" role="alert" className="text-xs" style={{ color: "#EF4444" }}>
+                          <span id="cowork-new-folder-msg" role="alert" className="text-xs" style={{ color: "var(--t-danger, #EF4444)" }}>
                             {createMsg}
                           </span>
                         )}
@@ -399,7 +399,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                       </button>
                     )}
                   </div>
-                  <p className="mx-auto mt-6 flex max-w-sm items-start gap-2 rounded-xl border p-3 text-left text-[11px]" style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}>
+                  <p className="mx-auto mt-6 flex max-w-sm items-start gap-2 rounded-lg border p-3 text-left text-xs" style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}>
                     <Info className="mt-0.5 size-3.5 shrink-0" />
                     {t("coworkPrivacyNote")}
                   </p>
@@ -425,7 +425,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                   </div>
 
                   <label className="mb-3 flex items-center gap-2 rounded-xl border px-3 py-2 focus-within:ring-2 focus-within:ring-[var(--t-primary)]" style={{ borderColor: "var(--t-border)" }}>
-                    <Search className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} />
+                    <Search className="size-4 shrink-0" style={{ color: "var(--t-text-muted)" }} aria-hidden />
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
@@ -440,8 +440,8 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                     onClick={() => setShareOutline(!shareOutline)}
                     role="switch"
                     aria-checked={shareOutline}
-                    className="mb-3 flex w-full items-center gap-3 rounded-xl border p-3 text-left"
-                    style={{ borderColor: shareOutline ? "var(--t-primary)" : "var(--t-border)" }}
+                    className="mb-3 flex w-full items-center gap-3 rounded-lg border p-3 text-left hover:bg-[var(--surface-hover)]"
+                    style={{ borderColor: "var(--t-border)" }}
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-medium">{t("coworkShowOutline")}</span>
@@ -450,11 +450,12 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                       </span>
                     </span>
                     <span
-                      className="relative h-6 w-11 shrink-0 rounded-full"
-                      style={{ background: shareOutline ? "var(--t-primary)" : "color-mix(in srgb, var(--t-text) 18%, transparent)" }}
+                      aria-hidden
+                      className="relative h-6 w-11 shrink-0 rounded-full transition-colors"
+                      style={{ background: shareOutline ? "var(--t-primary-fill)" : "color-mix(in srgb, var(--t-text) 18%, transparent)" }}
                     >
                       <span
-                        className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white transition-transform duration-200"
+                        className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200 motion-reduce:transition-none"
                         style={{ transform: shareOutline ? "translateX(20px)" : "translateX(0)" }}
                       />
                     </span>
@@ -488,7 +489,7 @@ export function CoworkPanel({ open, onClose, messages = [] }: CoworkPanelProps) 
                   </ul>
 
                   <p className="mt-4 text-center text-[11px]" style={{ color: "var(--t-text-muted)" }}>
-                    {t("coworkAtHint_a")} <span style={{ color: "var(--t-accent)" }}>@</span> {t("coworkAtHint_b")}
+                    {t("coworkAtHint_a")} <span style={{ color: "var(--t-accent-text)" }}>@</span> {t("coworkAtHint_b")}
                   </p>
                 </>
               )}

@@ -10,6 +10,7 @@ import { EASE_OUT_EXPO } from "@/lib/motion";
 import { CUSTOM_SKILL_PREFIX, useChat, useLang, useT, type CustomSkill } from "@/store/chat";
 import { SkillIcon } from "./SkillIcon";
 import { useDialogA11y } from "./use-dialog-a11y";
+import { Switch } from "./Switch";
 
 interface SkillsMarketProps {
   open: boolean;
@@ -19,20 +20,6 @@ interface SkillsMarketProps {
 }
 
 const CATEGORIES: (SkillCategory | "all" | "mine")[] = ["all", ...SKILL_CATEGORIES, "mine"];
-
-function Toggle({ on }: { on: boolean }) {
-  return (
-    <span
-      className="tt relative h-6 w-11 shrink-0 rounded-full"
-      style={{ background: on ? "var(--t-primary)" : "color-mix(in srgb, var(--t-text) 18%, transparent)" }}
-    >
-      <span
-        className="absolute left-0.5 top-0.5 size-5 rounded-full bg-white shadow-sm transition-transform duration-200"
-        style={{ transform: on ? "translateX(20px)" : "translateX(0)" }}
-      />
-    </span>
-  );
-}
 
 export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketProps) {
   const t = useT();
@@ -72,7 +59,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
       name: s.name,
       description: t("skillCustomDesc"),
       icon: "custom" as const,
-      color: "#10D4A0",
+      color: "var(--t-success, #10D4A0)",
       category: "mine",
       details: [s.instructions.slice(0, 220)],
       auto: false,
@@ -112,7 +99,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.32, ease: EASE_OUT_EXPO }}
             onClick={(e) => e.stopPropagation()}
-            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-2xl flex-col rounded-[22px] border outline-none md:max-h-[88vh]"
+            className="tt flex max-h-[calc(100svh-2rem)] w-full max-w-2xl flex-col rounded-xl border outline-none md:max-h-[88vh]"
             style={{
               background: "var(--t-surface, #0D1033)",
               borderColor: "var(--t-border)",
@@ -123,12 +110,12 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
           >
             <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: "var(--t-border)" }}>
               <div className="flex items-center gap-2">
-                <Sparkles className="size-5" style={{ color: "var(--t-accent)" }} />
+                <Sparkles className="size-5" style={{ color: "var(--t-text-muted)" }} aria-hidden />
                 <h2 id={titleId} className="font-display text-lg font-bold">{t("skills")}</h2>
                 <span className="text-xs" style={{ color: "var(--t-text-muted)" }}>{enabled.length} {t("skillsEnabled")}</span>
               </div>
-              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-white/10 md:size-9" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
-                <X className="size-5" />
+              <button type="button" onClick={onClose} className="flex size-11 items-center justify-center rounded-lg hover:bg-[var(--surface-hover)] md:size-9 [@media(pointer:coarse)]:md:size-11" aria-label={t("close")} style={{ color: "var(--t-text-muted)" }}>
+                <X className="size-5" aria-hidden />
               </button>
             </div>
 
@@ -140,7 +127,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                   onChange={(e) => setQ(e.target.value)}
                   placeholder={t("skillsSearch")}
                   aria-label={t("skillsSearch")}
-                  className="w-full bg-transparent text-base outline-none placeholder:opacity-60 sm:text-sm"
+                  className="w-full bg-transparent text-[16px] outline-none placeholder:opacity-60 sm:text-sm"
                 />
               </label>
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -149,11 +136,12 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                     key={k}
                     type="button"
                     onClick={() => setCat(k)}
-                    className="rounded-full border px-3 py-1 text-xs font-medium transition-colors"
+                    aria-pressed={cat === k}
+                    className="min-h-8 rounded-full border px-3 py-1 text-xs font-medium transition-colors [@media(pointer:coarse)]:min-h-11"
                     style={{
                       borderColor: cat === k ? "var(--t-primary)" : "var(--t-border)",
                       background: cat === k ? "color-mix(in srgb, var(--t-primary) 16%, transparent)" : "transparent",
-                      color: cat === k ? "var(--t-accent)" : "var(--t-text-muted)",
+                      color: cat === k ? "var(--t-accent-text)" : "var(--t-text-muted)",
                     }}
                   >
                     {catLabel(k)}
@@ -175,8 +163,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                 className="tt overflow-hidden"
                 style={{
                   border: items.length ? "1px solid var(--t-border)" : "none",
-                  borderRadius: 18,
-                  background: "color-mix(in srgb, var(--t-text) 3%, transparent)",
+                  borderRadius: 12,
                 }}
               >
               {items.map((s, idx) => {
@@ -190,17 +177,24 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                   >
                     <div className="flex items-center gap-3 p-3">
                       <span
-                        className="grid size-9 shrink-0 place-items-center rounded-xl text-base"
-                        style={{ background: `color-mix(in srgb, ${s.color} 18%, transparent)`, color: s.color }}
+                        aria-hidden
+                        className="grid size-9 shrink-0 place-items-center rounded-lg text-base"
+                        style={{ background: "color-mix(in srgb, var(--t-text) 6%, transparent)", color: "var(--t-text)" }}
                       >
                         <SkillIcon name={s.icon} className="size-[18px]" />
                       </span>
-                      <button type="button" onClick={() => setExpanded(isOpen ? null : s.id)} aria-expanded={isOpen} className="min-w-0 flex-1 text-left">
+                      <button
+                        type="button"
+                        onClick={() => setExpanded(isOpen ? null : s.id)}
+                        aria-expanded={isOpen}
+                        aria-label={`${s.name}: ${s.description}`}
+                        className="min-h-11 min-w-0 flex-1 text-left"
+                      >
                         <span className="flex items-center gap-2 text-sm font-semibold">
                           <span className="truncate">{s.name}</span>
                           {!s.custom && (
                             <span
-                              className="shrink-0 rounded-full border px-1.5 py-px text-[10px] font-medium"
+                              className="shrink-0 rounded-full border px-1.5 py-px text-[11px] font-medium"
                               style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
                               title={t(s.auto ? "p18SkAutoTitle" : "p18SkManualTitle")}
                             >
@@ -214,16 +208,14 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                         <button
                           type="button"
                           onClick={() => removeCustomSkill(s.id.slice(CUSTOM_SKILL_PREFIX.length))}
-                          className="rounded-lg p-1.5 transition-colors hover:bg-white/10"
+                          className="flex size-8 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:size-11"
                           style={{ color: "var(--t-text-muted)" }}
-                          aria-label={t("delete")}
+                          aria-label={`${t("delete")}: ${s.name}`}
                         >
-                          <Trash2 className="size-4" />
+                          <Trash2 className="size-4" aria-hidden />
                         </button>
                       )}
-                      <button type="button" onClick={() => onToggle(s.id)} role="switch" aria-checked={on} aria-label={s.name}>
-                        <Toggle on={on} />
-                      </button>
+                      <Switch on={on} onChange={() => onToggle(s.id)} label={s.name} />
                     </div>
                     <AnimatePresence initial={false}>
                       {isOpen && (
@@ -237,7 +229,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                         >
                           {s.details.map((d, i) => (
                             <li key={i} className="flex gap-2">
-                              <Check className="mt-0.5 size-3 shrink-0" style={{ color: s.color }} />
+                              <Check className="mt-0.5 size-3 shrink-0" style={{ color: "var(--t-success)" }} aria-hidden />
                               <span>{d}</span>
                             </li>
                           ))}
@@ -280,8 +272,8 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                         type="button"
                         onClick={saveDraft}
                         disabled={!draft.name.trim() || draft.instructions.trim().length < 10}
-                        className="rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                        style={{ background: "var(--t-primary)" }}
+                        className="rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+                        style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
                       >
                         {t("save")}
                       </button>
@@ -292,7 +284,7 @@ export function SkillsMarket({ open, onClose, enabled, onToggle }: SkillsMarketP
                 <button
                   type="button"
                   onClick={() => setCreating(true)}
-                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-[18px] border border-dashed py-3 text-sm transition-colors hover:bg-white/5"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed py-3 text-sm transition-colors hover:bg-[var(--surface-hover)]"
                   style={{ borderColor: "var(--t-border)", color: "var(--t-text-muted)" }}
                 >
                   <Plus className="size-4" /> {t("createSkill")}

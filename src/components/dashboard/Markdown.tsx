@@ -109,10 +109,10 @@ function WriteFileCard({ path, content }: { path: string; content: string }) {
   };
 
   return (
-    <div className="tt my-3 rounded-[14px] border p-3" style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}>
+    <div className="tt my-3 rounded-lg border p-3" style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}>
       <div className="flex items-center gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl" style={{ background: "color-mix(in srgb, #10D4A0 18%, transparent)", color: "#10D4A0" }}>
-          <FileCode2 className="size-5" />
+        <span className="grid size-10 shrink-0 place-items-center rounded-xl" style={{ background: "color-mix(in srgb, var(--t-success, #10D4A0) 18%, transparent)", color: "var(--t-success, #10D4A0)" }}>
+          <FileCode2 className="size-5" aria-hidden />
         </span>
         <button type="button" onClick={() => artifact.open({ code: content, lang, title: path })} className="min-w-0 flex-1 text-left">
           <span className="block truncate text-sm font-medium" style={{ color: "var(--t-text)" }}>{path}</span>
@@ -122,34 +122,34 @@ function WriteFileCard({ path, content }: { path: string; content: string }) {
           </span>
         </button>
         {state === "done" ? (
-          <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "#10D4A0" }}>
-            <Check className="size-4" /> {t("chSaved")}
+          <span className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: "var(--t-success, #10D4A0)" }}>
+            <Check className="size-4" aria-hidden /> {t("chSaved")}
           </span>
         ) : canWrite ? (
           <>
-            <button type="button" onClick={() => artifact.open({ code: content, lang, title: path })} className="rounded-lg px-2.5 py-1.5 text-xs font-medium" style={{ color: "var(--t-text-muted)" }}>
+            <button type="button" onClick={() => artifact.open({ code: content, lang, title: path })} className="min-h-8 rounded-md px-2.5 py-1.5 text-xs font-medium hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11" style={{ color: "var(--t-text-muted)" }}>
               {t("chView")}
             </button>
             <button
               type="button"
               onClick={apply}
               disabled={state === "saving"}
-              className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-              style={{ background: "var(--t-primary)" }}
+              className="flex min-h-8 shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-60 [@media(pointer:coarse)]:min-h-11"
+              style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
             >
-              {state === "saving" ? <Loader2 className="size-3.5 animate-spin" /> : null}
+              {state === "saving" ? <Loader2 className="size-3.5 animate-spin" aria-hidden /> : null}
               {t("chApply")}
             </button>
           </>
         ) : (
-          <button type="button" onClick={download} className="flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold" style={{ background: "color-mix(in srgb, var(--t-text) 10%, transparent)", color: "var(--t-text)" }}>
-            <FileDown className="size-3.5" /> {t("download")}
+          <button type="button" onClick={download} className="flex min-h-8 shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold [@media(pointer:coarse)]:min-h-11" style={{ background: "color-mix(in srgb, var(--t-text) 10%, transparent)", color: "var(--t-text)" }}>
+            <FileDown className="size-3.5" aria-hidden /> {t("download")}
           </button>
         )}
       </div>
-      {state === "error" && <div className="mt-2 text-xs" style={{ color: "#EF4444" }}>{err}</div>}
+      {state === "error" && <div role="alert" className="mt-2 text-xs" style={{ color: "var(--t-danger, #EF4444)" }}>{err}</div>}
       {!canWrite && (
-        <div className="mt-2 text-[11px]" style={{ color: "var(--t-text-muted)" }}>
+        <div className="mt-2 text-xs" style={{ color: "var(--t-text-muted)" }}>
           {t("chWriteNoAccess")}
         </div>
       )}
@@ -178,12 +178,12 @@ function FileCard({ code, lang }: { code: string; lang: string }) {
 
   return (
     <div
-      className="tt my-3 flex items-center gap-3 rounded-[14px] border p-3 transition-colors hover:bg-white/5"
+      className="tt my-3 flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-[var(--surface-hover)]"
       style={{ borderColor: "var(--t-border)", background: "color-mix(in srgb, var(--t-text) 3%, transparent)" }}
     >
       <span
         className="grid size-10 shrink-0 place-items-center rounded-xl"
-        style={{ background: "color-mix(in srgb, var(--warning, #F59E0B) 18%, transparent)", color: "var(--warning, #F59E0B)" }}
+        style={{ background: "color-mix(in srgb, var(--t-warning, #F59E0B) 18%, transparent)", color: "var(--t-warning, #F59E0B)" }}
       >
         <FileCode2 className="size-5" />
       </span>
@@ -196,18 +196,18 @@ function FileCard({ code, lang }: { code: string; lang: string }) {
       <button
         type="button"
         onClick={copy}
-        className="rounded-lg p-2 transition-colors hover:bg-white/10"
+        className="flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:size-11"
         style={{ color: "var(--t-text-muted)" }}
         title={t("copy")}
-        aria-label={t("copy")}
+        aria-label={copied ? t("copied") : t("copy")}
       >
-        {copied ? <Check className="size-4" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-4" />}
+        {copied ? <Check className="size-4" style={{ color: "var(--t-success)" }} aria-hidden /> : <Copy className="size-4" aria-hidden />}
       </button>
       <button
         type="button"
         onClick={() => artifact.open({ code, lang, title: name })}
-        className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
-        style={{ background: "var(--t-primary)" }}
+        className="min-h-8 shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold [@media(pointer:coarse)]:min-h-11"
+        style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
       >
         {canPreview ? t("chOpen") : t("chViewCode")}
       </button>
@@ -234,8 +234,8 @@ function CodeBlock({ className, children }: { className?: string; children: stri
 
   return (
     <div
-      className="tt overflow-hidden rounded-[10px] border"
-      style={{ background: "#0A0E1A", borderColor: "var(--t-border)" }}
+      className="tt overflow-hidden rounded-lg border"
+      style={{ background: "color-mix(in srgb, var(--t-bg, #060812) 70%, #000)", borderColor: "var(--t-border)" }}
     >
       <div
         className="flex items-center justify-between px-3 py-1.5 font-mono text-[11px] uppercase tracking-wider"
@@ -247,20 +247,20 @@ function CodeBlock({ className, children }: { className?: string; children: stri
             <button
               type="button"
               onClick={() => artifact.open({ code: children, lang })}
-              className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case tracking-normal transition-colors hover:bg-white/10"
-              style={{ color: "var(--t-accent)" }}
+              className="inline-flex min-h-7 items-center gap-1 rounded-md px-1.5 py-0.5 normal-case tracking-normal transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
+              style={{ color: "var(--t-accent-text)" }}
               title={t("chOpenSide")}
             >
-              <PanelRightOpen className="size-3.5" />
+              <PanelRightOpen className="size-3.5" aria-hidden />
               {t("chOpen")}
             </button>
           )}
           <button
             type="button"
             onClick={copy}
-            className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 normal-case tracking-normal transition-colors hover:bg-white/10"
+            className="inline-flex min-h-7 items-center gap-1 rounded-md px-1.5 py-0.5 normal-case tracking-normal transition-colors hover:bg-[var(--surface-hover)] [@media(pointer:coarse)]:min-h-11"
           >
-            {copied ? <Check className="size-3.5" style={{ color: "var(--t-accent)" }} /> : <Copy className="size-3.5" />}
+            {copied ? <Check className="size-3.5" style={{ color: "var(--t-success)" }} aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
             {copied ? t("copied") : t("copy")}
           </button>
         </div>
@@ -427,8 +427,8 @@ export const Markdown = memo(function Markdown({ content, citations, unsourced, 
               title={unsourcedLabel}
               aria-label={`[${n}] — ${unsourcedLabel}`}
               style={{
-                color: "var(--warning, #F59E0B)",
-                background: "color-mix(in srgb, var(--warning, #F59E0B) 14%, transparent)",
+                color: "var(--t-warning, #F59E0B)",
+                background: "color-mix(in srgb, var(--t-warning, #F59E0B) 14%, transparent)",
                 outline: "1px dashed currentColor",
                 cursor: "help",
               }}
@@ -451,7 +451,7 @@ export const Markdown = memo(function Markdown({ content, citations, unsourced, 
           return (
             <a href={href} target="_blank" {...rest} rel="nofollow ugc noopener noreferrer">
               {children}
-              {host && <span className="ml-1 text-xs text-text-muted">({host})</span>}
+              {host && <span className="ml-1 text-xs" style={{ color: "var(--t-text-muted, #9BA3CC)" }}>({host})</span>}
             </a>
           );
         }

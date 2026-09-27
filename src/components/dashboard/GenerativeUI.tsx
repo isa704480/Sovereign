@@ -153,16 +153,17 @@ function Checklist({ items }: { items: string[] }) {
                 })
               }
               aria-pressed={on}
-              className="flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-white/5"
+              className="flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-[var(--surface-hover)]"
             >
               <span
                 className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-[5px] border"
                 style={{
-                  borderColor: on ? "var(--t-primary)" : "var(--t-border)",
-                  background: on ? "var(--t-primary)" : "transparent",
+                  borderColor: on ? "var(--t-primary-fill)" : "var(--t-border)",
+                  background: on ? "var(--t-primary-fill)" : "transparent",
+                  color: "var(--t-on-primary)",
                 }}
               >
-                {on && <Check className="size-3 text-white" />}
+                {on && <Check className="size-3" aria-hidden />}
               </span>
               <span style={{ color: on ? "var(--t-text-muted)" : "var(--t-text)", textDecoration: on ? "line-through" : undefined }}>
                 {it}
@@ -271,8 +272,8 @@ function GenUiView({ spec }: { spec: GenUiSpec }) {
           {spec.items.map((it, i) => (
             <li key={i} className="flex gap-3">
               <span
-                className="grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold text-white"
-                style={{ background: "var(--t-primary)" }}
+                className="grid size-6 shrink-0 place-items-center rounded-full text-xs font-bold"
+                style={{ background: "var(--t-primary-fill, #5B50F0)", color: "var(--t-on-primary, #fff)" }}
               >
                 {i + 1}
               </span>

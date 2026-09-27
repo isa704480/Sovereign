@@ -58,7 +58,11 @@ export function MessageList({ messages, onRegenerate, onEdit, inquiry }: Message
   useEffect(() => {
     if (lastRole === "user") {
       pinned.current = true;
-      bottom.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+      // Harakatni kamaytirish (OS yoki Sozlamalar) yoqilgan bo'lsa — silliq aylantirishsiz.
+      const reduce =
+        document.documentElement.dataset.reducedMotion === "true" ||
+        window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+      bottom.current?.scrollIntoView({ block: "end", behavior: reduce ? "auto" : "smooth" });
     }
   }, [lastId, lastRole]);
 

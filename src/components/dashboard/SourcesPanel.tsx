@@ -46,7 +46,7 @@ export function SourcesPanel({ citations, query, updatedAt, onClose }: SourcesPa
         <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--t-text-muted)" }}>
           <Globe className="size-3.5" style={{ color: "var(--t-primary)" }} /> {t("sources")}
         </div>
-        <button type="button" onClick={onClose} className="rounded-md p-1 hover:bg-white/10" aria-label={t("close")}>
+        <button type="button" onClick={onClose} className="rounded-md p-1 hover:bg-[var(--surface-hover)]" aria-label={t("close")}>
           <X className="size-4" />
         </button>
       </div>
@@ -58,12 +58,12 @@ export function SourcesPanel({ citations, query, updatedAt, onClose }: SourcesPa
               href={url}
               target="_blank"
               rel="noreferrer"
-              className="tt group flex items-start gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors hover:bg-white/5"
+              className="tt group flex items-start gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors hover:bg-[var(--surface-hover)]"
               style={{ borderRadius: "var(--t-radius)" }}
             >
               <span
                 className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-md text-[11px] font-bold"
-                style={{ background: "color-mix(in srgb, var(--t-primary) 20%, transparent)", color: "var(--t-accent)" }}
+                style={{ background: "color-mix(in srgb, var(--t-primary) 20%, transparent)", color: "var(--t-accent-text)" }}
               >
                 {i + 1}
               </span>
