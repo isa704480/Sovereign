@@ -26,7 +26,7 @@ function Column({ title, badge, items, done }: { title: string; badge: string; i
     <div
       className={cn(
         "relative h-full overflow-hidden rounded-2xl border p-6 md:p-7",
-        done ? "border-border bg-white/[0.02]" : "border-dashed border-white/15 bg-transparent",
+        done ? "border-border bg-bg-base" : "border-dashed border-[var(--border-strong)] bg-transparent",
       )}
     >
       <div className="flex items-center justify-between gap-3">
@@ -34,7 +34,7 @@ function Column({ title, badge, items, done }: { title: string; badge: string; i
         <span
           className={cn(
             "rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wider",
-            done ? "bg-success/15 text-success" : "bg-white/[0.05] text-text-secondary",
+            done ? "bg-success/15 text-success" : "border border-border text-text-secondary",
           )}
         >
           {badge}

@@ -13,10 +13,12 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="flex-1">
+    <>
       <Navbar />
-      <LegalDoc doc="privacy" />
+      <main id="main-content" className="flex-1">
+        <LegalDoc doc="privacy" />
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

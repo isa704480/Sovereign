@@ -124,12 +124,7 @@ export const PLAN_TEXT: Record<PlanId, { tagline: L10n; description: L10n; featu
         ru: "Самые длинные ответы (8K токенов)",
         en: "Longest answers (8K tokens)",
       },
-      {
-        uz: "Ustuvor navbat — hech qachon kutmaysiz",
-        "uz-cyrl": "Устувор навбат — ҳеч қачон кутмайсиз",
-        ru: "Приоритетная очередь — никакого ожидания",
-        en: "Priority queue — no more waiting",
-      },
+      { uz: "Ustuvor navbat", "uz-cyrl": "Устувор навбат", ru: "Приоритетная очередь", en: "Priority queue" },
       { uz: "Erta-yangi modellar", "uz-cyrl": "Эрта-янги моделлар", ru: "Ранний доступ к новым моделям", en: "Early access to new models" },
     ],
   },

@@ -4,10 +4,10 @@ import type { Dict } from "@/lib/i18n";
 export const P7C = {
   // ---- Landing: hero (qisqa matn) ----
   p7cHeroSub: {
-    uz: "Claude, GPT, Gemini va yana 1750+ model — bitta joyda, maxfiy.",
-    "uz-cyrl": "Claude, GPT, Gemini ва яна 1750+ модел — битта жойда, махфий.",
-    ru: "Claude, GPT, Gemini и ещё 1750+ моделей — в одном месте, приватно.",
-    en: "Claude, GPT, Gemini and 1750+ more models — private, in one place.",
+    uz: "Claude, GPT, Gemini va yana {n}+ model bitta joyda.",
+    "uz-cyrl": "Claude, GPT, Gemini ва яна {n}+ модел битта жойда.",
+    ru: "Claude, GPT, Gemini и ещё {n}+ моделей в одном месте.",
+    en: "Claude, GPT, Gemini and {n}+ more models in one place.",
   },
 
   // ---- Landing: yuklab olish (Cowork | CLI) ----
@@ -35,18 +35,18 @@ export const P7C = {
     en: "Visa/Mastercard · USDT/BTC · SBP (₽)",
   },
   p7cFooterTagline: {
-    uz: "AI — sizniki. Haqiqat — sizniki. Ma'lumot — sizniki. Abadiy.",
-    "uz-cyrl": "AI — сизники. Ҳақиқат — сизники. Маълумот — сизники. Абадий.",
-    ru: "Ваш ИИ. Ваша правда. Ваши данные. Навсегда.",
-    en: "Your AI. Your Truth. Your Data. Forever.",
+    uz: "Barcha AI modellar bitta ilovada. Ma'lumotlaringiz sizda qoladi.",
+    "uz-cyrl": "Барча AI моделлар битта иловада. Маълумотларингиз сизда қолади.",
+    ru: "Все модели ИИ в одном приложении. Ваши данные остаются у вас.",
+    en: "Every AI model in one app. Your data stays yours.",
   },
 
   // ---- Dashboard ----
   p7cMadeByAnthropic: {
-    uz: "Anthropic tomonidan yaratilgan · SOVEREIGN orqali",
-    "uz-cyrl": "Anthropic томонидан яратилган · SOVEREIGN орқали",
-    ru: "Создано Anthropic · через SOVEREIGN",
-    en: "Made by Anthropic · via SOVEREIGN",
+    uz: "Model: Anthropic Claude",
+    "uz-cyrl": "Модел: Anthropic Claude",
+    ru: "Модель: Anthropic Claude",
+    en: "Model: Anthropic Claude",
   },
   p7cMcpServerUrl: { uz: "MCP server URL manzili", "uz-cyrl": "MCP сервер URL манзили", ru: "URL MCP-сервера", en: "MCP server URL" },
   p7cPaySubSbp: { uz: "SBP · QR · MIR kartalari", "uz-cyrl": "СБП · QR · МИР карталари", ru: "СБП · QR · карты МИР", en: "SBP · QR · MIR cards" },

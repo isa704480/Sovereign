@@ -13,10 +13,12 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <main className="flex-1">
+    <>
       <Navbar />
-      <LegalDoc doc="terms" />
+      <main id="main-content" className="flex-1">
+        <LegalDoc doc="terms" />
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

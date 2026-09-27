@@ -293,6 +293,10 @@
     outline: 2px solid var(--accent-ring);
     outline-offset: 2px;
   }
+  /* The skip link moves focus to <main>; the whole page doesn't need a ring. */
+  main:focus-visible {
+    outline: none;
+  }
   :where(.theme-root) :is(button, a, [role="button"]):focus-visible {
     outline: 2px solid var(--t-primary, var(--accent-ring));
     outline-offset: 2px;
@@ -542,13 +546,11 @@
 @keyframes hero-in {
   from {
     opacity: 0;
-    transform: translateY(16px);
-    filter: blur(4px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 }
 .hero-in {
@@ -560,8 +562,39 @@
   }
 }
 
+/* Hero orbit (OrbitField): CSS rotation, paused while off-screen. */
+@keyframes orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.orbit-ring {
+  animation: orbit-spin var(--orbit-dur, 180s) linear infinite;
+}
+.orbit-ring[data-reverse] {
+  animation-direction: reverse;
+}
+.orbit-counter {
+  animation: orbit-spin var(--orbit-dur, 180s) linear infinite reverse;
+}
+.orbit-ring[data-reverse] .orbit-counter {
+  animation-direction: normal;
+}
+.orbit-paused .orbit-ring,
+.orbit-paused .orbit-counter {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orbit-ring,
+  .orbit-counter {
+    animation: none;
+  }
+}
+
 /* Sozlamalar → "Animatsiyani kamaytirish" (MotionProvider <html data-reduced-motion> qo'yadi). */
-html[data-reduced-motion="true"] .hero-in {
+html[data-reduced-motion="true"] .hero-in,
+html[data-reduced-motion="true"] .orbit-ring,
+html[data-reduced-motion="true"] .orbit-counter {
   animation: none;
 }
 html[data-reduced-motion="true"] *,

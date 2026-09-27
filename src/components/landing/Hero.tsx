@@ -6,7 +6,10 @@ import { MagneticButton } from "@/components/motion/MagneticButton";
 import { OrbitField } from "./OrbitField";
 import { ProductPreview } from "./ProductPreview";
 import { DOCS_URL } from "./company";
+import { ctaGlow, ctaPrimary, ctaSecondary } from "./cta";
 import { useSignedIn } from "./use-signed-in";
+import { TOTAL_MODELS_CLAIM } from "@/config/models";
+import { fmt } from "@/lib/i18n";
 import { useT } from "@/store/chat";
 
 export function Hero({ signedIn: signedInProp = false }: { signedIn?: boolean }) {
@@ -15,7 +18,7 @@ export function Hero({ signedIn: signedInProp = false }: { signedIn?: boolean })
   const signedIn = useSignedIn() || signedInProp;
 
   return (
-    <section id="main-content" tabIndex={-1} aria-labelledby="hero-title" className="relative isolate overflow-hidden outline-none focus-visible:outline-none">
+    <section aria-labelledby="hero-title" className="relative isolate overflow-hidden">
       {/* fon */}
       <div className="absolute inset-0 -z-30 bg-bg-base" />
       <div
@@ -35,7 +38,7 @@ export function Hero({ signedIn: signedInProp = false }: { signedIn?: boolean })
           <div className="hero-in" style={{ animationDelay: "0.10s" }}>
             <h1
               id="hero-title"
-              className="font-display text-[2.75rem] font-extrabold sm:text-5xl leading-[1.03] tracking-tight text-text-primary md:text-7xl"
+              className="font-display text-balance text-[clamp(44px,8vw,80px)] font-extrabold leading-[1.03] tracking-[-0.03em] text-text-primary"
             >
               {t("ldHeroTitle1")}
               <br />
@@ -45,26 +48,21 @@ export function Hero({ signedIn: signedInProp = false }: { signedIn?: boolean })
 
           <div className="hero-in" style={{ animationDelay: "0.20s" }}>
             <p className="mx-auto mt-6 max-w-xl text-pretty text-lg leading-relaxed text-text-secondary">
-              {t("p7cHeroSub")}
+              {fmt(t("p7cHeroSub"), { n: TOTAL_MODELS_CLAIM })}
             </p>
           </div>
 
           <div className="hero-in" style={{ animationDelay: "0.30s" }}>
             <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
               <MagneticButton>
-                <Link
-                  href={signedIn ? "/app" : "/register"}
-                  className="group inline-flex h-12 items-center gap-2 rounded-full bg-text-primary px-7 text-base font-semibold text-bg-base transition-transform hover:-translate-y-0.5"
-                >
+                {/* Sahifadagi yagona "nurli" tugma — asosiy harakat. */}
+                <Link href={signedIn ? "/app" : "/register"} className={`group ${ctaPrimary} ${ctaGlow}`}>
                   {signedIn ? t("backToChat") : t("startFree")}
-                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
                 </Link>
               </MagneticButton>
-              <a
-                href={DOCS_URL}
-                className="inline-flex h-12 items-center gap-2 rounded-full border border-border bg-white/[0.02] px-6 text-base font-medium text-text-secondary backdrop-blur-md transition-colors hover:border-white/20 hover:text-text-primary"
-              >
-                <BookOpen className="size-4" />
+              <a href={DOCS_URL} className={ctaSecondary}>
+                <BookOpen className="size-4" aria-hidden="true" />
                 {t("p4dHeroDocs")}
               </a>
             </div>

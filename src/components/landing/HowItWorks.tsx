@@ -24,35 +24,25 @@ export function HowItWorks() {
     >
       <SectionHeading id="how-title" eyebrow={t("p4dNavHow")} title={t("p4dHowTitle")} />
 
+      {/* Uch bosqich — bitta panel, hairline bilan bo'lingan. */}
       <div className="relative mt-14">
-        {/* bosqichlarni bog'lovchi chiziq (desktop) */}
-        <div
-          aria-hidden="true"
-          className="absolute left-[16.66%] right-[16.66%] top-[3.25rem] hidden h-px bg-gradient-to-r from-transparent via-[var(--border-accent)] to-transparent md:block"
-        />
         <motion.ol
           variants={staggerContainer(0.08)}
           initial="hidden"
           whileInView="show"
           viewport={{ once: true, margin: "-80px" }}
-          className="relative grid grid-cols-1 gap-3 md:grid-cols-3"
+          className="relative grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-3"
         >
           {STEPS.map((s, i) => (
             <motion.li
               key={s.title}
               variants={reveal}
-              className="flex h-full flex-col items-start rounded-2xl border border-border bg-white/[0.015] p-6 transition-colors duration-300 hover:border-white/15 md:items-center md:text-center"
+              className="flex h-full flex-col items-start bg-bg-base p-6 md:items-center md:p-8 md:text-center"
             >
-              <div className="relative flex size-14 items-center justify-center rounded-2xl border border-white/10 bg-bg-elevated shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                <s.icon className="size-5 text-primary-soft" strokeWidth={1.7} aria-hidden="true" />
-                <span
-                  aria-hidden="true"
-                  className="absolute -right-2 -top-2 grid size-6 place-items-center rounded-full bg-primary text-[11px] font-bold text-white"
-                >
-                  {i + 1}
-                </span>
+              <div className="flex size-12 items-center justify-center rounded-lg border border-border bg-bg-elevated">
+                <s.icon className="size-5 text-text-secondary" strokeWidth={1.7} aria-hidden="true" />
               </div>
-              <span className="mt-5 font-mono text-[11px] uppercase tracking-wider text-text-muted">
+              <span className="mt-5 font-mono text-xs uppercase tracking-wider text-text-muted">
                 {fmt(t("p4dStep"), { n: i + 1 })}
               </span>
               <h3 className="font-display mt-1 text-lg font-bold text-text-primary">{t(s.title)}</h3>
