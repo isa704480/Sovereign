@@ -703,11 +703,9 @@ export function makeT(lang) {
   };
 }
 
-/** Birinchi ishga tushishda: o'zbekcha (mahsulot tili); kirill tizimida — kirill. Onboarding'da almashtiriladi. */
+/** Birinchi ishga tushishda: ingliz tili (sayt bilan bir xil standart). Onboarding va Sozlamalarda almashtiriladi. */
 export function detectLang() {
-  const l = (navigator.language || "uz").toLowerCase();
-  if (l.startsWith("uz-cyrl")) return "uz-cyrl";
-  return "uz";
+  return "en";
 }
 
 export function relTime(ts, t) {
@@ -719,7 +717,7 @@ export function relTime(ts, t) {
   return t("time.day", { n: Math.round(s / 86400) });
 }
 
-export const I18n = createContext(makeT("uz"));
+export const I18n = createContext(makeT("en"));
 export const useT = () => useContext(I18n);
 export const KEYS = { uz, en, ru };
 /** Qo'lda tekshirilgan kirill (qolganlari translit) — i18n:check uchun. */
