@@ -82,17 +82,17 @@ export function ClaimsWarning({ issues }: { issues: Issue[] }) {
 const VERDICT_META = {
   correct: {
     labelKey: "verdictCorrect" as TKey,
-    color: "#22c55e",
+    color: "var(--t-success, #10D4A0)",
     Icon: ShieldCheck,
   },
   suspicious: {
     labelKey: "verdictSuspicious" as TKey,
-    color: "#f59e0b",
+    color: "var(--t-warning, #F59E0B)",
     Icon: ShieldAlert,
   },
   unverifiable: {
     labelKey: "verdictUnverifiable" as TKey,
-    color: "#94a3b8",
+    color: "var(--t-text-muted, #9BA3CC)",
     Icon: ShieldQuestion,
   },
 } as const;
@@ -129,13 +129,17 @@ export function VerifierPanel({ issues: all }: VerifierPanelProps) {
     : `${plural(lang, issues.length, { one: "p8bClaimsOne", few: "p8bClaimsFew", many: "p8bClaimsMany" })}${unconfirmed.length ? ` · ${unconfirmed.length} ${t("vfUnconfirmed")}` : ""}`;
 
   // Yashil faqat hamma da'vo MANBAGA nisbatan tasdiqlanganda.
-  const badgeColor = suspicious.length ? "#f59e0b" : allConfirmed && grounded ? "#22c55e" : "#94a3b8";
+  const badgeColor = suspicious.length
+    ? "var(--t-warning, #F59E0B)"
+    : allConfirmed && grounded
+      ? "var(--t-success, #10D4A0)"
+      : "var(--t-text-muted, #9BA3CC)";
   const HeaderIcon = suspicious.length ? ShieldAlert : allConfirmed && grounded ? ShieldCheck : ShieldQuestion;
 
   return (
     <div
       className="tt mt-3 overflow-hidden rounded-xl border text-xs"
-      style={{ borderColor: `${badgeColor}44`, background: `color-mix(in srgb, ${badgeColor} 6%, transparent)` }}
+      style={{ borderColor: `color-mix(in srgb, ${badgeColor} 27%, transparent)`, background: `color-mix(in srgb, ${badgeColor} 6%, transparent)` }}
     >
       <button
         type="button"
@@ -150,7 +154,7 @@ export function VerifierPanel({ issues: all }: VerifierPanelProps) {
         <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} style={{ color: "var(--t-text-muted)" }} />
       </button>
       {open && (
-        <ul className="border-t px-3 py-2" style={{ borderColor: `${badgeColor}22` }}>
+        <ul className="border-t px-3 py-2" style={{ borderColor: `color-mix(in srgb, ${badgeColor} 13%, transparent)` }}>
           <li className="pb-1.5" style={{ color: "var(--t-text-muted)" }}>
             {t(grounded ? "vfBasisSources" : attribution ? "vfBasisAttribution" : "vfBasisModel")}
           </li>
@@ -164,7 +168,7 @@ export function VerifierPanel({ issues: all }: VerifierPanelProps) {
             const Icon = meta.Icon;
             return (
               <li key={i} className="flex items-start gap-2 py-1.5">
-                <Icon className="mt-0.5 size-3.5 shrink-0" style={{ color: meta.color }} />
+                <Icon className="mt-0.5 size-3.5 shrink-0" style={{ color: meta.color }} aria-hidden />
                 <div className="min-w-0 flex-1">
                   <div style={{ color: "var(--t-text)" }}>{issue.fact}</div>
                   {issue.note && (

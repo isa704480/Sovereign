@@ -53,7 +53,7 @@ function CopyLine({ text }: { text: string }) {
         className="grid size-8 shrink-0 place-items-center rounded-lg transition-colors hover:bg-[var(--surface-hover)]"
         aria-label={copied ? t("copied") : t("copy")}
         title={copied ? t("copied") : t("copy")}
-        style={{ color: copied ? "#22C55E" : "var(--t-text-muted)" }}
+        style={{ color: copied ? "var(--t-success, #10D4A0)" : "var(--t-text-muted)" }}
       >
         {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
       </button>
