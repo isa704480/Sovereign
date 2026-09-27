@@ -4,6 +4,8 @@ import { fmt, isLang, translate, type Lang } from "@/lib/i18n";
 import { isResendConfigured, sendEmail } from "@/lib/email/resend";
 import { isRollyConfigured, rollyRate } from "@/lib/payments/rollypay";
 import { createServiceClient } from "@/lib/supabase/service";
+import { recordOpsEvent } from "@/lib/ops/record";
+import { sendTelegramText, telegramConfig } from "@/lib/ops/telegram";
 import {
   fetchOpenRouterBalance,
   formatAlert,
@@ -184,30 +186,16 @@ function alertLang(): Lang {
 }
 
 function telegramConfigured(): boolean {
-  return !!(process.env.TELEGRAM_ALERT_BOT_TOKEN?.trim() && process.env.TELEGRAM_ALERT_CHAT_ID?.trim());
+  return telegramConfig() !== null;
 }
 
 function emailConfigured(): boolean {
   return isResendConfigured() && !!process.env.ALERT_EMAIL?.trim();
 }
 
-async function sendTelegram(text: string): Promise<boolean> {
-  const token = process.env.TELEGRAM_ALERT_BOT_TOKEN?.trim();
-  const chat = process.env.TELEGRAM_ALERT_CHAT_ID?.trim();
-  if (!token || !chat) return false;
-  try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) console.error(`[budget-watch] telegram HTTP ${res.status}`); // tana/token logga chiqmaydi
-    return res.ok;
-  } catch (e) {
-    console.error("[budget-watch] telegram:", e instanceof Error ? e.name : "error");
-    return false;
-  }
+/** Ops bot bilan bir xil yuboruvchi (ops/telegram.ts): faqat TELEGRAM_ALERT_CHAT_ID, oddiy matn. */
+function sendTelegram(text: string): Promise<boolean> {
+  return sendTelegramText(text, { config: telegramConfig(), tag: "budget-watch" });
 }
 
 async function sendAlertEmail(id: AlertId | "payment_review", text: string): Promise<boolean> {
@@ -272,7 +260,23 @@ export function budgetWatchDeps(): BudgetWatchDeps {
         telegramConfigured() ? sendTelegram(text) : Promise.resolve(false),
         emailConfigured() ? sendAlertEmail(id, text) : Promise.resolve(false),
       ]);
-      return results.some(Boolean);
+      const ok = results.some(Boolean);
+      // Ops lentasi / hisobotlar uchun (Telegram'ga QAYTA yuborilmaydi — alert yuqorida ketdi).
+      if (ok) {
+        const t = Date.now();
+        recordOpsEvent({
+          id: `budget:${id}:${new Date(t).toISOString().slice(0, 10)}`,
+          t,
+          type: "budget",
+          d: {
+            alert: id,
+            ratio: ctx.state?.ratio ?? null,
+            restricted: ctx.state?.paidRestricted ?? null,
+            balance: ctx.openrouter?.balanceUsd ?? null,
+          },
+        });
+      }
+      return ok;
     },
   };
 }

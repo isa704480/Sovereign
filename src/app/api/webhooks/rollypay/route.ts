@@ -1,5 +1,6 @@
 import { rollyTestMode, verifyRollyWebhook, type RollyEvent } from "@/lib/payments/rollypay";
 import { createServiceClient } from "@/lib/supabase/service";
+import { deferOrderEvent } from "@/lib/ops/ops.server";
 
 export const runtime = "nodejs";
 
@@ -71,11 +72,13 @@ export async function POST(req: Request) {
   // qaytarib olinadi (0030). refund_request.completed va payment.refunded birga
   // keladi — funksiya faqat 'paid' buyurtmani o'zgartiradi, ikkinchisi hech narsa qilmaydi.
   if (event.status === "refunded" || event.status === "chargeback") {
-    const { error } = await supabase.rpc("revoke_order_payment", { p_order_id: orderId });
+    const { data: revoked, error } = await supabase.rpc("revoke_order_payment", { p_order_id: orderId });
     if (error) {
       console.error("[rollypay] revoke_order_payment:", error.message);
       return Response.json({ error: "DB write failed" }, { status: 500 });
     }
+    // Ops bot (Telegram): niqoblangan hodisa — javobdan keyin (takroriy webhook — revoked=false, yozilmaydi).
+    if (revoked === true) deferOrderEvent(event.status === "chargeback" ? "chargeback" : "refund", orderId);
   }
   return Response.json({ received: true });
 }

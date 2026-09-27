@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { parseEconRange } from "@/lib/econ/unit-economics";
 import { getUnitEconomics } from "@/lib/econ/unit-economics.server";
 import { getBudgetSnapshot } from "@/lib/econ/budget.server";
+import { OpsFeedCard } from "@/components/admin/OpsFeedCard";
+import { getOpsFeed } from "@/lib/ops/ops.server";
 
 export const metadata = { title: "Admin · SOVEREIGN" };
 
@@ -27,7 +29,7 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
   }
 
   // Barcha analytics'larni parallel yuklaymiz
-  const [summary, daily, plans, recent, onboarding, models, economics, budget] = await Promise.all([
+  const [summary, daily, plans, recent, onboarding, models, economics, budget, opsFeed] = await Promise.all([
     supabase.rpc("admin_users_summary"),
     supabase.rpc("admin_daily_stats", { p_days: 30 }),
     supabase.rpc("admin_plan_distribution"),
@@ -40,20 +42,30 @@ export default async function AdminPage({ searchParams }: PageProps<"/admin">) {
     getUnitEconomics(econDays),
     // API byudjeti (50% qoidasi) — guard holati va OpenRouter balansi; hech qachon otmaydi.
     getBudgetSnapshot(),
+    // Ops lentasi (Telegram bot bilan bir xil hodisalar, niqoblangan) — is_admin tekshiruvidan keyin.
+    getOpsFeed(50),
   ]);
 
   return (
-    <AdminDashboard
-      admin={{ name: profile.full_name ?? user.email ?? "Admin", email: profile.email ?? user.email ?? "" }}
-      summary={(Array.isArray(summary.data) ? summary.data[0] : summary.data) ?? null}
-      daily={daily.data ?? []}
-      plans={plans.data ?? []}
-      recentOrders={recent.data ?? []}
-      onboarding={(onboarding.data as OnboardingStats | null) ?? null}
-      models={(models.data as ModelStats | null) ?? null}
-      economics={economics}
-      econDays={econDays}
-      budget={budget}
-    />
+    <>
+      <AdminDashboard
+        admin={{ name: profile.full_name ?? user.email ?? "Admin", email: profile.email ?? user.email ?? "" }}
+        summary={(Array.isArray(summary.data) ? summary.data[0] : summary.data) ?? null}
+        daily={daily.data ?? []}
+        plans={plans.data ?? []}
+        recentOrders={recent.data ?? []}
+        onboarding={(onboarding.data as OnboardingStats | null) ?? null}
+        models={(models.data as ModelStats | null) ?? null}
+        economics={economics}
+        econDays={econDays}
+        budget={budget}
+      />
+      {/* Ops lentasi — alohida komponent (dashboard'ga tegmasdan, pastda). */}
+      <div className="bg-[#060812] text-white/90">
+        <div className="mx-auto max-w-7xl px-6 pb-10">
+          <OpsFeedCard events={opsFeed} />
+        </div>
+      </div>
+    </>
   );
 }

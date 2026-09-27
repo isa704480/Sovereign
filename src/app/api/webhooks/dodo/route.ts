@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { sendPaymentReviewAlert } from "@/lib/econ/budget.server";
+import { deferOrderEvent } from "@/lib/ops/ops.server";
 import { dodoProductId, retrieveDodoPayment, retrieveDodoSubscription, unwrapDodoWebhook } from "@/lib/payments/dodo";
 import { decideDodoActivation, revokeOrderMatches, type DodoOrderRow } from "@/lib/payments/dodo-activation";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -152,12 +153,14 @@ export async function POST(req: Request) {
       await markReview(`order_not_found:${paymentId}:${subscriptionId ?? "-"}`);
       return Response.json({ received: true, skipped: "order not found" });
     }
-    const { error: revErr } = await supabase.rpc("revoke_order_payment", { p_order_id: orderId });
+    const { data: revoked, error: revErr } = await supabase.rpc("revoke_order_payment", { p_order_id: orderId });
     if (revErr) {
       console.error("[dodo webhook] revoke_order_payment:", revErr);
       await releaseDedupe();
       return Response.json({ error: "DB write failed", step: "revoke" }, { status: 500 });
     }
+    // Ops bot (Telegram): niqoblangan hodisa — javobdan keyin, webhook'ni kechiktirmaydi.
+    if (revoked === true) deferOrderEvent(type.startsWith("dispute.") ? "chargeback" : "refund", orderId);
     return Response.json({ received: true, revoked: orderId });
   }
 
@@ -266,6 +269,9 @@ export async function POST(req: Request) {
   if (data.payment_id) {
     await supabase.from("orders").update({ provider_payment_id: data.payment_id }).eq("id", orderId);
   }
+
+  // Ops bot: obuna yangilanishi (birinchi to'lov — orders.paid_at orqali lentaga o'zi tushadi).
+  if (!decision.bind && type === "subscription.renewed") deferOrderEvent("renewal", orderId);
 
   return Response.json({ received: true });
 }

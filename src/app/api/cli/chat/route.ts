@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { createAnonClient } from "@/lib/supabase/anon";
 import { createServiceClient } from "@/lib/supabase/service";
+import { bumpOps } from "@/lib/ops/record";
 import { PLAN_BY_ID, isPlanId, planAllowsTier, type PlanId } from "@/config/plans";
 import { clientIp, ipKey, rateLimit } from "@/lib/rate-limit";
 import { tokenKey } from "@/lib/cli/device";
@@ -426,6 +427,8 @@ export async function POST(req: Request) {
 
   const message = capToolCalls(outcome.message ?? { role: "assistant", content: "" });
   await recordCliUsage(userId, outcome.model, outcome.usage, raw.length + (skill?.content.length ?? 0), message);
+  // Ops bot: faqat son (matn yo'q) — fire-and-forget hisoblagich.
+  bumpOps({ "msg:cli": 1, "tok:cli": (Number(outcome.usage?.prompt_tokens) || 0) + (Number(outcome.usage?.completion_tokens) || 0) });
   // `usage` — mijoz (CLI/Cowork) har vazifa qancha token sarflaganini ko'rsatadi va
   // --budget'ni tekshiradi. Qo'shimcha maydon: eski mijozlar e'tiborsiz qoldiradi.
   const pt = Number(outcome.usage?.prompt_tokens);
