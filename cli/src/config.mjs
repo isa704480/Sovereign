@@ -123,19 +123,22 @@ export function saveConfig(patch) {
 }
 
 /**
- * Faylda saqlangan tokenni SERVERDA ham bekor qiladi (POST /api/cli/logout) — best-effort:
- * tarmoq/HTTP xatosi e'tiborsiz, ~3 soniya kutiladi. clearAuth()'dan OLDIN chaqiriladi
- * (aks holda sizib chiqqan token 90 kun ishlayverardi). Muhitdagi SOVEREIGN_TOKEN'ga tegmaydi.
+ * Faylda saqlangan tokenni SERVERDA ham bekor qiladi (POST /api/cli/logout) — ~3 soniya kutiladi.
+ * clearAuth()'dan OLDIN chaqiriladi (aks holda sizib chiqqan token 90 kun ishlayverardi).
+ * Muhitdagi SOVEREIGN_TOKEN'ga tegmaydi.
+ * Natija: true — serverda bekor qilindi; false — bekor qilib BO'LMADI (tarmoq/HTTP xato —
+ * chaqiruvchi foydalanuvchini ogohlantiradi: tokenni /cli/sessions'da bekor qilsin);
+ * null — saqlangan token yo'q (bekor qiladigan narsa yo'q).
  */
 export async function revokeStoredToken(timeoutMs = 3000) {
   let file = {};
   try {
     file = JSON.parse(readFileSync(FILE, "utf8"));
   } catch {
-    return false;
+    return null;
   }
   const token = file && typeof file.token === "string" ? file.token.trim() : "";
-  if (!token) return false;
+  if (!token) return null;
   const base = sanitizeBaseUrl(process.env.SOVEREIGN_URL || file.baseUrl || DEFAULTS.baseUrl);
   try {
     const res = await fetch(`${base}/api/cli/logout`, {

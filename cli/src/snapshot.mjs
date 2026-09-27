@@ -507,6 +507,7 @@ export class SnapshotStore {
     return {
       id: snap.id,
       n: snap.n,
+      kind: snap.kind ?? "command",
       command: snap.command,
       root: snap.root,
       createdAt: snap.takenAt,
@@ -637,6 +638,102 @@ export class SnapshotStore {
     return out;
   }
 
+  /**
+   * write_file Undo (CLI): bitta faylning YOZISHDAN OLDINGI holati — tasdiqdan keyin,
+   * yozishdan oldin chaqiriladi. Ish papkasidan tashqari / himoyalangan / fayl bo'lmagan
+   * yo'l — null (nusxa yo'q). Natija finishFile() bilan yakunlanadi va /undo ro'yxatiga
+   * buyruq nusxalari bilan birga tushadi (restore() bir xil ishlaydi).
+   */
+  async beginFile(rootDir, filePath, { label = "" } = {}) {
+    let root;
+    try {
+      root = realpathSync.native(resolve(String(rootDir)));
+    } catch {
+      return null;
+    }
+    let r;
+    try {
+      r = resolvePath(String(filePath ?? ""), root);
+    } catch {
+      return null;
+    }
+    if (r.outside || !r.rel) return null;
+    const rel = r.rel.split(/[\\/]/).join("/");
+    if (!targetOk(root, rel)) return null;
+    const abs = toAbs(root, rel);
+    const st = await fsp.lstat(abs).catch(() => null);
+    if (st && !st.isFile()) return null;
+    let before = null;
+    if (st) {
+      before = { size: st.size, mtimeMs: st.mtimeMs, hash: null };
+      if (st.size <= this.limits.maxFileBytes) {
+        try {
+          const buf = await fsp.readFile(abs);
+          const hash = hashOf(buf);
+          if (await this.#putObject(hash, buf)) before.hash = hash;
+        } catch {
+          /* o'qib bo'lmadi — "tiklab bo'lmaydi" */
+        }
+      }
+    }
+    // Hali yo'q ota papkalar — write_file ularni yaratadi; Undo (bo'sh bo'lsa) o'chiradi.
+    const dirsCreated = [];
+    for (let p = parentRel(rel); p; p = parentRel(p)) {
+      if (await fsp.lstat(toAbs(root, p)).catch(() => null)) break;
+      dirsCreated.push(p);
+    }
+    const takenAt = Date.now();
+    const snap = {
+      id: `s${takenAt.toString(36)}${randomBytes(3).toString("hex")}`,
+      n: ++this.seq,
+      kind: "file",
+      root,
+      command: label || `write_file ${rel}`,
+      takenAt,
+      files: null,
+      dirs: null,
+      walked: null,
+      partial: false,
+      state: "pending",
+      changes: null,
+      file: { rel, before, dirsCreated },
+    };
+    this.snaps.push(snap);
+    return snap;
+  }
+
+  /** write_file'dan KEYIN: o'zgarish bo'lsa nusxa saqlanadi (xulosa), bo'lmasa — null. */
+  async finishFile(snap) {
+    if (!snap?.file || snap.state !== "pending" || !this.snaps.includes(snap)) return null;
+    const { rel, before, dirsCreated } = snap.file;
+    const st = await fsp.lstat(toAbs(snap.root, rel)).catch(() => null);
+    let afterHash = null;
+    if (st?.isFile() && st.size <= this.limits.maxFileBytes) {
+      afterHash = await fsp.readFile(toAbs(snap.root, rel)).then(hashOf, () => null);
+    }
+    const changes = { deleted: [], modified: [], created: [], lost: [], dirsDeleted: [], dirsCreated: [] };
+    if (st?.isFile()) {
+      if (!before) {
+        changes.created.push({ rel, afterHash, afterSize: st.size, afterMtime: st.mtimeMs });
+        changes.dirsCreated = dirsCreated.sort();
+      } else if (!before.hash) {
+        changes.lost.push({ rel, kind: "modified" });
+      } else if (afterHash !== before.hash) {
+        changes.modified.push({ rel, hash: before.hash, size: before.size, afterHash, afterSize: st.size, afterMtime: st.mtimeMs });
+      }
+    }
+    snap.file = null;
+    if (!(changes.created.length + changes.modified.length + changes.lost.length)) {
+      this.#remove(snap);
+      await this.#gc();
+      return null;
+    }
+    snap.changes = changes;
+    snap.state = "done";
+    await this.#prune();
+    return this.summary(snap);
+  }
+
   /** Nusxani tiklamasdan tashlash. */
   async drop(id) {
     const snap = this.snaps.find((s) => s.id === id);
@@ -679,6 +776,7 @@ export class SnapshotStore {
     const used = new Set();
     for (const s of this.snaps) {
       if (s.state === "pending" && s.files) for (const f of s.files.values()) f.hash && used.add(f.hash);
+      if (s.state === "pending" && s.file?.before?.hash) used.add(s.file.before.hash);
       if (s.state === "done") for (const f of [...s.changes.deleted, ...s.changes.modified]) used.add(f.hash);
     }
     for (const c of this.cache.map.values()) used.add(c.hash);
@@ -707,22 +805,27 @@ export class SnapshotStore {
 /**
  * runTool'ni o'raydi: "risky" run_command TASDIQLANGANDAN keyin (bajarilishidan
  * oldin) nusxa oladi, bajarilgach farqni hisoblaydi va o'zgarish bo'lsa
- * `onChange(summary)` chaqiradi. Boshqa vositalar o'zgarishsiz o'tadi.
+ * `onChange(summary)` chaqiradi. `files: true` bo'lsa write_file ham (bitta fayl,
+ * beginFile/finishFile) — CLI /undo uchun; Cowork write_file'ni o'zi zaxiralaydi.
+ * Boshqa vositalar o'zgarishsiz o'tadi.
  *
  * @param {typeof import("./tools.mjs").runTool} run
  * @param {() => SnapshotStore|null} getStore
- * @param {{ getRoot?: () => string, onChange?: (summary: object) => void }} [opts]
+ * @param {{ getRoot?: () => string, onChange?: (summary: object) => void, files?: boolean }} [opts]
  */
-export function withCommandSnapshots(run, getStore, { getRoot = () => process.cwd(), onChange } = {}) {
+export function withCommandSnapshots(run, getStore, { getRoot = () => process.cwd(), onChange, files = false } = {}) {
   return async (name, args, confirm, opts) => {
-    const store = name === "run_command" ? getStore?.() : null;
-    if (!store || !isSnapshotCommand(args?.command)) return run(name, args, confirm, opts);
+    const fileWrite = files && name === "write_file";
+    const store = name === "run_command" || fileWrite ? getStore?.() : null;
+    if (!store || (!fileWrite && !isSnapshotCommand(args?.command))) return run(name, args, confirm, opts);
     let snap = null;
     const confirmThenSnap = async (...q) => {
       const ok = await confirm(...q);
-      if (ok) {
+      if (ok && !snap) {
         try {
-          snap = await store.take(getRoot(), { command: String(args.command ?? "") });
+          snap = fileWrite
+            ? await store.beginFile(getRoot(), String(args?.path ?? ""))
+            : await store.take(getRoot(), { command: String(args.command ?? "") });
         } catch {
           snap = null;
         }
@@ -735,7 +838,7 @@ export function withCommandSnapshots(run, getStore, { getRoot = () => process.cw
       if (snap) {
         let info = null;
         try {
-          info = await store.finish(snap);
+          info = snap.kind === "file" ? await store.finishFile(snap) : await store.finish(snap);
         } catch {
           info = null;
         }

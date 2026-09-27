@@ -274,7 +274,14 @@ export default function App() {
     if (r?.ok && r.cwd !== undefined) { setInfo(r); toast(t("account.welcome"), "ok"); }
   };
   const cancelLogin = () => S().auth.cancel();
-  const logout = async () => { const st = await S().auth.logout(); setInfo(st); setAuth({ state: "idle" }); toast(t("account.signedOut")); };
+  const logout = async () => {
+    const st = await S().auth.logout();
+    setInfo(st);
+    setAuth({ state: "idle" });
+    // Server tokenni bekor qila olmadi — mahalliy chiqish bajarildi, lekin foydalanuvchi ogohlantiriladi.
+    if (st?.revokeFailed) toast(t("account.revokeFailed", { url: "soveregn.xyz/cli/sessions" }), "err");
+    else toast(t("account.signedOut"));
+  };
 
   const updateAction = async (what) => {
     if (what === "check") setUpdate(await S().updates.check());

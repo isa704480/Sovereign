@@ -5,7 +5,7 @@
   "type": "module",
   "bin": {
     "sovereign": "bin/sovereign.mjs",
-    "sov": "bin/sovereign.mjs"
+    "sov": "bin/sov.mjs"
   },
   "engines": {
     "node": ">=20"
