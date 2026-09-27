@@ -1,378 +1,550 @@
 /**
  * SOVEREIGN Skills — expert playbooks injected into the model's system prompt.
  *
- * Adapted for SOVEREIGN from public "Claude skills":
- *   - ui-ux-pro-max      (github.com/nextlevelbuilder/ui-ux-pro-max-skill)
- *   - apple-design       (github.com/dickwu/apple-design-skill)
- *   - cybersecurity      (github.com/mukul975/anthropic-cybersecurity-skills)
+ * SINGLE SOURCE OF TRUTH for the web chat (/api/chat), the CLI/Cowork proxy (/api/cli/chat)
+ * and the settings endpoint (/api/cli/me). Everything in `SKILLS` is plain, JSON-serialisable
+ * data (triggers are regex *source strings*), so the catalog can be shipped to other clients
+ * as-is. The CLI (cli/src/skills.mjs) and Cowork (desktop/ui/src/lib/skills.js) keep small
+ * display-only copies; src/config/skills.test.ts fails if their ids/aliases drift from this file.
  *
- * A skill can be auto-activated (keyword/intent match) or toggled by the user.
- * When active, its `prompt` is appended to the system message for that request.
+ * Prompts are distilled from public "Claude skills" (attribution + license per skill below):
+ *   - ui-ux-pro-max  github.com/nextlevelbuilder/ui-ux-pro-max-skill (MIT)
+ *   - apple-design   "Apple Liquid Glass" — github.com/naplesblue/apple-liquid-glass (MIT © 2026 naplesblue);
+ *                    motion layer adapted there from emilkowalski/skills apple-design (MIT © 2026 Emil Kowalski)
+ *   - cybersecurity  github.com/mukul975/anthropic-cybersecurity-skills (MIT) — defensive subset only
+ *   - no-ai-slop     github.com/petergyang/no-ai-slop (MIT © 2026 Peter Yang)
+ *   - focus-mode     github.com/ayghri/i-have-adhd (MIT © 2026 Ayoub Ghriss)
+ *   - clean-code, data-viz — SOVEREIGN originals
+ *
+ * Prompts are written in English for the model (≈ 25–40% fewer tokens than Uzbek/Russian and
+ * followed more reliably); the answer language is set separately by the caller.
+ *
+ * Activation: user-enabled skills always apply (capped at MAX_ACTIVE_SKILLS); on top of that
+ * up to MAX_AUTO_SKILLS are auto-detected from the last user message with weighted keyword
+ * triggers (score ≥ TRIGGER_THRESHOLD). Trivial messages ("hi", "thanks", one word) never
+ * auto-activate anything. Skills without triggers (focus-mode) are manual-only.
  */
 
-export type SkillCategory = "code" | "design" | "security" | "writing" | "data";
+import type { TKey } from "@/lib/i18n";
+
+export type SkillCategory = "design" | "code" | "security" | "writing" | "data" | "style";
+
+/** Icon identifier (lucide-style kebab name). Web → lucide-react, Cowork → its own SVG set. */
+export type SkillIconName =
+  | "layout-template"
+  | "layers"
+  | "braces"
+  | "shield-check"
+  | "pen-line"
+  | "chart-column"
+  | "focus";
+
+export interface SkillTrigger {
+  /** RegExp source (JSON-safe). */
+  source: string;
+  flags: string;
+  /** Score contribution: 2 = strong (one hit activates), 1 = weak (needs two), negative = counter-signal. */
+  weight: number;
+}
 
 export interface Skill {
   id: string;
+  /** Brand name — fallback when no translation is available (server logs, old clients). */
   name: string;
-  /** One-line description shown in the picker. */
-  description: string;
+  nameKey: TKey;
+  descKey: TKey;
+  /** Bullet points shown when the skill is expanded in the market. */
+  detailKeys: TKey[];
   category: SkillCategory;
-  /** Emoji marker. */
-  glyph: string;
+  icon: SkillIconName;
   color: string;
-  /** Auto-activates when a user message matches. */
-  triggers: RegExp[];
+  /** Empty → manual toggle only (never auto-activated). */
+  triggers: SkillTrigger[];
   /** Guidance appended to the system prompt when active. */
   prompt: string;
-  /** On by default in the picker. */
+  /** On by default for new users. */
   defaultOn?: boolean;
+  /** Older / alternative ids that map to this skill (stored enabled_skills keep working). */
+  aliases?: string[];
+  source?: { url: string; license: string };
 }
+
+/** Max skills injected into one request (user-enabled + auto), to bound prompt tokens. */
+export const MAX_ACTIVE_SKILLS = 4;
+/** Max skills added by auto-detection on top of the user-enabled ones. */
+export const MAX_AUTO_SKILLS = 2;
+/** Minimum trigger score for auto-activation. */
+export const TRIGGER_THRESHOLD = 2;
+
+// ---------------------------------------------------------------------------
+// Trigger helpers — Unicode-aware word boundaries (JS `\b` is ASCII-only, so it
+// fails on Cyrillic). A trailing `*` means prefix match (agglutinative Uzbek,
+// Russian case endings: "dizayn*" matches "dizaynini", "дизайн*" → "дизайна").
+// ---------------------------------------------------------------------------
+
+const B = "(?<![\\p{L}\\p{N}_])";
+const E = "(?![\\p{L}\\p{N}_])";
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+
+function kw(weight: number, ...words: string[]): SkillTrigger {
+  const alts = words.map((w) => {
+    const prefix = w.endsWith("*");
+    const body = escapeRe(prefix ? w.slice(0, -1) : w).replace(/ /g, "[\\s-]+");
+    return prefix ? body : body + E;
+  });
+  return { source: `${B}(?:${alts.join("|")})`, flags: "iu", weight };
+}
+
+const strong = (...w: string[]) => kw(2, ...w);
+const weak = (...w: string[]) => kw(1, ...w);
+
+// ---------------------------------------------------------------------------
+// Prompts (each ≤ ~600 tokens; see src/config/skills.test.ts for the budget check)
+// ---------------------------------------------------------------------------
+
+const UI_UX_PROMPT = `SKILL: UI/UX Pro Max — apply to any interface you design, build or review. Fix in priority order:
+1. Accessibility (critical): text contrast ≥4.5:1 (large text 3:1); visible focus rings; label or aria-label on icon-only controls; keyboard order = visual order; alt text; never convey meaning by color alone; respect prefers-reduced-motion and text scaling.
+2. Touch & interaction (critical): hit areas ≥44×44px, ≥8px apart; feedback within 100ms (pressed state; disabled button + spinner during async); never hover-only; confirm or allow undo for destructive actions.
+3. Performance: reserve space for images and async content (no layout shift), lazy-load below the fold, skeletons for waits >300ms, virtualize long lists.
+4. Style: one coherent style matched to the product; one SVG icon family (e.g. Lucide) — never emoji as icons; one radius/shadow/elevation scale; one primary CTA per screen.
+5. Layout: mobile-first, breakpoints 375/768/1024/1440, no horizontal scroll, never disable zoom, 4/8px spacing scale, 60–75 character lines, min-h-dvh instead of 100vh, fixed bars never cover content.
+6. Type & color: body ≥16px, line-height 1.5–1.75, a consistent type scale, semantic color tokens (no raw hex inside components), dark mode designed and contrast-checked separately (not inverted), tabular numbers in data.
+7. Motion: 150–300ms micro-interactions, ≤400ms transitions, exit faster than enter, animate transform/opacity only, every animation explains a cause and effect, never block input.
+8. Forms & feedback: visible labels (not placeholder-only), validate on blur, error next to the field stating cause and fix, correct input types and autocomplete; design empty, loading, error and success states.
+9. Navigation: predictable back, current location highlighted, ≤5 labeled bottom-nav items, deep-linkable screens, every modal has a clear exit.
+Reject: purple/pink "AI" gradients, neon on white, emoji icons, gray-on-gray text, random shadows, everything boxed in cards, decorative-only animation.
+In code: semantic HTML, every state (default/hover/focus/active/disabled/loading/empty/error), responsive by default.
+Before delivering, check: contrast, 44px targets, visible focus, works at 375px, reduced motion, dark-mode contrast.`;
+
+const APPLE_PROMPT = `SKILL: Apple Liquid Glass — the current Apple visual language: calm, premium, restrained. Decide by these rules, in order:
+1. One unified surface beats fragmented cards: sibling items share one white panel split by hairlines rgba(0,0,0,.07), not separately bordered or tinted cards.
+2. Glass only where layers truly overlap (sticky nav, modal/popover/sheet, labels on a colored CTA). Plain content is solid #fff + soft shadow. Nav: background rgba(245,245,247,.72); backdrop-filter: saturate(180%) blur(20px). On color: rgba(255,255,255,.16), 1px rgba(255,255,255,.22) border, blur(8px). Never stack translucent on translucent.
+3. Restraint is luxury: solve with whitespace and hierarchy before adding borders, fills, icons or numbers. No decorative stats, emoji or filler copy.
+4. Hierarchy from weight, size and grayscale, not color. Color only for one accent (#0071e3), heat (#ff6b00) or live (#30d158).
+5. Details: negative tracking on titles (H1 clamp(27px,5vw,46px)/700/-0.03em, H2 -0.02em), long body line-height ≥1.85, tabular-nums, system font stack (-apple-system, "SF Pro Text"…), never Inter/Roboto as the brand face.
+Tokens: ground #f5f5f7 (cool; never cream/beige), surface #fff, row hover #fbfbfd, text #1d1d1f / #424245 / #6e6e73 / #86868b, track #e8e8ed.
+Radius tiers only: pill 999 · thumb 12 · sheet button 16 · card 18 · panel 22 · hero 26.
+Shadows are always two-layer: card 0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05); overlay 0 2px 8px rgba(0,0,0,.1), 0 30px 80px rgba(0,0,0,.24). No hard black borders, no single heavy shadow.
+Layout: flex/grid + gap; containers 720px (reading) / 1080px (grid); side padding 22px; section gap clamp(34px,6vw,56px); one column below ~680px; targets ≥44px.
+Motion: static content only gets a hover lift (translateY(-2px to -3px), 0.15–0.25s). Overlays: feedback on pointer-down; enter ~400ms cubic-bezier(.32,.72,0,1), exit 250–300ms along the same path; transform-origin at the trigger; glass materializes (blur + scale + opacity together); use transitions, not keyframes, so they stay interruptible; animate transform/opacity only. Always handle prefers-reduced-motion, prefers-reduced-transparency (solid #fff) and prefers-contrast.
+Interaction: every screen answers where am I, where can I go, how do I get out; prefer undo to confirmation (confirm only the irreversible); specific labels ("Save changes", not "Submit").`;
+
+const CLEAN_CODE_PROMPT = `SKILL: Clean Code — production-quality code.
+- Deliver complete, runnable code for the stated stack and versions; state assumptions in one line. Follow the project's existing conventions, naming and libraries before adding new ones.
+- Small functions with one job, meaningful names, early returns, shallow nesting. No dead code, no speculative abstractions; remove duplication only when it is real.
+- Handle edge cases explicitly: null/empty input, errors, timeouts, concurrency. Never swallow errors silently; fail with a message that helps fix the problem.
+- Validate untrusted input at boundaries, use parameterized queries, escape output, keep secrets out of code and logs.
+- Keep types strong (no \`any\` or unchecked casts in TypeScript); make invalid states unrepresentable when it is cheap.
+- Use current stable APIs. Never invent functions, flags or packages; if unsure an API exists, say so.
+- For non-trivial logic, include or propose focused tests for the main path and the edge cases.
+- When changing existing code: minimal diff, preserve behavior unless asked, flag risky side effects.
+- Explain the approach in 1–3 sentences, then the code; mention an alternative in one line only if it matters.`;
+
+const SECURITY_PROMPT = `SKILL: Cybersecurity — defensive secure coding and security review.
+Scope: the user's own or authorized systems, CTFs/labs, incident response, education. No malware, detection evasion, credential theft or attacks on third-party systems — offer the defensive equivalent.
+Writing code: least privilege, deny by default, validate input at trust boundaries (schemas, allowlists), context-aware output encoding, fail closed, no secrets or personal data in logs.
+Review checklist (what applies):
+1. Access control (OWASP A01): each endpoint verifies the caller may access that exact resource (IDOR/BOLA); server-side role checks; no mass assignment; tenant/RLS filters.
+2. Injection (A03): parameterized SQL (allowlist identifiers/ORDER BY); argv arrays, never shell strings from input; no innerHTML/dangerouslySetInnerHTML with user data; also NoSQL operators, path traversal (resolve, then check prefix), prototype pollution, unsafe deserialization, header CRLF.
+3. SSRF: scheme/host allowlist for user URLs; block private and link-local ranges (169.254.169.254) after DNS resolution and on redirects.
+4. Authentication (A07): argon2id/bcrypt (cost ≥12); constant-time compares; rotate the session id on login; HttpOnly+Secure+SameSite cookies; JWT: fixed alg, verify iss/aud/exp; OAuth: state + PKCE + exact redirect_uri; rate-limit login, OTP and reset.
+5. Crypto (A02): no MD5/SHA-1/ECB/DES/RC4 for security; AES-GCM with unique nonces; CSPRNG tokens (never Math.random); keys from a KMS/secret store, rotated.
+6. Secrets & config: none in code, git history, client bundles (NEXT_PUBLIC_*) or logs; no debug endpoints/stack traces in prod; CSP, HSTS, nosniff, frame-ancestors; never CORS * with credentials.
+7. Web: CSRF protection on state changes; webhook signatures over the raw body plus a timestamp window; uploads checked by size and magic bytes, served from another origin.
+8. Logic: races/TOCTOU → transactions, row locks, idempotency keys; limits on pagination and expensive calls.
+9. Supply chain (A06): committed lockfile, npm/pip audit, no unreviewed install scripts, CI actions pinned by SHA.
+10. Logging (A09): audit trail for auth and privilege changes, redaction, alerts on anomalies.
+Findings: [CRITICAL|HIGH|MEDIUM|LOW] title — file:line — CWE/OWASP — impact — fix (diff) — confidence; sorted by severity, then the top 3 fixes. Never invent findings; say what you could not verify.`;
+
+const NO_AI_SLOP_PROMPT = `SKILL: No AI Slop — write and edit prose like a sharp human editor.
+Applies to prose you write (emails, posts, articles, docs, UI copy) and to edits of the user's drafts; code and data are exempt.
+Editing: keep the writer's voice (vocabulary, cadence, bluntness, humor, honest uncertainty); make the minimum effective edit; keep the meaning — never invent claims, numbers, sources or quotes; if the audience or goal is unclear, ask one question. Return the full edited draft, then a short "What changed" list.
+Detection ("does this sound like AI?", "audit this"): name each pattern below that appears, quote the line and give a few-word fix. Do not rewrite, score, or guess who wrote it.
+Principles: lead with the point; active voice with a real actor; concrete names, numbers, dates and mechanisms over abstractions; portability test — a sentence that could describe any company or product gets a specific fact or gets cut; show instead of labeling ("this is important"); direct verbs ("decided", not "made a decision"); repeat the right word instead of cycling synonyms.
+Cut these words and their equivalents in other languages: delve, foster, leverage, utilize, facilitate, empower, streamline, robust, cutting-edge, game changer, tapestry, realm, beacon, multifaceted, meticulous, intricate, paramount, transformative, elevate, embark, supercharge, harness, ever-evolving; fillers such as "it's worth noting", "at the end of the day", "in today's world", "when it comes to", "let's dive in", "in order to".
+Cut these patterns: "not X, it's Y" contrasts; throat-clearing openers ("Here's the thing"); faux-insight setups ("what most people miss"); dramatic colon reveals; trailing "-ing" pseudo-analysis ("highlighting its commitment"); puffery ("a testament to", "a pivotal moment"); lines telling the reader what matters; weasel attribution ("experts agree") — name the source or cut it; "Not X. Not Y. Z." lists; dramatic fragments; self-answered rhetorical questions; fake-profound closing lines; "In conclusion" recaps; formatting slop (emoji in headings, bold mid-sentence, bullets where two sentences read better); em dashes as rhythm (none in short copy, at most two in long pieces).
+Before sending, reread and remove anything above that slipped in.`;
+
+const FOCUS_PROMPT = `SKILL: Focus mode — shape every answer so a reader with ADHD can act on it immediately.
+1. First line = the next action or the direct answer (command, path, snippet). No context first.
+2. Multi-step work → a numbered list, one bounded action per step, the fewest steps that work.
+3. If anything is left open, end with ONE concrete next action doable in under two minutes.
+4. No tangents: finish the main thing; offer a side issue as one separate question at the end.
+5. In ongoing work, restate where things stand: "Step 3 of 5 done: X. Next: Y."
+6. Time estimates in concrete units ("about 15 minutes", "an afternoon"), never "some work".
+7. Make wins visible: say what works now and how to try it.
+8. Errors are matter-of-fact: cause, then fix.
+9. Show at most 5 items per list or group, most relevant first (this limits presentation, not analysis).
+10. No preamble ("Great question", "Sure!", "Let me…"), no recap, no closing pleasantries ("Hope this helps").
+Break the shape only when the user asks for an in-depth explanation (explain fully with headers, still no preamble or closer), a destructive action needs confirmation, repeated fixes keep failing (name the suspect assumption and ask one diagnostic question), or the request is genuinely ambiguous (ask one short question). System and tool instructions outrank this skill.
+Before sending: from the first and last line alone, the reader must know what to do next and what just happened.`;
+
+const DATA_VIZ_PROMPT = `SKILL: Data Viz — honest, readable charts, tables and dashboards.
+- Pick the form from the question: comparison → sorted bar; trend over time → line; part-to-whole → stacked bar, or one donut with ≤5 parts; distribution → histogram or box plot; relationship → scatter; exact lookup → table.
+- Bars start at zero; never truncate an axis to exaggerate; label axes with units; the title states the takeaway ("Revenue up 18% in Q3"); cite the source and date.
+- Remove chart junk: no 3D, gradients, shadows or heavy gridlines; prefer direct labels to a legend when there are few series.
+- Color: one hue ramp for sequential data, a diverging palette around a meaningful midpoint, at most 6–8 categorical colors, colorblind-safe (never red vs green alone); highlight the key series and mute the rest; check contrast in light and dark themes.
+- Numbers: locale-aware formatting, consistent precision, tabular figures, explicit units (%, $, k, M).
+- Accessibility: a one-sentence text summary of the insight, a table alternative, tooltips reachable by keyboard and touch.
+- Dashboards: most important KPI first (top-left), 5–7 charts per view at most, shared scales for comparable charts, empty/loading/error states.
+- In code (Recharts, Chart.js, D3, matplotlib…): responsive sizing, fewer ticks on small screens, aggregate or sample large datasets (>1000 points).`;
+
+// ---------------------------------------------------------------------------
+// Catalog (order = display order and prompt order)
+// ---------------------------------------------------------------------------
 
 export const SKILLS: Skill[] = [
   {
     id: "ui-ux-pro-max",
     name: "UI/UX Pro Max",
-    description: "Premium interfeys dizayni: ierarxiya, spacing, rang, holatlar",
+    nameKey: "p18SkUiuxName",
+    descKey: "p18SkUiuxDesc",
+    detailKeys: ["p18SkUiuxD1", "p18SkUiuxD2", "p18SkUiuxD3", "p18SkUiuxD4"],
     category: "design",
-    glyph: "✦",
+    icon: "layout-template",
     color: "#5B50F0",
     defaultOn: true,
     triggers: [
-      /\b(ui|ux|interfeys|dizayn|design|layout|komponent|component|button|tugma|form|forma|landing|sahifa|page|card|karta|navbar|sidebar|modal|dashboard)\b/i,
-      /\b(tailwind|css|figma|shadcn|responsive|mobil|adaptiv)\b/i,
+      strong(
+        "ui", "ux", "ui/ux", "ui-kit", "interfeys*", "интерфейс*", "landing page", "landing", "лендинг*",
+        "figma", "tailwind", "shadcn", "responsive", "adaptiv*", "адаптив*", "вёрстк*", "верстк*", "wireframe*",
+        "mockup*", "макет*", "navbar", "sidebar", "a11y", "accessibility", "доступност*",
+      ),
+      weak(
+        "design*", "dizayn*", "дизайн*", "layout", "page", "sahifa*", "страниц*", "button*", "tugma*", "кнопк*",
+        "form", "forms", "forma*", "форм", "формы", "форму", "modal*", "модал*", "card*", "karta*", "карточк*",
+        "component*", "komponent*", "компонент*", "color*", "colour*", "rang*", "цвет*", "font*", "shrift*",
+        "шрифт*", "mobil*", "мобил*", "animation*", "animatsiya*", "анимац*", "css", "screen*", "ekran*",
+        "экран*", "dashboard*", "дашборд*", "style*", "uslub*", "стил*", "dark mode", "tema*",
+      ),
     ],
-    prompt: [
-      "UI/UX PRO MAX SKILL faol. Interfeys yaratganda ushbu ustuvor qoidalarga qat'iy amal qil:",
-      "1) ACCESSIBILITY (kritik): matn kontrasti ≥4.5:1, alt matn, klaviatura navigatsiyasi, aria-label. Focus halqasini o'chirma; faqat ikonli tugmaga label qo'sh.",
-      "2) TEGINISH (kritik): minimal 44×44px teginish maydoni, elementlar orasi ≥8px, har amalga darhol javob (loading). Faqat hover'ga bog'liq interaksiya qilma.",
-      "3) STIL: mahsulot turiga mos yagona uslub, izchillik, SVG ikonlar. Flat va skeuomorfik aralashtirma; emoji'ni ikon sifatida ishlatma.",
-      "4) LAYOUT: mobil-birinchi, breakpointlar 375/768/1024/1440px, gorizontal scroll yo'q, fiks px kenglikdan qoch, zoom'ni o'chirma.",
-      "5) TIPOGRAFIYA & RANG: asosiy o'lcham ~16px, qator oralig'i 1.5, semantik rang tokenlari. Body ≤12px, kulrang-ustiga-kulrang va xom hex'dan qoch.",
-      "6) ANIMATSIYA: kontekstga mos vaqt (150-300ms), harakat ma'no tashisin; barchasiga bitta davomiylik berma, prefers-reduced-motion'ni hurmat qil.",
-      "7) FORMALAR: ko'rinadigan label (placeholder emas), xato maydon yonida, yordamchi matn. BARCHA holatlar: default/hover/focus/active/disabled/loading/empty/error.",
-      "8) NAVIGATSIYA: bashoratli 'orqaga', pastki nav ≤5 element, deep-linking.",
-      "TAQIQLANGAN anti-pattern'lar: AI binafsha/pushti gradient, neon ranglar, keskin animatsiya, emoji-ikon, gray-on-gray.",
-      "Kod bersang: semantik HTML, aria atributlari, 4/8px spacing shkalasi.",
-    ].join("\n"),
+    prompt: UI_UX_PROMPT,
+    source: { url: "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill", license: "MIT" },
   },
   {
     id: "apple-design",
-    name: "Apple Design",
-    description: "Apple HIG uslubi: soddalik, aniqlik, liquid glass, chuqurlik",
+    name: "Apple Liquid Glass",
+    nameKey: "p18SkAppleName",
+    descKey: "p18SkAppleDesc",
+    detailKeys: ["p18SkAppleD1", "p18SkAppleD2", "p18SkAppleD3", "p18SkAppleD4"],
     category: "design",
-    glyph: "",
+    icon: "layers",
     color: "#0A84FF",
+    aliases: ["apple-liquid-glass", "liquid-glass"],
     triggers: [
-      /\b(apple|ios|iphone|ipad|macos|swiftui|human interface|hig|liquid glass|glassmorphism|cupertino)\b/i,
-      /\b(minimal|elegant|premium|nafis|soft ui)\b/i,
+      strong(
+        "liquid glass", "glassmorphism", "apple style", "apple-style", "apple design", "apple uslub*",
+        "стиль apple", "в стиле apple", "apple.com", "human interface guidelines", "hig", "cupertino",
+      ),
+      weak(
+        "apple", "ios", "iphone", "ipad", "macos", "swiftui", "visionos", "glass", "frosted", "blur",
+        "стекл*", "shisha*", "minimal*", "минимал*", "premium", "премиум*", "elegant", "элегант*", "nafis*",
+        "ui", "ux", "design*", "dizayn*", "дизайн*", "interfeys*", "интерфейс*",
+      ),
     ],
-    prompt: [
-      "APPLE DESIGN SKILL faol. Apple HIG'ning 8 tamoyili ruhida ishla: Maqsad, Agentlik (foydalanuvchi o'rganadi/bekor qiladi/tiklaydi), Mas'uliyat (shaffof ruxsat va ma'lumot), Tanishlik (platforma konvensiyalari), Moslashuvchanlik, Soddalik (har element o'rinli), Hunar (spacing/alignment/animatsiya tugallangan), Zavq.",
-      "Sharh linzalari va aniq o'lchamlar:",
-      "• Accessibility (kritik): matn tizim sozlamasi bilan masshtablanadi; mobil asosiy 17pt / min 11pt. Kontrast ≤17pt uchun 4.5:1, ≥18pt yoki qalin uchun 3:1. Boshqaruv min 44×44pt (mobil). Ma'noni faqat rang yoki harakat bilan berma.",
-      "• Konvensiyalar: mobil = tab bar, bir vaqtda bitta sheet, safe-area hurmat; ilova ichida menyu.",
-      "• Vizual hunar: bitta rang = bitta ma'no (yorug'/qorong'u/yuqori kontrastda ham), kam shrift (ierarxiya vazn/o'lcham orqali), saxiy spacing, bosqichma-bosqich ochish.",
-      "• Chuqurlik: qatlamlar, yumshoq soya va blur (backdrop-filter). 'Liquid glass' — yarim shaffof, blurlangan, nozik chegarali material fonga moslashadi.",
-      "• Interaksiya: darhol yuklanish javobi (aniqlik bo'lsa determinate progress); qaytarib bo'lmas amalda ogohlantirish + Bekor; modalda aniq chiqish.",
-      "• Matn: label natijani tasvirlaydi ('O'zgarishlarni saqlash', 'Submit' emas); xato nima bo'lgani va qanday tuzatishni tushuntiradi; jargon yo'q.",
-      "Katta radiuslar (12-24px), spring animatsiya (0.3-0.5s) — suzib kiradi, sakramaydi. Tizim ranglari (masalan #0A84FF).",
-    ].join("\n"),
+    prompt: APPLE_PROMPT,
+    source: { url: "https://github.com/naplesblue/apple-liquid-glass", license: "MIT" },
   },
   {
     id: "clean-code",
     name: "Clean Code",
-    description: "Toza, xavfsiz, o'qiladigan kod; yaxshi amaliyotlar",
+    nameKey: "p18SkCleanName",
+    descKey: "p18SkCleanDesc",
+    detailKeys: ["p18SkCleanD1", "p18SkCleanD2", "p18SkCleanD3", "p18SkCleanD4"],
     category: "code",
-    glyph: "◆",
+    icon: "braces",
     color: "#10D4A0",
     defaultOn: true,
     triggers: [
-      /\b(kod|code|funksiya|function|dastur|program|debug|xato|error|refactor|api|component|typescript|javascript|python|react|next|sql|algoritm)\b/i,
-      /```/,
+      { source: "```", flags: "", weight: 2 },
+      strong(
+        "refactor*", "refaktor*", "рефактор*", "code review", "код-ревью", "ревью кода", "clean code", "toza kod",
+        "чистый код", "typescript", "javascript", "python", "golang", "kotlin", "swift", "rust", "php",
+        "c++", "c#", "java", "sql", "regex", "unit test*", "stack trace", "traceback", "eslint",
+        "tsconfig", "package.json", "npm", "pnpm", "segfault", "nullpointer*", "typeerror", "syntaxerror",
+      ),
+      weak(
+        "code", "coding", "kod*", "код", "кода", "коде", "коду", "кодом", "function*", "funksiya*", "функци*",
+        "bug*", "баг*", "xato*", "ошибк*", "error*", "debug*", "дебаг*", "отлад*", "api", "react", "next.js",
+        "nextjs", "node", "node.js", "class*", "klass*", "класс*", "method*", "метод*", "variable*",
+        "o'zgaruvchi*", "перемен*", "algorithm*", "algoritm*", "алгоритм*", "script*", "skript*", "скрипт*",
+        "program*", "dastur*", "программ*", "test*", "тест*", "implement*", "реализ*", "compile*",
+        "database", "endpoint*", "backend", "frontend", "бэкенд*", "фронтенд*",
+      ),
     ],
-    prompt: [
-      "CLEAN CODE SKILL faol. Kod yozganda:",
-      "• Ishlaydigan, to'liq va aniq kod ber; taxminlarni ayt. Kerak bo'lsa qisqa izoh, lekin ortiqcha komment emas.",
-      "• Ma'noli nomlar, kichik funksiyalar, erta return, chuqur ichma-ichlikdan qoch. DRY, lekin ortiqcha abstraksiyasiz.",
-      "• Chegara holatlarini (null, bo'sh, xato) ishlab chiq. Foydalanuvchi kiritmasiga ishonma — validatsiya qil.",
-      "• Xavfsizlik: SQL/HTML injeksiyaga qarshi parametrlangan so'rov va escaping; sirlarni kodga yozma; xatolarni yut, ammo jimgina yutma.",
-      "• Til/framework idiomalariga amal qil; eng so'nggi barqaror API'lardan foydalan. Zamonaviy TypeScript'da tip xavfsizligini saqla.",
-      "• Yechimni qisqa tushuntir, keyin kod. Muqobil yondashuv bo'lsa bir gapda ayt.",
-    ].join("\n"),
+    prompt: CLEAN_CODE_PROMPT,
   },
   {
     id: "cybersecurity",
     name: "Cybersecurity Pro",
-    description: "Har bir teshikni topadi: OWASP + auth + crypto + cloud + supply chain audit",
+    nameKey: "p18SkSecName",
+    descKey: "p18SkSecDesc",
+    detailKeys: ["p18SkSecD1", "p18SkSecD2", "p18SkSecD3", "p18SkSecD4"],
     category: "security",
-    glyph: "🛡️",
+    icon: "shield-check",
     color: "#EF4444",
     triggers: [
-      /\b(xavfsizlik|security|hack|exploit|vulnerab|zaiflik|penetration|pentest|audit|owasp|cwe|cve|xss|csrf|ssrf|xxe|sql injection|injeksiya|prototype pollution|deserialization|shifrlash|encryption|auth|authn|authz|jwt|oauth|saml|token|rbac|abac|firewall|malware|phishing|ddos|siem|forensic|threat model|zero.?trust|mfa|iam|rls|privilege|secret|api key|credentials|sanitize|escape|validate|hash|bcrypt|argon2|tls|mtls|csp|cors|clickjack|open redirect|race condition|toctou|idor|mass assignment|cache poison|log4j|supply chain|sca|sast|dast|fuzzing|nmap|burp|nikto|metasploit|kali|blue team|red team)\b/i,
-      /\b(teshik|zaiflik topib|xavfsizlikni tekshir|audit qil|penetratsiya|kirib ko'r|hack qil.*(o'z|bizni|test)|vulnerabilit)\b/i,
+      strong(
+        "security", "cybersecurity", "xavfsizlik*", "безопасност*", "кибербез*", "vulnerab*", "уязвим*",
+        "zaiflik*", "owasp", "cwe", "cve", "xss", "csrf", "ssrf", "xxe", "idor", "rce", "sql injection",
+        "sql injeksiya*", "sql-инъекц*", "command injection", "prompt injection", "pentest*", "пентест*", "penetration test*", "exploit*",
+        "эксплойт*", "эксплоит*", "malware", "вредонос*", "phishing", "фишинг*", "threat model*",
+        "privilege escalation", "hardening", "secure coding", "sast", "dast", "zero trust", "zero-trust",
+      ),
+      weak(
+        "auth", "authn", "authz", "authentication", "authorization", "autentifikatsiya*", "avtorizatsiya*",
+        "аутентиф*", "авториз*", "jwt", "oauth", "saml", "token*", "токен*", "password*", "parol*", "пароль*",
+        "парол*", "secret*", "секрет*", "encrypt*", "shifrla*", "шифр*", "hash*", "хеш*", "хэш*", "bcrypt",
+        "argon2", "tls", "https", "cors", "csp", "rls", "rbac", "api key*", "api kalit*", "cookie*", "куки",
+        "session*", "sessiya*", "сесси*", "sanitiz*", "escap*", "validat*", "валидац*", "audit*", "аудит*",
+        "firewall", "rate limit*", "hack*", "хак*", "взлом*", "secure", "himoya*", "защит*", "leak*", "утечк*",
+      ),
     ],
-    prompt: [
-      "═══════════════════════════════════════════════════════════════",
-      "CYBERSECURITY PRO SKILL — 40+ SOHANI JAMLAGAN XAVFSIZLIK USTASI",
-      "═══════════════════════════════════════════════════════════════",
-      "Sen SOVEREIGN'ning senior xavfsizlik muhandisisan (OSCP + OSEP + CISSP + GCIH + GCFA). Rolingda quyidagi hamma ko'nikmalar birlashgan:",
-      "",
-      "🔵 BLUE TEAM: SOC L1-L3 tahlilchi, DFIR investigator, threat hunter, malware reverser, IR responder",
-      "🔴 RED TEAM: pentester, adversary simulation, purple-team facilitator (faqat avtorizatsiyalangan)",
-      "🟣 APP SEC: kod audit, threat modeler, secure architect, SAST/DAST triager",
-      "☁️ CLOUD SEC: AWS/Azure/GCP audit, Kubernetes security, container forensics",
-      "",
-      "Faqat MUDOFAA, ta'lim va avtorizatsiyalangan penetratsiya testi kontekstida ishlaysan. Zararli hujum, real infra'ga ruxsatsiz kirish, aniqlashdan qochish (evasion) uchun vosita YOZMA.",
-      "",
-      "── MITRE ATT&CK QAMROVI ──",
-      "Har topilgan tahdid/faoliyatga ATT&CK tekniki-ID (T####) va tactic (Initial Access / Execution / Persistence / Privilege Escalation / Defense Evasion / Credential Access / Discovery / Lateral Movement / Collection / C2 / Exfiltration / Impact) ni tag qilib qo'yamiz.",
-      "",
-      "── AUDIT DIPTALI (kod/tizim ko'rsatilsa, ushbu 15 o'qni har qadamda tekshir) ──",
-      "",
-      "1) INPUT VALIDATION & INJECTION (OWASP A03)",
-      "   • SQL Injection — string konkat ↔ parametrlangan so'rov. `LIKE`, `ORDER BY`, dinamik jadval nomi — alohida tekshir.",
-      "   • Command Injection — `exec/system/spawn shell:true` argumenti user'dan.",
-      "   • LDAP / NoSQL (Mongo `$where`, `$regex`) injection.",
-      "   • XSS — reflected, stored, DOM. `dangerouslySetInnerHTML`, `innerHTML`, `document.write`, template ichiga user data.",
-      "   • XXE — XML parser `resolveExternalEntities=true` bo'lsa.",
-      "   • SSRF — user-controlled URL fetch (metadata endpoint 169.254.169.254, internal service).",
-      "   • Path Traversal — `../`, absolute path, symlink; whitelist emas blacklist.",
-      "   • Header Injection — `Location`, `Set-Cookie`da CRLF.",
-      "   • Prototype Pollution — `Object.assign(target, JSON.parse(userInput))`.",
-      "   • Insecure Deserialization — `pickle.loads`, `unserialize`, Java `readObject`.",
-      "",
-      "2) AUTH & SESSION (A01, A07)",
-      "   • Parol siyosati (min uzunlik, complexity), argon2id/bcrypt (cost≥12), `secrets.compare_digest`.",
-      "   • Session fixation (login'da yangi ID), rotation, expiry, `HttpOnly` `Secure` `SameSite=Strict/Lax`.",
-      "   • JWT — `alg:none`, key confusion (RS256↔HS256), zaif secret, refresh token rotation, revocation ro'yxati.",
-      "   • OAuth — `state` param (CSRF), `redirect_uri` open-redirect, PKCE (public client), scope escalation.",
-      "   • MFA — bypass, backup codes, timing attack (`crypto.timingSafeEqual`).",
-      "   • Rate limit — login, forgot-password, OTP; account-lockout DoS effekti.",
-      "",
-      "3) ACCESS CONTROL (A01 — IDOR/BOLA)",
-      "   • Har endpointda: 'Bu foydalanuvchi ushbu resursga ega bo'lishi kerakmi?' — tekshiruv borligini ko'rsat.",
-      "   • Mass assignment — `User.update(req.body)` — `is_admin` field'ni user o'zgartira oladi.",
-      "   • Vertical (privilege escalation) va horizontal (boshqa user resursi) buzilish.",
-      "   • Force browsing (`/admin/*` — role tekshiruv routing'da emas, komponentda).",
-      "   • Client-side only checks (frontend'da role yashirilgan, backend ochiq).",
-      "",
-      "4) CRYPTOGRAPHY (A02)",
-      "   • Zaif algoritm — MD5, SHA1 (hash), DES/3DES/RC4/ECB (encrypt).",
-      "   • Random — `Math.random()` sirlar uchun ❌ → CSPRNG (`crypto.randomBytes`, `secrets`).",
-      "   • IV/nonce takrorlanishi (AES-GCM da nonce reuse — halokat).",
-      "   • Kalit lifecycle — rotation, KMS/HSM/Vault, kodda hardcoded emas.",
-      "   • Padding oracle, BEAST, timing attack (`===` string compare — noto'g'ri).",
-      "",
-      "5) SECRETS & CONFIG",
-      "   • `.env` git'da yo'q, `NEXT_PUBLIC_*` ga ega bo'lmagan sirlar client bundle'ga kirmasin.",
-      "   • Default parol/kalit, debug endpoint prod'da, verbose error → info disclosure.",
-      "   • Log — parol/token/PII yozilmaydi. Structured logging + redaction.",
-      "",
-      "6) NETWORK & TRANSPORT",
-      "   • TLS 1.2+, HSTS, sertifikat pinning (mobil).",
-      "   • Server-side fetch bilan private IP allowlist / SSRF filter.",
-      "   • DNS rebinding, DNSSEC.",
-      "",
-      "7) BROWSER SECURITY HEADERS",
-      "   • CSP (script-src 'self' — inline yo'q, nonce/hash), frame-ancestors (clickjacking).",
-      "   • X-Content-Type-Options: nosniff, Referrer-Policy, Permissions-Policy.",
-      "   • CORS — `Access-Control-Allow-Origin: *` bilan `credentials:true` ❌.",
-      "",
-      "8) CSRF & COOKIE",
-      "   • State-changing action → CSRF token (double-submit / synchronizer) yoki SameSite=Strict + Origin/Referer check.",
-      "   • JSON API — Content-Type: application/json yordam beradi (simple request emas), lekin CORS bilan bekor bo'ladi.",
-      "",
-      "9) FILE & UPLOAD",
-      "   • MIME sniffing, extension whitelist, magic bytes tekshirish, alohida domen/subdomain'da xosting.",
-      "   • Zip Slip, image bomb, SVG XSS, EXIF PII leak.",
-      "",
-      "10) API DESIGN",
-      "    • Pagination limit (Denial of Wallet), GraphQL query depth/complexity limit.",
-      "    • Verbose error → generic, batch mutation limit.",
-      "    • Webhook signature verification (raw body!), timestamp tolerance ≤5min.",
-      "",
-      "11) CONCURRENCY & RACE",
-      "    • TOCTOU (check-then-use), double-spend, atomic transaction (SELECT FOR UPDATE / row lock).",
-      "    • Idempotency key qaytariladigan operatsiyalarda.",
-      "",
-      "12) CLIENT/MOBILE",
-      "    • Local storage'da JWT — XSS bilan o'g'irlanadi; HttpOnly cookie yaxshiroq.",
-      "    • Deep-link/intent filter — auth token URL'da qolmasin.",
-      "    • WebView — allowFileAccess/JavaScriptEnabled, addJavascriptInterface + JS injection.",
-      "",
-      "13) INFRASTRUCTURE & CLOUD",
-      "    • IAM eng kam imtiyoz, `*:*` policy ❌. Assume-role condition (aws:PrincipalOrgID).",
-      "    • S3 bucket public list/get, ACL vs bucket policy, presigned URL expiry.",
-      "    • K8s RBAC, secret volume vs env, network policy default-deny, PodSecurity restricted.",
-      "    • Docker — non-root, read-only rootfs, capabilities drop, no privileged.",
-      "",
-      "14) SUPPLY CHAIN (A06)",
-      "    • Dependency confusion, typosquatting, lockfile hurmat, npm audit/pip-audit/govulncheck.",
-      "    • Post-install script (npm install-scripts), GitHub Actions pinned SHA, secret exposure.",
-      "    • SBOM (SPDX/CycloneDX), signature (Sigstore/cosign).",
-      "",
-      "15) LOGGING & MONITORING (A09) + INCIDENT RESPONSE",
-      "    • Nima loglanadi (audit trail — kim, nima, qachon), qanday saqlanadi (immutable), qancha (retention).",
-      "    • Alerting (login anomaly, privilege change), IR playbook (identify → contain → eradicate → recover → lessons).",
-      "",
-      "16) THREAT HUNTING & DFIR — Windows",
-      "    • EVTX tahlili (Chainsaw / EvtxECmd + KAPE), fokuslar:",
-      "      - Event 4624 (login), 4625 (fail), 4672 (special privs), 4688 (process create) — new-process anomalies.",
-      "      - Event 4662 + AccessMask 0x100 + DS-Replication-Get-Changes ⇒ DCSync (T1003.006).",
-      "      - Event 4697 + service install ⇒ persistence (T1543.003).",
-      "      - Event 7045 + PsExec-style service name ⇒ lateral (T1021.002).",
-      "      - Event 5145 + IPC$/ADMIN$ ⇒ SMB lateral movement.",
-      "    • Sysmon: EID 1 (process), 3 (net), 7 (image load), 10 (process access), 11 (file), 13 (registry), 22 (DNS), 25 (process tampering).",
-      "    • KAPE targets/modules: BasicCollection, WebBrowsers, EventLogs, Prefetch, USNJournal, ShellBags, LNKFiles, Registry (SAM, SECURITY, SOFTWARE, SYSTEM), MFT.",
-      "    • Windows artefakt roadmap: Prefetch (T1204), Amcache/ShimCache (execution), USRCLASS.dat + ShellBags (folder access), RecentDocs, MRU, SRUM (net + battery), BAM/DAM.",
-      "",
-      "17) THREAT HUNTING — Linux/macOS",
-      "    • /var/log/{auth,syslog,secure}, journalctl, wtmp/btmp/utmp, .bash_history, ~/.ssh/authorized_keys.",
-      "    • Persistence: systemd (T1543.002), cron (T1053.003), rc.local, ld.so.preload, kernel modules (T1547.006).",
-      "    • macOS: LaunchAgent/LaunchDaemon (T1543.001), TCC.db, Unified Log (log show), Endpoint Security fw.",
-      "",
-      "18) C2 (COMMAND & CONTROL) DETECTION — TA0011",
-      "    • Sliver / Cobalt Strike / Havoc / Mythic / Empire IoC:",
-      "      - Beacon jitter + sleep (uzun uyqu bilan qisqa burst), DNS TXT/A tunelling, ICMP tunelling.",
-      "      - Named-pipe (\\\\.\\pipe\\msagent_*), HTTPS profile (JA3/JA3S hash), TLS ClientHello anomaly.",
-      "      - Process injection: T1055.001 (DLL), .002 (PE), .012 (Hollowing), .015 (Thread hijack).",
-      "    • Zeek/Suricata: uzun-yashagan mijoz-server oqim, past baytlar/soniyada.",
-      "",
-      "19) MALWARE TRIAGE & ROOTKIT",
-      "    • Statik: strings, PE header (LordPE/CFF), imports (IsDebuggerPresent, NtQuery*, VirtualAllocEx), signaturasi (YARA).",
-      "    • Dinamik: sandbox (CAPE/CuckoBox), API monitor, ETW trace, network capture.",
-      "    • Rootkit: SSDT hook, IDT hook, DKOM (unlink EPROCESS), IRP hook. Volatility plagins: pslist vs psscan, ssdt, driverirp, callbacks.",
-      "    • Memory forensics: Volatility 3 — windows.pslist, .malfind, .hollowfind, .cmdline, .netscan, .filescan.",
-      "",
-      "20) CYBER KILL CHAIN + MITRE MAPPING",
-      "    • Har alertni Lockheed Martin Kill Chain (Recon → Weaponize → Deliver → Exploit → Install → C2 → Actions) + ATT&CK tactic ga jadvalla.",
-      "    • Purple-team faoliyatida: Atomic Red Team, CALDERA emulation, natijalarni SIEM sig'i qanchalik tutgani bo'yicha baholash.",
-      "",
-      "21) SECURITY INCIDENT TRIAGE (SOC L1)",
-      "    • Har alert uchun 5W: What (nima aniqlandi), When (aniqlangan/boshlangan vaqt), Where (asset), Who (user/attacker), Why (impact/motive).",
-      "    • Enrichment: hash → VirusTotal/MalwareBazaar, IP → AbuseIPDB/GreyNoise/Shodan, domain → WHOIS/passive DNS/URLScan, ASN, geo.",
-      "    • Severity matrix: (Confidentiality × Integrity × Availability) × Scope × Confidence.",
-      "    • Playbook: contain (network isolate, session revoke) → collect (KAPE, memory dump, EVTX) → analyze → eradicate → recover → post-mortem.",
-      "",
-      "22) CONTAINER / K8S BREAKOUT",
-      "    • Escape vektorlari: privileged=true, hostPath mount, docker.sock in container, CAP_SYS_ADMIN, CVE-2019-5736 (runc), CVE-2022-0492 (cgroups v1).",
-      "    • Auditd: execve chaqiruvlari, mount syscall, capability set change.",
-      "    • Falco rules: shell in container, sensitive mount, package management in prod, outbound C2 pattern.",
-      "",
-      "23) CLOUD ATTACK — AWS (Pacu-style, MUDOFAA nuqtai nazaridan)",
-      "    • IAM: privesc yo'llari (18+ Rhino Security siyosati) — CreatePolicyVersion, SetDefaultPolicyVersion, AttachUserPolicy, PassRole+CreateFunction, iam:CreateAccessKey, sts:AssumeRole.",
-      "    • Enum: aws sts get-caller-identity, iam simulate-principal-policy, resource-based policy (S3 bucket policy, Lambda resource policy, SNS/SQS).",
-      "    • Persistence: Lambda backdoor, IAM shadow-admin, KMS key policy, Route53 subdomain takeover, SSM RunCommand.",
-      "    • CloudTrail hunting: Console login from Tor IP, disabled logging, GuardDuty muted, root API keys.",
-      "",
-      "24) DARK-WEB & THREAT INTEL",
-      "    • Ma'lumot manbalari (ochiq, qonuniy): AlienVault OTX, MISP, ThreatFox, URLhaus, Feodo Tracker.",
-      "    • Credential leak monitor: HaveIBeenPwned domain search, Dehashed (avtorizatsiyalangan), IntelX (rate-limited).",
-      "    • Brand & CEO monitoring: typosquat domen (dnstwist), phishing kit signature.",
-      "",
-      "25) IOC LIFECYCLE & AUTOMATION",
-      "    • Format: STIX 2.1, TAXII, MISP JSON, YARA, Sigma, Snort/Suricata.",
-      "    • Enrichment pipeline: sighting → context (source, TLP, confidence) → correlate (kill-chain, actor group) → distribute (SIEM/EDR/FW).",
-      "    • Sigma → SIEM (Splunk/ES/Sentinel) rule conversion (sigmac / uncoder.io).",
-      "",
-      "26) JWT/OAUTH DEEP-DIVE (TESTING PERSPECTIVE)",
-      "    • jwt_tool / burp JWT Editor bilan: alg=none, kid path traversal, kid SQL inj, JKU/JWK confusion, weak HMAC brute (rockyou), header inj.",
-      "    • Tekshirish: RS256 pub kalitni HS256 secret sifatida qabul qiladimi, aud/iss/exp/nbf tekshiriladimi, nonce takrorlanadimi.",
-      "",
-      "── AUDIT / DFIR NATIJASI FORMATI ──",
-      "Har topilgan zaiflik/tahdidni QAT'IY quyidagi struktura bilan ber:",
-      "",
-      "**[SEVERITY] Nomi**",
-      "- **Manba:** `path/to/file.ts:LINE` (kod audit) yoki EVTX/log qatori (DFIR)",
-      "- **MITRE ATT&CK:** T####.### (Tactic) — masalan T1003.006 (Credential Access: OS Credential Dumping: DCSync)",
-      "- **OWASP/CWE:** A0X / CWE-NNN (agar app-sec bo'lsa)",
-      "- **Nima:** 1-gap tavsif",
-      "- **Ta'sir:** Real dunyoda nima buziladi (auth bypass / RCE / DoS / privesc / data theft / persistence)",
-      "- **Aniqlash (Detection):** Qanday tekshirish — Sigma qoidasi / SPL / KQL / EVTX Event ID / Sysmon rule",
-      "- **Ekspluatatsiya (PoC, faqat tushuncha uchun):** Qanday input/payload/komandaga tegishli — kesilgan namuna",
-      "- **Tuzatish/Response:** Kod diff (app-sec) yoki containment/eradication qadamlari (DFIR)",
-      "- **Ishonch:** high / medium / low",
-      "",
-      "Severity: CRITICAL (auth bypass, RCE, ma'lumot to'liq oshkora, active breach) > HIGH > MEDIUM > LOW > INFO.",
-      "Oxirida qisqa xulosa: umumiy risk daraja, top-3 tez tuzatilishi kerak bo'lgan narsa, tavsiya etilgan hunt query'lar (Sigma/Splunk SPL).",
-      "",
-      "── PRINCIPLE STACK ──",
-      "Har javob quyidagi tamoyillarga tayanadi: Least Privilege · Defense in Depth · Fail Secure · Zero Trust · Assume Breach · Secure by Default · Complete Mediation · Psychological Acceptability.",
-      "",
-      "── DUAL-USE FILTER ──",
-      "Agar so'rov real infra'ga bostirib kirish, malware yozish, aniqlashdan qochish, boshqa foydalanuvchini nishonlash uchun bo'lsa — rad et va faqat mudofaa yo'nalishida yordam ber. Agar CTF/labor/o'z tizimi/pentest kontrakti kontekstida bo'lsa — to'liq ishlab ber.",
-    ].join("\n"),
+    prompt: SECURITY_PROMPT,
+    source: { url: "https://github.com/mukul975/anthropic-cybersecurity-skills", license: "MIT" },
   },
   {
-    id: "pro-writing",
-    name: "Pro Writing",
-    description: "Aniq, ishonarli, professional matn va tahrir",
+    id: "no-ai-slop",
+    name: "No AI Slop",
+    nameKey: "p18SkSlopName",
+    descKey: "p18SkSlopDesc",
+    detailKeys: ["p18SkSlopD1", "p18SkSlopD2", "p18SkSlopD3", "p18SkSlopD4"],
     category: "writing",
-    glyph: "✎",
+    icon: "pen-line",
     color: "#F59E0B",
+    // "pro-writing" — the previous writing skill; it is now part of No AI Slop.
+    aliases: ["pro-writing"],
     triggers: [
-      /\b(yoz|matn|maqola|xat|email|post|kontent|content|tahrir|edit|tarjima|translate|blog|scenariy|ssenariy|reklama|copywriting|slogan)\b/i,
+      strong(
+        "ai slop", "sounds like ai", "sounds robotic", "ai-generated", "humanize*", "proofread*", "copyedit*",
+        "copywriting", "копирайт*", "rewrite this", "rewrite my", "tone of voice", "matnni tahrir*",
+        "tahrir qil*", "matnni qayta yoz*", "отредактир*", "редактур*", "перепиши*", "blog post", "cover letter",
+        "press release", "newsletter", "maqola yoz*", "пост для", "статью для", "sounds like chatgpt",
+      ),
+      weak(
+        "matn*", "текст*", "text", "maqola*", "стать*", "article*", "essay", "esse*", "эссе", "email*",
+        "e-mail", "xat", "xatni", "письм*", "post", "posts", "пост", "поста", "blog*", "блог*", "draft*",
+        "qoralama*", "черновик*", "edit*", "tahrir*", "редакт*", "rewrite*", "перепис*", "tone", "ohang*",
+        "headline*", "sarlavha*", "заголов*", "slogan*", "слоган*", "reklama*", "реклам*", "caption*",
+        "copy", "linkedin", "telegram kanal*",
+      ),
+      // Code requests that mention "text"/"email" are not writing tasks.
+      kw(-2, "code", "kod*", "код", "function*", "funksiya*", "функци*", "regex", "validation", "validatsiya*",
+        "валидац*", "component*", "komponent*", "компонент*", "api", "sql", "css", "html"),
     ],
-    prompt: [
-      "PRO WRITING SKILL faol. Matn yozganda:",
-      "• Asosiy fikrni oldinga chiqar. Qisqa gaplar, faol nisbat, aniq fe'llar. Ortiqcha so'zlarni olib tashla.",
-      "• Auditoriya va ohangni moslashtir (rasmiy/samimiy/marketing). Bir xil uslubni saqla.",
-      "• Tuzilma: sarlavha, qisqa kirish, mantiqiy bo'limlar, aniq yakun yoki harakatga chaqiruv.",
-      "• Klişe, ortiqcha sifat va bo'sh iboralardan qoch. Konkret misol va raqamlardan foydalan.",
-      "• Tahrir so'ralsa: avval tuzatilgan variant, keyin nima o'zgarganini qisqa ro'yxatda.",
-    ].join("\n"),
+    prompt: NO_AI_SLOP_PROMPT,
+    source: { url: "https://github.com/petergyang/no-ai-slop", license: "MIT" },
   },
   {
     id: "data-viz",
     name: "Data Viz",
-    description: "Grafik, jadval va ma'lumot vizualizatsiyasi tamoyillari",
+    nameKey: "p18SkVizName",
+    descKey: "p18SkVizDesc",
+    detailKeys: ["p18SkVizD1", "p18SkVizD2", "p18SkVizD3", "p18SkVizD4"],
     category: "data",
-    glyph: "▦",
+    icon: "chart-column",
     color: "#20D4E8",
     triggers: [
-      /\b(grafik|chart|diagram|jadval|table|vizualizatsiya|visualization|dashboard|analytics|statistika|ma'lumot tahlil|plot|graph)\b/i,
+      strong(
+        "chart*", "grafik*", "diagramma*", "диаграмм*", "visualiz*", "visualis*", "vizualizatsiya*", "визуализ*",
+        "matplotlib", "plotly", "recharts", "chart.js", "d3", "d3.js", "seaborn", "ggplot*", "histogram*",
+        "gistogramma*", "гистограм*", "scatter plot", "heatmap*", "sparkline*", "infographic*", "infografika*",
+        "инфограф*",
+      ),
+      weak(
+        "jadval*", "table*", "таблиц*", "dashboard*", "дашборд*", "analytics", "analitika*", "аналитик*",
+        "statist*", "статист*", "data", "dataset*", "ma'lumot*", "данны*", "kpi", "metric*", "метрик*",
+        "trend*", "тренд*", "график*", "plot", "graph*", "diagram*", "axis", "legend", "excel", "csv",
+      ),
     ],
-    prompt: [
-      "DATA VIZ SKILL faol. Ma'lumot ko'rsatganda:",
-      "• To'g'ri grafik turini tanla: taqqoslash — ustun; trend — chiziq; ulush — bitta doira o'rniga ustun/nisbat; taqsimot — gistogramma.",
-      "• Faqat kerakli ma'lumotni ko'rsat; chart-junk (ortiqcha to'r, 3D, gradient) dan qoch. Yuqori data-siyoh nisbati.",
-      "• Aniq o'q belgilari, birliklar, sarlavha va manba. Nol nuqtadan boshla (ustunlar uchun).",
-      "• Rang: kategoriya uchun ajratilgan palitra, ketma-ketlik uchun bitta rang gradienti. Rang-ko'r foydalanuvchilar uchun xavfsiz.",
-      "• Muhim qiymatni urg'ula; qolganini susaytir. Tooltip va legend'ni sodda tut.",
-    ].join("\n"),
+    prompt: DATA_VIZ_PROMPT,
+  },
+  {
+    id: "focus-mode",
+    name: "Focus mode",
+    nameKey: "p18SkFocusName",
+    descKey: "p18SkFocusDesc",
+    detailKeys: ["p18SkFocusD1", "p18SkFocusD2", "p18SkFocusD3", "p18SkFocusD4"],
+    category: "style",
+    icon: "focus",
+    color: "#F97316",
+    aliases: ["i-have-adhd", "adhd"],
+    triggers: [], // manual toggle only
+    prompt: FOCUS_PROMPT,
+    source: { url: "https://github.com/ayghri/i-have-adhd", license: "MIT" },
   },
 ];
 
 export const SKILL_BY_ID: Record<string, Skill> = Object.fromEntries(SKILLS.map((s) => [s.id, s]));
 
-export const SKILL_CATEGORY_LABEL: Record<SkillCategory, string> = {
-  code: "Kod",
-  design: "Dizayn",
-  security: "Xavfsizlik",
-  writing: "Yozish",
-  data: "Ma'lumot",
-};
+/** alias → canonical id (every canonical id maps to itself). */
+export const SKILL_ALIASES: Record<string, string> = Object.fromEntries(
+  SKILLS.flatMap((s) => [[s.id, s.id] as const, ...(s.aliases ?? []).map((a) => [a, s.id] as const)]),
+);
 
-/** Skills whose triggers match the given text. */
-export function detectSkills(text: string): string[] {
-  return SKILLS.filter((s) => s.triggers.some((re) => re.test(text))).map((s) => s.id);
+/** Every id accepted from clients / storage (canonical ids + aliases). */
+export const KNOWN_SKILL_IDS: string[] = Object.keys(SKILL_ALIASES);
+
+export const SKILL_CATEGORIES: SkillCategory[] = ["design", "code", "security", "writing", "data", "style"];
+
+export const DEFAULT_ENABLED_SKILLS = SKILLS.filter((s) => s.defaultOn).map((s) => s.id);
+
+/** Canonical id for a stored/typed id ("pro-writing" → "no-ai-slop"); null if unknown. */
+export function canonicalSkillId(id: unknown): string | null {
+  if (typeof id !== "string") return null;
+  const key = id.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(SKILL_ALIASES, key) ? SKILL_ALIASES[key] : null;
 }
 
-/** Merge user-enabled skills with auto-detected ones, keeping catalog order. */
-export function resolveActiveSkills(enabled: string[], text: string): Skill[] {
-  const auto = detectSkills(text);
-  const ids = new Set([...enabled, ...auto]);
+/** Canonical, known, de-duplicated ids (input order kept). Unknown / custom ids are dropped. */
+export function normalizeSkillIds(ids: readonly unknown[] | null | undefined): string[] {
+  const out: string[] = [];
+  for (const id of ids ?? []) {
+    const c = canonicalSkillId(id);
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Detection
+// ---------------------------------------------------------------------------
+
+const RE_CACHE = new Map<string, RegExp>();
+function compiled(t: SkillTrigger): RegExp {
+  const key = `${t.flags}/${t.source}`;
+  let re = RE_CACHE.get(key);
+  if (!re) {
+    // Always global: scoring counts distinct matched words.
+    re = new RegExp(t.source, t.flags.includes("g") ? t.flags : t.flags + "g");
+    RE_CACHE.set(key, re);
+  }
+  return re;
+}
+
+/** Only the start of long messages matters for intent; keeps regex work bounded. */
+const SCAN_CHARS = 6000;
+
+function prepare(text: string): string {
+  // Uzbek apostrophe variants (ʻ ʼ ’ ‘ ´) → ' so "ma'lumot" matches however it is typed.
+  // (Backticks are left alone — ``` is a trigger.)
+  return String(text ?? "").slice(0, SCAN_CHARS).replace(/[ʻʼ’‘´]/g, "'");
+}
+
+const SMALL_TALK =
+  /^(?:hi|hey|hello|yo|sup|thanks|thank you|thx|ty|ok|okay|k|yes|no|yep|nope|sure|cool|nice|great|good|salom|assalomu alaykum|rahmat|raxmat|katta rahmat|ha|yo'q|xo'p|mayli|zo'r|yaxshi|tushunarli|qalaysan|qalaysiz|привет|здравствуй(?:те)?|спасибо|да|нет|ок|хорошо|понятно|понял|ясно|как дела|салом|раҳмат|ҳа|йўқ|хўп|яхши)[\s!.?,)]*$/iu;
+
+/** Greeting / thanks / one-word messages never auto-activate skills. */
+export function isTrivialMessage(text: string): boolean {
+  const s = prepare(text).trim();
+  if (!s) return true;
+  if (s.includes("```")) return false;
+  if (SMALL_TALK.test(s)) return true;
+  return s.split(/\s+/).filter(Boolean).length < 2;
+}
+
+/**
+ * Trigger score of one skill for a message (0 for manual-only skills). Each trigger contributes
+ * weight × (distinct matched words, capped at 2) — so two different weak words ("button" + "color")
+ * reach the threshold, while one word repeated does not.
+ */
+export function scoreSkill(skill: Skill, text: string): number {
+  if (!skill.triggers.length) return 0;
+  const s = prepare(text);
+  let score = 0;
+  for (const t of skill.triggers) {
+    const hits = new Set<string>();
+    for (const m of s.matchAll(compiled(t))) {
+      hits.add(m[0].toLowerCase());
+      if (hits.size >= 2) break;
+    }
+    score += t.weight * hits.size;
+  }
+  return score;
+}
+
+/** Skills whose triggers match the text (score ≥ threshold), best match first. Trivial text → []. */
+export function detectSkills(text: string): string[] {
+  if (isTrivialMessage(text)) return [];
+  return SKILLS.map((s, i) => ({ id: s.id, i, score: scoreSkill(s, text) }))
+    .filter((x) => x.score >= TRIGGER_THRESHOLD)
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .map((x) => x.id);
+}
+
+/**
+ * Skills active for one request: user-enabled ones (aliases resolved; if more than
+ * MAX_ACTIVE_SKILLS are enabled, the most relevant to this message win) plus up to
+ * MAX_AUTO_SKILLS auto-detected ones, never more than MAX_ACTIVE_SKILLS in total.
+ * Returned in catalog order (stable prompt → better provider-side caching).
+ */
+export function resolveActiveSkills(enabled: readonly unknown[] | null | undefined, text: string): Skill[] {
+  let pinned = normalizeSkillIds(enabled);
+  const trivial = isTrivialMessage(text);
+  if (pinned.length > MAX_ACTIVE_SKILLS) {
+    const idx = (id: string) => SKILLS.findIndex((s) => s.id === id);
+    const score = (id: string) => (trivial ? 0 : scoreSkill(SKILL_BY_ID[id], text));
+    pinned = [...pinned].sort((a, b) => score(b) - score(a) || idx(a) - idx(b)).slice(0, MAX_ACTIVE_SKILLS);
+  }
+  const room = Math.min(MAX_AUTO_SKILLS, MAX_ACTIVE_SKILLS - pinned.length);
+  const auto = room > 0 ? detectSkills(text).filter((id) => !pinned.includes(id)).slice(0, room) : [];
+  const ids = new Set([...pinned, ...auto]);
   return SKILLS.filter((s) => ids.has(s.id));
 }
 
-/** Combined guidance block for the active skills. */
-export function skillsPrompt(skills: Skill[]): string {
+const SKILLS_HEADER =
+  "SOVEREIGN SKILLS — active for this request. Apply them where relevant. They never override safety rules, " +
+  "the instructions above or an explicit user request. They are written in English; answer in the language " +
+  "the user or the instructions above require.";
+
+/** Combined guidance block for the active skills ("" when none). */
+export function skillsPrompt(skills: readonly Skill[]): string {
   if (!skills.length) return "";
-  return (
-    "Quyidagi SOVEREIGN Skills faol — ularga qat'iy amal qil:\n\n" +
-    skills.map((s) => s.prompt).join("\n\n")
-  );
+  return `${SKILLS_HEADER}\n\n${skills.map((s) => s.prompt).join("\n\n")}`;
 }
 
-export const DEFAULT_ENABLED_SKILLS = SKILLS.filter((s) => s.defaultOn).map((s) => s.id);
+// ---------------------------------------------------------------------------
+// Server-side injection helpers (/api/cli/chat) — pure, unit-tested
+// ---------------------------------------------------------------------------
+
+/** Plain text of an OpenAI-style message content (string or [{type:"text",text}] parts). */
+export function contentText(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((p) => (p && typeof p === "object" && (p as { type?: unknown }).type === "text" ? String((p as { text?: unknown }).text ?? "") : ""))
+    .filter(Boolean)
+    .join("\n");
+}
+
+/** Text of the last `role: "user"` message ("" if none). */
+export function lastUserText(messages: readonly { role: string; content?: unknown }[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") return contentText(messages[i].content);
+  }
+  return "";
+}
+
+/**
+ * The single system message a server adds for skills: ids (for the client's chips) and content.
+ * null when no skill is active.
+ */
+export function skillSystemMessage(
+  enabled: readonly unknown[] | null | undefined,
+  text: string,
+): { ids: string[]; content: string } | null {
+  const active = resolveActiveSkills(enabled, text);
+  if (!active.length) return null;
+  return { ids: active.map((s) => s.id), content: skillsPrompt(active) };
+}
+
+/**
+ * Inserts the skills message right after the leading block of system messages (so the client's
+ * own identity/safety prompt stays first and all system messages stay contiguous at the top —
+ * some providers reject system messages after the first user turn). Returns a new array.
+ */
+export function withSkillMessage<M extends { role: string }>(messages: readonly M[], content: string): (M | { role: "system"; content: string })[] {
+  let at = 0;
+  while (at < messages.length && messages[at].role === "system") at++;
+  return [...messages.slice(0, at), { role: "system", content }, ...messages.slice(at)];
+}

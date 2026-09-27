@@ -4,7 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist, type PersistStorage, type StateStorage, type StorageValue } from "zustand/middleware";
 import { AUTO_MODEL_ID, DEFAULT_MODEL_ID, MODEL_BY_ID } from "@/config/models";
-import { DEFAULT_ENABLED_SKILLS } from "@/config/skills";
+import { DEFAULT_ENABLED_SKILLS, canonicalSkillId } from "@/config/skills";
 import type { Attachment } from "@/lib/chat/attachments";
 import type { AnswerMeta } from "@/lib/chat/answer-meta";
 import type { InquiryRequest } from "@/lib/chat/sse-client";
@@ -40,6 +40,21 @@ export interface CustomSkill {
 
 /** Custom skill ids carry this prefix so they never collide with catalog ids. */
 export const CUSTOM_SKILL_PREFIX = "custom:";
+
+/**
+ * Saqlangan skill ro'yxati: eski id'lar kanonik id'ga ("pro-writing" → "no-ai-slop"),
+ * noma'lumlari tashlanadi, custom:* saqlanadi. Massiv bo'lmasa — undefined.
+ */
+function migrateEnabledSkills(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: string[] = [];
+  for (const id of v) {
+    if (typeof id !== "string") continue;
+    const c = id.startsWith(CUSTOM_SKILL_PREFIX) ? id : canonicalSkillId(id);
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+}
 
 export interface RouteInfo {
   reason: string;
@@ -641,6 +656,7 @@ export const useChat = create<ChatState>()(
           ...current,
           ...p,
           inquiryMode: isInquiryMode(p.inquiryMode) ? p.inquiryMode : current.inquiryMode,
+          enabledSkills: migrateEnabledSkills(p.enabledSkills) ?? current.enabledSkills,
           ...(narrow ? { sidebarOpen: false } : {}),
           conversations: settleStreaming(p.conversations, lang) ?? current.conversations,
         };

@@ -46,6 +46,12 @@ const P = {
   lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></>,
   history: <><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></>,
   bolt: <path d="M13 2L4 14h7l-1 8 9-12h-7z" />,
+  // SOVEREIGN Skills belgilari (lucide uslubidagi chiziqli ikonlar)
+  layout: <><rect x="3" y="3" width="18" height="7" rx="1.5" /><rect x="3" y="14" width="9" height="7" rx="1.5" /><rect x="16" y="14" width="5" height="7" rx="1.5" /></>,
+  layers: <><path d="M12 2.5l9.5 5-9.5 5-9.5-5z" /><path d="M2.5 12l9.5 5 9.5-5" /><path d="M2.5 16.5l9.5 5 9.5-5" /></>,
+  braces: <><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1" /><path d="M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1" /></>,
+  chart: <><path d="M3 3v18h18" /><path d="M8 17v-5M13 17V8M18 17V9" /></>,
+  focus: <><circle cx="12" cy="12" r="3" /><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" /></>,
   wifiOff: <><path d="M2 2l20 20" /><path d="M8.5 16.5a5 5 0 0 1 7 0" /><path d="M5 12.9a10 10 0 0 1 5.2-2.8M14.8 10.1A10 10 0 0 1 19 12.9" /><path d="M12 20h.01" /></>,
 };
 

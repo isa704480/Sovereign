@@ -3,9 +3,10 @@
 import { Check, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { SKILLS, SKILL_CATEGORY_LABEL, type SkillCategory } from "@/config/skills";
+import { SKILLS, SKILL_CATEGORIES } from "@/config/skills";
 import { skillCategoryLabel, skillText } from "@/lib/locales/panels-data";
 import { EASE } from "@/lib/motion";
+import { SkillIcon } from "./SkillIcon";
 import { useLang, useT } from "@/store/chat";
 import { cn } from "@/lib/utils";
 
@@ -14,7 +15,6 @@ interface SkillPickerProps {
   onToggle: (id: string) => void;
 }
 
-const ORDER: SkillCategory[] = ["design", "code", "security", "writing", "data"];
 
 export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
   const t = useT();
@@ -82,7 +82,7 @@ export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
               </p>
             </div>
 
-            {ORDER.map((cat) => {
+            {SKILL_CATEGORIES.map((cat) => {
               const items = SKILLS.filter((s) => s.category === cat);
               if (!items.length) return null;
               return (
@@ -91,7 +91,7 @@ export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
                     className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
                     style={{ color: "var(--t-text-muted)", borderTop: "1px solid var(--t-border)" }}
                   >
-                    {skillCategoryLabel(lang, cat, SKILL_CATEGORY_LABEL[cat])}
+                    {skillCategoryLabel(lang, cat)}
                   </div>
                   {items.map((s) => {
                     const on = enabled.includes(s.id);
@@ -101,13 +101,14 @@ export function SkillPicker({ enabled, onToggle }: SkillPickerProps) {
                         key={s.id}
                         type="button"
                         onClick={() => onToggle(s.id)}
+                        aria-pressed={on}
                         className="tt flex w-full items-start gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-white/5"
                       >
                         <span
                           className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg text-sm"
                           style={{ background: `color-mix(in srgb, ${s.color} 20%, transparent)`, color: s.color }}
                         >
-                          {s.glyph || tx.name[0]}
+                          <SkillIcon name={s.icon} className="size-4" />
                         </span>
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-medium" style={{ color: "var(--t-text)" }}>{tx.name}</span>

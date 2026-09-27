@@ -1,6 +1,8 @@
 // Agent hodisalari → UI holati (reducer). Jonli hodisalar va tarixdan qayta
 // tiklash (replay) bir xil yo'l bilan o'tadi.
 
+import { knownSkillIds } from "./skills.js";
+
 let seq = 0;
 const nid = () => `i${++seq}`;
 
@@ -157,6 +159,11 @@ export function applyEvent(s, ev, { replay = false } = {}) {
         return { ...s, items };
       }
       return { ...s, localProgress: 0, items: [...s.items, { id: nid(), kind: "assistant", text: ev.text }] };
+    }
+    case "skills": {
+      // Shu navbatda server qo'llagan SOVEREIGN Skills — javob ostidagi chip'lar (faqat ma'lum id'lar).
+      const ids = knownSkillIds(ev.skills);
+      return ids.length ? { ...s, items: [...s.items, { id: nid(), kind: "skills", ids }] } : s;
     }
     case "tool":
       return { ...s, items: [...s.items, { id: nid(), kind: "tool", callId: ev.callId, name: ev.name, args: ev.args ?? {}, status: "running" }] };

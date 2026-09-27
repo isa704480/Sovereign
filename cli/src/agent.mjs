@@ -27,6 +27,7 @@ import { projectMemoryMessage } from "./project-memory.mjs";
 import { shouldVerify, verifyClaims } from "./verify.mjs";
 import { withCommandSnapshots, cliSnapshotStore } from "./snapshot.mjs";
 import { chat as ollamaChat, capabilities as ollamaCapabilities, classifyServerError, isValidModelName } from "./ollama.mjs";
+import { responseSkills } from "./skills.mjs";
 
 const OPENROUTER = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -256,9 +257,14 @@ async function runRound(messages, config, onText, signal) {
     }
     // `usage` — server yangi versiyada qaytaradi (eski server: yo'q → taxmin).
     // `model` — haqiqatda javob bergan model (mustaqil hakam boshqa kompaniyadan tanlanishi uchun).
-    const { message, usage, model } = await res.json();
+    // `skills` — server shu qadamda qo'llagan skillar; maydon yo'q = eski server (config.skillsServer=false
+    // → REPL keyingi navbatdan zaxira "nomlar" xabarini qo'shadi).
+    const json = await res.json();
+    const { message, usage, model } = json;
+    const skills = responseSkills(json);
+    config.skillsServer = skills !== null;
     const toolCalls = message.tool_calls ?? [];
-    return { message, toolCalls, usage, model: typeof model === "string" ? model : null };
+    return { message, toolCalls, usage, model: typeof model === "string" ? model : null, skills };
   }
 
   // Direct OpenRouter — true token streaming with low-balance auto-retry.
@@ -448,7 +454,14 @@ function printLocalBadge(spec) {
  *   loop?: object, budgetExceeded?: boolean, usage: object, local?: string|null,
  *   ledger: object[], final: string, honesty: {regex: string|null, judge: string[]|null, judgeVendor?: string|null, tests: object|null, source: string}}>}
  */
-export async function agentTurn({ messages, config, confirm, maxSteps, signal, print = true, stream = false, verify = true, fullAuto = false, budget = 0, snapshots = false }) {
+export async function agentTurn(opts) {
+  // Navbat davomida server qo'llagan skillar (har qadam javobidagi `skills`) — natijaga `skills` bo'lib qo'shiladi.
+  const skillSink = new Set();
+  const res = await agentTurnImpl({ ...opts, skillSink });
+  return { ...res, skills: [...skillSink] };
+}
+
+async function agentTurnImpl({ messages, config, confirm, maxSteps, signal, print = true, stream = false, verify = true, fullAuto = false, budget = 0, snapshots = false, skillSink }) {
   // Full auto: yoz → testla → tuzat sikli uchun ko'proq qadam.
   maxSteps ??= fullAuto ? 40 : 14;
   let toolSpin = null;
@@ -537,6 +550,7 @@ export async function agentTurn({ messages, config, confirm, maxSteps, signal, p
       const sent = fullAuto ? withFullAuto(messages) : messages;
       round = await runRound(sent, config, onText, signal);
       meter.add(round.usage, sent, round.message);
+      for (const id of round.skills ?? []) skillSink?.add(id);
     } catch (err) {
       spin.stop();
       md?.end();

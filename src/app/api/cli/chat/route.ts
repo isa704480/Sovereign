@@ -15,6 +15,7 @@ import { enabledAdapters } from "@/lib/ai/mesh/registry";
 import { plan as meshPlan } from "@/lib/ai/mesh/scheduler";
 import { cliRouteRequest, isGeneralAdapter, meshMode, requiredPlanTier } from "@/lib/ai/mesh/request";
 import { limitErrorResponse } from "@/lib/ai/inquiry/limit-codes";
+import { lastUserText, skillSystemMessage, withSkillMessage } from "@/config/skills";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -269,16 +270,19 @@ export async function POST(req: Request) {
   // o'tgan pullik tarif (plan_expires_at < hozir) = free.
   let planId: PlanId = "free";
   let userId: string;
+  let enabledSkills: unknown[] = [];
   try {
     const supabase = createAnonClient();
     const { data, error } = await supabase.rpc("cli_whoami", { p_token: token });
     const row = (Array.isArray(data) ? data[0] : data) as
-      | { user_id?: string | null; plan?: string | null; plan_expires_at?: string | null }
+      | { user_id?: string | null; plan?: string | null; plan_expires_at?: string | null; enabled_skills?: unknown }
       | null;
     if (error || !row?.user_id) {
       return Response.json({ error: t("p7cCliBadToken") }, { status: 401 });
     }
     userId = row.user_id;
+    // Akkauntda yoqilgan skillar (web/CLI/Cowork uchun umumiy — profiles.enabled_skills).
+    if (Array.isArray(row.enabled_skills)) enabledSkills = row.enabled_skills;
     const rawPlan: PlanId = isPlanId(row.plan) ? row.plan : "free";
     const expired = rawPlan !== "free" && !!row.plan_expires_at && new Date(row.plan_expires_at) < new Date();
     planId = expired ? "free" : rawPlan;
@@ -334,8 +338,15 @@ export async function POST(req: Request) {
     country = region.restricted ? region.country : null;
   }
   const regionSwapped = Boolean(country && chosen && !modelAllowedIn(chosen, country));
+
+  // SOVEREIGN Skills — server tomonida (CLI/Cowork endi faqat nomlarni emas, haqiqiy qo'llanmani oladi):
+  // akkauntda yoqilganlar + oxirgi foydalanuvchi xabaridan avto-aniqlanganlar (limit: MAX_ACTIVE_SKILLS).
+  // Bitta system xabar mijozning boshlang'ich system blokidan keyin qo'shiladi. Mijoz system xabarlari
+  // baribir foydalanuvchi nazoratida — bu yerda ular ustidan hech narsa "ishonchli" deb hisoblanmaydi.
+  const skill = skillSystemMessage(enabledSkills, lastUserText(parsed.data.messages));
+  const messages = skill ? withSkillMessage(parsed.data.messages, skill.content) : parsed.data.messages;
   const needsTools = Boolean(parsed.data.tools?.length);
-  const routeReq = cliRouteRequest({ chosen, planTier: planId, country, tools: needsTools, messages: parsed.data.messages });
+  const routeReq = cliRouteRequest({ chosen, planTier: planId, country, tools: needsTools, messages });
   const cands = mesh ? [] : regionCandidates(candidates(planId, chosen, needsTools), country, planId === "pro" || planId === "ultra");
   // Mintaqa/tarif/imkoniyat bo'yicha birorta ham nomzod yo'q — kunlik hisob yoqilmasdan rad etiladi.
   // (Mesh: sog'liq hisobga olinmaydi — vaqtincha yopiq provayder bu yerda "bor" deb sanaladi.)
@@ -383,8 +394,8 @@ export async function POST(req: Request) {
 
   const maxTokens = Math.min(plan.limits.maxTokens, 4096);
   const outcome = mesh
-    ? await meshCliComplete(routeReq, parsed.data.messages, parsed.data.tools, maxTokens, req.signal)
-    : await legacyComplete(cands, parsed.data.messages, parsed.data.tools, maxTokens);
+    ? await meshCliComplete(routeReq, messages, parsed.data.tools, maxTokens, req.signal)
+    : await legacyComplete(cands, messages, parsed.data.tools, maxTokens);
 
   if (!outcome.ok) {
     if (outcome.status === 400) return Response.json({ error: t("chBadRequest") }, { status: 400 });
@@ -396,7 +407,7 @@ export async function POST(req: Request) {
   }
 
   const message = capToolCalls(outcome.message ?? { role: "assistant", content: "" });
-  await recordCliUsage(userId, outcome.model, outcome.usage, raw.length, message);
+  await recordCliUsage(userId, outcome.model, outcome.usage, raw.length + (skill?.content.length ?? 0), message);
   // `usage` — mijoz (CLI/Cowork) har vazifa qancha token sarflaganini ko'rsatadi va
   // --budget'ni tekshiradi. Qo'shimcha maydon: eski mijozlar e'tiborsiz qoldiradi.
   const pt = Number(outcome.usage?.prompt_tokens);
@@ -409,6 +420,8 @@ export async function POST(req: Request) {
     model: outcome.model,
     provider: outcome.provider,
     ...(usage ? { usage } : {}),
+    // Shu qadamda qo'llangan skillar (mijoz chip ko'rsatadi). Doim massiv — maydon borligi = yangi server.
+    skills: skill?.ids ?? [],
     // Shaffoflik: tanlangan model mintaqada yopiq edi — boshqa model javob berdi (eski mijozlar e'tiborsiz qoldiradi).
     ...(regionSwapped && chosen ? { requested: chosen, region: country, notice: t("p10RegionUnavailable") } : {}),
   });

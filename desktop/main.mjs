@@ -33,6 +33,8 @@ import {
   FAILURE_EXPLAIN_RULE,
 } from "../cli/src/tools.mjs";
 import { memorySystemMessage, syncMemory, addMemory } from "../cli/src/memory.mjs";
+import { fetchMe, pushSettings } from "../cli/src/sync.mjs";
+import { normalizeSkillIds, responseSkills } from "../cli/src/skills.mjs";
 import { shouldVerify, verifyClaims } from "../cli/src/verify.mjs";
 import { SnapshotStore, withCommandSnapshots } from "../cli/src/snapshot.mjs";
 import * as projectMemory from "../cli/src/project-memory.mjs";
@@ -143,7 +145,8 @@ const pendingChoices = new Map();
 // ---- Vazifa (task) va hodisalar --------------------------------------------
 // Joriy vazifaning UI hodisalari tarixga yoziladi — keyin ekranni qayta tiklash uchun.
 // inquiry / inquiry-state — savol kartasi va uning holati; local — "Mahalliy model · <nom>" belgisi (halollik).
-const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped", "inquiry", "inquiry-state", "local"]);
+// skills — shu navbatda server qo'llagan SOVEREIGN Skills (javob ostidagi chip'lar).
+const RECORDED = new Set(["user", "text", "tool", "tool-done", "terminal", "ledger", "usage", "error", "stopped", "inquiry", "inquiry-state", "local", "skills"]);
 let currentTask = null;
 
 function send(type, payload = {}) {
@@ -428,8 +431,10 @@ async function runRound(messages, config, withTools = true, signal = undefined, 
     }
     // `usage` — server yangi versiyada qaytaradi (yo'q bo'lsa — taxmin).
     // `model` — haqiqatda javob bergan model (mustaqil hakam boshqa kompaniyadan tanlanishi uchun).
-    const { message, usage, model } = await res.json();
-    return { message, toolCalls: message.tool_calls ?? [], usage, model: typeof model === "string" ? model : null };
+    // `skills` — server shu qadamda qo'llagan skillar (eski server: yo'q → null).
+    const json = await res.json();
+    const { message, usage, model } = json;
+    return { message, toolCalls: message.tool_calls ?? [], usage, model: typeof model === "string" ? model : null, skills: responseSkills(json) };
   }
 }
 
@@ -597,8 +602,17 @@ function sendLedger(entries, { finalText = "", noteCode = null, maxSteps = 0, lo
   send("ledger", { entries: show ? entries : [], warning: warn ?? null, testWarning, noteCode, maxSteps, loop, budget, judge, local });
 }
 
+/** Server qadam javobidagi skillarni navbat to'plamiga qo'shadi. */
+function collectSkills(turn, round) {
+  if (!round?.skills?.length) return;
+  turn.skills ??= new Set();
+  for (const id of round.skills) turn.skills.add(id);
+}
+
 /** Vazifa narxi: token va qadamlar (UI jurnal ostida ko'rsatadi). Mahalliy model — "server tokeni sarflanmadi". */
 function sendUsage(meter, turn = null) {
+  // Shu navbatda qo'llangan skillar — javob ostida chip'lar (usage qatoridan oldin).
+  if (turn?.skills?.size) send("skills", { skills: [...turn.skills] });
   if (!meter.rounds) return;
   send("usage", { ...meter.snapshot(), ...(turn?.local ? { local: turn.local.model, localRounds: turn.localRounds ?? 0 } : {}) });
 }
@@ -651,6 +665,7 @@ async function agentTurn(messages, config, turn) {
       const sent = withTurnSystem(messages, turn, { fullAuto });
       round = await runRound(sent, config, true, turn.controller.signal, turn.local, progressFor(turn));
       meter.add(round.usage, sent, round.message);
+      collectSkills(turn, round);
       if (turn.local) turn.localRounds++;
     } catch (e) {
       if (turn.aborted) return "stopped";
@@ -767,6 +782,7 @@ async function chatTurn(messages, config, turn) {
       const sent = withTurnSystem(messages, turn, { chat: true });
       round = await runRound(sent, config, /*withTools=*/ false, turn.controller.signal, turn.local, progressFor(turn));
       meter.add(round.usage, sent, round.message);
+      collectSkills(turn, round);
       if (turn.local) turn.localRounds++;
       break;
     } catch (e) {
@@ -1401,6 +1417,36 @@ handle("settings:set", async (_e, patch) => {
   if (patch && "lang" in patch) buildAppMenu(); // menyu yorliqlari ham darhol yangi tilda
   if (patch && "model" in patch && session.config) session.config.omniModel = s.model || loadConfig().omniModel || "";
   return publicSettings();
+});
+
+// ---- SOVEREIGN Skills (akkaunt sozlamasi — web/CLI bilan umumiy) --------------
+// Ro'yxat renderer'da; bu yerda faqat id'lar. Server /api/cli/me — token main'da qoladi.
+function skillsReady() {
+  const c = session.config ?? loadConfig();
+  if (!c.token) return { error: "auth" };
+  if (!netAllowed(c.baseUrl)) return { error: "offline" };
+  return { config: c };
+}
+
+handle("skills:get", async () => {
+  const r = skillsReady();
+  if (r.error) return { ok: false, error: r.error };
+  const me = await fetchMe(r.config);
+  if (!me) return { ok: false, error: "network" };
+  const enabled = normalizeSkillIds(me.enabled_skills);
+  saveConfig({ enabledSkills: enabled }); // CLI bilan umumiy kesh
+  return { ok: true, enabled };
+});
+
+handle("skills:set", async (_e, ids) => {
+  const r = skillsReady();
+  if (r.error) return { ok: false, error: r.error };
+  if (!Array.isArray(ids) || ids.length > 32) return { ok: false, error: "bad-request" };
+  const enabled = normalizeSkillIds(ids);
+  const ok = await pushSettings(r.config, { enabled_skills: enabled });
+  if (!ok) return { ok: false, error: "network" };
+  saveConfig({ enabledSkills: enabled });
+  return { ok: true, enabled };
 });
 
 // ---- Kirish (auth) ----------------------------------------------------------

@@ -4,7 +4,7 @@ import { AlertTriangle, Check, ChevronDown, Copy, Globe, Lightbulb, Pencil, Refr
 import { motion } from "motion/react";
 import { memo, useMemo, useState } from "react";
 import { MODEL_BY_ID } from "@/config/models";
-import { SKILL_BY_ID } from "@/config/skills";
+import { SKILL_BY_ID, canonicalSkillId } from "@/config/skills";
 import { attachmentGlyph } from "@/lib/chat/attachments";
 import { useLang, useT, type ChatMessage } from "@/store/chat";
 import { fmt, type Lang } from "@/lib/i18n";
@@ -17,6 +17,7 @@ import { AnswerMetaBadge } from "./AnswerMetaBadge";
 import { InquiryCard, InquiryFollowups, type InquiryActions } from "./InquiryCard";
 import { Markdown } from "./Markdown";
 import { ModelAvatar } from "./ModelAvatar";
+import { SkillIcon } from "./SkillIcon";
 import { TypingIndicator } from "./TypingIndicator";
 import { ClaimsWarning, isFactIssue, VerifierPanel } from "./VerifierPanel";
 import { useTheme } from "./theme-context";
@@ -464,7 +465,7 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
         {message.skills?.length ? (
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {message.skills.map((id) => {
-              const sk = SKILL_BY_ID[id];
+              const sk = SKILL_BY_ID[canonicalSkillId(id) ?? ""];
               if (!sk) return null;
               const skt = skillText(lang, sk);
               return (
@@ -474,7 +475,7 @@ export const MessageItem = memo(function MessageItem({ message, isLast, onRegene
                   style={{ borderColor: `${sk.color}55`, color: sk.color, background: `color-mix(in srgb, ${sk.color} 10%, transparent)` }}
                   title={skt.description}
                 >
-                  {sk.glyph || "✦"} {skt.name}
+                  <SkillIcon name={sk.icon} className="size-3" /> {skt.name}
                 </span>
               );
             })}

@@ -51,6 +51,11 @@ contextBridge.exposeInMainWorld("sovereign", {
     create: () => invoke("project:create"),
     remember: (text) => invoke("project:remember", text),
   },
+  // SOVEREIGN Skills — akkauntda yoqilgan skillar (so'rov main'dan, token renderer'ga chiqmaydi).
+  skills: {
+    get: () => invoke("skills:get"),
+    set: (ids) => invoke("skills:set", ids),
+  },
   auth: {
     login: () => invoke("auth:login"),
     cancel: () => invoke("auth:cancel"),

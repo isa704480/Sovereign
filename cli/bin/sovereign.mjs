@@ -12,7 +12,8 @@ import { printModels, printLocalModels, resolveModelId, isOmniId, fetchCatalog, 
 import { selectMenu } from "../src/menu.mjs";
 import { collectMentions, completeMention, readAttachment } from "../src/files.mjs";
 import { banner, c, clearScreen, configureUi, gutter, hintBar, logo, skillsList, slashMenu, spinner, stopSpinner, stripAnsi } from "../src/ui.mjs";
-import { SKILLS, SKILL_IDS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
+import { SKILLS, SLASH_COMMANDS, SLASH_NAMES, openBrowser } from "../src/commands.mjs";
+import { canonicalSkillId, normalizeSkillIds, skillNames, syncSkillsMessage } from "../src/skills.mjs";
 import { contextSummary, fullAutoDenyReason, isTrustableDir, resolvePath as resolveWs, visible } from "../src/tools.mjs";
 import { fullAutoMustAsk } from "../src/full-auto.mjs";
 import { confirmFullAutoTrust } from "../src/trust.mjs";
@@ -547,26 +548,6 @@ function versionLine() {
   return `sov ${VERSION} (${process.platform}-${process.arch}, ${IS_BINARY ? "binary" : "node"} v${process.versions.node})`;
 }
 
-const SKILLS_MARK = "Foydalanuvchi tomonidan yoqilgan SOVEREIGN Skills:";
-
-/** Skillar system xabarini joyiga qo'yadi/yangilaydi (yoqilgan skil yo'q bo'lsa — olib tashlaydi). */
-function syncSkillsMessage(messages, enabledSkills) {
-  const idx = messages.findIndex((m) => m.role === "system" && typeof m.content === "string" && m.content.startsWith(SKILLS_MARK));
-  const activeNames = SKILLS.filter((s) => enabledSkills.has(s.id)).map((s) => `- ${s.name}: ${s.desc}`);
-  if (!activeNames.length) {
-    if (idx !== -1) messages.splice(idx, 1);
-    return;
-  }
-  const msg = { role: "system", content: `${SKILLS_MARK}\n${activeNames.join("\n")}\nUlarni javob berayotganda qo'llang.` };
-  if (idx !== -1) {
-    messages[idx] = msg;
-    return;
-  }
-  // Boshlang'ich system blokining oxiriga (SYSTEM, kontekst, xotira'dan keyin).
-  const firstNonSystem = messages.findIndex((m) => m.role !== "system");
-  messages.splice(firstNonSystem === -1 ? messages.length : firstNonSystem, 0, msg);
-}
-
 // ---- subcommands ------------------------------------------------------
 /** `sov config kalit=qiymat ...` — faqat tekshiriladigan sozlamalar (inquiry, localFallback, localModel). */
 function handleConfigArgs(args) {
@@ -751,7 +732,9 @@ async function repl() {
   let sessionId = null; // birinchi javobdan keyin yaratiladi
   const pending = []; // paths queued via /attach for the next user message
   let pendingAudit = null; // /audit hisoboti — keyingi xabarga agent konteksti sifatida qo'shiladi
-  const enabledSkills = new Set(config.enabledSkills || ["ui-ux-pro-max", "clean-code"]);
+  const enabledSkills = new Set(normalizeSkillIds(config.enabledSkills || ["ui-ux-pro-max", "clean-code"]));
+  // Skillar faqat server orqali qo'llanadi — mahalliy/OpenRouter-kalit rejimida bir marta eslatamiz.
+  let skillsOffNoted = false;
 
   // Server bilan sinxronlash — akkaunt rejimida
   if (config.token) {
@@ -760,7 +743,7 @@ async function repl() {
       // Server tomondan kelgan sozlamalar — ustunroq
       if (Array.isArray(me.enabled_skills)) {
         enabledSkills.clear();
-        for (const s of me.enabled_skills) enabledSkills.add(s);
+        for (const s of normalizeSkillIds(me.enabled_skills)) enabledSkills.add(s);
       }
       if (me.default_model && !flags.model) config.model = me.default_model;
       if (me.email) config.email = me.email;
@@ -797,7 +780,7 @@ async function repl() {
   const stopSync = startBackgroundSync(() => config, (changed) => {
     if (changed.enabledSkills) {
       enabledSkills.clear();
-      for (const s of changed.enabledSkills) enabledSkills.add(s);
+      for (const s of normalizeSkillIds(changed.enabledSkills)) enabledSkills.add(s);
       say(c.dim("↻ Skillar web bilan sinxronlandi"));
     }
     if (changed.model && !flags.model) {
@@ -851,6 +834,12 @@ async function repl() {
         snapshots: true, // shell Undo — /undo
       });
       if (res.error) console.log(G + c.red(`Xato: ${res.error}\n`));
+      // Shu navbatda server qo'llagan skillar — xira qator (chip o'rnida).
+      if (res.skills?.length) say(c.dim(`◇ Skillar: ${skillNames(res.skills).join(" · ")}`));
+      else if ((config.local || !config.token) && enabledSkills.size && !skillsOffNoted) {
+        skillsOffNoted = true;
+        say(c.dim("◇ Skillar faqat SOVEREIGN serveri orqali qo'llanadi — mahalliy model / OpenRouter kaliti rejimida ishlamaydi."));
+      }
       if (!wasLocal && config.local) say(c.dim("◇ Keyingi xabarlar ham mahalliy modelda. Serverga qaytish: /local off"));
       return res;
     } finally {
@@ -1315,11 +1304,12 @@ async function repl() {
       continue;
     }
     if (input.startsWith("/skill ") || input === "/skill") {
-      const id = input.slice(6).trim();
-      if (!id) {
+      const raw = input.slice(6).trim();
+      const id = canonicalSkillId(raw); // taxalluslar: pro-writing → no-ai-slop, apple-liquid-glass → apple-design
+      if (!raw) {
         say(c.dim("Foydalanish: /skill <id> (masalan /skill cybersecurity)"));
-      } else if (!SKILL_IDS.includes(id)) {
-        say(c.red(`Noma'lum skil: ${id}`) + c.dim("  /skills bilan ro'yxatni ko'ring."));
+      } else if (!id) {
+        say(c.red(`Noma'lum skil: ${raw}`) + c.dim("  /skills bilan ro'yxatni ko'ring."));
       } else {
         if (enabledSkills.has(id)) {
           enabledSkills.delete(id);
@@ -1333,7 +1323,7 @@ async function repl() {
         // Server bilan sinxron — akkaunt rejimida webga darhol ko'chadi
         if (config.token) {
           pushSettings(config, { enabled_skills: arr }).then((ok) => {
-            if (ok) say(c.dim("  ↻ web bilan sinxronlandi"));
+            say(c.dim(ok ? "  ↻ web bilan sinxronlandi" : "  ⚠ serverga saqlanmadi — keyinroq qayta urinib ko'ring"));
           });
         }
       }
@@ -1496,9 +1486,9 @@ async function repl() {
     // Agar orqasidan matn kelsa — skilni yoqib, o'sha matnni xabar sifatida davom ettiramiz.
     if (input.startsWith("/")) {
       const sp = input.indexOf(" ");
-      const cmdName = (sp === -1 ? input : input.slice(0, sp)).slice(1);
+      const cmdName = canonicalSkillId((sp === -1 ? input : input.slice(0, sp)).slice(1));
       const rest = sp === -1 ? "" : input.slice(sp + 1).trim();
-      if (SKILL_IDS.includes(cmdName)) {
+      if (cmdName) {
         if (!enabledSkills.has(cmdName)) {
           enabledSkills.add(cmdName);
           const arr = [...enabledSkills];
@@ -1566,10 +1556,10 @@ async function repl() {
       userMsg = { role: "user", content: input };
     }
     messages.push(userMsg);
-    // Yoqilgan skillar system-prompt sifatida agentga uzatiladi. Xabar belgisi (SKILLS_MARK)
-    // orqali topiladi va har navbatda yangilanadi — system xabarlar soniga (xotira xabari
-    // qo'shilganda 3 ta bo'ladi) tayanilmaydi; /skill bilan o'chirish/yoqish ham darhol ta'sir qiladi.
-    syncSkillsMessage(messages, enabledSkills);
+    // Skillar: yangi server akkauntdagi skillarning to'liq qo'llanmasini o'zi qo'shadi (javobda `skills`).
+    // Faqat eski server aniqlansa (javobda `skills` yo'q) — zaxira sifatida nomlar ro'yxati; aks holda
+    // eski sessiyadan qolgan nomlar xabari ham olib tashlanadi.
+    syncSkillsMessage(messages, enabledSkills, { fallback: Boolean(config.token) && !config.local && config.skillsServer === false });
 
     // ── Chuqur so'rash (rejalashtirish bosqichi) — Ctrl+C savollarni va xabarni bekor qiladi ──
     const inqAc = new AbortController();
@@ -1640,6 +1630,7 @@ async function oneShot(task, { inquiry = true } = {}) {
   const res = await agentTurn({ messages, config, confirm, signal: ac.signal, stream: !config.token, verify: flags.verify, fullAuto: fullAuto.on, budget: flags.budget ?? 0 });
   turnState.ac = null;
   if (res.error) console.log(c.red(`  Xato: ${res.error}`));
+  if (res.skills?.length) log(c.dim(`◇ Skillar: ${skillNames(res.skills).join(" · ")}`));
   for (const l of renderFollowups(inq.followups, c)) log(l);
   rl.close();
   if (res.aborted) return EXIT.INTERRUPTED;
@@ -1752,6 +1743,7 @@ async function printMode(promptArg) {
         ...(res.loop ? { loop: res.loop } : {}),
         ...(res.budgetExceeded ? { budget_exceeded: true } : {}),
         usage: res.usage ?? null,
+        skills: res.skills ?? [],
         ledger: res.ledger ?? [],
         honesty: res.honesty ?? null,
         exit_code: code,
