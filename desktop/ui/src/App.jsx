@@ -13,6 +13,7 @@ import Modal, { hasOpenLayer } from "./components/Modal.jsx";
 import Icon, { Logo } from "./components/Icon.jsx";
 import { applyEvent, replayEvents, addChange, initialAgent } from "./lib/agent.js";
 import { I18n, makeT, detectLang, LANGS } from "./lib/i18n.js";
+import { setPlatform } from "./lib/keys.js";
 import { ATTACH_LIMITS, attachErrKey, checkSend, toSendPayload, prepareImage, dataUrlToBlob, isImageMime } from "./lib/attachments.js";
 
 const S = () => window.sovereign;
@@ -128,6 +129,7 @@ export default function App() {
     (async () => {
       try {
         const i = await S().init();
+        setPlatform(i.platform); // kbd belgilari: macOS — ⌘
         setInfo(i);
         setSettings(i.settings);
         setHistory(i.history ?? []);

@@ -4,6 +4,7 @@
 // Har yangi matn 4 tilda qo'shiladi; tekshiruv: `npm run i18n:check`.
 import { createContext, useContext } from "react";
 import { toCyrillic } from "./translit.js";
+import { kbd } from "./keys.js";
 
 export const LANGS = [
   { id: "uz", label: "O‘zbekcha" },
@@ -140,7 +141,7 @@ const uz = {
   "term.empty": "Hali buyruq bajarilmagan", "term.emptyHint": "Agent ishga tushirgan buyruqlar va ularning natijasi shu yerda.", "term.count": "{n} buyruq", "term.clear": "Tozalash", "term.noOutput": "(chiqish yo‘q)",
 
   "model.pick": "Modelni tanlash", "model.search": "Model qidirish… (claude, gemini, deepseek)", "model.featured": "Tekin — tavsiya", "model.none": "Hech narsa topilmadi",
-  "model.error": "Model katalogini yuklab bo‘lmadi.", "model.offline": "Oflayn — katalog mavjud emas.", "model.useAuto": "Auto’dan foydalanish", "model.foot": "oila → model · Esc — yopish",
+  "model.error": "Model katalogini yuklab bo‘lmadi.", "model.offline": "Oflayn — katalog mavjud emas.", "model.useAuto": "Avto’dan foydalanish", "model.foot": "oila → model · Esc — yopish",
 
   "palette.title": "Buyruqlar", "palette.open": "Buyruqlar palitrasini ochish", "palette.placeholder": "Buyruq yoki sozlama qidiring…", "palette.placeholderShort": "Buyruqlar va qidiruv",
   "palette.none": "Mos buyruq yo‘q", "palette.gTask": "Vazifa", "palette.gView": "Ko‘rinish", "palette.gApp": "Ilova",
@@ -469,6 +470,7 @@ const uz = {
   "project.loadError": "Loyiha xotirasini (SOVEREIGN.md) o‘qib bo‘lmadi",
   "project.loadErrorHint": "Fayl o‘zgartirilmadi. Papkaga kirish huquqini tekshirib, qayta urinib ko‘ring.",
   "settings.sandboxError": "Sandbox holatini tekshirib bo‘lmadi.",
+  "model.auto": "Avto",
 };
 
 const en = {
@@ -910,6 +912,7 @@ const en = {
   "project.loadError": "Couldn’t read project memory (SOVEREIGN.md)",
   "project.loadErrorHint": "Nothing was changed. Check that the folder is accessible and try again.",
   "settings.sandboxError": "Couldn’t check the sandbox status.",
+  "model.auto": "Auto",
 };
 
 const ru = {
@@ -1028,7 +1031,7 @@ const ru = {
   "changes.deleted": "удалён", "changes.lost": "не восстановить",
   "term.empty": "Команд пока нет", "term.emptyHint": "Здесь появятся команды агента и их вывод.", "term.count": "Команд: {n}", "term.clear": "Очистить", "term.noOutput": "(нет вывода)",
   "model.pick": "Выбрать модель", "model.search": "Поиск моделей… (claude, gemini, deepseek)", "model.featured": "Бесплатные — рекомендуем", "model.none": "Ничего не найдено",
-  "model.error": "Не удалось загрузить каталог моделей.", "model.offline": "Офлайн — каталог недоступен.", "model.useAuto": "Использовать Auto", "model.foot": "семейство → модель · Esc — закрыть",
+  "model.error": "Не удалось загрузить каталог моделей.", "model.offline": "Офлайн — каталог недоступен.", "model.useAuto": "Использовать Авто", "model.foot": "семейство → модель · Esc — закрыть",
   "palette.title": "Команды", "palette.open": "Открыть палитру команд", "palette.placeholder": "Поиск команд и настроек…", "palette.placeholderShort": "Команды и поиск",
   "palette.none": "Нет подходящих команд", "palette.gTask": "Задача", "palette.gView": "Вид", "palette.gApp": "Приложение",
   "palette.toChat": "Перейти в режим «Чат»", "palette.toCode": "Перейти в режим «Код»", "palette.showChanges": "Показать изменения", "palette.showTerminal": "Показать терминал",
@@ -1351,6 +1354,7 @@ const ru = {
   "project.loadError": "Не удалось прочитать память проекта (SOVEREIGN.md)",
   "project.loadErrorHint": "Файл не изменён. Проверьте доступ к папке и попробуйте снова.",
   "settings.sandboxError": "Не удалось проверить состояние песочницы.",
+  "model.auto": "Авто",
 };
 
 /**
@@ -1679,6 +1683,8 @@ const uzCyrl = {
   "project.loadError": "Лойиҳа хотирасини (SOVEREIGN.md) ўқиб бўлмади",
   "project.loadErrorHint": "Файл ўзгартирилмади. Папкага кириш ҳуқуқини текшириб, қайта уриниб кўринг.",
   "settings.sandboxError": "Ҳимояланган муҳит ҳолатини текшириб бўлмади.",
+  "model.auto": "Авто",
+  "model.useAuto": "Автодан фойдаланиш",
 };
 
 const DICTS = { uz, en, ru };
@@ -1696,7 +1702,7 @@ export function makeT(lang) {
   return (key, vars, fallback) => {
     let s = d[key] ?? en[key] ?? uz[key] ?? fallback ?? key;
     if (vars) s = s.replace(/\{(\w+)\}/g, (_, v) => (vars[v] ?? ""));
-    return s;
+    return kbd(s);
   };
 }
 

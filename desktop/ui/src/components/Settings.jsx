@@ -4,6 +4,7 @@ import Icon, { Logo } from "./Icon.jsx";
 import SignIn from "./SignIn.jsx";
 import ModelPicker, { LocalRecommend, LocalCaps, loadLocal } from "./ModelPicker.jsx";
 import { useT, LANGS } from "../lib/i18n.js";
+import { tabKeyDown } from "../lib/tabs.js";
 import { formatTokens } from "../lib/agent.js";
 import { useLocalMode, setLocalMode, refreshLocal } from "../lib/localMode.js";
 import { SKILLS, MAX_ACTIVE_SKILLS, skillName } from "../lib/skills.js";
@@ -369,12 +370,16 @@ export default function Settings({ initial = "general", onClose, info, settings,
       <div className="settings-grid">
         <nav className="settings-nav" role="tablist" aria-orientation="vertical" aria-label={t("settings.title")}>
           {SECTIONS.map(([k, icon]) => (
-            <button key={k} type="button" role="tab" aria-selected={sec === k} className={`settings-tab ${sec === k ? "on" : ""}`} onClick={() => setSec(k)}>
+            <button
+              key={k} id={`set-tab-${k}`} type="button" role="tab" aria-selected={sec === k} aria-controls="set-panel" tabIndex={sec === k ? 0 : -1}
+              className={`settings-tab ${sec === k ? "on" : ""}`} onClick={() => setSec(k)}
+              onKeyDown={(e) => tabKeyDown(e, SECTIONS.map(([x]) => x), sec, setSec, { vertical: true, idOf: (x) => `set-tab-${x}` })}
+            >
               <Icon name={icon} size={15} /> {t(`settings.${k}`)}
             </button>
           ))}
         </nav>
-        <div className="settings-pane" role="tabpanel">
+        <div className="settings-pane" id="set-panel" role="tabpanel" aria-labelledby={`set-tab-${sec}`} tabIndex={0}>
           {sec === "general" && (
             <>
               <h3>{t("settings.general")}</h3>

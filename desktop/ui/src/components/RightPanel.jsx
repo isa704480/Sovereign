@@ -5,6 +5,8 @@ import Modal from "./Modal.jsx";
 import ProjectMemory from "./ProjectMemory.jsx";
 import { lineDiff, diffStats } from "../lib/diff.js";
 import { useT } from "../lib/i18n.js";
+import { kbd } from "../lib/keys.js";
+import { tabKeyDown } from "../lib/tabs.js";
 import { localizeTerminal } from "../lib/cliText.js";
 
 function ChangeRow({ c, open, onToggle, onUndo }) {
@@ -133,17 +135,23 @@ export default function RightPanel({ tab, setTab, changes, term, onUndo, onUndoA
           <p>{t("changes.undoAllConfirm.body", { n: changes.length })}</p>
         </Modal>
       )}
-      <div className="tabs" role="tablist">
-        {[["changes", t("panel.changes"), changes.length], ["terminal", t("panel.terminal"), term.length], ["project", t("panel.project"), 0]].map(([k, l, n]) => (
-          <button key={k} type="button" role="tab" aria-selected={tab === k} className={`tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}>
-            {l}{n ? <span className="count">{n}</span> : null}
-          </button>
-        ))}
+      <div className="tabs">
+        <div className="tabs-list" role="tablist" aria-label={t("panel.label")}>
+          {[["changes", t("panel.changes"), changes.length], ["terminal", t("panel.terminal"), term.length], ["project", t("panel.project"), 0]].map(([k, l, n]) => (
+            <button
+              key={k} id={`rp-tab-${k}`} type="button" role="tab" aria-selected={tab === k} aria-controls="rp-panel" tabIndex={tab === k ? 0 : -1}
+              className={`tab ${tab === k ? "on" : ""}`} onClick={() => setTab(k)}
+              onKeyDown={(e) => tabKeyDown(e, ["changes", "terminal", "project"], tab, setTab, { idOf: (x) => `rp-tab-${x}` })}
+            >
+              {l}{n ? <span className="count">{n}</span> : null}
+            </button>
+          ))}
+        </div>
         <span className="tab-actions">
-          <button type="button" className="icon-btn" aria-label={t("panel.close")} title={`${t("panel.close")} (Ctrl+J)`} onClick={onClose}><Icon name="x" size={14} /></button>
+          <button type="button" className="icon-btn" aria-label={t("panel.close")} title={`${t("panel.close")} (${kbd("Ctrl+J")})`} onClick={onClose}><Icon name="x" size={14} /></button>
         </span>
       </div>
-      <div className="panel-scroll">
+      <div className="panel-scroll" id="rp-panel" role="tabpanel" aria-labelledby={`rp-tab-${tab}`}>
         {tab === "changes" ? (
           changes.length === 0 ? (
             <div className="panel-empty">

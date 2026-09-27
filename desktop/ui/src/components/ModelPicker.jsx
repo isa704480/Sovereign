@@ -222,7 +222,7 @@ export default function ModelPicker({ label, onSelect, disabled, placement = "up
   const retry = () => { setFamilies(null); setModels(null); setError(""); setReload((n) => n + 1); };
   const retryLocal = () => setReload((n) => n + 1);
 
-  const chipLabel = local ? local.model : label || "Auto";
+  const chipLabel = local ? local.model : !label || label === "Auto" ? t("model.auto") : label;
   const cloudActive = !local;
 
   const localPane = () => {
@@ -319,7 +319,7 @@ export default function ModelPicker({ label, onSelect, disabled, placement = "up
               <div className="picker-cols">
                 <div className="picker-fams">
                   <button type="button" className={`picker-item ${cloudActive && label === "Auto" ? "active" : ""}`} onClick={() => choose("", "Auto")}>
-                    <span className="dot dot-accent" aria-hidden="true" /><b>Auto</b>
+                    <span className="dot dot-accent" aria-hidden="true" /><b>{t("model.auto")}</b>
                   </button>
                   <button type="button" className={`picker-item ${localView ? "active" : ""}`} onClick={() => { setFam(LOCAL_FAM); setQ(""); }} aria-pressed={!!localView}>
                     <Icon name="monitor" size={13} className={local ? "local-mark" : "faint"} />

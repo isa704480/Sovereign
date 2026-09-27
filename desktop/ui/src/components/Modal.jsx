@@ -68,7 +68,7 @@ export function useFocusTrap(ref, { initialFocus, onEscape } = {}) {
     (first ?? root)?.focus();
     const onKey = (e) => {
       if (e.key !== "Tab" || !root || !layer.isTopTrap()) return;
-      const els = [...root.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      const els = [...root.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null && el.tabIndex >= 0);
       if (!els.length) return;
       const a = els[0];
       const z = els[els.length - 1];

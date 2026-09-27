@@ -2,6 +2,7 @@ import React, { forwardRef, useEffect, useImperativeHandle, useRef } from "react
 import Icon from "./Icon.jsx";
 import ModelPicker from "./ModelPicker.jsx";
 import { useT } from "../lib/i18n.js";
+import { kbd } from "../lib/keys.js";
 import { formatSize } from "../lib/attachments.js";
 
 /** Fayl kengaytmasi (yorliq uchun): "app.test.js" → "JS". */
@@ -114,7 +115,7 @@ const Composer = forwardRef(function Composer({ value, onChange, onSend, onStop,
           )}
           <div className="seg" role="radiogroup" aria-label={t("mode.label")}>
             {[["code", "code", t("mode.code")], ["chat", "chat", t("mode.chat")]].map(([k, icon, l]) => (
-              <button key={k} type="button" role="radio" aria-checked={mode === k} className={`seg-btn ${mode === k ? "on" : ""}`} onClick={() => setMode(k)} disabled={busy} title={`${l} (Ctrl+E)`}>
+              <button key={k} type="button" role="radio" aria-checked={mode === k} className={`seg-btn ${mode === k ? "on" : ""}`} onClick={() => setMode(k)} disabled={busy} title={`${l} (${kbd("Ctrl+E")})`}>
                 <Icon name={icon} size={13} /> {l}
               </button>
             ))}
@@ -133,7 +134,7 @@ const Composer = forwardRef(function Composer({ value, onChange, onSend, onStop,
           <ModelPicker label={model} onSelect={onModel} disabled={busy} />
           <span className="grow composer-hint faint small">{t("composer.hint")}</span>
           {busy ? (
-            <button type="button" className="send stop" onClick={onStop} aria-label={t("composer.stop")} title={`${t("composer.stop")} (Ctrl+.)`}>
+            <button type="button" className="send stop" onClick={onStop} aria-label={t("composer.stop")} title={`${t("composer.stop")} (${kbd("Ctrl+.")})`}>
               <Icon name="stop" size={14} stroke={2} />
             </button>
           ) : (
