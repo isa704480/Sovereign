@@ -77,7 +77,8 @@ export async function resolveUserRegion(opts: {
   userId?: string | null;
   onboarding?: Record<string, unknown> | null;
 }): Promise<UserRegion> {
-  const forced = normalizeCountry(process.env.REGION_FORCE_COUNTRY);
+  // Faqat lokal/preview sinov uchun — production'da tasodifan qolsa hamma "RU" bo'lib qolmasin.
+  const forced = process.env.VERCEL_ENV === "production" ? null : normalizeCountry(process.env.REGION_FORCE_COUNTRY);
   if (forced) return build(forced, "env");
 
   const ip = ipCountry(opts.headers);
