@@ -328,6 +328,31 @@ await test("birinchi ishga tushish: bloklar yuboriladi, email niqoblangan, xost 
   assert.ok(!JSON.stringify(evs).includes("alisher.navoiy"));
 });
 
+await test("breaker flapping: open → half_open → open — lentada bitta OCHIQ; keyin YOPIQ ishlamay qolgan vaqt bilan", async () => {
+  const store = memoryOpsStore(() => T0);
+  const b = (id: string, t: number, to: string, extra: Record<string, number | string> = {}): OpsEvent => ({
+    id,
+    t,
+    type: "breaker",
+    d: { provider: "cerebras", label: "Cerebras", scope: "", to, ...extra },
+  });
+  await store.push(b("b1", T0 - 300_000, "open", { reason: "5xx", until: T0 - 270_000 }));
+  await store.push(b("b2", T0 - 260_000, "half_open"));
+  await store.push(b("b3", T0 - 255_000, "open", { reason: "5xx", until: T0 - 195_000 }));
+  const f = fakeFeed(store, { signups: async () => [], payments: async () => [], devices: async () => ({ logins: [], revokes: [] }), releases: async () => [], commits: async () => [] });
+  await runFeed(f.deps, { dry: false });
+  const first = f.sent.join("\n");
+  assert.equal((first.match(/Cerebras: OCHIQ/g) ?? []).length, 1, "takroriy ochilish jim");
+  assert.ok(!first.includes("YARIM OCHIQ"), "half_open lentaga chiqmaydi");
+  await store.push(b("b4", T0 - 60_000, "closed"));
+  f.sent.length = 0;
+  await runFeed(f.deps, { dry: false });
+  const second = f.sent.join("\n");
+  assert.ok(second.includes("Cerebras: YOPIQ"));
+  assert.ok(second.includes("4 daq ishlamadi"), second);
+  assert.ok(!second.includes("OCHIQ —"));
+});
+
 await test("dedupe: ikkinchi ishga tushishda hech narsa qayta yuborilmaydi", async () => {
   const store = memoryOpsStore(() => T0);
   const { deps, sent } = fakeFeed(store);

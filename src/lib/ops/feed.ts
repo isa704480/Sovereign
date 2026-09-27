@@ -121,6 +121,17 @@ interface Unit {
   id: string;
   type: OpsEventType;
   event?: OpsEvent;
+  /** Breaker lenta holati (flapping himoyasi) — muvaffaqiyatdan keyin yoziladi. */
+  marker?: BreakerMarker;
+}
+
+/** openAt null — tiklandi (marker o'chiriladi). */
+interface BreakerMarker {
+  key: string;
+  openAt: number | null;
+  until: number;
+  /** Hodisa vaqti (yozish tartibi). */
+  t: number;
 }
 
 /** Bir yoki bir nechta birlikdan iborat blok (bitta xabar ichida yaxlit). */
@@ -310,27 +321,41 @@ export async function runFeed(deps: FeedDeps, opts: { dry: boolean }): Promise<F
     const k = `${ev.d.provider}:${ev.d.scope ?? ""}`;
     breakerGroups.set(k, [...(breakerGroups.get(k) ?? []), ev]);
   }
-  for (const evs of breakerGroups.values()) {
+  // Flapping himoyasi: o'lik provayder har cooldown'da open → half_open → open aylanadi. Lentaga faqat
+  // birinchi "OCHIQ" va "YOPIQ" (tiklanish, ishlamay qolgan vaqt bilan) chiqadi; half_open va takroriy
+  // open — jim (ro'yxatda qoladi: admin karta, hisobotdagi downtime). Holat: ops:brk:<kalit> = ochilgan vaqt,
+  // TTL = until + 30 daqiqa (hovuz kalitlari "closed" yozmaydi — marker o'zi eskiradi).
+  const brkMarkers = new Map<string, number | null>();
+  await Promise.all(
+    [...breakerGroups.keys()].map(async (k) => {
+      const v = Number(await store.get(`ops:brk:${k}`).catch(() => null));
+      brkMarkers.set(k, Number.isFinite(v) && v > 0 ? v : null);
+    }),
+  );
+  for (const [k, evs] of breakerGroups) {
     const sorted = [...evs].sort((a, b) => a.t - b.t);
-    const byId = new Map(sorted.map((e) => [e.id, e]));
-    blocks.push({
-      prio: 3,
-      units: sorted.map((e) => ({ id: e.id, type: "breaker" as const })),
-      render: (c) => {
-        if (!c.length) return null;
-        return c
-          .map((u) => byId.get(u.id)!)
-          .map((e, i, arr) => {
-            // Tiklanish: shu blokdagi oldingi "open"dan hisoblangan ishlamay qolgan vaqt.
-            if (e.d.to === "closed" && e.d.downMs == null) {
-              const opened = [...arr.slice(0, i)].reverse().find((x) => x.d.to === "open");
-              if (opened) e = { ...e, d: { ...e.d, downMs: e.t - opened.t } };
-            }
-            return `${escapeHtml(tashkentTime(e.t))} ${eventLine(e, lang, true)}`;
-          })
-          .join("\n");
-      },
-    });
+    let openAt = brkMarkers.get(k) ?? null;
+    for (const e of sorted) {
+      let show = false;
+      let ev = e;
+      let marker: BreakerMarker | undefined;
+      if (e.d.to === "open") {
+        const until = typeof e.d.until === "number" ? e.d.until : e.t + 30 * 60_000;
+        if (openAt === null) {
+          openAt = e.t;
+          show = true;
+        }
+        marker = { key: k, openAt, until, t: e.t };
+      } else if (e.d.to === "closed") {
+        show = true;
+        if (openAt !== null) ev = { ...e, d: { ...e.d, downMs: Math.max(0, e.t - openAt) } };
+        openAt = null;
+        marker = { key: k, openAt: null, until: 0, t: e.t };
+      }
+      const line = `${escapeHtml(tashkentTime(ev.t))} ${eventLine(ev, lang, true)}`;
+      const unit: Unit = { id: e.id, type: "breaker", ...(marker ? { marker } : {}) };
+      blocks.push({ prio: 3, units: [unit], render: (c) => (c.length && show ? line : null) });
+    }
   }
 
   // 4) Failover — tugagan 5 daqiqalik chelaklar (bitta blok, kichik yo'nalishlar lentaga chiqmaydi).
@@ -512,6 +537,13 @@ export async function runFeed(deps: FeedDeps, opts: { dry: boolean }): Promise<F
     // So'rov manbalaridan kelgan hodisalar ro'yxatga (admin kartasi, hisobotlar). Webhook/mesh hodisalari
     // allaqachon ro'yxatda.
     for (const u of handled) if (u.event) await store.push(u.event).catch(() => undefined);
+    // Breaker lenta holati (vaqt tartibida): ochilish — marker (until + 30 daq), tiklanish — o'chirish.
+    const markers = handled.map((u) => u.marker).filter((m): m is BreakerMarker => !!m).sort((a, b) => a.t - b.t);
+    for (const m of markers) {
+      const key = `ops:brk:${m.key}`;
+      if (m.openAt === null) await store.del(key).catch(() => undefined);
+      else await store.set(key, String(m.openAt), Math.max(m.until - now, 0) + 30 * 60_000).catch(() => undefined);
+    }
     // Lentaga chiqqan failover xulosasi ham ro'yxatga (hisobotlar esa hisoblagichlardan o'qiydi).
     const foHandled = handled.filter((u) => u.type === "failover");
     if (foHandled.length) {
