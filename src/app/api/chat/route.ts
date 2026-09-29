@@ -9,7 +9,7 @@ import {
   type SearchSource,
   type StreamEvent,
 } from "@/lib/ai/providers";
-import { lookupExactCache, lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
+import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
 import { confirmActionClaims, formatSearchSources, verifyAnswer, type JudgeInfo, type VerifierIssue } from "@/lib/ai/verifier";
 import { answerModelsFor } from "@/lib/ai/judge";
 import { checkClaims, detectActionClaims, unsourcedMarkers, type ActionRecord, type ClaimReason, type UnsupportedClaim } from "@/lib/ai/claims";
@@ -976,13 +976,11 @@ export async function POST(req: Request) {
         // Resolve max_tokens based on complexity and plan
         const maxTokens = resolveMaxTokens(plan, complexity);
 
-        // Keshdan tekshirish: avval aniq (exact-match, embedding'siz), so'ng semantik.
+        // Keshdan tekshirish: semantik kesh (embedding bilan).
         if (canCache) {
           try {
             const supabase = await createClient();
-            // 1. Exact-match cache (SHA-256 hash, no embedding cost).
-            const exactHit = await lookupExactCache(supabase, lastText, lang);
-            const hit = exactHit ?? await lookupSemanticCache(supabase, lastText, lang);
+            const hit = await lookupSemanticCache(supabase, lastText, lang);
             if (hit) {
               cachedFrom = hit.model;
               send({ type: "cache", model: hit.model, similarity: hit.similarity });
@@ -1060,7 +1058,11 @@ export async function POST(req: Request) {
 
           // Feed prior research into the answer step. streamCompletion role:"system"
           // xabarlarni tashlab yuboradi — shuning uchun extraSystem orqali beriladi.
-          const stepMessages = [...messages];
+          let stepMessages = [...messages];
+
+          // Context trimming: uzun suhbat tarixini qisqartirish (sliding window)
+          const trimResult = await trimContext(stepMessages).catch(() => ({ messages: stepMessages, trimmed: false, summarisedPairs: 0 }));
+          stepMessages = trimResult.messages as typeof messages;
           const researchBlock =
             step.kind === "answer" && researchContext
               ? `Quyidagi TADQIQOT NATIJALARIDAN foydalanib to'liq javob/kod yoz. Manba raqamlarini [n] saqlab qol.\n\n${researchContext.slice(0, 12_000)}`
