@@ -30,5 +30,13 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "vscode", "ECC"]
+  "exclude": [
+    "node_modules",
+    "vscode",
+    "ECC",
+    "cli",
+    "desktop",
+    "**/*.test.ts",
+    "**/*.test.tsx"
+  ]
 }
