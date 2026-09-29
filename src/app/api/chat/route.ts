@@ -9,7 +9,7 @@ import {
   type SearchSource,
   type StreamEvent,
 } from "@/lib/ai/providers";
-import { lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
+import { lookupExactCache, lookupSemanticCache, saveSemanticCache } from "@/lib/ai/cache";
 import { confirmActionClaims, formatSearchSources, verifyAnswer, type JudgeInfo, type VerifierIssue } from "@/lib/ai/verifier";
 import { answerModelsFor } from "@/lib/ai/judge";
 import { checkClaims, detectActionClaims, unsourcedMarkers, type ActionRecord, type ClaimReason, type UnsupportedClaim } from "@/lib/ai/claims";
@@ -32,6 +32,12 @@ import type { AnswerMeta } from "@/lib/chat/answer-meta";
 import { contentHasAttachment } from "@/lib/chat/attachment-markers";
 import { billableTotal, splitUsage } from "@/lib/chat/usage-chunks";
 import { forwardReasoning, resolveThinking } from "@/lib/chat/thinking";
+import { classifyComplexity, preferCheapModel } from "@/lib/ai/complexity";
+import { trimContext, makeSummariser } from "@/lib/ai/context-trim";
+import { dedupKey, joinIfInflight, registerInflight } from "@/lib/ai/dedup";
+import { estimateInputTokens, resolveMaxTokens, exceedsMonthlyBudget } from "@/lib/ai/token-counter";
+import { checkQuota, monthlyUsagePct } from "@/lib/usage/quota";
+import { logUsageSafe } from "@/lib/usage/logger";
 import { getEnabledConnectors, runConnectorTools } from "@/lib/ai/connector-tools";
 import { fmt, LANG_FOR_AI, pick, translate, type TKey } from "@/lib/i18n";
 import { getServerT } from "@/lib/i18n-server";
@@ -955,11 +961,28 @@ export async function POST(req: Request) {
         // Mintaqa almashtiruvi darhol ko'rinsin (javob ostidagi belgi ham "so'ralgan → javob" deydi).
         if (regionSwapFrom) send({ type: "switch", from: regionSwapFrom, to: steps[0].modelId, reason: t("p10RegionUnavailable") });
 
-        // Semantik keshdan tekshirish.
+        // Complexity classification: simple/medium/complex - model routing uchun
+        const complexity = classifyComplexity(lastText);
+        const preferCheap = preferCheapModel(lastText);
+
+        // Token counting: estimated input tokens for quota check
+        const estimatedInputTokens = estimateInputTokens(messages, coworkContext.length + knowledgeText.length + memoryText.length + skillText.length);
+
+        // Quota check: monthly token budget
+        if (authed && exceedsMonthlyBudget(estimatedInputTokens, tokensUsedMonth, plan)) {
+          return refuse(markLimit(`${UPGRADE} ${fmt(t("secMonthlyTokenLimit"), { plan: plan.name })}`));
+        }
+
+        // Resolve max_tokens based on complexity and plan
+        const maxTokens = resolveMaxTokens(plan, complexity);
+
+        // Keshdan tekshirish: avval aniq (exact-match, embedding'siz), so'ng semantik.
         if (canCache) {
           try {
             const supabase = await createClient();
-            const hit = await lookupSemanticCache(supabase, lastText, lang);
+            // 1. Exact-match cache (SHA-256 hash, no embedding cost).
+            const exactHit = await lookupExactCache(supabase, lastText, lang);
+            const hit = exactHit ?? await lookupSemanticCache(supabase, lastText, lang);
             if (hit) {
               cachedFrom = hit.model;
               send({ type: "cache", model: hit.model, similarity: hit.similarity });
@@ -1365,6 +1388,23 @@ ${connectorContext}`
         // Ops bot: faqat son (xabar matni yo'q) — fire-and-forget hisoblagich.
         if (modelCalls > 0 || cachedFrom) {
           bumpOps({ "msg:web": 1, "tok:web": usage.input + usage.output + triU.input + triU.output + connU.input + connU.output });
+        }
+
+        // Structured usage logging (Vercel log drains)
+        if (authed && userId && (modelCalls > 0 || cachedFrom)) {
+          const totalInput = usage.input + triU.input + connU.input;
+          const totalOutput = usage.output + triU.output + connU.output;
+          logUsageSafe({
+            userId,
+            model: servedId,
+            provider: servedProvider || null,
+            upstreamModel: servedUpstream || null,
+            inputTokens: totalInput,
+            outputTokens: totalOutput,
+            cached: !!cachedFrom,
+            planId: plan.id,
+            requestMs: Date.now() - (requestDeadline - MESH_TUNING.webDeadlineMs),
+          });
         }
         // Telemetriya ask navbatida [DONE] dan OLDIN yozilishi shart: keyingi reply navbati shu qatorni tekshiradi.
         await Promise.all([
