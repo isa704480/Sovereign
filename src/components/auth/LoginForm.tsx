@@ -89,9 +89,9 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
         noValidate
       >
         <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-text-secondary">{t("auEmail")}</Label>
+          <Label htmlFor="login-email" className="text-text-secondary">{t("auEmail")}</Label>
           <Input
-            id="email"
+            id="login-email"
             type="email"
             autoComplete="email"
             placeholder="email@example.com"
@@ -106,7 +106,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
         {!resetMode && (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <Label htmlFor="password" className="text-text-secondary">{t("auPassword")}</Label>
+              <Label htmlFor="login-password" className="text-text-secondary">{t("auPassword")}</Label>
               <button
                 type="button"
                 onClick={() => setResetMode(true)}
@@ -116,7 +116,7 @@ export function LoginForm({ next, initialError }: LoginFormProps) {
               </button>
             </div>
             <PasswordInput
-              id="password"
+              id="login-password"
               autoComplete="current-password"
               placeholder={t("auPasswordPlaceholder")}
               aria-invalid={!!form.formState.errors.password}

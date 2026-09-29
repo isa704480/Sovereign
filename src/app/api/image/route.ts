@@ -64,7 +64,10 @@ export async function POST(req: Request) {
     const result = await generateImage(parsed.data.prompt, { country });
     return Response.json(result);
   } catch (e) {
-    console.error("[image] generatsiya xato:", e instanceof Error ? e.message : e);
-    return Response.json({ error: t("chImageFailed") }, { status: 502 });
+    const errMsg = e instanceof Error ? e.message : String(e);
+    console.error("[image] generatsiya xato:", { error: errMsg, prompt: parsed.data.prompt.slice(0, 100) });
+    // 502 o'rniga aniqroq status kodlari
+    const status = errMsg.includes("mintaqada yopiq") ? 453 : 500;
+    return Response.json({ error: t("chImageFailed"), details: process.env.NODE_ENV === "development" ? errMsg : undefined }, { status });
   }
 }

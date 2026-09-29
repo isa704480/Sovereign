@@ -46,9 +46,9 @@ export function ResetPasswordForm() {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
       <div className="space-y-1.5">
-        <Label htmlFor="password" className="text-text-secondary">{t("auNewPassword")}</Label>
+        <Label htmlFor="reset-password" className="text-text-secondary">{t("auNewPassword")}</Label>
         <PasswordInput
-          id="password"
+          id="reset-password"
           autoComplete="new-password"
           autoFocus
           placeholder={t("auPasswordMinPlaceholder")}
@@ -61,9 +61,9 @@ export function ResetPasswordForm() {
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="confirmPassword" className="text-text-secondary">{t("auConfirmPassword")}</Label>
+        <Label htmlFor="reset-confirmPassword" className="text-text-secondary">{t("auConfirmPassword")}</Label>
         <PasswordInput
-          id="confirmPassword"
+          id="reset-confirmPassword"
           autoComplete="new-password"
           placeholder={t("auConfirmPasswordPlaceholder")}
           aria-invalid={!!form.formState.errors.confirmPassword}

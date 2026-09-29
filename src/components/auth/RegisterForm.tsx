@@ -101,9 +101,9 @@ export function RegisterForm() {
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-text-secondary">{t("auEmail")}</Label>
+          <Label htmlFor="register-email" className="text-text-secondary">{t("auEmail")}</Label>
           <Input
-            id="email"
+            id="register-email"
             type="email"
             autoComplete="email"
             placeholder="email@example.com"
@@ -116,9 +116,9 @@ export function RegisterForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="password" className="text-text-secondary">{t("auPassword")}</Label>
+          <Label htmlFor="register-password" className="text-text-secondary">{t("auPassword")}</Label>
           <PasswordInput
-            id="password"
+            id="register-password"
             autoComplete="new-password"
             placeholder={t("auPasswordMinPlaceholder")}
             aria-invalid={!!form.formState.errors.password}
@@ -130,9 +130,9 @@ export function RegisterForm() {
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="confirmPassword" className="text-text-secondary">{t("auConfirmPassword")}</Label>
+          <Label htmlFor="register-confirmPassword" className="text-text-secondary">{t("auConfirmPassword")}</Label>
           <PasswordInput
-            id="confirmPassword"
+            id="register-confirmPassword"
             autoComplete="new-password"
             placeholder={t("auConfirmPasswordPlaceholder")}
             aria-invalid={!!form.formState.errors.confirmPassword}
@@ -148,8 +148,9 @@ export function RegisterForm() {
           name="acceptTerms"
           render={({ field }) => (
             <div className="space-y-1.5">
-              <label className="flex cursor-pointer items-start gap-2.5 text-sm text-text-secondary">
+              <label htmlFor="register-acceptTerms" className="flex cursor-pointer items-start gap-2.5 text-sm text-text-secondary">
                 <Checkbox
+                  id="register-acceptTerms"
                   checked={field.value}
                   onCheckedChange={(v) => field.onChange(v === true)}
                   aria-invalid={!!form.formState.errors.acceptTerms}

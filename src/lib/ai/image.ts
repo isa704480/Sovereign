@@ -107,25 +107,33 @@ async function pollinationsKeyed(prompt: string, aspect: Aspect, deadline: numbe
   for (const model of KEYED_IMAGE_MODELS) {
     const timeout = Math.min(60_000, deadline - Date.now());
     if (timeout < 10_000) break;
-    try {
-      const qs = new URLSearchParams({ model, width: String(width), height: String(height), seed: String(randomSeed()) });
-      const res = await fetch(`https://gen.pollinations.ai/image/${encodeURIComponent(prompt.slice(0, 1500))}?${qs}`, {
-        headers: { Authorization: `Bearer ${key}` },
-        signal: AbortSignal.timeout(timeout),
-      });
-      if (!res.ok) {
-        // Kalit/balans muammosi — faqat status (kalit va provayder matni logga tushmaydi).
-        console.warn(`[image] pollinations ${model}: HTTP ${res.status}`);
-        await res.body?.cancel().catch(() => {});
-        // 401/402/403 — boshqa model ham o'tmaydi, darhol anonim yo'lga.
-        if (res.status === 401 || res.status === 402 || res.status === 403) return null;
-        continue;
+    let lastError: Error | null = null;
+    // Retry with exponential backoff (max 2 retries)
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const qs = new URLSearchParams({ model, width: String(width), height: String(height), seed: String(randomSeed()) });
+        const res = await fetch(`https://gen.pollinations.ai/image/${encodeURIComponent(prompt.slice(0, 1500))}?${qs}`, {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(timeout),
+        });
+        if (!res.ok) {
+          // Kalit/balans muammosi — faqat status (kalit va provayder matni logga tushmaydi).
+          console.warn(`[image] pollinations ${model}: HTTP ${res.status} (attempt ${attempt + 1})`);
+          await res.body?.cancel().catch(() => {});
+          // 401/402/403 — boshqa model ham o'tmaydi, darhol anonim yo'lga.
+          if (res.status === 401 || res.status === 402 || res.status === 403) return null;
+          lastError = new Error(`HTTP ${res.status}`);
+          if (attempt < 2) await new Promise(r => setTimeout(r, Math.min(1000 * 2 ** attempt, 5000)));
+          continue;
+        }
+        const url = await toDataUrl(res);
+        if (url) return { urls: [url], provider: `pollinations/${model}` };
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        if (attempt < 2) await new Promise(r => setTimeout(r, Math.min(1000 * 2 ** attempt, 5000)));
       }
-      const url = await toDataUrl(res);
-      if (url) return { urls: [url], provider: `pollinations/${model}` };
-    } catch {
-      /* vaqt tugadi — keyingi model */
     }
+    if (lastError) console.error(`[image] pollinations ${model} failed after retries:`, lastError.message);
   }
   return null;
 }
@@ -137,7 +145,8 @@ async function pollinationsKeyed(prompt: string, aspect: Aspect, deadline: numbe
  */
 async function pollinationsAnon(prompt: string, aspect: Aspect, deadline: number): Promise<ImageResult | null> {
   const { width, height } = ASPECT_SIZE[aspect];
-  for (let attempt = 0; attempt < 2; attempt++) {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
     const timeout = Math.min(60_000, deadline - Date.now());
     if (timeout < 10_000) break;
     try {
@@ -153,12 +162,21 @@ async function pollinationsAnon(prompt: string, aspect: Aspect, deadline: number
       const res = await fetch(`https://image.pollinations.ai/prompt/${encodeURIComponent(prompt.slice(0, 1500))}?${qs}`, {
         signal: AbortSignal.timeout(timeout),
       });
+      if (!res.ok) {
+        console.warn(`[image] pollinations anon: HTTP ${res.status} (attempt ${attempt + 1})`);
+        await res.body?.cancel().catch(() => {});
+        lastError = new Error(`HTTP ${res.status}`);
+        if (attempt < 2) await new Promise(r => setTimeout(r, Math.min(1000 * 2 ** attempt, 5000)));
+        continue;
+      }
       const url = await toDataUrl(res);
       if (url) return { urls: [url], provider: "pollinations/anon" };
-    } catch {
-      /* vaqt tugadi — yana bir urinish yoki keyingi provayder */
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < 2) await new Promise(r => setTimeout(r, Math.min(1000 * 2 ** attempt, 5000)));
     }
   }
+  if (lastError) console.error("[image] pollinations anon failed after retries:", lastError.message);
   return null;
 }
 
