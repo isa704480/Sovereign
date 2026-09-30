@@ -48,14 +48,17 @@ function Mark({ model, icon }: { model: SovereignModel; icon?: SimpleIcon }) {
   return (
     <span
       aria-hidden="true"
-      className="grid size-9 shrink-0 place-items-center rounded-md border border-border bg-white/[0.03] text-text-secondary"
+      className="grid size-12 shrink-0 place-items-center rounded-lg border border-border bg-white/[0.03]"
+      style={{ color: model.primary }}
     >
       {icon ? (
-        <svg viewBox="0 0 24 24" className="size-4" fill="currentColor" focusable="false">
+        <svg viewBox="0 0 24 24" className="size-6" fill="currentColor" focusable="false">
           <path d={icon.path} />
         </svg>
       ) : (
-        <span className="font-mono text-sm font-medium">{model.provider.charAt(0)}</span>
+        <span className="font-mono text-lg font-semibold" style={{ color: model.primary }}>
+          {model.provider.charAt(0)}
+        </span>
       )}
     </span>
   );
@@ -80,7 +83,7 @@ export function ModelShowcase() {
       <FadeIn inView className="mx-auto mt-12 max-w-4xl">
         <ul className="grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2">
           {ROWS.map(({ model, icon }) => (
-            <li key={model.id} className="flex min-w-0 items-center gap-3.5 bg-bg-base px-5 py-4">
+            <li key={model.id} className="flex min-w-0 items-center gap-4 bg-bg-base px-5 py-4">
               <Mark model={model} icon={icon} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] font-semibold text-text-primary">{model.name}</p>

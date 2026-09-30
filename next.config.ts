@@ -23,7 +23,7 @@ const securityHeaders = [
       "img-src 'self' data: blob: https:",
       // Yaratilgan video (Pollinations xotirasi) — faqat shu host, faqat media uchun.
       "media-src 'self' blob: data: https://media.pollinations.ai",
-      "connect-src 'self' https://esm.sh https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://dashboard.zenobank.io https://*.dodopayments.com",
+      "connect-src 'self' https://esm.sh https://*.supabase.co wss://*.supabase.co https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://apis.google.com https://dashboard.zenobank.io https://*.dodopayments.com https://app.soveregn.xyz",
       `frame-src 'self' https://accounts.google.com https://*.firebaseapp.com https://checkout.dodopayments.com https://test.checkout.dodopayments.com${TURNSTILE}`,
       "worker-src 'self' blob:",
       "frame-ancestors 'none'",
