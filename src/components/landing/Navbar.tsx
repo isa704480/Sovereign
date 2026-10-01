@@ -72,7 +72,7 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
           ))}
         </nav>
 
-        <div className="hidden shrink-0 items-center gap-2 lg:flex">
+        <div className="hidden shrink-0 items-center gap-3 lg:flex">
           {/* Til tanlash — brauzerda saqlanadi, chat ham shu tilda javob beradi.
               Umumiy komponent: fokus halqasi (focus-visible) bilan. */}
           <LangSwitcher />
