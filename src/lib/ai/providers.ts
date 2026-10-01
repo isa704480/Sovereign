@@ -124,7 +124,8 @@ type Provider =
   | "tella"
   | "omniroute"
   | "rsi"
-  | "cloudflare";
+  | "cloudflare"
+  | "gateway";
 
 interface RouteCandidate {
   provider: Provider;
@@ -189,6 +190,18 @@ const DIRECT_ROUTES: Record<string, RouteCandidate[]> = {
   "openai/gpt-4o-mini": [{ provider: "openai", model: "gpt-4o-mini" }],
   "openai/gpt-4o": [{ provider: "openai", model: "gpt-4o" }],
   "openai/gpt-4-turbo": [{ provider: "openai", model: "gpt-4-turbo" }],
+
+  // ── Mars Code (factory.marshub.uz) ─────────────────────────────────────
+  // GATEWAY_BASE_URL=https://factory.marshub.uz/v1 + GATEWAY_API_KEY bo'lsa
+  // shu modellar to'g'ridan-to'g'ri gateway orqali ketadi (OpenRouter shart emas).
+  // Bo'lmasa — odatdagi OpenRouter/OmniRoute zanjiri ishlaydi.
+  "glm-5.2":          [{ provider: "gateway", model: "glm-5.2" }],
+  "deepseek-v4-pro":  [{ provider: "gateway", model: "deepseek-v4-pro" }],
+  "kimi-k2.6":        [{ provider: "gateway", model: "kimi-k2.6" }],
+  "kimi-k3":          [{ provider: "gateway", model: "kimi-k3" }],
+  "qwen3-coder":      [{ provider: "gateway", model: "qwen3-coder" }],
+  "gemini-3.5-flash": [{ provider: "gateway", model: "gemini-3.5-flash" }],
+  "gemini-2.5-flash": [{ provider: "gateway", model: "gemini-2.5-flash" }],
 };
 
 function providerAvailable(p: Provider): boolean {
@@ -203,6 +216,7 @@ function providerAvailable(p: Provider): boolean {
   if (p === "cloudflare") return cloudflareConfigured();
   if (p === "omniroute") return !!(process.env.OMNIROUTE_BASE_URL && process.env.OMNIROUTE_API_KEY);
   if (p === "rsi") return !!(process.env.RSI_BASE_URL && process.env.RSI_API_KEY);
+  if (p === "gateway") return !!(process.env.GATEWAY_BASE_URL && process.env.GATEWAY_API_KEY);
   return !!process.env.OPENAI_API_KEY;
 }
 
@@ -281,6 +295,10 @@ function providerEndpoint(p: Provider): { url: string; auth: string } {
   }
   if (p === "llm7") return { url: `${LLM7_BASE}/chat/completions`, auth: process.env.LLM7_API_KEY ?? "unused" };
   if (p === "cloudflare") return cloudflareEndpoint();
+  if (p === "gateway") return {
+    url: `${(process.env.GATEWAY_BASE_URL ?? "").replace(/\/$/, "")}/chat/completions`,
+    auth: process.env.GATEWAY_API_KEY!,
+  };
   return { url: `${OPENAI_BASE}/chat/completions`, auth: process.env.OPENAI_API_KEY! };
 }
 

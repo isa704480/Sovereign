@@ -469,6 +469,14 @@ const EXTRA_SPECS: Spec[] = [
   ["google", "gemini-3-5-flash-lite", "google/gemini-3.5-flash-lite", "Gemini 3.5 Flash Lite", "3.5 Lite", "starter", "$0.30/M", "Yengil 3.5"],
   ["meta", "llama-3-1-70b", "meta-llama/llama-3.1-70b-instruct", "LLaMA 3.1 70B", "LLaMA 3.1", "starter", "$0.13/M", "Barqaror ochiq model"],
   ["xai", "grok-build", "x-ai/grok-build-0.1", "Grok Build", "Grok Build", "pro", "$1/M", "Kod va qurishga yo'naltirilgan"],
+  // Mars Code (factory.marshub.uz) — O'zbekiston gateway, GATEWAY_BASE_URL orqali
+  ["zai",      "mars-glm-5-2",           "glm-5.2",           "GLM 5.2 (Mars)",           "GLM Mars",      "pro",     "$0.65/M",  "Mars Code orqali GLM 5.2"],
+  ["deepseek", "mars-deepseek-v4-pro",   "deepseek-v4-pro",   "DeepSeek V4 Pro (Mars)",   "DS Pro Mars",   "pro",     "$0.62/M",  "Mars Code orqali DeepSeek V4 Pro"],
+  ["zai",      "mars-kimi-k2-6",         "kimi-k2.6",         "Kimi K2.6 (Mars)",         "Kimi Mars",     "pro",     "$0.83/M",  "Mars Code orqali Kimi K2.6"],
+  ["zai",      "mars-kimi-k3",           "kimi-k3",           "Kimi K3 (Mars)",           "Kimi K3 Mars",  "ultra",   "$4.5/M",   "Mars Code orqali Kimi K3 frontier"],
+  ["qwen",     "mars-qwen3-coder",       "qwen3-coder",       "Qwen3 Coder 480B (Mars)",  "Qwen Coder",    "pro",     "$0.33/M",  "Mars Code orqali Qwen3 Coder 480B"],
+  ["google",   "mars-gemini-3-5-flash",  "gemini-3.5-flash",  "Gemini 3.5 Flash (Mars)",  "Gemini Mars",   "pro",     "$2.5/M",   "Mars Code orqali Gemini 3.5 Flash"],
+  ["google",   "mars-gemini-2-5-flash",  "gemini-2.5-flash",  "Gemini 2.5 Flash (Mars)",  "G2.5 Mars",     "starter", "Tekin",    "Mars Code orqali Gemini 2.5 Flash (bepul)"],
 ];
 
 function specToModel([prov, id, providerModel, name, shortName, tier, price, tagline]: Spec): SovereignModel {
