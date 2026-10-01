@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, BookOpen } from "lucide-react";
 import { MagneticButton } from "@/components/motion/MagneticButton";
 import { OrbitField } from "./OrbitField";
@@ -64,6 +65,23 @@ export function Hero({ signedIn: signedInProp = false }: { signedIn?: boolean })
               <a href={DOCS_URL} className={ctaSecondary}>
                 <BookOpen className="size-4" aria-hidden="true" />
                 {t("p4dHeroDocs")}
+              </a>
+            </div>
+
+            {/* Product Hunt badge */}
+            <div className="mt-6 flex justify-center">
+              <a
+                href="https://www.producthunt.com/products/sovereign-3?utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-sovereign-3"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Image
+                  alt="Sovereign - Every AI model in one window — Claude, GPT, Gemini & 1750+ | Product Hunt"
+                  src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1265969&theme=dark&t=1790858555700"
+                  width={200}
+                  height={43}
+                  unoptimized
+                />
               </a>
             </div>
           </div>
