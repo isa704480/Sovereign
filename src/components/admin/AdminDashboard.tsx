@@ -31,6 +31,7 @@ import { useLang, useT } from "@/store/chat";
 import type { EconRange, UnitEconomics } from "@/lib/econ/unit-economics";
 import type { BudgetSnapshot } from "@/lib/econ/budget";
 import { UnitEconomicsCard } from "./UnitEconomicsCard";
+import { OnboardingSurveyCard, type SurveyStats } from "./OnboardingSurveyCard";
 import { LogoMark } from "@/components/brand/Logo";
 import { ModelAvatar } from "@/components/dashboard/ModelAvatar";
 
@@ -112,6 +113,8 @@ interface AdminDashboardProps {
   econDays?: EconRange;
   /** API byudjeti (joriy oy daromad/sarf, guard holati, OpenRouter balansi). */
   budget?: BudgetSnapshot | null;
+  /** 0044 — so'rovnoma javoblari va registratsiya funnel. */
+  survey?: SurveyStats | null;
 }
 
 const AGE_LABEL: Record<string, string> = {
@@ -180,6 +183,7 @@ export function AdminDashboard({
   economics,
   econDays = 30,
   budget,
+  survey,
 }: AdminDashboardProps) {
   const t = useT();
   const lang = useLang();
@@ -641,6 +645,10 @@ export function AdminDashboard({
             </table>
           </div>
         </section>
+
+        {/* So'rovnoma javoblari va registratsiya funnel (0044) */}
+        <OnboardingSurveyCard data={survey ?? null} />
+
       </main>
     </div>
   );

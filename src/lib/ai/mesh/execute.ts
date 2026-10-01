@@ -32,6 +32,7 @@ import { isSubstitution } from "../served";
 import { learnMissingCapability } from "./caps";
 import { keyFingerprint } from "./fingerprint";
 import { offerThinks, thinkingFields } from "./thinking";
+import { trimForContextRecovery, shouldAttemptRecovery } from "../context-recovery";
 import {
   MESH_TUNING,
   type Attempt,
@@ -46,6 +47,25 @@ import {
   type RouteRequest,
   type ServedInfo,
 } from "./types";
+
+/**
+ * Env orqali MESH_TUNING konstantalarini o'zgartirish imkoni.
+ * Faqat ayrim ruxsat etilgan maydonlar — asosiy algoritmni buzmaslik uchun.
+ *
+ * Env vars:
+ *   MESH_MAX_ATTEMPTS_WEB   — web chat uchun maksimal urinishlar (standart 5, max 12)
+ *   MESH_TRANSIENT_RETRIES  — transient xatoda shu nomzod necha marta qayta uriniladi (standart 1, max 3)
+ */
+function meshTuningOverrides(): { maxAttemptsWeb: number; transientRetries: number } {
+  function envInt(key: string, def: number, min: number, max: number): number {
+    const v = parseInt(process.env[key] ?? "", 10);
+    return Number.isFinite(v) && v >= min && v <= max ? v : def;
+  }
+  return {
+    maxAttemptsWeb: envInt("MESH_MAX_ATTEMPTS_WEB", MESH_TUNING.maxAttemptsWeb, 2, 12),
+    transientRetries: envInt("MESH_TRANSIENT_RETRIES", MESH_TUNING.transientRetries, 0, 3),
+  };
+}
 
 /* ------------------------------------------------------------------ */
 /* Taymautlar (providers.ts bilan bir xil qiymatlar)                    */
@@ -1077,7 +1097,8 @@ async function* streamOnce(
 export async function* meshStream(input: MeshStreamInput): AsyncGenerator<StreamEvent> {
   const deps = await resolveDeps(input.deps);
   const lang = input.lang ?? DEFAULT_LANG;
-  const maxAttempts = input.maxAttempts ?? MESH_TUNING.maxAttemptsWeb;
+  const tuning = meshTuningOverrides();
+  const maxAttempts = input.maxAttempts ?? tuning.maxAttemptsWeb;
   const maxContinuations = input.maxContinuations ?? MAX_CONTINUATIONS;
   const deadline = input.deadline ?? deps.now() + MESH_TUNING.webDeadlineMs;
   const remaining = () => deadline - deps.now();
@@ -1103,8 +1124,9 @@ export async function* meshStream(input: MeshStreamInput): AsyncGenerator<Stream
     const ephemeral = isEphemeral(adapter, c.offer);
     let messages = input.body.messages;
     let maxTokens = input.body.max_tokens;
-    let transientLeft: number = MESH_TUNING.transientRetries;
+    let transientLeft: number = tuning.transientRetries;
     let affordUsed = false;
+    let contextRecoveryUsed = false;
     let continuation = 0;
     let announced = false;
     let answer = "";
@@ -1166,6 +1188,23 @@ export async function* meshStream(input: MeshStreamInput): AsyncGenerator<Stream
         return;
       }
       if (stopsChain(error)) {
+        // Context length xatosida — avval kontekstni qisqartirib qayta urinib ko'ramiz.
+        // Bu foydalanuvchiga xato ko'rsatmasdan avtomatik tiklanishni ta'minlaydi.
+        if (
+          !out.emitted &&
+          shouldAttemptRecovery(error.kind, error.scope, contextRecoveryUsed) &&
+          remaining() > 0
+        ) {
+          const trimmed = trimForContextRecovery(
+            messages as import("../context-recovery").RecoveryMessage[],
+          );
+          if (trimmed) {
+            contextRecoveryUsed = true;
+            messages = trimmed as typeof input.body.messages;
+            // Shu nomzodda qayta urinish — boshqa provayderga o'tmasdan.
+            continue;
+          }
+        }
         yield { type: "error", message: translate(lang, friendlyKey(error.kind)) };
         return;
       }
