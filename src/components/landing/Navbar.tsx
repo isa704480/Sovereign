@@ -60,19 +60,19 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
       >
         <Logo />
 
-        <nav aria-label={t("p4dNavMain")} className="hidden items-center gap-0.5 lg:flex">
+        <nav aria-label={t("p4dNavMain")} className="hidden min-w-0 flex-1 items-center justify-center gap-0 lg:flex xl:gap-0.5">
           {NAV.map((n) => (
             <a
               key={n.href}
               href={n.href}
-              className="inline-flex h-10 items-center rounded-md px-3 text-sm text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+              className="inline-flex h-10 shrink-0 items-center whitespace-nowrap rounded-md px-2 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary xl:px-3 xl:text-sm"
             >
               {t(n.key)}
             </a>
           ))}
         </nav>
 
-        <div className="hidden items-center gap-2 lg:flex">
+        <div className="hidden shrink-0 items-center gap-2 lg:flex">
           {/* Til tanlash — brauzerda saqlanadi, chat ham shu tilda javob beradi.
               Umumiy komponent: fokus halqasi (focus-visible) bilan. */}
           <LangSwitcher />
