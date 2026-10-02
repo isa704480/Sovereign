@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-export type MediaKind = "image" | "video" | "transcribe";
+export type MediaKind = "image" | "video" | "transcribe" | "music";
 
 /**
  * Kunlik media kvotasi — BAZADA (0041 consume_media; auth.uid() + UTC kun). Redis limiti

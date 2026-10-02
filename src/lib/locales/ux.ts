@@ -152,4 +152,18 @@ export const UX = {
   },
   uxExtendPlan: { uz: "Uzaytirish", "uz-cyrl": "Узайтириш", ru: "Продлить", en: "Extend" },
   uxHigherPlanActive: { uz: "Yuqoriroq tarif faol", "uz-cyrl": "Юқорироқ тариф фаол", ru: "Активен тариф выше", en: "Higher plan active" },
+
+  // Media generatsiya (video / musiqa / taqdimot — Shotstack)
+  uxMediaProcessing: { uz: "Render qilinmoqda...", "uz-cyrl": "Рендер қилинмоқда...", ru: "Рендеринг...", en: "Rendering..." },
+  uxMediaDone: { uz: "Tayyor!", "uz-cyrl": "Тайёр!", ru: "Готово!", en: "Done!" },
+  uxMediaFailed: { uz: "Render muvaffaqiyatsiz", "uz-cyrl": "Рендер муваффақиятсиз", ru: "Ошибка рендера", en: "Render failed" },
+  uxMediaDownload: { uz: "Yuklab olish", "uz-cyrl": "Юклаб олиш", ru: "Скачать", en: "Download" },
+  uxMediaOpen: { uz: "Ochish", "uz-cyrl": "Очиш", ru: "Открыть", en: "Open" },
+  uxMediaPromptVideo: { uz: "Video uchun tavsif yozing...", "uz-cyrl": "Видео учун тавсиф ёзинг...", ru: "Опишите видео...", en: "Describe your video..." },
+  uxMediaPromptMusic: { uz: "Musiqa uchun kayfiyat yozing...", "uz-cyrl": "Мусиқа учун кайфият ёзинг...", ru: "Опишите музыку...", en: "Describe the music..." },
+  uxMediaPromptPresentation: { uz: "Taqdimot mavzusini yozing...", "uz-cyrl": "Тақдимот мавзусини ёзинг...", ru: "Напишите тему презентации...", en: "Write your presentation topic..." },
+  uxMediaPlanRequired: { uz: "Bu xususiyat Starter va undan yuqori tarifda", "uz-cyrl": "Бу хусусият Starter ва ундан юқори тарифда", ru: "Эта функция доступна от Starter", en: "This feature requires Starter or higher" },
+  uxMediaDailyLimit: { uz: "Kunlik limit tugadi ({n} ta)", "uz-cyrl": "Кунлик лимит тугади ({n} та)", ru: "Дневной лимит исчерпан ({n} шт.)", en: "Daily limit reached ({n})" },
+  uxCreatePresentation: { uz: "Taqdimot yaratish", "uz-cyrl": "Тақдимот яратиш", ru: "Создать презентацию", en: "Create presentation" },
+  uxMediaWaiting: { uz: "Navbatda kutilmoqda (~1-2 daqiqa)...", "uz-cyrl": "Навбатда кутилмоқда (~1-2 дақиқа)...", ru: "Ожидание в очереди (~1-2 мин)...", en: "Waiting in queue (~1-2 min)..." },
 } satisfies Dict;
