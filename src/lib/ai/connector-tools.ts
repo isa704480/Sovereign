@@ -8,6 +8,7 @@ import { splitAttachments } from "@/lib/chat/attachment-markers";
 import { loadEnabledConnectors, saveRefreshedToken } from "@/lib/connectors/store";
 import { MCP_LIST_MAX_BYTES, sanitizeMcpTools } from "@/lib/connectors/mcp-schema";
 import { connectorOf, isWriteTool, safeConnectorLink, type ConnectorConfirmEvent } from "@/lib/ai/connector-confirm-types";
+import { composioEnabled, listComposioTools, executeComposioTool, COMPOSIO_TOOL_PREFIX } from "@/lib/connectors/composio";
 import { buildSummary, getPendingStore, validateActionArgs, type PendingAction } from "@/lib/ai/connector-confirm";
 
 /**
@@ -160,7 +161,7 @@ const fail = (text: string): ToolResult => ({ ok: false, text });
  * Tashqi dunyoda iz qoldiradigan (yaratish/qo'shish/yuborish) toollar — connector-confirm-types.ts
  * klassifikatori: faqat aniq o'qish ro'yxatidagilar "read", qolgani (MCP, noma'lum) — amal.
  */
-const isActionTool = isWriteTool;
+const isActionTool = (name: string) => isWriteTool(name) || name.startsWith(COMPOSIO_TOOL_PREFIX);
 
 /* ------------------------------- MCP client ------------------------------- */
 
@@ -274,6 +275,14 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
     if (name.startsWith(MCP_PREFIX)) {
       const ep = ctx.mcp.find((e) => e.tools.some((t) => t.function.name === name));
       return ep ? mcpCall(ep, name, args) : fail("MCP server topilmadi.");
+    }
+
+    // ---- Composio (600+ tashqi servis) ----
+    if (name.startsWith(COMPOSIO_TOOL_PREFIX)) {
+      // entityId = userId (Composio da har foydalanuvchi alohida entity)
+      const entityId = ctx.creds["composio"]?.entityId as string | undefined ?? "default";
+      const r = await executeComposioTool(name, args, entityId);
+      return r;
     }
 
     // ---- Kalitsiz (loginsiz) ommaviy API'lar ----
@@ -573,7 +582,12 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
     if (ep) mcp.push(ep);
   }
 
-  const tools = [...toolsFor(enabled), ...mcp.flatMap((e) => e.tools)];
+  const tools = [
+    ...toolsFor(enabled),
+    ...mcp.flatMap((e) => e.tools),
+    // Composio — faqat COMPOSIO_API_KEY sozlangan bo'lsa (entityId = userId)
+    ...(composioEnabled() ? await listComposioTools(userId).catch(() => []) : []),
+  ];
   if (!tools.length) return none;
 
   const ctx: ExecCtx = { creds, refresh, mcp };

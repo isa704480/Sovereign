@@ -646,9 +646,37 @@ export function InputArea({
 
           <textarea
             ref={taRef}
+            id="chat-input"
+            name="message"
             value={value}
             onChange={onChangeText}
             onKeyDown={onKeyDown}
+            onPaste={(e) => {
+              // Ctrl+V bilan rasm clipboard'dan to'g'ridan-to'g'ri chatga tushadi
+              const items = Array.from(e.clipboardData?.items ?? []);
+              const imageItems = items.filter((item) => item.type.startsWith("image/"));
+              if (!imageItems.length) return;
+              e.preventDefault();
+              setBusy(true);
+              setFileError(null);
+              Promise.all(
+                imageItems.map((item) => {
+                  const file = item.getAsFile();
+                  if (!file) return Promise.resolve(null);
+                  // Clipboard rasmi uchun fayl nomi yo'q — vaqt bilan nomlash
+                  const named = new File([file], `paste-${Date.now()}.png`, { type: file.type });
+                  return processFile(named, lang).catch((err: unknown) => {
+                    setFileError(err instanceof Error ? err.message : t("chFileReadFailed"));
+                    return null;
+                  });
+                }),
+              )
+                .then((results) => {
+                  const valid = results.filter((a): a is Attachment => a !== null);
+                  if (valid.length) setAttachments((prev) => [...prev, ...valid]);
+                })
+                .finally(() => setBusy(false));
+            }}
             placeholder={
               speech.listening
                 ? "..."
