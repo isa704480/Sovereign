@@ -60,7 +60,10 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
       >
         <Logo />
 
-        <nav aria-label={t("p4dNavMain")} className="hidden min-w-0 flex-1 items-center justify-center gap-0 lg:flex xl:gap-0.5">
+        <nav
+          aria-label={t("p4dNavMain")}
+          className="hidden min-w-0 flex-1 items-center justify-center overflow-hidden lg:flex"
+        >
           {NAV.map((n) => (
             <a
               key={n.href}
@@ -72,9 +75,10 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
           ))}
         </nav>
 
-        <div className="hidden shrink-0 items-center gap-3 lg:flex">
-          {/* Til tanlash — brauzerda saqlanadi, chat ham shu tilda javob beradi.
-              Umumiy komponent: fokus halqasi (focus-visible) bilan. */}
+        {/* Separator */}
+        <div className="mx-1 hidden h-5 w-px bg-white/10 lg:block" aria-hidden="true" />
+
+        <div className="hidden shrink-0 items-center gap-2 lg:flex">
           <LangSwitcher />
           {signedIn ? (
             <Link href="/app" className={ctaPrimarySm}>
@@ -84,7 +88,7 @@ export function Navbar({ signedIn: signedInProp = false }: { signedIn?: boolean 
             <>
               <Link
                 href="/login"
-                className="inline-flex h-10 items-center rounded-full px-4 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
+                className="inline-flex h-10 items-center rounded-full px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-hover hover:text-text-primary"
               >
                 {t("login")}
               </Link>
