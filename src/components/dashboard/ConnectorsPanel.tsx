@@ -186,7 +186,7 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                           const st = stateOf(spec.id);
                           const isGoogle = spec.auth === "oauth-google";
                           const isBuiltin = spec.auth === "builtin";
-                          const isTokenish = spec.auth === "token" || spec.auth === "mcp";
+                          const isTokenish = spec.auth === "token" || spec.auth === "mcp" || spec.auth === "composio";
                           // Vositasi hali yo'q (Drive/Docs): "Tez orada", ulash tugmasi yo'q (faqat eski ulanishni uzish).
                           const soon = !!spec.comingSoon;
                           const tx = connectorText(lang, spec);
@@ -230,6 +230,9 @@ export function ConnectorsPanel({ open, onClose }: ConnectorsPanelProps) {
                                   <div className="flex gap-2">
                                     <input
                                       type={spec.auth === "mcp" ? "text" : "password"}
+                                      id={`connector-input-${spec.id}`}
+                                      name={`connector-${spec.id}`}
+                                      autoComplete={spec.auth === "mcp" ? "url" : "off"}
                                       value={draft[spec.id] ?? ""}
                                       onChange={(e) => setDraft((d) => ({ ...d, [spec.id]: e.target.value }))}
                                       placeholder={tokenHint}

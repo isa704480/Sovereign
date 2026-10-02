@@ -4,7 +4,7 @@
  * ulanadi. Haqiqiy chaqiruv chatdagi tool-calling (keyingi bosqich) orqali bo'ladi.
  */
 
-export type ConnectorAuth = "token" | "oauth-google" | "mcp" | "builtin";
+export type ConnectorAuth = "token" | "oauth-google" | "mcp" | "builtin" | "composio";
 export type ConnectorCategory = "google" | "design" | "dev" | "builtin";
 export type ConnectorIconName =
   | "gmail"
@@ -16,6 +16,7 @@ export type ConnectorIconName =
   | "figma"
   | "github"
   | "mcp"
+  | "composio"
   | "terminal"
   | "globe"
   | "puzzle";
@@ -143,6 +144,16 @@ export const CONNECTORS: ConnectorSpec[] = [
     auth: "mcp",
     description: "Istalgan MCP serverni URL orqali ulash.",
     tokenLabel: "MCP server URL",
+  },
+  {
+    id: "composio",
+    name: "Composio",
+    category: "dev",
+    icon: "composio",
+    auth: "composio",
+    description: "600+ servis (GitHub, Notion, Slack, Linear, Jira...) — bitta Composio API kaliti bilan.",
+    tokenLabel: "Composio API Key",
+    docsUrl: "https://app.composio.dev/settings",
   },
   // ---- Ichki (kalitsiz) ----
   {

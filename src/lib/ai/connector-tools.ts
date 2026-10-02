@@ -8,8 +8,13 @@ import { splitAttachments } from "@/lib/chat/attachment-markers";
 import { loadEnabledConnectors, saveRefreshedToken } from "@/lib/connectors/store";
 import { MCP_LIST_MAX_BYTES, sanitizeMcpTools } from "@/lib/connectors/mcp-schema";
 import { connectorOf, isWriteTool, safeConnectorLink, type ConnectorConfirmEvent } from "@/lib/ai/connector-confirm-types";
-import { composioEnabled, listComposioTools, executeComposioTool, COMPOSIO_TOOL_PREFIX } from "@/lib/connectors/composio";
 import { buildSummary, getPendingStore, validateActionArgs, type PendingAction } from "@/lib/ai/connector-confirm";
+import {
+  resolveComposioKey,
+  listComposioTools,
+  executeComposioTool,
+  COMPOSIO_TOOL_PREFIX,
+} from "@/lib/connectors/composio";
 
 /**
  * Connector tool-calling. Javobdan OLDIN ishlaydi: model ulangan connectorlardan
@@ -161,7 +166,7 @@ const fail = (text: string): ToolResult => ({ ok: false, text });
  * Tashqi dunyoda iz qoldiradigan (yaratish/qo'shish/yuborish) toollar — connector-confirm-types.ts
  * klassifikatori: faqat aniq o'qish ro'yxatidagilar "read", qolgani (MCP, noma'lum) — amal.
  */
-const isActionTool = (name: string) => isWriteTool(name) || name.startsWith(COMPOSIO_TOOL_PREFIX);
+const isActionTool = isWriteTool;
 
 /* ------------------------------- MCP client ------------------------------- */
 
@@ -253,6 +258,10 @@ interface ExecCtx {
   creds: Record<string, Record<string, unknown>>;
   refresh: (connectorId: string) => Promise<string | null>;
   mcp: McpEndpoint[];
+  /** Composio API kaliti (connector token yoki env). null — Composio ulanmagan. */
+  composioKey: string | null;
+  /** Sovereign user ID — Composio entityId uchun. */
+  userId: string;
 }
 
 async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCtx): Promise<ToolResult> {
@@ -279,9 +288,8 @@ async function execTool(name: string, args: Record<string, unknown>, ctx: ExecCt
 
     // ---- Composio (600+ tashqi servis) ----
     if (name.startsWith(COMPOSIO_TOOL_PREFIX)) {
-      // entityId = userId (Composio da har foydalanuvchi alohida entity)
-      const entityId = ctx.creds["composio"]?.entityId as string | undefined ?? "default";
-      const r = await executeComposioTool(name, args, entityId);
+      if (!ctx.composioKey) return fail("Composio ulanmagan (API key yo'q).");
+      const r = await executeComposioTool(name, args, ctx.composioKey, ctx.userId);
       return r;
     }
 
@@ -582,18 +590,22 @@ export async function runConnectorTools({ supabase, userId, providerModel, messa
     if (ep) mcp.push(ep);
   }
 
+  // Composio API kaliti — connector token ustun, keyin env
+  const composioKey = resolveComposioKey(creds["composio"]?.token as string | null);
+
   const tools = [
     ...toolsFor(enabled),
     ...mcp.flatMap((e) => e.tools),
-    // Composio — faqat COMPOSIO_API_KEY sozlangan bo'lsa (entityId = userId)
-    ...(composioEnabled() ? await listComposioTools(userId).catch(() => []) : []),
+    // Composio — foydalanuvchi token yoki COMPOSIO_API_KEY env bo'lsa
+    ...(composioKey
+      ? await listComposioTools(composioKey, userId).catch(() => [])
+      : []),
   ];
   if (!tools.length) return none;
 
-  const ctx: ExecCtx = { creds, refresh, mcp };
+  const ctx: ExecCtx = { creds, refresh, mcp, composioKey, userId };
   const history = messages.filter((m) => m.role === "user" || m.role === "assistant").slice(-6);
   // Indirect prompt-injection'ga qarshi: tool modeli biriktirilgan fayl/transkript MAZMUNINI ko'rmaydi
-  // (fayldagi yashirin "SYSTEM: …" foydalanuvchi ko'rsatmasidek ko'rinardi) — faqat foydalanuvchi yozgan matn.
   const userTyped = history
     .filter((m) => m.role === "user")
     .map((m) => splitAttachments(toText(m.content)).typed)
@@ -806,7 +818,14 @@ export async function executeConfirmedAction(supabase: SupabaseClient, userId: s
     return nt;
   };
 
-  const r = await execTool(action.tool, v.args, { creds, refresh, mcp });
+  const composioKeyConfirmed = resolveComposioKey(creds["composio"]?.token as string | null);
+  const r = await execTool(action.tool, v.args, {
+    creds,
+    refresh,
+    mcp,
+    composioKey: composioKeyConfirmed,
+    userId,
+  });
   if (!r.ok) return { status: "error", code: "failed" };
   const link = safeConnectorLink(r.link) ?? undefined;
   const output = connector === "mcp" ? r.text.slice(0, 1000) : undefined;
