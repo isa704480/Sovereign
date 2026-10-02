@@ -14,6 +14,16 @@
  *
  * PURE import: tarmoq yo'q; env faqat enabled()/endpoint()/limits getter ichida o'qiladi.
  */
+import {
+  applyCacheControl,
+  canonicalizeMessages,
+  canonicalizeTools,
+  compressToolOutput,
+  familyOf,
+  pruneToolResults,
+  sessionKeyFor,
+  type CacheMessage,
+} from "@/lib/ai/cache-pipeline";
 import { MODELS } from "@/config/models";
 import { PROVIDER_POLICY, policyOwner, regionClassOf } from "@/lib/ai/region";
 import type {
@@ -168,14 +178,6 @@ export function openrouterWireOf(id: string): string | null {
 /* Tana (transformBody)                                                */
 /* ------------------------------------------------------------------ */
 
-function textOfContent(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((p) => (p && typeof p === "object" && typeof (p as { text?: unknown }).text === "string" ? (p as { text: string }).text : ""))
-    .join("\n");
-}
-
 function hasImage(messages: unknown[]): boolean {
   return messages.some(
     (m) =>
@@ -183,23 +185,6 @@ function hasImage(messages: unknown[]): boolean {
       typeof m === "object" &&
       Array.isArray((m as { content?: unknown }).content) &&
       ((m as { content: unknown[] }).content).some((p) => !!p && typeof p === "object" && (p as { type?: unknown }).type !== "text"),
-  );
-}
-
-/**
- * Anthropic: uzun system prompt `cache_control` bilan keshlanadi (~90% arzon, ~5 daqiqa TTL).
- * providers.ts withPromptCache bilan bir xil (~500 tokendan qisqa bo'lsa foydasiz).
- */
-function withPromptCache(wire: string, messages: unknown[]): unknown[] {
-  if (!wire.startsWith("anthropic/")) return messages;
-  const sys = messages.find((m) => !!m && typeof m === "object" && (m as { role?: unknown }).role === "system") as
-    | { role: string; content: unknown }
-    | undefined;
-  if (!sys) return messages;
-  const text = textOfContent(sys.content);
-  if (text.length < 2000) return messages;
-  return messages.map((m) =>
-    m === sys ? { role: "system", content: [{ type: "text", text, cache_control: { type: "ephemeral" } }] } : m,
   );
 }
 
@@ -460,11 +445,42 @@ export const openrouterAdapter: ProviderAdapter = {
     };
   },
   transformBody(body, offer) {
+    // ── Token pipeline: canonicalize, prune, compress, cache_control ──────
+    const wire = offer.wire;
+    const family = familyOf(wire);
+
+    // 1. Deterministik prefix + tool natijalarini tozalash + siqish
+    let msgs = canonicalizeMessages(body.messages as CacheMessage[]);
+    msgs = pruneToolResults(msgs);
+    msgs = compressToolOutput(msgs);
+
+    // 2. Oilaga mos cache_control (Anthropic/Qwen/Gemini)
+    // OpenRouter withPromptCache faqat Anthropic uchun edi — endi to'liq oila jadvali
+    const prefixText = msgs
+      .filter((m) => m.role === "system")
+      .map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)))
+      .join("\n");
+    const prefixTokens = Math.ceil(prefixText.length / 4);
+
+    if (family === "anthropic" || family === "alibaba" || family === "google") {
+      msgs = applyCacheControl(msgs, wire, prefixTokens);
+    }
+
+    // 3. Tool ta'riflari deterministic tartibi
+    const tools = body.tools?.length ? (canonicalizeTools(body.tools) as typeof body.tools) : body.tools;
+
+    // 4. Sessiya kaliti — OpenRouter sticky routing (kesh hit ehtimolini oshiradi)
+    // conversationId — body da yo'q, shuning uchun wire + prefix hash ishlatamiz
+    const sessionId = sessionKeyFor(prefixText.slice(0, 200), wire);
+
     const out: ChatBody = {
       ...body,
-      messages: withPromptCache(offer.wire, body.messages),
+      messages: msgs as typeof body.messages,
+      ...(tools ? { tools } : {}),
       transforms: ["middle-out"],
       route: "fallback",
+      session_id: sessionId,
+      prompt_cache_key: sessionId,
     };
     const fallbacks = freeFallbacksFor(offer.wire, body);
     if (fallbacks.length) out.models = [offer.wire, ...fallbacks];

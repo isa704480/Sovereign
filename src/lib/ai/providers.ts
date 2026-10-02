@@ -5,6 +5,14 @@ import { healOmniRouteIfStuck } from "@/lib/omniroute-watchdog";
 import type { AnswerMeta } from "@/lib/chat/answer-meta";
 import { isSubstitution } from "./served";
 import { hostAllowedIn, modelAllowedIn, regionClassOf, restrictedRegion } from "./region";
+
+/** Legacy path uchun sessiya kaliti (mesh path cache-pipeline.ts dan foydalanadi). */
+function sessionKeyForLegacy(prefixSample: string, modelId: string): string {
+  let h = 5381;
+  const raw = `${prefixSample}:${modelId.split("/").pop() ?? modelId}`;
+  for (let i = 0; i < raw.length; i++) h = ((h << 5) + h) ^ raw.charCodeAt(i);
+  return (h >>> 0).toString(16).padStart(8, "0");
+}
 import {
   CF,
   CF_BY_CLASS,
@@ -755,13 +763,18 @@ function reportedModel(c: OrChunk): string | null {
 const MAX_CONTINUATIONS = 4;
 
 /**
- * Anthropic modellar OpenRouter orqali `cache_control` orqali system promptni
- * keshlashi mumkin — bu 90% arzon bo'ladi (~5 daqiqa TTL). Faqat system message
- * uzun (>1000 token taxminan) bo'lsa foydali, aks holda kesh cache-write o'zi
- * qimmat.
+ * Provayder oilasiga mos cache_control — providers.ts legacy path uchun.
+ * Mesh path (openrouter.ts transformBody) cache-pipeline.ts dan to'g'ridan-to'g'ri foydalanadi.
  */
 function withPromptCache(model: SovereignModel, messages: ChatMessageInput[]): ChatMessageInput[] {
-  if (!model.providerModel.startsWith("anthropic/")) return messages;
+  // Anthropic + Qwen (alibaba) + Gemini (google) — cache_control
+  const pModel = model.providerModel.toLowerCase();
+  const needsControl =
+    pModel.startsWith("anthropic/") ||
+    pModel.startsWith("qwen/") ||
+    (pModel.startsWith("google/gemini-2") && !pModel.includes(":free"));
+  if (!needsControl) return messages;
+
   const sys = messages.find((m) => m.role === "system");
   if (!sys) return messages;
   const text = typeof sys.content === "string" ? sys.content : textOf(sys.content);
@@ -978,9 +991,18 @@ async function* streamOpenRouter(
     stream,
   };
   if (!direct) {
-    // OpenRouter-specific transforms + fallback pool
+    // OpenRouter-specific transforms + fallback pool + sessiya kaliti
     body.transforms = ["middle-out"];
     body.route = "fallback";
+    // Sessiya kaliti — sticky routing: bir xil provayder tanlansa kesh samarasi oshadi
+    const sysText = (Array.isArray(cached) ? cached : messages)
+      .filter((m) => m.role === "system")
+      .map((m) => (typeof m.content === "string" ? m.content : textOf(m.content)))
+      .join("\n")
+      .slice(0, 200);
+    const sid = sessionKeyForLegacy(sysText, model.providerModel);
+    body.session_id = sid;
+    body.prompt_cache_key = sid;
     if (model.category === "free") {
       body.models = [
         model.providerModel,
